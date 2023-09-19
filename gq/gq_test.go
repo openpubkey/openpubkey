@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -40,9 +39,7 @@ func TestProveVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("gqSig: %s\n", gqSig)
-
-	ok := signerVerifier.Verify(gqSig, identity)
+	ok := signerVerifier.Verify(gqSig, identity, identity)
 	if !ok {
 		t.Fatal("couldn't verify signature we just made")
 	}
