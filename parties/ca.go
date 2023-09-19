@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"openpubkey/pktoken"
-	"openpubkey/util"
 	"os"
 	"path"
 	"time"
@@ -21,6 +19,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/sirupsen/logrus"
+
+	"github.com/bastionzero/openpubkey/pktoken"
+	"github.com/bastionzero/openpubkey/util"
 )
 
 // TODO: make requiredAudience a configuration option

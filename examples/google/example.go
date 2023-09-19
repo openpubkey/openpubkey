@@ -9,13 +9,13 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
-	"openpubkey/parties"
-	"openpubkey/pktoken"
 	"os"
 
 	"github.com/sirupsen/logrus"
-
 	"github.com/zitadel/oidc/v2/pkg/oidc"
+
+	"github.com/bastionzero/openpubkey/parties"
+	"github.com/bastionzero/openpubkey/pktoken"
 )
 
 // TODO: Create nice golang services rather than just using this handler nonsense

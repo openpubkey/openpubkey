@@ -5,11 +5,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"openpubkey/pktoken"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
+
+	"github.com/bastionzero/openpubkey/pktoken"
 )
 
 // output SK
