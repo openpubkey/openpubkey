@@ -7,14 +7,13 @@ import (
 	"github.com/bastionzero/openpubkey/util"
 )
 
-func (pv *proverVerifier) Prove(signingPayload []byte, signature []byte) []byte {
-	n, v, t := pv.n, pv.v, pv.t
-	nBytes, vBytes := pv.nBytes, pv.vBytes
+func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
+	n, v, t := sv.n, sv.v, sv.t
+	nBytes, vBytes := sv.nBytes, sv.vBytes
 
-	x := new(big.Int).SetBytes(signature)
-	Q := new(big.Int).ModInverse(x, n)
+	Q := new(big.Int).SetBytes(private)
 
-	M := signingPayload
+	M := message
 
 	r := randomNumbers(t, nBytes)
 
@@ -44,14 +43,24 @@ func (pv *proverVerifier) Prove(signingPayload []byte, signature []byte) []byte 
 	return encodeProof(R, S)
 }
 
-func (pv *proverVerifier) ProveJWTSignature(jwt []byte) ([]byte, error) {
+func (sv *signerVerifier) SignJWTIdentity(jwt []byte) ([]byte, error) {
 	signingPayload, signature, err := util.SplitDecodeJWTSignature(jwt)
 	if err != nil {
 		return nil, err
 	}
 
-	proof := pv.Prove(signingPayload, signature)
+	private := sv.modInverse(signature)
+
+	proof := sv.Sign(private, signingPayload)
 	return proof, nil
+}
+
+func (sv *signerVerifier) modInverse(b []byte) []byte {
+	x := new(big.Int).SetBytes(b)
+	x.ModInverse(x, sv.n)
+
+	ret := make([]byte, len(b))
+	return x.FillBytes(ret)
 }
 
 func encodeProof(R, S []byte) []byte {

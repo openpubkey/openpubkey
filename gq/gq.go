@@ -8,21 +8,21 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-type Prover interface {
-	Prove(identity []byte, signature []byte) []byte
-	ProveJWTSignature(jwt []byte) ([]byte, error)
+type Signer interface {
+	Sign(private []byte, message []byte) []byte
+	SignJWTIdentity(jwt []byte) ([]byte, error)
 }
 
 type Verifier interface {
 	Verify(proof []byte, identity []byte) bool
 }
 
-type ProverVerifier interface {
-	Prover
+type SignerVerifier interface {
+	Signer
 	Verifier
 }
 
-type proverVerifier struct {
+type signerVerifier struct {
 	n      *big.Int
 	v      *big.Int
 	nBytes int
@@ -32,11 +32,11 @@ type proverVerifier struct {
 	rng io.Reader
 }
 
-func NewProverVerifier(publicKey *rsa.PublicKey, securityParameter int, rng io.Reader) ProverVerifier {
+func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int, rng io.Reader) SignerVerifier {
 	n, v, nBytes, vBytes := parsePublicKey(publicKey)
 	t := securityParameter / (vBytes * 8)
 
-	return &proverVerifier{n, v, nBytes, vBytes, t, rng}
+	return &signerVerifier{n, v, nBytes, vBytes, t, rng}
 }
 
 func parsePublicKey(publicKey *rsa.PublicKey) (n *big.Int, v *big.Int, nBytes int, vBytes int) {

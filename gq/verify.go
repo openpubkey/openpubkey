@@ -8,14 +8,14 @@ import (
 	"github.com/bastionzero/openpubkey/util"
 )
 
-func (pv *proverVerifier) Verify(proof []byte, signingPayload []byte) bool {
-	n, v, t := pv.n, pv.v, pv.t
-	nBytes, vBytes := pv.nBytes, pv.vBytes
+func (sv *signerVerifier) Verify(proof []byte, signingPayload []byte) bool {
+	n, v, t := sv.n, sv.v, sv.t
+	nBytes, vBytes := sv.nBytes, sv.vBytes
 
 	paddedPayload := encodePKCS1v15(nBytes, signingPayload)
 	G := new(big.Int).SetBytes(paddedPayload)
 
-	R, S, err := pv.decodeProof(proof)
+	R, S, err := sv.decodeProof(proof)
 	if err != nil {
 		return false
 	}
@@ -51,14 +51,14 @@ func (pv *proverVerifier) Verify(proof []byte, signingPayload []byte) bool {
 	return slices.Equal(R, Rstar)
 }
 
-func (pv *proverVerifier) decodeProof(s []byte) (R, S []byte, err error) {
+func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {
 	bin, err := util.Base64Decode(s)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rSize := pv.vBytes * pv.t
-	sSize := pv.nBytes * pv.t
+	rSize := sv.vBytes * sv.t
+	sSize := sv.nBytes * sv.t
 
 	if len(bin) != rSize+sSize {
 		return nil, nil, fmt.Errorf("not the correct size")

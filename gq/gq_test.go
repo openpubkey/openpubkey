@@ -29,19 +29,22 @@ func TestProveVerify(t *testing.T) {
 
 	idToken := createOIDCToken(insecureRNG, oidcPrivKey, "test")
 
-	signingPayload, signature, err := util.SplitDecodeJWTSignature(idToken)
+	identity, _, err := util.SplitDecodeJWTSignature(idToken)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	proverVerifier := gq.NewProverVerifier(oidcPubKey, 256, insecureRNG)
-	gqProof := proverVerifier.Prove(signingPayload, signature)
+	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256, insecureRNG)
+	gqSig, err := signerVerifier.SignJWTIdentity(idToken)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	fmt.Printf("gqProof: %s\n", gqProof)
+	fmt.Printf("gqSig: %s\n", gqSig)
 
-	ok := proverVerifier.Verify(gqProof, signingPayload)
+	ok := signerVerifier.Verify(gqSig, identity)
 	if !ok {
-		t.Fatal("couldn't verify proof we just made")
+		t.Fatal("couldn't verify signature we just made")
 	}
 }
 
