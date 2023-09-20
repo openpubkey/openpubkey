@@ -18,11 +18,12 @@ This repo contains the current reference implementation of OpenPubkey. The refer
   - [ ] MFA Cosigner example
   - [ ] Webauthn support
 
-<!-- # How to use this library
+# How to use this library
 
-...
+To interact with OpenPubkey as a signer use the OpkClient struct.
 
-# How it works
+
+<!-- # How it works
 
 ... -->
 
