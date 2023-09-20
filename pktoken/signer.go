@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"openpubkey/util"
 	"os"
 	"path"
 
@@ -17,6 +16,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+
+	"github.com/bastionzero/openpubkey/util"
 )
 
 // variable names with a postfix of Com denotes compact representation

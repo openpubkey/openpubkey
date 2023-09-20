@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"openpubkey/pktoken"
 	"os/exec"
 	"runtime"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	httphelper "github.com/zitadel/oidc/v2/pkg/http"
+
+	"github.com/bastionzero/openpubkey/pktoken"
 )
 
 var (
