@@ -41,20 +41,17 @@ type signerVerifier struct {
 	vBytes int
 	// t is the signature length parameter
 	t int
-
-	rng io.Reader
 }
 
 // NewSignerVerifier creates a SignerVerifier from the RSA public key of the trusted third-party which creates
 // the GQ1 private numbers.
 //
 // The securityParameter parameter is the level of desired security in bits. 256 is recommended.
-// The rng parameter should probably be set to [crypto/rand.Reader].
-func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int, rng io.Reader) SignerVerifier {
+func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) SignerVerifier {
 	n, v, nBytes, vBytes := parsePublicKey(publicKey)
 	t := securityParameter / (vBytes * 8)
 
-	return &signerVerifier{n, v, nBytes, vBytes, t, rng}
+	return &signerVerifier{n, v, nBytes, vBytes, t}
 }
 
 func parsePublicKey(publicKey *rsa.PublicKey) (n *big.Int, v *big.Int, nBytes int, vBytes int) {

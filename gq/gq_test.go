@@ -3,37 +3,33 @@ package gq_test
 import (
 	"bytes"
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/json"
-	"io"
 	"testing"
 	"time"
-
-	insecurerand "math/rand"
 
 	"github.com/bastionzero/openpubkey/gq"
 	"github.com/bastionzero/openpubkey/util"
 )
 
 func TestProveVerify(t *testing.T) {
-	insecureRNG := insecurerand.New(insecurerand.NewSource(1))
-
-	oidcPrivKey, err := rsa.GenerateKey(insecureRNG, 2048)
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		panic(err)
 	}
 
 	oidcPubKey := &oidcPrivKey.PublicKey
 
-	idToken := createOIDCToken(insecureRNG, oidcPrivKey, "test")
+	idToken := createOIDCToken(oidcPrivKey, "test")
 
 	identity, _, err := util.SplitDecodeJWTSignature(idToken)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256, insecureRNG)
+	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
 	gqSig, err := signerVerifier.SignJWTIdentity(idToken)
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +41,7 @@ func TestProveVerify(t *testing.T) {
 	}
 }
 
-func createOIDCToken(rng io.Reader, oidcPrivKey *rsa.PrivateKey, audience string) []byte {
+func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) []byte {
 	oidcHeader := map[string]any{
 		"alg": "RS256",
 		"typ": "JWT",
@@ -73,7 +69,7 @@ func createOIDCToken(rng io.Reader, oidcPrivKey *rsa.PrivateKey, audience string
 	oidcSigningPayload := buf.Bytes()
 
 	hash := sha256.Sum256(oidcSigningPayload)
-	oidcSigRaw, err := rsa.SignPKCS1v15(rng, oidcPrivKey, crypto.SHA256, hash[:])
+	oidcSigRaw, err := rsa.SignPKCS1v15(nil, oidcPrivKey, crypto.SHA256, hash[:])
 	if err != nil {
 		panic(err)
 	}
