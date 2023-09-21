@@ -14,6 +14,12 @@ import (
 	"github.com/bastionzero/openpubkey/util"
 )
 
+const SigTypeHeader = "sig_type"
+const SigTypeOIDC = "oidc"
+const SigTypeGQ = "oidc_gq"
+const SigTypeCIC = "cic"
+const SigTypeCos = "cos"
+
 type JWS struct {
 	Payload    string        `json:"payload"`
 	Signatures []JWSignature `json:"signatures"`
@@ -94,45 +100,54 @@ func FromJWS(jws *JWS) *PKToken {
 	var cic, op, cos JWSignature
 
 	gq := false
+	hasCos := false
 	for _, sig := range jws.Signatures {
-		switch sig.Public["sig_type"] {
-		case "oidc":
+		switch sig.Public[SigTypeHeader] {
+		case SigTypeOIDC:
 			op = sig
-		case "oidc_gq":
+		case SigTypeGQ:
 			op = sig
 			gq = true
-		case "cic":
+		case SigTypeCIC:
 			cic = sig
+		case SigTypeCos:
+			cos = sig
+			hasCos = true
 		}
 	}
 
-	return &PKToken{
+	tok := &PKToken{
 		Payload: []byte(jws.Payload),
 		OpPH:    []byte(op.Protected),
 		OpSig:   []byte(op.Signature),
 		OpSigGQ: gq,
 		CicPH:   []byte(cic.Protected),
 		CicSig:  []byte(cic.Signature),
-		CosPH:   []byte(cos.Protected),
-		CosSig:  []byte(cos.Signature),
 	}
+
+	if hasCos {
+		tok.CosPH = []byte(cos.Protected)
+		tok.CosSig = []byte(cos.Signature)
+	}
+
+	return tok
 }
 
 func (p *PKToken) ToJWS() *JWS {
 	var opSignType string
 	if p.OpSigGQ {
-		opSignType = "oidc_gq"
+		opSignType = SigTypeGQ
 	} else {
-		opSignType = "oidc"
+		opSignType = SigTypeOIDC
 	}
 
 	opHeaders := map[string]any{
-		"sig_type": opSignType,
+		SigTypeHeader: opSignType,
 	}
 
 	signatures := []JWSignature{
 		{
-			Public:    map[string]any{"sig_type": "cic"},
+			Public:    map[string]any{SigTypeHeader: SigTypeCIC},
 			Protected: string(p.CicPH),
 			Signature: string(p.CicSig),
 		},
@@ -145,7 +160,7 @@ func (p *PKToken) ToJWS() *JWS {
 
 	if p.CosPH != nil {
 		signatures = append(signatures, JWSignature{
-			Public:    map[string]any{"sig_type": "cos"},
+			Public:    map[string]any{SigTypeHeader: SigTypeCos},
 			Protected: string(p.CosPH),
 			Signature: string(p.CosSig),
 		})
