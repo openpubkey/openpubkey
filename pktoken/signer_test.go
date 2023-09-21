@@ -16,8 +16,9 @@ var (
 func TestSigner(t *testing.T) {
 
 	alg := "ES256"
+	gq := false
 
-	signer := NewSigner(signerConfigPath, alg)
+	signer := NewSigner(signerConfigPath, alg, gq)
 
 	sigma, err := signer.Sign([]byte("abcdefgh"))
 
