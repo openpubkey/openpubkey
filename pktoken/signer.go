@@ -138,8 +138,11 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 	}
 
 	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicsigb64)
+	if err != nil {
+		return nil, err
+	}
 	if !bytes.Equal(opPayload, cicPayload) {
-		return nil, fmt.Errorf("Both signatures must share the same payload, opPayload=%s,  cicPayload=%s", opPayload, cicPayload)
+		return nil, fmt.Errorf("both signatures must share the same payload, opPayload=%s,  cicPayload=%s", opPayload, cicPayload)
 	}
 	payload := opPayload
 

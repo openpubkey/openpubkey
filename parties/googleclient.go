@@ -3,6 +3,7 @@ package parties
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -13,13 +14,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/sirupsen/logrus"
+	"github.com/zitadel/oidc/v2/pkg/client"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	httphelper "github.com/zitadel/oidc/v2/pkg/http"
 
+	"github.com/bastionzero/openpubkey/gq"
 	"github.com/bastionzero/openpubkey/pktoken"
+	"github.com/bastionzero/openpubkey/util"
 )
 
 var (
@@ -87,9 +92,9 @@ func (g *GoogleOp) RequestTokens(cicHash string, cb TokenCallback) error {
 	return nil
 }
 
-func (g *GoogleOp) VerifyPKToken(pktCom []byte, cosPk *ecdsa.PublicKey) error {
+func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 
-	pkt, err := pktoken.FromCompact(pktCom)
+	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
 		logrus.Fatalf("Error parsing PK Token: %s", err.Error())
 		return err
@@ -114,11 +119,31 @@ func (g *GoogleOp) VerifyPKToken(pktCom []byte, cosPk *ecdsa.PublicKey) error {
 		return err
 	}
 
-	idt := string(pkt.OpJWSCompact())
-	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), idt, googleRP.IDTokenVerifier())
-	if err != nil {
-		logrus.Fatalf("Error verifying OP signature on PK Token (ID Token invalid): %s", err.Error())
-		return err
+	idt := pkt.OpJWSCompact()
+	if pkt.OpSigGQ {
+		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
+		pubKey, err := g.PublicKey(idt)
+		if err != nil {
+			logrus.Fatalf("Failed to get OP public key: %s", err.Error())
+			return err
+		}
+		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
+		signingPayload, signature, err := util.SplitJWT(idt)
+		if err != nil {
+			logrus.Fatalf("Failed to split/decode JWT: %s", err.Error())
+			return err
+		}
+		ok := sv.Verify(signature, signingPayload, signingPayload)
+		if !ok {
+			logrus.Fatal("Error verifying OP GQ signature on PK Token (ID Token invalid)")
+			return err
+		}
+	} else {
+		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
+		if err != nil {
+			logrus.Fatalf("Error verifying OP signature on PK Token (ID Token invalid): %s", err.Error())
+			return err
+		}
 	}
 
 	err = pkt.VerifyCicSig()
@@ -144,6 +169,37 @@ func (g *GoogleOp) VerifyPKToken(pktCom []byte, cosPk *ecdsa.PublicKey) error {
 
 	fmt.Println("All tests have passed PK Token is valid")
 	return nil
+}
+
+func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {
+	j, err := jws.Parse(idt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWS: %w", err)
+	}
+	kid := j.Signatures()[0].ProtectedHeaders().KeyID()
+
+	discConf, err := client.Discover(g.Issuer, http.DefaultClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+	}
+
+	jwks, err := jwk.Fetch(context.TODO(), discConf.JwksURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+
+	key, ok := jwks.LookupKeyID(kid)
+	if !ok {
+		return nil, fmt.Errorf("key isn't in JWKS")
+	}
+
+	pubKey := new(rsa.PublicKey)
+	err = key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return pubKey, err
 }
 
 // https://stackoverflow.com/questions/39320371/how-start-web-server-to-open-page-in-browser-in-golang

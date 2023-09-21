@@ -175,7 +175,7 @@ func main() {
 
 	if command == "login" {
 		opkClientAlg := "ES256"
-		gq := false
+		gq := true
 
 		client := &parties.OpkClient{
 			Op: &parties.GoogleOp{

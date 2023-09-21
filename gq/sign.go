@@ -57,7 +57,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
 }
 
 func (sv *signerVerifier) SignJWTIdentity(jwt []byte) ([]byte, error) {
-	signingPayload, signature, err := util.SplitDecodeJWTSignature(jwt)
+	signingPayload, signature, err := util.SplitDecodeJWT(jwt)
 	if err != nil {
 		return nil, err
 	}

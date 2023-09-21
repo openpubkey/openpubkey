@@ -24,7 +24,7 @@ func TestProveVerify(t *testing.T) {
 
 	idToken := createOIDCToken(oidcPrivKey, "test")
 
-	identity, _, err := util.SplitDecodeJWTSignature(idToken)
+	identity, _, err := util.SplitJWT(idToken)
 	if err != nil {
 		t.Fatal(err)
 	}
