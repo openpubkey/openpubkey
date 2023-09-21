@@ -6,17 +6,28 @@ This repo contains the current reference implementation of OpenPubkey. The refer
 
 ## Remaining Work
 
-- [x] Signing example
+Phase 1:
 - [ ] Common OpenPubkey client struct constructor that supports:
-  - [ ] Github OpenID Provider (OP) with CIC in `aud` claim
-  - [ ] Azure OpenID Provider (OP)
+  - [ ] [Github OpenID Provider (OP) with CIC in `aud` claim](https://github.com/bastionzero/openpubkey/issues/5)
+  - [ ] [Azure OpenID Provider (OP)](https://github.com/bastionzero/openpubkey/issues/6)
   - [x] Google OpenID Provider (OP)
 - [x] GQ Signature Support
   - [x] GQ signer and verifier
-  - [x] GQ JWS Support
-- [ ] MFA Cosigner
-  - [ ] MFA Cosigner example
-  - [ ] Webauthn support
+  - [x] [GQ JWS Support](https://github.com/bastionzero/openpubkey/pull/14)
+- [ ] Examples
+  - [ ] Google OP x509 signing example
+  - [ ] Github Actions signing example
+- [ ] [Cryptography review and remediation](https://github.com/bastionzero/openpubkey/issues/11)
+- [ ] Opensource project must haves
+  - [ ] Github actions to run unittest
+  - [ ] Linter enforcement
+  - [ ] Code of conduct
+  - [ ] Security.md
+  - [ ] Developer.md
+  - [ ] PR template
+
+Phase 2:
+- [ ] Additional Signers (TBD)
 
 # How to use this library
 
