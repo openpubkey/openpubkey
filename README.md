@@ -8,21 +8,22 @@ This repo contains the current reference implementation of OpenPubkey. The refer
 
 - [x] Signing example
 - [ ] Common OpenPubkey client struct constructor that supports:
-  - [ ] Github OpenID Provider (OP) with CIC in `aud` claim 
+  - [ ] Github OpenID Provider (OP) with CIC in `aud` claim
   - [ ] Azure OpenID Provider (OP)
   - [x] Google OpenID Provider (OP)
-- [ ] GQ Signature Support
-  - [ ] GQ signer and verifier
-  - [ ] GQ JWS Support
+- [x] GQ Signature Support
+  - [x] GQ signer and verifier
+  - [x] GQ JWS Support
 - [ ] MFA Cosigner
   - [ ] MFA Cosigner example
   - [ ] Webauthn support
 
-<!-- # How to use this library
+# How to use this library
 
-...
+To interact with OpenPubkey as a signer use the OpkClient struct.
 
-# How it works
+
+<!-- # How it works
 
 ... -->
 

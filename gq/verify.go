@@ -1,9 +1,9 @@
 package gq
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
-	"slices"
 
 	"github.com/bastionzero/openpubkey/util"
 )
@@ -65,7 +65,7 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 	Rstar := hash(t*vBytes, Wstar, M)
 
 	// Stage 4 - accept or reject depending on whether R and R* are identical
-	return slices.Equal(R, Rstar)
+	return bytes.Equal(R, Rstar)
 }
 
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {

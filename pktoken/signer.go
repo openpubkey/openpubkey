@@ -20,17 +20,19 @@ import (
 	"github.com/bastionzero/openpubkey/util"
 )
 
-// variable names with a postfix of Com denotes compact representation
+// Variable names with a postfix of "com" denotes that value is stored as a compact JWT representation (See RFC7519)
+// https://datatracker.ietf.org/doc/html/rfc7519
 
 type Signer struct {
 	Pksk    *ecdsa.PrivateKey
 	alg     string
 	rz      string
 	cfgPath string
+	GqSig   bool
 	PktCom  []byte
 }
 
-func NewSigner(cfgPath string, alg string) *Signer {
+func NewSigner(cfgPath string, alg string, gqSig bool) *Signer {
 	pksk, err := util.GenKeyPair(alg)
 	if err != nil {
 		panic(err)
@@ -41,6 +43,7 @@ func NewSigner(cfgPath string, alg string) *Signer {
 		Pksk:    pksk,
 		alg:     alg,
 		rz:      rz,
+		GqSig:   gqSig,
 		cfgPath: cfgPath,
 	}
 
@@ -135,8 +138,11 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 	}
 
 	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicsigb64)
+	if err != nil {
+		return nil, err
+	}
 	if !bytes.Equal(opPayload, cicPayload) {
-		return nil, fmt.Errorf("Both signatures must share the same payload, opPayload=%s,  cicPayload=%s", opPayload, cicPayload)
+		return nil, fmt.Errorf("both signatures must share the same payload, opPayload=%s,  cicPayload=%s", opPayload, cicPayload)
 	}
 	payload := opPayload
 

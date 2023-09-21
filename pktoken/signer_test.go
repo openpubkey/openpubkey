@@ -14,31 +14,50 @@ var (
 )
 
 func TestSigner(t *testing.T) {
-
 	alg := "ES256"
 
-	signer := NewSigner(signerConfigPath, alg)
-
-	sigma, err := signer.Sign([]byte("abcdefgh"))
-
-	err = signer.Verify(sigma)
-	if err != nil {
-		t.Error(err)
+	testCases := []struct {
+		name string
+		gq   bool
+	}{
+		{name: "without GQ", gq: false},
+		{name: "with GQ", gq: true},
 	}
 
-	msg, err := jws.Parse(sigma)
-	if err != nil {
-		t.Error(err)
-	}
-	if msg == nil {
-		t.Error("Message should not be nil, but is nil")
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			signer := NewSigner(signerConfigPath, alg, tc.gq)
 
-	sigma2, err := signer.Sign([]byte("hgfedcba"))
+			// TODO: test signer.CreatePkToken
 
-	err = signer.Verify(sigma2)
-	if err != nil {
-		t.Error(err)
+			sigma, err := signer.Sign([]byte("abcdefgh"))
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = signer.Verify(sigma)
+			if err != nil {
+				t.Error(err)
+			}
+
+			msg, err := jws.Parse(sigma)
+			if err != nil {
+				t.Error(err)
+			}
+			if msg == nil {
+				t.Error("Message should not be nil, but is nil")
+			}
+
+			sigma2, err := signer.Sign([]byte("hgfedcba"))
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = signer.Verify(sigma2)
+			if err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 

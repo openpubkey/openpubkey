@@ -14,10 +14,28 @@ import (
 	"github.com/bastionzero/openpubkey/util"
 )
 
+const SigTypeHeader = "sig_type"
+const SigTypeOIDC = "oidc"
+const SigTypeGQ = "oidc_gq"
+const SigTypeCIC = "cic"
+const SigTypeCos = "cos"
+
+type JWS struct {
+	Payload    string        `json:"payload"`
+	Signatures []JWSignature `json:"signatures"`
+}
+
+type JWSignature struct {
+	Protected string         `json:"protected"`
+	Public    map[string]any `json:"header"`
+	Signature string         `json:"signature"`
+}
+
 type PKToken struct {
 	Payload []byte
 	OpPH    []byte
 	OpSig   []byte
+	OpSigGQ bool
 	CicPH   []byte
 	CicSig  []byte
 	CosPH   []byte
@@ -49,6 +67,128 @@ func FromCompact(pktCom []byte) (*PKToken, error) {
 	} else {
 		return nil, fmt.Errorf("A valid PK Token should have exactly two or three (protected header, signature pairs), but has %d signatures", len(splitCom))
 	}
+}
+
+func (p *PKToken) ToCompact() []byte {
+	if p.Payload == nil {
+		panic(fmt.Errorf("Payload can not be nil"))
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString(string(p.Payload))
+	buf.WriteByte(':')
+	buf.WriteString(string(p.OpPH))
+	buf.WriteByte(':')
+	buf.WriteString(string(p.OpSig))
+	buf.WriteByte(':')
+	buf.WriteString(string(p.CicPH))
+	buf.WriteByte(':')
+	buf.WriteString(string(p.CicSig))
+
+	if p.CosPH != nil {
+		buf.WriteByte(':')
+		buf.WriteString(string(p.CosPH))
+		buf.WriteByte(':')
+		buf.WriteString(string(p.CosSig))
+	}
+
+	pktCom := buf.Bytes()
+	return pktCom
+}
+
+func FromJWS(jws *JWS) *PKToken {
+	var cic, op, cos JWSignature
+
+	gq := false
+	hasCos := false
+	for _, sig := range jws.Signatures {
+		switch sig.Public[SigTypeHeader] {
+		case SigTypeOIDC:
+			op = sig
+		case SigTypeGQ:
+			op = sig
+			gq = true
+		case SigTypeCIC:
+			cic = sig
+		case SigTypeCos:
+			cos = sig
+			hasCos = true
+		}
+	}
+
+	tok := &PKToken{
+		Payload: []byte(jws.Payload),
+		OpPH:    []byte(op.Protected),
+		OpSig:   []byte(op.Signature),
+		OpSigGQ: gq,
+		CicPH:   []byte(cic.Protected),
+		CicSig:  []byte(cic.Signature),
+	}
+
+	if hasCos {
+		tok.CosPH = []byte(cos.Protected)
+		tok.CosSig = []byte(cos.Signature)
+	}
+
+	return tok
+}
+
+func (p *PKToken) ToJWS() *JWS {
+	var opSignType string
+	if p.OpSigGQ {
+		opSignType = SigTypeGQ
+	} else {
+		opSignType = SigTypeOIDC
+	}
+
+	opHeaders := map[string]any{
+		SigTypeHeader: opSignType,
+	}
+
+	signatures := []JWSignature{
+		{
+			Public:    map[string]any{SigTypeHeader: SigTypeCIC},
+			Protected: string(p.CicPH),
+			Signature: string(p.CicSig),
+		},
+		{
+			Public:    opHeaders,
+			Protected: string(p.OpPH),
+			Signature: string(p.OpSig),
+		},
+	}
+
+	if p.CosPH != nil {
+		signatures = append(signatures, JWSignature{
+			Public:    map[string]any{SigTypeHeader: SigTypeCos},
+			Protected: string(p.CosPH),
+			Signature: string(p.CosSig),
+		})
+	}
+
+	return &JWS{
+		Payload:    string(p.Payload),
+		Signatures: signatures,
+	}
+}
+
+func FromJSON(in []byte) (*PKToken, error) {
+	jws := new(JWS)
+	err := json.Unmarshal(in, jws)
+	if err != nil {
+		return nil, err
+	}
+
+	return FromJWS(jws), nil
+}
+
+func (p *PKToken) ToJSON() ([]byte, error) {
+	jws := p.ToJWS()
+	jwsJSON, err := json.Marshal(jws)
+	if err != nil {
+		return nil, err
+	}
+	return jwsJSON, nil
 }
 
 func (p *PKToken) OpJWSCompact() []byte {
@@ -97,33 +237,6 @@ func (p *PKToken) CosJWSCompact() []byte {
 
 	jwsCom := buf.Bytes()
 	return jwsCom
-}
-
-func (p *PKToken) ToCompact() []byte {
-	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(string(p.Payload))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.OpPH))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.OpSig))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.CicPH))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.CicSig))
-
-	if p.CosPH != nil {
-		buf.WriteByte(':')
-		buf.WriteString(string(p.CosPH))
-		buf.WriteByte(':')
-		buf.WriteString(string(p.CosSig))
-	}
-
-	pktCom := buf.Bytes()
-	return pktCom
 }
 
 func (p *PKToken) GetNonce() ([]byte, error) {

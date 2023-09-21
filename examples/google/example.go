@@ -30,14 +30,16 @@ func GoogleSign() {
 	}
 
 	client := &parties.OpkClient{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Issuer:       issuer,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-		Signer:       signer,
+		Signer: signer,
+		Op: &parties.GoogleOp{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Issuer:       issuer,
+			Scopes:       scopes,
+			RedirURIPort: redirURIPort,
+			CallbackPath: callbackPath,
+			RedirectURI:  redirectURI,
+		},
 	}
 
 	msg, err := os.ReadFile("hunter.txt")
@@ -87,14 +89,16 @@ func GoogleCert() {
 	}
 
 	client := &parties.OpkClient{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Issuer:       issuer,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-		Signer:       signer,
+		Op: &parties.GoogleOp{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Issuer:       issuer,
+			Scopes:       scopes,
+			RedirURIPort: redirURIPort,
+			CallbackPath: callbackPath,
+			RedirectURI:  redirectURI,
+		},
+		Signer: signer,
 	}
 
 	certBytes, err := client.RequestCert()
@@ -171,24 +175,22 @@ func main() {
 
 	if command == "login" {
 		opkClientAlg := "ES256"
+		gq := true
 
 		client := &parties.OpkClient{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Signer:       pktoken.NewSigner(fpClientCfg, opkClientAlg),
-			Issuer:       issuer,
-			Scopes:       scopes,
-			RedirURIPort: redirURIPort,
-			CallbackPath: callbackPath,
-			RedirectURI:  redirectURI,
-			MfaURI:       "http://localhost:3001/mfa-request",
+			Op: &parties.GoogleOp{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				Issuer:       issuer,
+				Scopes:       scopes,
+				RedirURIPort: redirURIPort,
+				CallbackPath: callbackPath,
+				RedirectURI:  redirectURI,
+			},
+			Signer: pktoken.NewSigner(fpClientCfg, opkClientAlg, gq),
 		}
 
-		err := client.OidcAuth()
-		if err != nil {
-			fmt.Printf("Error parsing PK Token: %s\n", err.Error())
-			return
-		}
+		client.OidcAuth()
 	}
 
 	if command == "sign" {
