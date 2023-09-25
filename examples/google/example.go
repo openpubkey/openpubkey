@@ -23,7 +23,7 @@ import (
 type ReceiveIDTHandler func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
 
 func GoogleSign() {
-	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256")
+	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256", false, nil)
 	if err != nil {
 		logrus.Fatalf("Error loading client state: %s", err.Error())
 		return
@@ -82,7 +82,7 @@ func GoogleSign() {
 
 func GoogleCert() {
 
-	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256")
+	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256", false, nil)
 	if err != nil {
 		fmt.Printf("Error loading client state: %s", err.Error())
 		return
@@ -173,50 +173,43 @@ func main() {
 
 	command := os.Args[1]
 
-	if command == "login" {
-		opkClientAlg := "ES256"
-		gq := true
+	switch command {
+	case "login":
+		{
+			opkClientAlg := "ES256"
+			gq := true
 
-		client := &parties.OpkClient{
-			Op: &parties.GoogleOp{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				Issuer:       issuer,
-				Scopes:       scopes,
-				RedirURIPort: redirURIPort,
-				CallbackPath: callbackPath,
-				RedirectURI:  redirectURI,
-			},
-			Signer: pktoken.NewSigner(fpClientCfg, opkClientAlg, gq),
+			client := &parties.OpkClient{
+				Op: &parties.GoogleOp{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					Issuer:       issuer,
+					Scopes:       scopes,
+					RedirURIPort: redirURIPort,
+					CallbackPath: callbackPath,
+					RedirectURI:  redirectURI,
+				},
+				Signer: pktoken.NewSigner(fpClientCfg, opkClientAlg, gq, map[string]any{"extra": "yes"}),
+			}
+
+			client.OidcAuth()
 		}
-
-		client.OidcAuth()
-	}
-
-	if command == "sign" {
+	case "sign":
 		GoogleSign()
-		return
-	}
 
-	if command == "cert" {
+	case "cert":
 		GoogleCert()
-		return
-	}
 
-	if command == "cagen" {
+	case "cagen":
 		CaKeyGen()
-		return
-	}
 
-	if command == "ca" {
+	case "ca":
 		CaServ()
-		return
-	}
 
-	if command == "sss" {
+	case "sss":
 		SigStoreSign()
-		return
-	}
 
-	fmt.Printf("Error! No valid command")
+	default:
+		fmt.Printf("Error! No valid command")
+	}
 }

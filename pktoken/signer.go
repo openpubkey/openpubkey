@@ -1,7 +1,6 @@
 package pktoken
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/base64"
@@ -24,15 +23,16 @@ import (
 // https://datatracker.ietf.org/doc/html/rfc7519
 
 type Signer struct {
-	Pksk    *ecdsa.PrivateKey
-	alg     string
-	rz      string
-	cfgPath string
-	GqSig   bool
-	PktCom  []byte
+	Pksk     *ecdsa.PrivateKey
+	alg      string
+	rz       string
+	cfgPath  string
+	GqSig    bool
+	PktCom   []byte
+	extraCIC map[string]any
 }
 
-func NewSigner(cfgPath string, alg string, gqSig bool) *Signer {
+func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) *Signer {
 	pksk, err := util.GenKeyPair(alg)
 	if err != nil {
 		panic(err)
@@ -40,31 +40,29 @@ func NewSigner(cfgPath string, alg string, gqSig bool) *Signer {
 	rz := GenRZ()
 
 	us := Signer{
-		Pksk:    pksk,
-		alg:     alg,
-		rz:      rz,
-		GqSig:   gqSig,
-		cfgPath: cfgPath,
+		Pksk:     pksk,
+		alg:      alg,
+		rz:       rz,
+		GqSig:    gqSig,
+		cfgPath:  cfgPath,
+		extraCIC: extraCIC,
 	}
 
 	return &us
 }
 
-func LoadSigner(cfgPath string, pktCom []byte, uSkBytes []byte, alg string) (*Signer, error) {
-	pksk, err := util.SecretKeyFromBytes(uSkBytes)
-	if err != nil {
-		return nil, err
-	} else {
-		return &Signer{
-			Pksk:    pksk,
-			alg:     alg,
-			PktCom:  pktCom,
-			cfgPath: cfgPath,
-		}, nil
+func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string, gqSig bool, extraCIC map[string]any) *Signer {
+	return &Signer{
+		Pksk:     uSk,
+		alg:      alg,
+		PktCom:   pktCom,
+		GqSig:    gqSig,
+		cfgPath:  cfgPath,
+		extraCIC: extraCIC,
 	}
 }
 
-func LoadFromFile(cfgPath string, alg string) (*Signer, error) {
+func LoadFromFile(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
 
 	fpPkT := path.Join(cfgPath, "pkt.pub")
 	fpUsK := path.Join(cfgPath, "usk.sk")
@@ -79,7 +77,12 @@ func LoadFromFile(cfgPath string, alg string) (*Signer, error) {
 		return nil, err
 	}
 
-	return LoadSigner(cfgPath, pktCom, uSkBytes, alg)
+	pksk, err := util.SecretKeyFromBytes(uSkBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return LoadSigner(cfgPath, pktCom, pksk, alg, gqSig, extraCIC), nil
 }
 
 func (u *Signer) WriteToFile(pktCom []byte) error {
@@ -111,7 +114,7 @@ func (u *Signer) WriteToFile(pktCom []byte) error {
 
 func (u *Signer) GetNonce() string {
 	upk := u.GetPubKey()
-	return ComputeNonce(u.alg, u.rz, upk)
+	return ComputeNonce(u.alg, u.rz, upk, u.extraCIC)
 }
 
 func (u *Signer) GetSK() *ecdsa.PrivateKey {
@@ -127,24 +130,15 @@ func (s *Signer) GetPubKey() jwk.Key {
 }
 
 func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
-	opPH, opPayload, opSig, err := jws.SplitCompact(idtCom)
+	opPH, payload, opSig, err := jws.SplitCompact(idtCom)
 	if err != nil {
 		return nil, err
 	}
 
-	cicsigb64, err := s.CicSignature(opPayload)
+	cicSig, cicPH, err := s.CicSignature(payload)
 	if err != nil {
 		return nil, err
 	}
-
-	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicsigb64)
-	if err != nil {
-		return nil, err
-	}
-	if !bytes.Equal(opPayload, cicPayload) {
-		return nil, fmt.Errorf("both signatures must share the same payload, opPayload=%s,  cicPayload=%s", opPayload, cicPayload)
-	}
-	payload := opPayload
 
 	return &PKToken{
 		Payload: payload,
@@ -157,22 +151,32 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 	}, nil
 }
 
-func (s *Signer) CicSignature(payload []byte) ([]byte, error) {
+func (s *Signer) CicSignature(payload []byte) ([]byte, []byte, error) {
 	jwkPK := s.GetPubKey()
 	hdrs := jws.NewHeaders()
 	hdrs.Set(`upk`, jwkPK)
 	hdrs.Set(`rz`, s.rz)
 	hdrs.Set(`alg`, s.alg)
+	for k, v := range s.extraCIC {
+		hdrs.Set(k, v)
+	}
 
 	decodePayload, err := base64.RawStdEncoding.DecodeString(string(payload))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	sig, err := jws.Sign(decodePayload, jws.WithKey(jwa.ES256, s.Pksk, jws.WithProtectedHeaders(hdrs)))
+	jwSig, err := jws.Sign(decodePayload, jws.WithKey(jwa.ES256, s.Pksk, jws.WithProtectedHeaders(hdrs)))
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Returns Compact representation of the signature "<payload>.<protected header>.<signatgure>"
-	return sig, err
+	ph, _, sig, err := jws.SplitCompact(jwSig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return sig, ph, nil
 }
 
 func (s *Signer) Sign(payload []byte) ([]byte, error) {
@@ -204,11 +208,14 @@ func GenRZ() string {
 	return rz
 }
 
-func ComputeNonce(alg string, rz string, upk jwk.Key) string {
+func ComputeNonce(alg string, rz string, upk jwk.Key, extraCIC map[string]any) string {
 	m := map[string]interface{}{
 		"alg": alg,
 		"rz":  rz,
 		"upk": upk,
+	}
+	for k, v := range extraCIC {
+		m[k] = v
 	}
 	buf, err := json.Marshal(m)
 	if err != nil {

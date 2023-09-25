@@ -85,7 +85,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string, cb TokenCallback) error
-	VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error
+	VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error)
 	PublicKey(idt []byte) (PublicKey, error)
 }
 

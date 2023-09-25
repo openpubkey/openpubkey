@@ -94,18 +94,16 @@ func (g *GoogleOp) RequestTokens(cicHash string, cb TokenCallback) error {
 	return nil
 }
 
-func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
-
+func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
 	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
 		logrus.Fatalf("Error parsing PK Token: %s", err.Error())
-		return err
+		return nil, err
 	}
 
 	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
 	if err != nil {
-		logrus.Fatalf("Error parsing PK Token: %s", err.Error())
-		return err
+		return nil, err
 	}
 
 	nonce := string(util.B64SHA3_256(cicphJSON))
@@ -116,33 +114,34 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 		pubKey, err := g.PublicKey(idt)
 		if err != nil {
 			logrus.Fatalf("Failed to get OP public key: %s", err.Error())
-			return err
+			return nil, err
 		}
 		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
 		signingPayload, signature, err := util.SplitJWT(idt)
 		if err != nil {
 			logrus.Fatalf("Failed to split/decode JWT: %s", err.Error())
-			return err
+			return nil, err
 		}
 		ok := sv.Verify(signature, signingPayload, signingPayload)
 		if !ok {
 			logrus.Fatal("Error verifying OP GQ signature on PK Token (ID Token invalid)")
-			return err
+			return nil, err
 		}
 
 		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
 		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
 		if err != nil {
 			logrus.Fatalf("Failed to decode header: %s", err.Error())
-			return err
+			return nil, err
 		}
 
 		var payload map[string]any
 		json.Unmarshal(payloadJSON, &payload)
 		if payload["nonce"] != nonce {
 			logrus.Fatalf("Nonce doesn't match")
-			return fmt.Errorf("nonce doesn't match")
+			return nil, fmt.Errorf("nonce doesn't match")
 		}
+
 	} else {
 		options := []rp.Option{
 			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return nonce })),
@@ -154,20 +153,20 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 
 		if err != nil {
 			logrus.Fatalf("Failed to create RP to verify token: %s", err.Error())
-			return err
+			return nil, err
 		}
 
 		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
 		if err != nil {
 			logrus.Fatalf("Error verifying OP signature on PK Token (ID Token invalid): %s", err.Error())
-			return err
+			return nil, err
 		}
 	}
 
 	err = pkt.VerifyCicSig()
 	if err != nil {
 		logrus.Fatalf("Error verifying CIC signature on PK Token: %s", err.Error())
-		return err
+		return nil, err
 	}
 
 	// Skip Cosigner signature verification if no cosigner pubkey is supplied
@@ -175,18 +174,26 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 		cosPkJwk, err := jwk.FromRaw(cosPk)
 		if err != nil {
 			logrus.Fatalf("Error verifying CIC signature on PK Token: %s", err.Error())
-			return err
+			return nil, err
 		}
 
 		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
 		if err != nil {
 			logrus.Fatalf("Error verify cosigner signature on PK Token: %s", err.Error())
-			return err
+			return nil, err
 		}
 	}
 
 	fmt.Println("All tests have passed PK Token is valid")
-	return nil
+
+	cicPH := make(map[string]any)
+	err = json.Unmarshal(cicphJSON, &cicPH)
+	if err != nil {
+		logrus.Fatalf("Error unmarshalling CIC: %s", err.Error())
+		return nil, err
+	}
+
+	return cicPH, nil
 }
 
 func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {
