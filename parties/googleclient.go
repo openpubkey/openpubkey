@@ -1,9 +1,11 @@
 package parties
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -100,24 +102,13 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 		return err
 	}
 
-	nonce, err := pkt.GetNonce()
+	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
 	if err != nil {
 		logrus.Fatalf("Error parsing PK Token: %s", err.Error())
 		return err
 	}
 
-	options := []rp.Option{
-		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return string(nonce) })),
-	}
-
-	googleRP, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
-		options...)
-
-	if err != nil {
-		logrus.Fatalf("Failed to create RP to verify token: %s", err.Error())
-		return err
-	}
+	nonce := string(util.B64SHA3_256(cicphJSON))
 
 	idt := pkt.OpJWSCompact()
 	if pkt.OpSigGQ {
@@ -138,7 +129,34 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) error {
 			logrus.Fatal("Error verifying OP GQ signature on PK Token (ID Token invalid)")
 			return err
 		}
+
+		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
+		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+		if err != nil {
+			logrus.Fatalf("Failed to decode header: %s", err.Error())
+			return err
+		}
+
+		var payload map[string]any
+		json.Unmarshal(payloadJSON, &payload)
+		if payload["nonce"] != nonce {
+			logrus.Fatalf("Nonce doesn't match")
+			return fmt.Errorf("nonce doesn't match")
+		}
 	} else {
+		options := []rp.Option{
+			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return nonce })),
+		}
+
+		googleRP, err := rp.NewRelyingPartyOIDC(
+			g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
+			options...)
+
+		if err != nil {
+			logrus.Fatalf("Failed to create RP to verify token: %s", err.Error())
+			return err
+		}
+
 		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
 		if err != nil {
 			logrus.Fatalf("Error verifying OP signature on PK Token (ID Token invalid): %s", err.Error())
