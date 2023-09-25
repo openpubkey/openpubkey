@@ -44,7 +44,7 @@ type GoogleOp struct {
 	server       *http.Server
 }
 
-func (g *GoogleOp) RequestTokens(cicHash string, cb TokenCallback) error {
+func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -66,15 +66,19 @@ func (g *GoogleOp) RequestTokens(cicHash string, cb TokenCallback) error {
 		return uuid.New().String()
 	}
 
+	ch := make(chan []byte)
+	chErr := make(chan error)
+
 	http.Handle("/login", rp.AuthURLHandler(state, provider, rp.WithURLParam("nonce", cicHash)))
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			chErr <- err
 			return
 		}
-		cb(tokens)
 
+		ch <- []byte(tokens.IDToken)
 		w.Write([]byte("You may now close this window"))
 	}
 
@@ -89,9 +93,22 @@ func (g *GoogleOp) RequestTokens(cicHash string, cb TokenCallback) error {
 	logrus.Info("press ctrl+c to stop")
 	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
 	openUrl(earl)
-	logrus.Fatal(g.server.ListenAndServe())
 
-	return nil
+	go func() {
+		err := g.server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Fatal(err)
+		}
+	}()
+
+	defer g.server.Shutdown(context.TODO())
+
+	select {
+	case err := <-chErr:
+		return nil, err
+	case token := <-ch:
+		return token, nil
+	}
 }
 
 func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {

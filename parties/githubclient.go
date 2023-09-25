@@ -7,9 +7,9 @@ import (
 type GithubOp struct {
 }
 
-func (h *GithubOp) RequestTokens(cicHash string, cb TokenCallback) error {
+func (h *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	// TODO: Add github action call here
-	return nil
+	return nil, nil
 }
 
 func (h *GithubOp) VerifyPKToken(pktCom []byte, cosPk *ecdsa.PublicKey) error {

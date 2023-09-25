@@ -30,50 +30,56 @@ type OpkClient struct {
 	MFACosigner MFACos
 }
 
-func (o *OpkClient) OidcAuth() {
+func (o *OpkClient) OidcAuth() ([]byte, error) {
 	nonce := o.Signer.GetNonce()
-	receiveIDTHandler := func(tokens *oidc.Tokens[*oidc.IDTokenClaims]) {
-		idt := []byte(tokens.IDToken)
-		pkt, err := o.Signer.CreatePkToken(idt)
-		if err != nil {
-			logrus.Fatalf("Error creating PK Token: %s", err.Error())
-			return
-		}
-
-		if o.Signer.GqSig {
-			opKey, err := o.Op.PublicKey(idt)
-			if err != nil {
-				logrus.Fatalf("Error getting OP public key: %s", err.Error())
-				return
-			}
-			rsaPubKey := opKey.(*rsa.PublicKey)
-
-			sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-			gqSig, err := sv.SignJWTIdentity(idt)
-			if err != nil {
-				logrus.Fatalf("Error creating GQ signature: %s", err.Error())
-				return
-			}
-
-			pkt.OpSig = gqSig
-			pkt.OpSigGQ = true
-			// TODO: make sure old value of OpSig is fully gone from memory
-		}
-
-		pktJSON, err := pkt.ToJSON()
-		if err != nil {
-			logrus.Fatalf("Error serializing PK Token: %s", err.Error())
-			return
-		}
-		fmt.Printf("PKT=%s\n", pktJSON)
-		o.Op.VerifyPKToken(pktJSON, nil)
-		err = o.Signer.WriteToFile(pktJSON)
-		if err != nil {
-			logrus.Fatalf("Error creating PK Token: %s", err.Error())
-			return
-		}
+	idt, err := o.Op.RequestTokens(nonce)
+	if err != nil {
+		logrus.Fatalf("Error creating PK Token: %s", err.Error())
+		return nil, err
 	}
-	o.Op.RequestTokens(nonce, receiveIDTHandler)
+	pkt, err := o.Signer.CreatePkToken(idt)
+	if err != nil {
+		logrus.Fatalf("Error creating PK Token: %s", err.Error())
+		return nil, err
+	}
+
+	if o.Signer.GqSig {
+		opKey, err := o.Op.PublicKey(idt)
+		if err != nil {
+			logrus.Fatalf("Error getting OP public key: %s", err.Error())
+			return nil, err
+		}
+		rsaPubKey := opKey.(*rsa.PublicKey)
+
+		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
+		gqSig, err := sv.SignJWTIdentity(idt)
+		if err != nil {
+			logrus.Fatalf("Error creating GQ signature: %s", err.Error())
+			return nil, err
+		}
+
+		pkt.OpSig = gqSig
+		pkt.OpSigGQ = true
+		// TODO: make sure old value of OpSig is fully gone from memory
+	}
+
+	pktJSON, err := pkt.ToJSON()
+	if err != nil {
+		logrus.Fatalf("Error serializing PK Token: %s", err.Error())
+		return nil, err
+	}
+	fmt.Printf("PKT=%s\n", pktJSON)
+	_, err = o.Op.VerifyPKToken(pktJSON, nil)
+	if err != nil {
+		logrus.Fatalf("Error verifying PK Token: %s", err.Error())
+		return nil, err
+	}
+	err = o.Signer.WriteToFile(pktJSON)
+	if err != nil {
+		logrus.Fatalf("Error writing PK Token: %s", err.Error())
+		return nil, err
+	}
+	return idt, nil
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
@@ -84,7 +90,7 @@ type PublicKey interface {
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
-	RequestTokens(cicHash string, cb TokenCallback) error
+	RequestTokens(cicHash string) ([]byte, error)
 	VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error)
 	PublicKey(idt []byte) (PublicKey, error)
 }
