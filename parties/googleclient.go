@@ -59,7 +59,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
-		logrus.Fatalf("error creating provider %s", err.Error())
+		return nil, fmt.Errorf("error creating provider %w", err)
 	}
 
 	state := func() string {
@@ -97,7 +97,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	go func() {
 		err := g.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			logrus.Fatal(err)
+			logrus.Error(err)
 		}
 	}()
 
@@ -114,8 +114,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
 	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
-		logrus.Fatalf("Error parsing PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error parsing PK Token: %w", err)
 	}
 
 	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
@@ -130,32 +129,27 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := g.PublicKey(idt)
 		if err != nil {
-			logrus.Fatalf("Failed to get OP public key: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("failed to get OP public key: %w", err)
 		}
 		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
 		signingPayload, signature, err := util.SplitJWT(idt)
 		if err != nil {
-			logrus.Fatalf("Failed to split/decode JWT: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("failed to split/decode JWT: %w", err)
 		}
 		ok := sv.Verify(signature, signingPayload, signingPayload)
 		if !ok {
-			logrus.Fatal("Error verifying OP GQ signature on PK Token (ID Token invalid)")
-			return nil, err
+			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid): %w", err)
 		}
 
 		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
 		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
 		if err != nil {
-			logrus.Fatalf("Failed to decode header: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("failed to decode header: %w", err)
 		}
 
 		var payload map[string]any
 		json.Unmarshal(payloadJSON, &payload)
 		if payload["nonce"] != nonce {
-			logrus.Fatalf("Nonce doesn't match")
 			return nil, fmt.Errorf("nonce doesn't match")
 		}
 
@@ -169,35 +163,30 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 			options...)
 
 		if err != nil {
-			logrus.Fatalf("Failed to create RP to verify token: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 		}
 
 		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
 		if err != nil {
-			logrus.Fatalf("Error verifying OP signature on PK Token (ID Token invalid): %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
 		}
 	}
 
 	err = pkt.VerifyCicSig()
 	if err != nil {
-		logrus.Fatalf("Error verifying CIC signature on PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
 	// Skip Cosigner signature verification if no cosigner pubkey is supplied
 	if cosPk != nil {
 		cosPkJwk, err := jwk.FromRaw(cosPk)
 		if err != nil {
-			logrus.Fatalf("Error verifying CIC signature on PK Token: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 		}
 
 		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
 		if err != nil {
-			logrus.Fatalf("Error verify cosigner signature on PK Token: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
 		}
 	}
 
@@ -206,8 +195,7 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 	cicPH := make(map[string]any)
 	err = json.Unmarshal(cicphJSON, &cicPH)
 	if err != nil {
-		logrus.Fatalf("Error unmarshalling CIC: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error unmarshalling CIC: %w", err)
 	}
 
 	return cicPH, nil
