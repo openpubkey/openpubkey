@@ -44,7 +44,10 @@ func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) 
 	if err != nil {
 		return nil, err
 	}
-	rz := GenRZ()
+	rz, err := GenRZ()
+	if err != nil {
+		return nil, err
+	}
 
 	us := Signer{
 		Pksk:     pksk,
@@ -138,8 +141,11 @@ func (u *Signer) WriteToFile(pktCom []byte) error {
 	return nil
 }
 
-func (u *Signer) GetNonce() string {
-	upk := u.GetPubKey()
+func (u *Signer) GetNonce() (string, error) {
+	upk, err := u.GetPubKey()
+	if err != nil {
+		return "", err
+	}
 	return ComputeNonce(u.alg, u.rz, upk, u.extraCIC)
 }
 
@@ -147,12 +153,8 @@ func (u *Signer) GetSK() *ecdsa.PrivateKey {
 	return u.Pksk
 }
 
-func (s *Signer) GetPubKey() jwk.Key {
-	upk, err := jwk.PublicKeyOf(s.Pksk)
-	if err != nil {
-		panic(err)
-	}
-	return upk
+func (s *Signer) GetPubKey() (jwk.Key, error) {
+	return jwk.PublicKeyOf(s.Pksk)
 }
 
 func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
@@ -178,7 +180,10 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 }
 
 func (s *Signer) CicSignature(payload []byte) ([]byte, []byte, error) {
-	jwkPK := s.GetPubKey()
+	jwkPK, err := s.GetPubKey()
+	if err != nil {
+		return nil, nil, err
+	}
 	hdrs := jws.NewHeaders()
 	hdrs.Set(`upk`, jwkPK)
 	hdrs.Set(`rz`, s.rz)
@@ -206,7 +211,10 @@ func (s *Signer) CicSignature(payload []byte) ([]byte, []byte, error) {
 }
 
 func (s *Signer) Sign(payload []byte) ([]byte, error) {
-	jwkPK := s.GetPubKey()
+	jwkPK, err := s.GetPubKey()
+	if err != nil {
+		return nil, err
+	}
 	hdrs := jws.NewHeaders()
 	hdrs.Set(`jwk`, jwkPK)
 
@@ -219,22 +227,19 @@ func (s *Signer) Verify(sigma []byte) error {
 	return err
 }
 
-func GenRZ() string {
+func GenRZ() (string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)
-	n, err := rand.Read(rBytes)
+	_, err := rand.Read(rBytes)
 	if err != nil {
-		panic(err)
-	}
-	if n != bits/8 {
-		panic(fmt.Errorf("Expected to receive 32 bytes of randomness, but got %d bytes instead!", n))
+		return "", err
 	}
 
 	rz := hex.EncodeToString(rBytes)
-	return rz
+	return rz, nil
 }
 
-func ComputeNonce(alg string, rz string, upk jwk.Key, extraCIC map[string]any) string {
+func ComputeNonce(alg string, rz string, upk jwk.Key, extraCIC map[string]any) (string, error) {
 	m := map[string]interface{}{
 		"alg": alg,
 		"rz":  rz,
@@ -245,7 +250,7 @@ func ComputeNonce(alg string, rz string, upk jwk.Key, extraCIC map[string]any) s
 	}
 	buf, err := json.Marshal(m)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return string(util.B64SHA3_256(buf))
+	return string(util.B64SHA3_256(buf)), nil
 }

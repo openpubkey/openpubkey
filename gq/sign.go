@@ -10,7 +10,7 @@ import (
 // Sign creates a GQ1 signature over the given message with the given GQ1 private number.
 //
 // Comments throughout refer to stages as specified in the ISO/IEC 14888-2 standard.
-func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
+func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	n, v, t := sv.n, sv.v, sv.t
 	nBytes, vBytes := sv.nBytes, sv.vBytes
 
@@ -18,7 +18,10 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
 	M := message
 
 	// Stage 1 - select t numbers, each consisting of nBytes random bytes
-	r := randomNumbers(t, nBytes)
+	r, err := randomNumbers(t, nBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	// Stage 2 - calculate test number W
 	// for i from 1 to t, compute W_i <- r_i^v mod n
@@ -32,7 +35,10 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
 
 	// Stage 3 - calculate question number R
 	// hash W and M and take first t*vBytes bytes as R
-	R := hash(t*vBytes, W, M)
+	R, err := hash(t*vBytes, W, M)
+	if err != nil {
+		return nil, err
+	}
 
 	// split R into t numbers each consisting of vBytes bytes
 	Rs := make([]*big.Int, t)
@@ -53,7 +59,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) []byte {
 	}
 
 	// proof is combination of R and S
-	return encodeProof(R, S)
+	return encodeProof(R, S), nil
 }
 
 func (sv *signerVerifier) SignJWTIdentity(jwt []byte) ([]byte, error) {
@@ -65,7 +71,10 @@ func (sv *signerVerifier) SignJWTIdentity(jwt []byte) ([]byte, error) {
 	// GQ1 private number (Q) is inverse of RSA signature mod n
 	private := sv.modInverse(signature)
 
-	proof := sv.Sign(private, signingPayload)
+	proof, err := sv.Sign(private, signingPayload)
+	if err != nil {
+		return nil, err
+	}
 	return proof, nil
 }
 
@@ -86,13 +95,16 @@ func encodeProof(R, S []byte) []byte {
 	return util.Base64Encode(bin)
 }
 
-func randomNumbers(t int, nBytes int) []*big.Int {
+func randomNumbers(t int, nBytes int) ([]*big.Int, error) {
 	ys := make([]*big.Int, t)
 
 	for i := 0; i < t; i++ {
-		bytes := randomBytes(rand.Reader, nBytes)
+		bytes, err := randomBytes(rand.Reader, nBytes)
+		if err != nil {
+			return nil, err
+		}
 		ys[i] = new(big.Int).SetBytes(bytes)
 	}
 
-	return ys
+	return ys, nil
 }

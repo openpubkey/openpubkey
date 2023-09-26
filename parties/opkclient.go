@@ -31,7 +31,10 @@ type OpkClient struct {
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	nonce := o.Signer.GetNonce()
+	nonce, err := o.Signer.GetNonce()
+	if err != nil {
+		return nil, err
+	}
 	idt, err := o.Op.RequestTokens(nonce)
 	if err != nil {
 		logrus.Fatalf("Error creating PK Token: %s", err.Error())

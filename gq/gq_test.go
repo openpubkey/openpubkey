@@ -17,12 +17,12 @@ import (
 func TestProveVerify(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	oidcPubKey := &oidcPrivKey.PublicKey
 
-	idToken := createOIDCToken(oidcPrivKey, "test")
+	idToken := createOIDCToken(t, oidcPrivKey, "test")
 
 	identity, _, err := util.SplitJWT(idToken)
 	if err != nil {
@@ -41,7 +41,7 @@ func TestProveVerify(t *testing.T) {
 	}
 }
 
-func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) []byte {
+func createOIDCToken(t *testing.T, oidcPrivKey *rsa.PrivateKey, audience string) []byte {
 	oidcHeader := map[string]any{
 		"alg": "RS256",
 		"typ": "JWT",
@@ -55,11 +55,11 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) []byte {
 
 	oidcHeaderJSON, err := json.Marshal(oidcHeader)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	oidcPayloadJSON, err := json.Marshal(oidcPayload)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	var buf bytes.Buffer
@@ -71,7 +71,7 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) []byte {
 	hash := sha256.Sum256(oidcSigningPayload)
 	oidcSigRaw, err := rsa.SignPKCS1v15(nil, oidcPrivKey, crypto.SHA256, hash[:])
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	oidcSig := util.Base64EncodeForJWT(oidcSigRaw)

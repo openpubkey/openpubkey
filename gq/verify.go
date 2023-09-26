@@ -62,7 +62,12 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 
 	// Stage 3 - recalculate question number R*
 	// hash W* and M and take first t*vBytes bytes as R*
-	Rstar := hash(t*vBytes, Wstar, M)
+	Rstar, err := hash(t*vBytes, Wstar, M)
+	if err != nil {
+		// TODO: this can only happen if there's some error reading /dev/urandom or something
+		// so should we return the proper error?
+		return false
+	}
 
 	// Stage 4 - accept or reject depending on whether R and R* are identical
 	return bytes.Equal(R, Rstar)
