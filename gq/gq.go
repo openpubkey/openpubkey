@@ -11,7 +11,7 @@ import (
 // Signer allows for creating GQ1 signatures messages.
 type Signer interface {
 	// Sign creates a GQ1 signature over the given message with the given GQ1 private number.
-	Sign(private []byte, message []byte) []byte
+	Sign(private []byte, message []byte) ([]byte, error)
 	// SignJWTIdentity creates a GQ1 signature over the JWT token's header/payload with a GQ1 private number derived from the JWT signature.
 	//
 	// This works because a GQ1 private number can be calculated as the inverse mod n of an RSA signature, where n is the public RSA modulus.
@@ -67,7 +67,7 @@ func bytesForBits(bits int) int {
 	return (bits + 7) / 8
 }
 
-func hash(byteCount int, data ...[]byte) []byte {
+func hash(byteCount int, data ...[]byte) ([]byte, error) {
 	rng := sha3.NewShake256()
 	for _, d := range data {
 		rng.Write(d)
@@ -76,13 +76,13 @@ func hash(byteCount int, data ...[]byte) []byte {
 	return randomBytes(rng, byteCount)
 }
 
-func randomBytes(rng io.Reader, byteCount int) []byte {
+func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	bytes := make([]byte, byteCount)
 
 	_, err := io.ReadFull(rng, bytes)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return bytes
+	return bytes, nil
 }

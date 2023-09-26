@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/bastionzero/openpubkey/gq"
@@ -31,31 +30,30 @@ type OpkClient struct {
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	nonce := o.Signer.GetNonce()
+	nonce, err := o.Signer.GetNonce()
+	if err != nil {
+		return nil, fmt.Errorf("error getting nonce: %w", err)
+	}
 	idt, err := o.Op.RequestTokens(nonce)
 	if err != nil {
-		logrus.Fatalf("Error creating PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 	pkt, err := o.Signer.CreatePkToken(idt)
 	if err != nil {
-		logrus.Fatalf("Error creating PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
 	if o.Signer.GqSig {
 		opKey, err := o.Op.PublicKey(idt)
 		if err != nil {
-			logrus.Fatalf("Error getting OP public key: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("error getting OP public key: %w", err)
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
 		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
 		gqSig, err := sv.SignJWTIdentity(idt)
 		if err != nil {
-			logrus.Fatalf("Error creating GQ signature: %s", err.Error())
-			return nil, err
+			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
 
 		pkt.OpSig = gqSig
@@ -65,19 +63,16 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 
 	pktJSON, err := pkt.ToJSON()
 	if err != nil {
-		logrus.Fatalf("Error serializing PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
 	fmt.Printf("PKT=%s\n", pktJSON)
 	_, err = o.Op.VerifyPKToken(pktJSON, nil)
 	if err != nil {
-		logrus.Fatalf("Error verifying PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 	err = o.Signer.WriteToFile(pktJSON)
 	if err != nil {
-		logrus.Fatalf("Error writing PK Token: %s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("error writing PK Token: %w", err)
 	}
 	return idt, nil
 }
