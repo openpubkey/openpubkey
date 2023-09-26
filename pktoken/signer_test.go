@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/bastionzero/openpubkey/util"
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
@@ -26,7 +27,10 @@ func TestSigner(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			signer := NewSigner(signerConfigPath, alg, tc.gq)
+			signer, err := NewSigner(signerConfigPath, alg, tc.gq, nil)
+			if err != nil {
+				t.Error(err)
+			}
 
 			// TODO: test signer.CreatePkToken
 
@@ -70,10 +74,14 @@ func TestSignerReadWrite(t *testing.T) {
 		"hfOsMCULsLBtsk8YhPe6e5Cl4oNKqfDrjA==\n" +
 		"-----END PRIVATE KEY-----\n")
 
-	signer, err := LoadSigner(signerConfigPath, pktComTest, pkskTest, "ES256")
+	pksk, err := util.SecretKeyFromBytes(pkskTest)
 	if err != nil {
-		t.Errorf("Failed to load sign from test values")
-		return
+		t.Fatal(err)
+	}
+
+	signer, err := LoadSigner(signerConfigPath, pktComTest, pksk, "ES256", false, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	hashHex, _ := hex.DecodeString("1acdf4f17b921141300a225d9ca41c618890a4d3fff1ec39a7009c31dbb4ea04")
