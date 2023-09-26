@@ -179,6 +179,11 @@ func main() {
 			opkClientAlg := "ES256"
 			gq := true
 
+			signer, err := pktoken.NewSigner(fpClientCfg, opkClientAlg, gq, map[string]any{"extra": "yes"})
+			if err != nil {
+				panic(err)
+			}
+
 			client := &parties.OpkClient{
 				Op: &parties.GoogleOp{
 					ClientID:     clientID,
@@ -189,7 +194,7 @@ func main() {
 					CallbackPath: callbackPath,
 					RedirectURI:  redirectURI,
 				},
-				Signer: pktoken.NewSigner(fpClientCfg, opkClientAlg, gq, map[string]any{"extra": "yes"}),
+				Signer: signer,
 			}
 
 			client.OidcAuth()

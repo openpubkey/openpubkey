@@ -22,6 +22,8 @@ import (
 // Variable names with a postfix of "com" denotes that value is stored as a compact JWT representation (See RFC7519)
 // https://datatracker.ietf.org/doc/html/rfc7519
 
+var reservedCICClaims = []string{"rz", "upk", "alg"}
+
 type Signer struct {
 	Pksk     *ecdsa.PrivateKey
 	alg      string
@@ -32,10 +34,15 @@ type Signer struct {
 	extraCIC map[string]any
 }
 
-func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) *Signer {
+func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
+	err := checkExtraCIC(extraCIC)
+	if err != nil {
+		return nil, err
+	}
+
 	pksk, err := util.GenKeyPair(alg)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	rz := GenRZ()
 
@@ -48,10 +55,15 @@ func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) 
 		extraCIC: extraCIC,
 	}
 
-	return &us
+	return &us, nil
 }
 
-func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string, gqSig bool, extraCIC map[string]any) *Signer {
+func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
+	err := checkExtraCIC(extraCIC)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Signer{
 		Pksk:     uSk,
 		alg:      alg,
@@ -59,10 +71,14 @@ func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string
 		GqSig:    gqSig,
 		cfgPath:  cfgPath,
 		extraCIC: extraCIC,
-	}
+	}, nil
 }
 
 func LoadFromFile(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
+	err := checkExtraCIC(extraCIC)
+	if err != nil {
+		return nil, err
+	}
 
 	fpPkT := path.Join(cfgPath, "pkt.pub")
 	fpUsK := path.Join(cfgPath, "usk.sk")
@@ -82,7 +98,17 @@ func LoadFromFile(cfgPath string, alg string, gqSig bool, extraCIC map[string]an
 		return nil, err
 	}
 
-	return LoadSigner(cfgPath, pktCom, pksk, alg, gqSig, extraCIC), nil
+	return LoadSigner(cfgPath, pktCom, pksk, alg, gqSig, extraCIC)
+}
+
+func checkExtraCIC(extraCIC map[string]any) error {
+	for _, reserved := range reservedCICClaims {
+		if _, ok := extraCIC[reserved]; ok {
+			return fmt.Errorf("reserved claim %q passed in extraCIC", reserved)
+		}
+	}
+
+	return nil
 }
 
 func (u *Signer) WriteToFile(pktCom []byte) error {

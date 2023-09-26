@@ -27,7 +27,10 @@ func TestSigner(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			signer := NewSigner(signerConfigPath, alg, tc.gq, nil)
+			signer, err := NewSigner(signerConfigPath, alg, tc.gq, nil)
+			if err != nil {
+				t.Error(err)
+			}
 
 			// TODO: test signer.CreatePkToken
 
@@ -76,7 +79,10 @@ func TestSignerReadWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signer := LoadSigner(signerConfigPath, pktComTest, pksk, "ES256", false, nil)
+	signer, err := LoadSigner(signerConfigPath, pktComTest, pksk, "ES256", false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	hashHex, _ := hex.DecodeString("1acdf4f17b921141300a225d9ca41c618890a4d3fff1ec39a7009c31dbb4ea04")
 	_, err = signer.Pksk.Sign(rand.Reader, hashHex, crypto.SHA256)
