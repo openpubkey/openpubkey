@@ -70,11 +70,7 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
-	err = o.Signer.WriteToFile(pktJSON)
-	if err != nil {
-		return nil, fmt.Errorf("error writing PK Token: %w", err)
-	}
-	return idt, nil
+	return pktJSON, nil
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
