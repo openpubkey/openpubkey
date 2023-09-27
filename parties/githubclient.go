@@ -30,7 +30,7 @@ type GithubOp struct {
 	tokenRequestAuthToken string
 }
 
-var _ OpenIdProvider = &GithubOp{}
+var _ OpenIdProvider = (*GithubOp)(nil)
 
 func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	tokenURL, err := getEnvVar("ACTIONS_ID_TOKEN_REQUEST_URL")

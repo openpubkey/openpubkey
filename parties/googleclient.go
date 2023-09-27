@@ -44,7 +44,7 @@ type GoogleOp struct {
 	server       *http.Server
 }
 
-var _ OpenIdProvider = &GoogleOp{}
+var _ OpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	cookieHandler :=
