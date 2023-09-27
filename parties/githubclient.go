@@ -166,7 +166,7 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		return nil, err
 	}
 
-	nonce := string(util.B64SHA3_256(cicphJSON))
+	expectedAud := string(util.B64SHA3_256(cicphJSON))
 
 	idt := pkt.OpJWSCompact()
 
@@ -192,19 +192,20 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
 		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode header")
+			return nil, fmt.Errorf("failed to decode payload")
 		}
 
 		var payload map[string]any
 		json.Unmarshal(payloadJSON, &payload)
-		if payload["aud"] != nonce {
-			return nil, fmt.Errorf("nonce doesn't match, got %q, expected %q", payload["aud"], nonce)
+		aud := payload["aud"]
+		if aud != expectedAud {
+			return nil, fmt.Errorf("aud doesn't match, got %q, expected %q", aud, expectedAud)
 		}
 
 	} else {
 		// TODO: check this is correct
 		// I wonder if we actually want to support this branch (non-GQ) at all?
-		_, err = jwt.Parse(idt, jwt.WithAudience(nonce), jwt.WithIssuer(githubIssuer), jwt.WithAcceptableSkew(5*time.Second), jwt.WithKey(jwa.RS256, rsaPubKey))
+		_, err = jwt.Parse(idt, jwt.WithAudience(expectedAud), jwt.WithIssuer(githubIssuer), jwt.WithAcceptableSkew(5*time.Second), jwt.WithKey(jwa.RS256, rsaPubKey))
 		if err != nil {
 			return nil, fmt.Errorf("failed to verify token: %w", err)
 		}
