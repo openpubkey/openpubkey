@@ -196,7 +196,10 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		}
 
 		var payload map[string]any
-		json.Unmarshal(payloadJSON, &payload)
+		err = json.Unmarshal(payloadJSON, &payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal payload")
+		}
 		aud := payload["aud"]
 		if aud != expectedAud {
 			return nil, fmt.Errorf("aud doesn't match, got %q, expected %q", aud, expectedAud)
