@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"time"
 
 	"github.com/bastionzero/openpubkey/gq"
 	"github.com/bastionzero/openpubkey/pktoken"
@@ -19,7 +18,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/zitadel/oidc/v2/pkg/client"
 )
 
@@ -161,6 +159,10 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		return nil, fmt.Errorf("error parsing PK Token: %w", err)
 	}
 
+	if !pkt.OpSigGQ {
+		return nil, fmt.Errorf("non-GQ signatures not supported for github")
+	}
+
 	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
 	if err != nil {
 		return nil, err
@@ -178,40 +180,30 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 
 	rsaPubKey := pubKey.(*rsa.PublicKey)
 
-	if pkt.OpSigGQ {
-		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-		signingPayload, signature, err := util.SplitJWT(idt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to split/decode JWT: %w", err)
-		}
-		ok := sv.Verify(signature, signingPayload, signingPayload)
-		if !ok {
-			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
-		}
+	sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
+	signingPayload, signature, err := util.SplitJWT(idt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to split/decode JWT: %w", err)
+	}
+	ok := sv.Verify(signature, signingPayload, signingPayload)
+	if !ok {
+		return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
+	}
 
-		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
-		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode payload")
-		}
+	payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
+	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode payload")
+	}
 
-		var payload map[string]any
-		err = json.Unmarshal(payloadJSON, &payload)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal payload")
-		}
-		aud := payload["aud"]
-		if aud != expectedAud {
-			return nil, fmt.Errorf("aud doesn't match, got %q, expected %q", aud, expectedAud)
-		}
-
-	} else {
-		// TODO: check this is correct
-		// I wonder if we actually want to support this branch (non-GQ) at all?
-		_, err = jwt.Parse(idt, jwt.WithAudience(expectedAud), jwt.WithIssuer(githubIssuer), jwt.WithAcceptableSkew(5*time.Second), jwt.WithKey(jwa.RS256, rsaPubKey))
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify token: %w", err)
-		}
+	var payload map[string]any
+	err = json.Unmarshal(payloadJSON, &payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload")
+	}
+	aud := payload["aud"]
+	if aud != expectedAud {
+		return nil, fmt.Errorf("aud doesn't match, got %q, expected %q", aud, expectedAud)
 	}
 
 	err = pkt.VerifyCicSig()
