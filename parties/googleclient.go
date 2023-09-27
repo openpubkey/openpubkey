@@ -24,9 +24,9 @@ import (
 
 	httphelper "github.com/zitadel/oidc/v2/pkg/http"
 
-	"github.com/bastionzero/openpubkey/gq"
-	"github.com/bastionzero/openpubkey/pktoken"
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 var (

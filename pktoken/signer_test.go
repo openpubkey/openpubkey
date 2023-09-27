@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/bastionzero/openpubkey/util"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 var (

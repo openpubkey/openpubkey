@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bastionzero/openpubkey/gq"
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestProveVerify(t *testing.T) {

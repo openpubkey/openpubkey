@@ -10,8 +10,8 @@ import (
 
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
-	"github.com/bastionzero/openpubkey/gq"
-	"github.com/bastionzero/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/pktoken"
 )
 
 const gqSecurityParameter = 256
