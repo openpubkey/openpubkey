@@ -99,12 +99,9 @@ func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
 	if !ok {
 		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
 	}
-	keyAlg, keyType := key.Algorithm(), key.KeyType()
+	keyAlg := key.Algorithm()
 	if keyAlg != jwa.RS256 {
 		return nil, fmt.Errorf("expected RS256 key, got %s", keyAlg)
-	}
-	if keyType != jwa.RSA {
-		return nil, fmt.Errorf("expected RSA key type, got %s", keyType)
 	}
 
 	pubKey := new(rsa.PublicKey)
