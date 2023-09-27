@@ -44,6 +44,8 @@ type GoogleOp struct {
 	server       *http.Server
 }
 
+var _ OpenIdProvider = (*GoogleOp)(nil)
+
 func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())

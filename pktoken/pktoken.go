@@ -10,8 +10,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-
-	"github.com/bastionzero/openpubkey/util"
 )
 
 const SigTypeHeader = "sig_type"
@@ -336,19 +334,6 @@ func (p *PKToken) GetCosValues() (*CosPHeader, error) {
 // }
 
 func (p *PKToken) VerifyCicSig() error {
-	nonce, err := p.GetNonce()
-	if err != nil {
-		return err
-	}
-	decodedCicPH, err := base64.RawStdEncoding.DecodeString(string(p.CicPH))
-	if err != nil {
-		return err
-	}
-	cicHash := util.B64SHA3_256(decodedCicPH)
-
-	if !bytes.Equal(nonce, cicHash) {
-		return fmt.Errorf("Nonce in the ID Token payload (%s) does not commit to the CIC values in the signature header (%s).", nonce, cicHash)
-	}
 	cicJwsCom := p.CicJWSCompact()
 
 	alg, _, upk, err := p.GetCicValues()

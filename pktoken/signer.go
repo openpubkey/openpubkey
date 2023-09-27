@@ -66,10 +66,15 @@ func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string
 	if err != nil {
 		return nil, err
 	}
+	rz, err := GenRZ()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Signer{
 		Pksk:     uSk,
 		alg:      alg,
+		rz:       rz,
 		PktCom:   pktCom,
 		GqSig:    gqSig,
 		cfgPath:  cfgPath,
