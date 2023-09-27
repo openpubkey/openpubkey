@@ -81,7 +81,11 @@ func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)
 	}
-	kid := j.Signatures()[0].ProtectedHeaders().KeyID()
+	headers := j.Signatures()[0].ProtectedHeaders()
+	alg, kid := headers.Algorithm(), headers.KeyID()
+	if alg != jwa.RS256 {
+		return nil, fmt.Errorf("expected RS256 alg claim, got %s", alg)
+	}
 
 	discConf, err := client.Discover(githubIssuer, http.DefaultClient)
 	if err != nil {
@@ -95,7 +99,14 @@ func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
 
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
-		return nil, fmt.Errorf("key isn't in JWKS")
+		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
+	}
+	keyAlg, keyType := key.Algorithm(), key.KeyType()
+	if keyAlg != jwa.RS256 {
+		return nil, fmt.Errorf("expected RS256 key, got %s", keyAlg)
+	}
+	if keyType != jwa.RSA {
+		return nil, fmt.Errorf("expected RSA key type, got %s", keyType)
 	}
 
 	pubKey := new(rsa.PublicKey)
