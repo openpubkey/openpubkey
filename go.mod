@@ -1,4 +1,4 @@
-module github.com/bastionzero/openpubkey
+module github.com/openpubkey/openpubkey
 
 go 1.20
 

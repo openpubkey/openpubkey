@@ -20,8 +20,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/sirupsen/logrus"
 
-	"github.com/bastionzero/openpubkey/pktoken"
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // TODO: make requiredAudience a configuration option

@@ -16,7 +16,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // Variable names with a postfix of "com" denotes that value is stored as a compact JWT representation (See RFC7519)

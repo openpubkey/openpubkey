@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // Verify verifies a GQ1 signature over a message, using the public identity of the signer.

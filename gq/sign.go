@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"math/big"
 
-	"github.com/bastionzero/openpubkey/util"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // Sign creates a GQ1 signature over the given message with the given GQ1 private number.
