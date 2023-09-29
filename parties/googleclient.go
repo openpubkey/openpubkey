@@ -192,8 +192,6 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		}
 	}
 
-	fmt.Println("All tests have passed PK Token is valid")
-
 	cicPH := make(map[string]any)
 	err = json.Unmarshal(cicphJSON, &cicPH)
 	if err != nil {
