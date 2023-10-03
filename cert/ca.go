@@ -83,7 +83,7 @@ func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, required
 	}
 
 	if string(aud) != requiredAudience {
-		return nil, fmt.Errorf("audience 'aud' claim in PK Tokem did not match audience required by CA, it was %s instead", string(aud))
+		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", string(aud))
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
