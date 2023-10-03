@@ -61,7 +61,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating provider %w", err)
+		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
 	state := func() string {

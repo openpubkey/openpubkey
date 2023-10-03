@@ -78,12 +78,18 @@ func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, required
 	// }
 
 	iss, aud, email, err := pkt.GetClaims()
+	if err != nil {
+		return nil, err
+	}
 
 	if string(aud) != requiredAudience {
-		return nil, fmt.Errorf("Audience 'aud' claim in PK Tokem did not match audience required by CA, it was %s instead.", string(aud))
+		return nil, fmt.Errorf("audience 'aud' claim in PK Tokem did not match audience required by CA, it was %s instead", string(aud))
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	subject := string(email)
 	oidcIssuer := iss
