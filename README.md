@@ -21,7 +21,7 @@ Phase 1:
 - [ ] [Cryptography review and remediation](https://github.com/openpubkey/openpubkey/issues/11)
 - [ ] Opensource project must haves
   - [ ] Github actions to run unittest
-  - [ ] Linter enforcement
+  - [x] Linter enforcement
   - [ ] Code of conduct
   - [ ] Security.md
   - [ ] Developer.md
