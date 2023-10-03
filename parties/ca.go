@@ -133,14 +133,13 @@ func (a *Ca) Serv() {
 	issueCertAuthHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		params := r.URL.Query()
-		fmt.Printf("params: %s\n", params)
 		pktCom := []byte(params["pkt"][0])
-
-		fmt.Printf("Everything checks out: %v\n", pktCom)
 
 		pktX509, err := a.PktTox509(pktCom, a.CaCertBytes)
 		if err != nil {
-			fmt.Printf("Error creating x509 for PK Token: %v\n", err)
+			rerr := fmt.Errorf("error creating x509 for PK Token: %v", err)
+			w.Header().Set("Error", rerr.Error())
+			http.Error(w, rerr.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -156,8 +155,6 @@ func (a *Ca) Serv() {
 		// m.authCodeMap[authcode] = string(cosPktCom)
 
 		// fmt.Printf("Got authcode map value: |%s|\n", m.authCodeMap[authcode])
-
-		fmt.Printf("Issuing cert: %v\n", string(pktX509))
 
 		w.Write(pktX509)
 	})
@@ -193,12 +190,18 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 	// }
 
 	iss, aud, email, err := pkt.GetClaims()
+	if err != nil {
+		return nil, err
+	}
 
 	if string(aud) != requiredAudience {
-		return nil, fmt.Errorf("Audience 'aud' claim in PK Tokem did not match audience required by CA, it was %s instead.", string(aud))
+		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", string(aud))
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	subject := string(email)
 	oidcIssuer := iss

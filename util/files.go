@@ -31,8 +31,6 @@ func WritePKFile(fpath string, pk *ecdsa.PublicKey) error {
 	}
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509Encoded})
 
-	fmt.Printf("ERH: X. writing fpath  : %v \n", x509Encoded)
-
 	err = os.WriteFile(fpath, pemBytes, 0600)
 	if err != nil {
 		return err
@@ -149,7 +147,6 @@ func GetRandString(n int) (string, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)
 	if err != nil {
-		fmt.Println("error:", err)
 		return "", err
 	}
 	return hex.EncodeToString(b), err

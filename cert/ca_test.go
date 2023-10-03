@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -31,8 +30,6 @@ func TestCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Printf("SubCert.Raw %s\n", string(pemSubCert))
-
 	decodeBlock, _ := pem.Decode(pemSubCert)
 
 	cc, err := x509.ParseCertificate(decodeBlock.Bytes)
@@ -40,7 +37,6 @@ func TestCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Printf("SubID %s\n", cc.SubjectKeyId)
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
 
 	pkt, err := pktoken.FromCompact(pktCom)
