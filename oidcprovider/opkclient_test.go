@@ -1,6 +1,7 @@
-package parties
+package oidcprovider
 
 import (
+	"context"
 	"crypto/rsa"
 	"fmt"
 	"testing"
@@ -36,7 +37,7 @@ func TestClient(t *testing.T) {
 			Op: op,
 		}
 
-		pkt, nil := client.OidcAuth(signer, alg, map[string]any{}, tc.gq)
+		pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, tc.gq)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,7 +49,7 @@ func TestClient(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			opPubKey, err := op.PublicKey(idt)
+			opPubKey, err := op.PublicKey(context.Background(), idt)
 			if err != nil {
 				t.Fatal(err)
 			}

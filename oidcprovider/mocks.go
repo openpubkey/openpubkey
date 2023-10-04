@@ -1,6 +1,7 @@
-package parties
+package oidcprovider
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"time"
@@ -8,7 +9,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -35,7 +35,7 @@ func NewMockOpenIdProvider() (*MockOpenIdProvider, error) {
 	}, nil
 }
 
-func (m *MockOpenIdProvider) RequestTokens(cicHash string) ([]byte, error) {
+func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	token := openid.New()
 
 	token.Set("nonce", cicHash)
@@ -56,10 +56,14 @@ func (m *MockOpenIdProvider) RequestTokens(cicHash string) ([]byte, error) {
 	return signedToken, nil
 }
 
-func (m *MockOpenIdProvider) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
-	return nil
+func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (PublicKey, error) {
+	return m.signer.Public().(*rsa.PublicKey), nil
 }
 
-func (m *MockOpenIdProvider) PublicKey(idt []byte) (PublicKey, error) {
-	return m.signer.Public().(*rsa.PublicKey), nil
+func (m *MockOpenIdProvider) NonceClaimName() string {
+	return "nonce"
+}
+
+func (m *MockOpenIdProvider) VerifyOIDCSig(ctx context.Context, idt []byte, expectedNonce string) error {
+	return nil
 }

@@ -1,11 +1,12 @@
 package mocks
 
 import (
+	"context"
 	"crypto"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/parties"
+	"github.com/openpubkey/openpubkey/oidcprovider"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -29,12 +30,12 @@ func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktok
 	}
 
 	// Generate mock id token
-	op, err := parties.NewMockOpenIdProvider()
+	op, err := oidcprovider.NewMockOpenIdProvider()
 	if err != nil {
 		return nil, err
 	}
 
-	idToken, err := op.RequestTokens(string(nonce))
+	idToken, err := op.RequestTokens(context.Background(), string(nonce))
 	if err != nil {
 		return nil, err
 	}

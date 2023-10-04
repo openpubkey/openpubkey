@@ -1,10 +1,8 @@
-package parties
+package oidcprovider
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -13,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/sirupsen/logrus"
@@ -22,8 +19,6 @@ import (
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	httphelper "github.com/zitadel/oidc/v2/pkg/http"
-
-	"github.com/openpubkey/openpubkey/pktoken"
 )
 
 var (
@@ -43,7 +38,7 @@ type GoogleOp struct {
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -100,7 +95,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 		}
 	}()
 
-	defer g.server.Shutdown(context.TODO())
+	defer g.server.Shutdown(ctx)
 
 	select {
 	case err := <-chErr:
@@ -110,90 +105,11 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
-	cic, err := pkt.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	commitment, err := cic.Hash()
-	if err != nil {
-		return err
-	}
-
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
-	sigType, ok := pkt.ProviderSignatureType()
-	if !ok {
-		return fmt.Errorf("provider signature type missing")
-	}
-
-	if sigType == pktoken.Gq {
-		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-		pubKey, err := g.PublicKey(idt)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
-		}
-
-		if err := pkt.VerifyGQSig(pubKey.(*rsa.PublicKey), gqSecurityParameter); err != nil {
-			return err
-		}
-
-		var payload struct {
-			Nonce string `json:"nonce"`
-		}
-		if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
-			return err
-		}
-
-		if payload.Nonce != string(commitment) {
-			return fmt.Errorf("nonce doesn't match")
-		}
-
-	} else {
-		options := []rp.Option{
-			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return string(commitment) })),
-		}
-
-		googleRP, err := rp.NewRelyingPartyOIDC(
-			g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
-			options...)
-
-		if err != nil {
-			return fmt.Errorf("failed to create RP to verify token: %w", err)
-		}
-
-		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
-		if err != nil {
-			return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
-		}
-	}
-
-	err = pkt.VerifyCicSig()
-	if err != nil {
-		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
-			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
-		}
-	}
-
-	return nil
+func (g *GoogleOp) NonceClaimName() string {
+	return "nonce"
 }
 
-func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {
+func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (PublicKey, error) {
 	j, err := jws.Parse(idt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)
@@ -205,7 +121,7 @@ func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
 
-	jwks, err := jwk.Fetch(context.TODO(), discConf.JwksURI)
+	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
@@ -222,6 +138,27 @@ func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {
 	}
 
 	return pubKey, err
+}
+
+func (g *GoogleOp) VerifyOIDCSig(ctx context.Context, idt []byte, expectedNonce string) error {
+	options := []rp.Option{
+		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
+	}
+
+	googleRP, err := rp.NewRelyingPartyOIDC(
+		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
+		options...)
+
+	if err != nil {
+		return fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
+
+	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(idt), googleRP.IDTokenVerifier())
+	if err != nil {
+		return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
+	}
+
+	return nil
 }
 
 // https://stackoverflow.com/questions/39320371/how-start-web-server-to-open-page-in-browser-in-golang
