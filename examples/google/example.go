@@ -119,7 +119,7 @@ func GoogleCert() {
 
 	fmt.Println("Cert skid: " + string(skid))
 
-	skidpkt, err := pktoken.FromCompact(skid)
+	skidpkt, err := pktoken.FromJSON(skid)
 	if err != nil {
 		fmt.Printf("Error failed to parse PK Token from Subject Key ID in x509 cert: %s", err.Error())
 		return

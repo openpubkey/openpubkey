@@ -58,7 +58,7 @@ func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 
 func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
 
-	pkt, err := pktoken.FromCompact(pktCom)
+	pkt, err := pktoken.FromJSON(pktCom)
 	if err != nil {
 		return nil, err
 	}
