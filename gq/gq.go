@@ -97,8 +97,8 @@ func parseJWT(jwt []byte) ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	// Signatures are over header and payload in the byte form of
-	// `header + '.' + payload`
+	// Signatures are over header and payload in the base64 url-encoded byte
+	// form of `header + '.' + payload`
 	signingPayload := append(headers, []byte(".")...)
 	signingPayload = append(signingPayload, payload...)
 

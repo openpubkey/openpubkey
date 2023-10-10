@@ -182,12 +182,12 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}
 
-	_, payload64, _, err := jws.SplitCompact(idt)
+	_, payloadB64, _, err := jws.SplitCompact(idt)
 	if err != nil {
 		return nil, err
 	}
 
-	payloadJSON, err := util.Base64DecodeForJWT(payload64)
+	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload")
 	}
