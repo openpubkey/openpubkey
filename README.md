@@ -12,7 +12,7 @@ Verifiers can check that these signatures are valid and associated with the sign
 
 OpenPubkey uses ID Tokens issued by OpenID Providers (OPs) to produce PK Tokens. A PK Token consist of the ID Token and the CIC (Client-Instance Claims) where the CIC contains the user's public key and associated metadata. The ID Token contains a hash of the CIC, so that the values in the CIC including the identities public key are cryptographically bound to the ID Token signed by the OP.
 
-For workload-identity, the hash of the CIC is stored in the ID Token's `aud` claim following the pattern of github actions workload identity. For user-identity, the hash of the CIC is stored in the ID Token's `nonce` claim.
+For workload-identity, the hash of the CIC is stored in the ID Token's `aud` claim following the pattern of GitHub Action's workload identity. For user-identity, the hash of the CIC is stored in the ID Token's `nonce` claim.
 
 ## OpenPubkey FAQ
 
