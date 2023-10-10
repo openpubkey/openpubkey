@@ -36,7 +36,7 @@ IDToken.nonce = SHA3(CIC)
 
 ### Does OpenPubkey present a privacy leak?
 
-The PK Tokens used by OpenPubkey contain the claims from the OIDC ID Tokens of the signer, so making them public, necessarily makes those claims public too. This may include elements of the signer’s identity such as the signer’s name or email addresses. It is up to users of OpenPubkey as to whether or not PK Tokens are made public.
+The PK Tokens used by OpenPubkey contain the claims from the OIDC ID Tokens of the signer, so making them public necessarily makes those claims public too. This may include elements of the signer’s identity such as the signer’s name or email addresses. It is up to users of OpenPubkey as to whether or not PK Tokens are made public.
 
 In a public artifact signing scenario, it could be argued that these very claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
 
