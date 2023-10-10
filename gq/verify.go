@@ -73,8 +73,17 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 	return bytes.Equal(R, Rstar)
 }
 
+func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
+	signingPayload, signature, err := parseJWT(jwt)
+	if err != nil {
+		return false
+	}
+
+	return sv.Verify(signature, signingPayload, signingPayload)
+}
+
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {
-	bin, err := util.Base64Decode(s)
+	bin, err := util.Base64DecodeForJWT(s)
 	if err != nil {
 		return nil, nil, err
 	}

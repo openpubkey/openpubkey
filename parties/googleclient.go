@@ -1,7 +1,6 @@
 package parties
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -134,16 +133,15 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 			return nil, fmt.Errorf("failed to get OP public key: %w", err)
 		}
 		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
-		signingPayload, signature, err := util.SplitJWT(idt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to split/decode JWT: %w", err)
-		}
-		ok := sv.Verify(signature, signingPayload, signingPayload)
+		ok := sv.VerifyJWT(idt)
 		if !ok {
 			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid): %w", err)
 		}
 
-		payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
+		_, payloadB64, _, err := jws.SplitCompact(idt)
+		if err != nil {
+			return nil, err
+		}
 		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode header: %w", err)

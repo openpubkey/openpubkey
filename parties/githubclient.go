@@ -1,7 +1,6 @@
 package parties
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -178,17 +177,17 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 	rsaPubKey := pubKey.(*rsa.PublicKey)
 
 	sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-	signingPayload, signature, err := util.SplitJWT(idt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split/decode JWT: %w", err)
-	}
-	ok := sv.Verify(signature, signingPayload, signingPayload)
+	ok := sv.VerifyJWT(idt)
 	if !ok {
 		return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}
 
-	payloadB64 := bytes.Split(signingPayload, []byte{'.'})[1]
-	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+	_, payload64, _, err := jws.SplitCompact(idt)
+	if err != nil {
+		return nil, err
+	}
+
+	payloadJSON, err := util.Base64DecodeForJWT(payload64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode payload")
 	}

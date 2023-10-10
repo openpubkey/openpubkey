@@ -62,20 +62,32 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	return encodeProof(R, S), nil
 }
 
-func (sv *signerVerifier) SignJWTIdentity(jwt []byte) ([]byte, error) {
-	signingPayload, signature, err := util.SplitDecodeJWT(jwt)
+func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
+	signingPayload, signature, err := parseJWT(jwt)
+	if err != nil {
+		return nil, err
+	}
+
+	// When jwt is parsed it's split into base64-encoded bytes, but
+	// we need the raw signature to calculate mod inverse
+	decodedSig, err := util.Base64DecodeForJWT(signature)
 	if err != nil {
 		return nil, err
 	}
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
-	private := sv.modInverse(signature)
+	private := sv.modInverse(decodedSig)
 
-	proof, err := sv.Sign(private, signingPayload)
+	gqSig, err := sv.Sign(private, signingPayload)
 	if err != nil {
 		return nil, err
 	}
-	return proof, nil
+
+	// Now make a new GQ-signed token
+	gqToken := append(signingPayload, []byte(".")...)
+	gqToken = append(gqToken, gqSig...)
+
+	return gqToken, nil
 }
 
 func (sv *signerVerifier) modInverse(b []byte) []byte {
@@ -92,7 +104,7 @@ func encodeProof(R, S []byte) []byte {
 	bin = append(bin, R...)
 	bin = append(bin, S...)
 
-	return util.Base64Encode(bin)
+	return util.Base64EncodeForJWT(bin)
 }
 
 func randomNumbers(t int, nBytes int) ([]*big.Int, error) {

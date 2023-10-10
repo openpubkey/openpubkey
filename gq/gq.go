@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -12,16 +13,19 @@ import (
 type Signer interface {
 	// Sign creates a GQ1 signature over the given message with the given GQ1 private number.
 	Sign(private []byte, message []byte) ([]byte, error)
-	// SignJWTIdentity creates a GQ1 signature over the JWT token's header/payload with a GQ1 private number derived from the JWT signature.
+	// SignJWT creates a GQ1 signature over the JWT token's header/payload with a GQ1 private number derived from the JWT signature.
 	//
 	// This works because a GQ1 private number can be calculated as the inverse mod n of an RSA signature, where n is the public RSA modulus.
-	SignJWTIdentity(jwt []byte) ([]byte, error)
+	SignJWT(jwt []byte) ([]byte, error)
 }
 
 // Signer allows for verifying GQ1 signatures.
 type Verifier interface {
 	// Verify verifies a GQ1 signature over a message, using the public identity of the signer.
 	Verify(signature []byte, identity []byte, message []byte) bool
+
+	// Compatible with SignJWT, this function verifies the GQ1 signature of the presented JSON Web Token.
+	VerifyJWT(jwt []byte) bool
 }
 
 // SignerVerifier combines the Signer and Verifier interfaces.
@@ -85,4 +89,18 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+func parseJWT(jwt []byte) ([]byte, []byte, error) {
+	headers, payload, signature, err := jws.SplitCompact(jwt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Signatures are over header and payload in the byte form of
+	// `header + '.' + payload`
+	signingPayload := append(headers, []byte(".")...)
+	signingPayload = append(signingPayload, payload...)
+
+	return signingPayload, signature, nil
 }
