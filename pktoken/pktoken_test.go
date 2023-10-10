@@ -13,7 +13,7 @@ func TestPkToken(t *testing.T) {
 }
 
 func TestPKTokenJSON(t *testing.T) {
-	mockPkToken := map[string]any{
+	pktJson, err := json.Marshal(map[string]any{
 		"payload": "eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDQ4NTIwMDI0NDQ3NTQxMzYyNzEiLCJlbWFpbCI6ImFub24uYXV0aG9yLmFhcmR2YXJrQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiVmFGaGtlTE9ITXBxVWQ0RU9ZdW84ZyIsIm5vbmNlIjoiNndXMTExY25BajBlZUxzUGFDOGc5WlVkOXRDS2o1ZGNNZkt6OUZYZUFzYyIsIm5hbWUiOiJBbm9ueW1vdXMgQXV0aG9yIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FBY0hUdGRWR0Zab19aXzNoajY2ZFgzWjBHVklVUktLb2dCcGlKaDduLVhnPXM5Ni1jIiwiZ2l2ZW5fbmFtZSI6IkFub255bW91cyIsImZhbWlseV9uYW1lIjoiQXV0aG9yIiwibG9jYWxlIjoiZW4iLCJpYXQiOjE2ODUzOTU0MDEsImV4cCI6MTY4NTM5OTAwMX0",
 		"signatures": []any{
 			map[string]any{
@@ -38,15 +38,13 @@ func TestPKTokenJSON(t *testing.T) {
 				"signature": "P_JwaPD7VHNPq5WQADYu7EjjXoKTrU0xSLvmhDbfqr3R3VpAq2z44_r90Yl5u3zyTxvVQttJCLfXMkyooYNdbGoyC0aZrHqJYYQXGfiPGZ2xxZtP96yaEweyCw8_FI2x_-0Uc6drwnQR7AFCuLUQZZBfsKmXjxXy4X69fNkHFcZgX9cOYDwJsWKUEixSyHrSnhGPvkw0QdYS9l3tYiEtrfW6mYSVcJqKsv-bw32UG_1W4Lgg9lr_0T3xrtwfcJ35o4hntt5bi1jEzA62oXgfeBhskvFTdncCgV5kSc-gDF1-EXqoRue6QrT7qe4MOyVysR9PrXv_DwbbwnSuGeg",
 			},
 		},
-	}
-
-	mockTokenJson, err := json.Marshal(mockPkToken)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Test json serialization/deserialization
-	token, err := pktoken.FromJSON(mockTokenJson)
+	token, err := pktoken.FromJSON(pktJson)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,5 +54,5 @@ func TestPKTokenJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.JSONEq(t, string(mockTokenJson), string(tokenJson))
+	require.JSONEq(t, string(pktJson), string(tokenJson))
 }

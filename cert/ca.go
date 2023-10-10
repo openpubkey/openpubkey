@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -56,9 +57,9 @@ func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 	return caBytes, caPkSk, nil
 }
 
-func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
+func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
 
-	pkt, err := pktoken.FromJSON(pktCom)
+	pkt, err := pktoken.FromJSON(pktJson)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, required
 			Critical: false,
 			Value:    []byte(oidcIssuer),
 		}},
-		SubjectKeyId: []byte(pktCom),
+		SubjectKeyId: []byte(base64.URLEncoding.EncodeToString(pktJson)),
 	}
 
 	_, _, upkjwk, err := pkt.GetCicValues()

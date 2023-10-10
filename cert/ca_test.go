@@ -22,7 +22,7 @@ func TestCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	mockPkTokenJson := []byte(`{
+	pktJson := []byte(`{
 	"payload": "eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDQ4NTIwMDI0NDQ3NTQxMzYyNzEiLCJlbWFpbCI6ImFub24uYXV0aG9yLmFhcmR2YXJrQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiVmFGaGtlTE9ITXBxVWQ0RU9ZdW84ZyIsIm5vbmNlIjoiNndXMTExY25BajBlZUxzUGFDOGc5WlVkOXRDS2o1ZGNNZkt6OUZYZUFzYyIsIm5hbWUiOiJBbm9ueW1vdXMgQXV0aG9yIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FBY0hUdGRWR0Zab19aXzNoajY2ZFgzWjBHVklVUktLb2dCcGlKaDduLVhnPXM5Ni1jIiwiZ2l2ZW5fbmFtZSI6IkFub255bW91cyIsImZhbWlseV9uYW1lIjoiQXV0aG9yIiwibG9jYWxlIjoiZW4iLCJpYXQiOjE2ODUzOTU0MDEsImV4cCI6MTY4NTM5OTAwMX0",
 	"signatures": [
 		{
@@ -50,7 +50,7 @@ func TestCertCreation(t *testing.T) {
 }`)
 	requiredAudience := "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
 
-	pemSubCert, err := PktTox509(mockPkTokenJson, caBytes, caPkSk, requiredAudience)
+	pemSubCert, err := PktTox509(pktJson, caBytes, caPkSk, requiredAudience)
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,7 +64,7 @@ func TestCertCreation(t *testing.T) {
 
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
 
-	pkt, err := pktoken.FromJSON(mockPkTokenJson)
+	pkt, err := pktoken.FromJSON(pktJson)
 	if err != nil {
 		t.Fatal(err)
 	}
