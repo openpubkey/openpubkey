@@ -38,7 +38,7 @@ IDToken.nonce = SHA3(CIC)
 
 The PK Tokens used by OpenPubkey contain the claims from the OIDC ID Tokens of the signer, so making them public necessarily makes those claims public too. This may include elements of the signer’s identity such as the signer’s name or email addresses. It is up to users of OpenPubkey as to whether or not PK Tokens are made public.
 
-In a public artifact signing scenario, it could be argued that these very claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
+In a public artifact signing scenario, it could be argued that these claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
 
 Most OpenID Providers (OP) allow you to scope the fields in the ID Tokens. For instance Google’s OP is by default scoped to only include userinfo-email claims: name, email address and icon. Given that purpose of OpenPubkey is to enable parties to verify that a particular identity, e.g., ethan@bastion.com, produced a particular signature, if you do not want signatures to be associated with OIDC identities, then OpenPubkey may not be a good fit for your use case.
 
