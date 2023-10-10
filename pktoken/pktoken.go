@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -347,67 +346,6 @@ func (p *PKToken) VerifyCicSig() error {
 	}
 
 	// Verified
-	return nil
-}
-
-func (p *PKToken) AddCosSig(jwsCom []byte) error {
-
-	cosPH, cosPayload, cosSig, err := jws.SplitCompact(jwsCom)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(p.Payload, cosPayload) {
-		return fmt.Errorf("Payload in the Cosigner JWS (%s) does not match the existing payload in the PK Token (%s).", p.Payload, cosPayload)
-	}
-
-	p.CosPH = cosPH
-	p.CosSig = cosSig
-	return nil
-}
-
-// TODO: Make this take a cosignerid and JWKS that we trust
-func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
-	if p.CosPH == nil {
-		return fmt.Errorf("Failed to verify Cosigner signature as Cosigner Protected header is nil.")
-	}
-	if p.CosSig == nil {
-		return fmt.Errorf("Failed to verify Cosigner signature as the Cosigner Signature is nil.")
-	}
-
-	cosJwsCom := p.CosJWSCompact()
-	_, err := jws.Verify(cosJwsCom, jws.WithKey(alg, cosPk))
-	if err != nil {
-		return err
-	}
-
-	hrs, err := p.GetCosValues()
-	if err != nil {
-		return err
-	}
-
-	// Expiration check
-	if hrs.Exp < time.Now().Unix() {
-		return fmt.Errorf("Cosigner Signature on PK Token is expired by %d seconds.", time.Now().Unix()-hrs.Exp)
-	}
-
-	// Check algorithms match
-	if hrs.Alg != alg.String() {
-		return fmt.Errorf("Algorithm in cosigner protected header, %s, does not match algorithm provided, %s.", hrs.Alg, alg)
-	}
-
-	cosPkBytes, err := json.Marshal(hrs.Jwk)
-	if err != nil {
-		return err
-	}
-	cosPkInPH, err := jwk.ParseKey(cosPkBytes)
-	if err != nil {
-		return err
-	}
-	if cosPkInPH.X509CertThumbprint() != cosPk.X509CertThumbprint() {
-		return fmt.Errorf("JWK of cosigner public key in protected header, %v, does not match JWK public key provided, %v.", cosPkInPH, cosPk)
-	}
-
-	// verified
 	return nil
 }
 
