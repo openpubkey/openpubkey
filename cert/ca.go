@@ -13,16 +13,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-
 	"github.com/openpubkey/openpubkey/pktoken"
 )
-
-type CosignerConfig struct {
-	Alg    jwa.KeyAlgorithm
-	Pubkey jwk.Key
-}
 
 func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 	caTemplate := &x509.Certificate{
@@ -66,16 +58,6 @@ func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, required
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: verify cosigner
-	// cosignerConfig := &CosignerConfig {
-	// 	Alg: "ES256",
-	// 	Pubkey: "TODO",
-	// }
-	// err = pkt.VerifyCosSig()
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	iss, aud, email, err := pkt.GetClaims()
 	if err != nil {

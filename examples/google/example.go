@@ -163,7 +163,6 @@ func SigStoreSign() {}
 func main() {
 
 	fpClientCfg = "configs/clcfg"
-	fpMfaCfg = "configs/mfacfg"
 	fpCaCfg = "configs/cacfg"
 
 	if len(os.Args) < 2 {

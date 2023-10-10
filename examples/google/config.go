@@ -15,6 +15,5 @@ var (
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
 
 	fpClientCfg = "configs/clcfg"
-	fpMfaCfg    = "configs/mfacfg"
 	fpCaCfg     = "configs/cacfg"
 )

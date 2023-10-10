@@ -179,8 +179,6 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 		OpSig:   opSig,
 		CicPH:   cicPH,
 		CicSig:  cicSig,
-		CosSig:  nil,
-		CosPH:   nil,
 	}, nil
 }
 

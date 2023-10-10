@@ -3,7 +3,6 @@ package parties
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -150,7 +149,7 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
+func (g *GithubOp) VerifyPKToken(pktJSON []byte) (map[string]any, error) {
 	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing PK Token: %w", err)
@@ -206,19 +205,6 @@ func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 	err = pkt.VerifyCicSig()
 	if err != nil {
 		return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
-			return nil, fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
-		}
 	}
 
 	cicPH := make(map[string]any)

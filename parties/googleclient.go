@@ -3,7 +3,6 @@ package parties
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/sirupsen/logrus"
@@ -113,7 +111,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
+func (g *GoogleOp) VerifyPKToken(pktJSON []byte) (map[string]any, error) {
 	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing PK Token: %w", err)
@@ -177,19 +175,6 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 	err = pkt.VerifyCicSig()
 	if err != nil {
 		return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
-			return nil, fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
-		}
 	}
 
 	cicPH := make(map[string]any)

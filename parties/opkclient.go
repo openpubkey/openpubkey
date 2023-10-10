@@ -2,7 +2,6 @@ package parties
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
 	"io"
@@ -16,17 +15,10 @@ import (
 
 const gqSecurityParameter = 256
 
-// Interface for interacting with the MFA Cosigner (MFACos)
-type MFACos interface {
-	// place holder for MFA Cosigner
-	// TODO: Add MFA Cosigner
-}
-
 type OpkClient struct {
-	PktCom      []byte
-	Signer      *pktoken.Signer
-	Op          OpenIdProvider
-	MFACosigner MFACos
+	PktCom []byte
+	Signer *pktoken.Signer
+	Op     OpenIdProvider
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
@@ -66,24 +58,11 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
 	fmt.Printf("PKT=%s\n", pktJSON)
-	_, err = o.Op.VerifyPKToken(pktJSON, nil)
+	_, err = o.Op.VerifyPKToken(pktJSON)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 	return pktJSON, nil
-}
-
-type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
-
-type PublicKey interface {
-	Equal(x crypto.PublicKey) bool
-}
-
-// Interface for interacting with the OP (OpenID Provider)
-type OpenIdProvider interface {
-	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error)
-	PublicKey(idt []byte) (PublicKey, error)
 }
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
@@ -95,5 +74,18 @@ func (o *OpkClient) RequestCert() ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	certBytes, err := io.ReadAll(resp.Body)
-	return certBytes, nil
+	return certBytes, err
+}
+
+type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
+
+type PublicKey interface {
+	Equal(x crypto.PublicKey) bool
+}
+
+// Interface for interacting with the OP (OpenID Provider)
+type OpenIdProvider interface {
+	RequestTokens(cicHash string) ([]byte, error)
+	VerifyPKToken(pktJSON []byte) (map[string]any, error)
+	PublicKey(idt []byte) (PublicKey, error)
 }
