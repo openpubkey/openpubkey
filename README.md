@@ -82,7 +82,7 @@ OpenPubkey relies on verifiers being able to check the OP's signature on the ID 
 
 However in the case in which the PK Token is being used to generate a public signature it is neccessary that verifiers can check the OP's signature on an ID Token even after the OP rotates the keys on the JWKS URI.
 
-Below consider a few of the proposed methods of ensuring the verifiability of signatures after the OP rotates signing keys. This is a non-exhaustive list.
+Below are a few of the proposed methods of ensuring the verifiability of signatures after the OP rotates signing keys. This is a non-exhaustive list.
 
 #### OP Public Keys via TUF (The Update Framework)
 
