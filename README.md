@@ -78,7 +78,7 @@ OPs (OpenID Providers) issue ID Tokens by signing them. As required by OpenID Co
 | Google | https://accounts.google.com/.well-known/openid-configuration  | https://www.googleapis.com/oauth2/v3/certs |~14 days  |
 | Github | https://token.actions.githubusercontent.com/.well-known/openid-configuration | https://www.googleapis.com/oauth2/v3/certs  |~84 days |
 
-OpenPubkey relies on verifiers being able to check the OP's signature on the ID Token's contained in the PK Token. For many use cases, for instance authenticating access to a server, a user's can just request a new ID Token after the OP rotates their keys. Such use cases do not require that PK Tokens remain verifiable beyond an OP key rotation.
+OpenPubkey relies on verifiers being able to check the OP's signature on the ID Token's contained in the PK Token. For many use cases, such as authenticating access to a server, a user can request a new ID Token after the OP rotates their keys. Such use cases do not require that PK Tokens remain verifiable beyond an OP key rotation.
 
 However in the case in which the PK Token is being used to generate a public signature, it is necessary that verifiers can check the OP's signature on an ID Token even after the OP rotates their keys.
 
