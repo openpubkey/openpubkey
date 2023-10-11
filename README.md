@@ -93,18 +93,18 @@ Docker has proposed including a log of past OP public keys in the signed TUF sta
 [Reducing Trust in Automated Certificate Authorities via
 Proofs-of-Authentication](https://arxiv.org/pdf/2307.08201.pdf) proposes JWT Ledger, an approach that employs a certificate transparency log and audit mechanism to ensure ID Token's can continue to be verified even after the OP public keys are rotated off of the OP's JWKS URI. It states:
 
->"To decrease the risk that the JWK Ledger will present false information to users, this ledger is backed by a transparency log.
-The pace of updates to this log should be relatively low, occurring
-only when the IdP rotates verification keys. Therefore, witnesses
-for the log can verify the current state of the key set on each update; they also check that no entries other than the given key set
-change have been added to the log. Clients can requires a quorum
-of witnesses on the JWK Ledger digest. When a client requests
-the key set for a given timestamp, the ledger serves two entries.
-The client checks that the timestamp of the first entry precedes
-the requested timestamp, that the timestamp of the second entry
-follows the requested timestamp, and that the entries are adjacent
-in the log. This convinces the client that the key set was valid at
-the given time."
+>To decrease the risk that the JWK Ledger will present false information to users, this ledger is backed by a transparency log.
+> The pace of updates to this log should be relatively low, occurring
+> only when the IdP rotates verification keys. Therefore, witnesses
+> for the log can verify the current state of the key set on each update; they also check that no entries other than the given key set
+> change have been added to the log. Clients can requires a quorum
+> of witnesses on the JWK Ledger digest. When a client requests
+> the key set for a given timestamp, the ledger serves two entries.
+> The client checks that the timestamp of the first entry precedes
+> the requested timestamp, that the timestamp of the second entry
+> follows the requested timestamp, and that the entries are adjacent
+> in the log. This convinces the client that the key set was valid at
+> the given time.
 
 This is similar to the approach sketched in _Appendix C: Archival Verification With Certificate Transparency Logs_ of the [OpenPubkey paper](https://eprint.iacr.org/2023/296.pdf).
 
