@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -117,7 +118,7 @@ func generateRand() (string, error) {
 		return "", err
 	}
 
-	rz := base64.URLEncoding.EncodeToString(rBytes)
+	rz := hex.EncodeToString(rBytes)
 	return rz, nil
 }
 
