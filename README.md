@@ -93,7 +93,7 @@ Docker has proposed including a log of past OP public keys in the signed [TUF](h
 [Reducing Trust in Automated Certificate Authorities via
 Proofs-of-Authentication](https://arxiv.org/pdf/2307.08201.pdf) proposes JWT Ledger, an approach that employs a certificate transparency log and audit mechanism to ensure ID Token's can continue to be verified even after the OP public keys are rotated off of the OP's JWKS URI. It states:
 
->To decrease the risk that the JWK Ledger will present false information to users, this ledger is backed by a transparency log.
+> To decrease the risk that the JWK Ledger will present false information to users, this ledger is backed by a transparency log.
 > The pace of updates to this log should be relatively low, occurring
 > only when the IdP rotates verification keys. Therefore, witnesses
 > for the log can verify the current state of the key set on each update; they also check that no entries other than the given key set
