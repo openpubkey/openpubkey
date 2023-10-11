@@ -106,7 +106,7 @@ follows the requested timestamp, and that the entries are adjacent
 in the log. This convinces the client that the key set was valid at
 the given time."
 
-This is similar to the approach sketched in [OpenPubkey paper: Appendix C Archival Verification With Certificate Transparency Logs:](https://eprint.iacr.org/2023/296.pdf)
+This is similar to the approach sketched in _Appendix C: Archival Verification With Certificate Transparency Logs_ of the [OpenPubkey paper](https://eprint.iacr.org/2023/296.pdf).
 
 #### Archival verifiers
 
