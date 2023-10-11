@@ -40,7 +40,7 @@ The PK Tokens used by OpenPubkey contain the claims from the OIDC ID Tokens of t
 
 In a public artifact signing scenario, it could be argued that these very claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
 
-Most OpenID Providers (OP) allow you to scope the fields in the ID Tokens. For instance Google’s OP is by default scoped to only include userinfo-email claims: name, email address and icon. Given that purpose of OpenPubkey is to enable parties to verify that a particular identity e.g., ethan@bastion.com, produced a particular signature, if you do not want signatures to be associated with OIDC identities, then OpenPubkey may not be a good fit for your use case.
+Most OpenID Providers (OP) allow you to scope the fields in the ID Tokens. For instance Google’s OP is by default scoped to only include userinfo-email claims: name, email address and icon. Given that the purpose of OpenPubkey is to enable parties to verify that a particular identity, e.g., ethan@bastion.com, produced a particular signature, if you do not want signatures to be associated with OIDC identities, then OpenPubkey may not be a good fit for your use case.
 
 In other OpenPubkey deployment scenarios, such as those employed by BastionZero, the ID Tokens are not made publicly available.
 
