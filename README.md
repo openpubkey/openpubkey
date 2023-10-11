@@ -110,7 +110,7 @@ This is similar to the approach sketched in [OpenPubkey paper: Appendix C Archiv
 
 #### Archival verifiers
 
-From [OpenPubkey paper: Section 3.5.3 Archival Verification:](https://eprint.iacr.org/2023/296.pdf) proposes archival verifiers which store a log of all past OP public keys. This approach is simple and does not require a transparency log. The main disadvantage is that you can't verify signatures from before their verifier started logging public keys.
+_Section 3.5.3: Archival Verification_ of the [OpenPubkey paper](https://eprint.iacr.org/2023/296.pdf) proposes archival verifiers which store a log of all past OP public keys. This approach is simple and does not require a transparency log. The main disadvantage is that you can't verify signatures from before the verifier started logging public keys.
 
 ## Remaining Work
 
