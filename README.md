@@ -80,7 +80,7 @@ OPs (OpenID Providers) issue ID Tokens by signing them. As required by OpenID Co
 
 OpenPubkey relies on verifiers being able to check the OP's signature on the ID Token's contained in the PK Token. For many use cases, for instance authenticating access to a server, a user's can just request a new ID Token after the OP rotates their keys. Such use cases do not require that PK Tokens remain verifiable beyond an OP key rotation.
 
-However in the case in which the PK Token is being used to generate a public signature it is neccessary that verifiers can check the OP's signature on an ID Token even after the OP rotates the keys on the JWKS URI.
+However in the case in which the PK Token is being used to generate a public signature, it is necessary that verifiers can check the OP's signature on an ID Token even after the OP rotates their keys.
 
 Below are a few of the proposed methods of ensuring the verifiability of signatures after the OP rotates signing keys. This is a non-exhaustive list.
 
