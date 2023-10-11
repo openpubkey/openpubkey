@@ -16,6 +16,8 @@ import (
 
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/signer"
 )
 
 // TODO: Create nice golang services rather than just using this handler nonsense
@@ -173,13 +175,20 @@ func main() {
 
 	command := os.Args[1]
 
+	googleSigner, err := signer.NewRSASigner()
+	if err != nil {
+		panic(err)
+	}
+
 	switch command {
 	case "login":
 		{
-			opkClientAlg := "ES256"
-			gq := true
+			signer, err := signer.NewECDSASigner()
+			if err != nil {
+				panic(err)
+			}
 
-			signer, err := pktoken.NewSigner(fpClientCfg, opkClientAlg, gq, map[string]any{"extra": "yes"})
+			cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
 			if err != nil {
 				panic(err)
 			}
@@ -194,10 +203,10 @@ func main() {
 					CallbackPath: callbackPath,
 					RedirectURI:  redirectURI,
 				},
-				Signer: signer,
+				Gq: true,
 			}
 
-			client.OidcAuth()
+			client.OidcAuth(signer, cic)
 		}
 	case "sign":
 		GoogleSign()
@@ -215,6 +224,6 @@ func main() {
 		SigStoreSign()
 
 	default:
-		fmt.Printf("Error! No valid command")
+		fmt.Printf("Unrecognized command: %s", command)
 	}
 }

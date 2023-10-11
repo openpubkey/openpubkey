@@ -17,36 +17,55 @@ func TestPkToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
+	pkt, err := createPKToken(signer)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Create new OpenPubKey Signed Message (OSM)
+	msg := "test message!"
+	osm, err := pkt.NewSignedMessage([]byte(msg), signer.SigningKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify our OSM is valid
+	payload, err := pkt.VerifySignedMessage(osm)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(payload) != msg {
+		t.Fatal("OSM payload did not match what we initially wrapped")
+	}
+}
+
+func createPKToken(signer *signer.Signer) (*pktoken.PKToken, error) {
+	cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
+	if err != nil {
+		return nil, err
 	}
 
 	// Calculate our nonce from our cic values
 	nonce, err := cic.Commitment()
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	// Generate mock id token
 	idToken, err := generateMockIDToken(nonce, "https://github.com/openpubkey", "me")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
-	// LUCIE: shouldn't we be verifying the id token before we use it to generate the cic headers?
-
 	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signer, idToken)
+	cicToken, err := cic.Sign(signer.SigningKey(), signer.JWKKey().Algorithm(), idToken)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	// Combine two tokens into a PK Token
-	_, err = pktoken.New(idToken, cicToken)
-	if err != nil {
-		t.Fatal(err)
-	}
+	return pktoken.New(idToken, cicToken)
 }
 
 func generateMockIDToken(nonce, issuer, audience string) ([]byte, error) {

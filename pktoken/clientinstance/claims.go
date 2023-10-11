@@ -11,7 +11,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/signer"
+	"golang.org/x/crypto/sha3"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
@@ -71,12 +71,17 @@ func (c *Claims) Commitment() (string, error) {
 		return "", err
 	}
 
-	return sha3_256(buf), nil
+	digest, err := hash(buf)
+	if err != nil {
+		return "", err
+	}
+
+	return digest, nil
 }
 
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
-func (c *Claims) Sign(signer *signer.Signer, token []byte) ([]byte, error) {
+func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []byte) ([]byte, error) {
 	_, payload, _, err := jws.SplitCompact(token)
 	if err != nil {
 		return nil, err
@@ -98,8 +103,8 @@ func (c *Claims) Sign(signer *signer.Signer, token []byte) ([]byte, error) {
 	cicToken, err := jws.Sign(
 		payloadDecoded,
 		jws.WithKey(
-			signer.JWKKey().Algorithm(),
-			signer.SigningKey(),
+			algorithm,
+			signer,
 			jws.WithProtectedHeaders(headers),
 		),
 	)
@@ -122,9 +127,12 @@ func generateRand() (string, error) {
 	return rz, nil
 }
 
-func sha3_256(msg []byte) string {
-	h := crypto.SHA3_256.New()
-	h.Write(msg)
-	image := h.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(image)
+func hash(msg []byte) (string, error) {
+	hasher := sha3.New256()
+	_, err := hasher.Write(msg)
+	if err != nil {
+		return "", err
+	}
+	hash := hasher.Sum(nil)
+	return hex.EncodeToString(hash), nil
 }

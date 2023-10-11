@@ -66,12 +66,8 @@ func (s *Signer) Sign(message []byte) ([]byte, error) {
 	return s.signingKey.Sign(rand.Reader, digest, crypto.SHA256)
 }
 
-func (s *Signer) SigningKey() any {
+func (s *Signer) SigningKey() crypto.Signer {
 	return s.signingKey
-}
-
-func (s *Signer) PublicKey() any {
-	return s.signingKey.Public()
 }
 
 func (s *Signer) JWKKey() jwk.Key {

@@ -24,34 +24,41 @@ type MFACos interface {
 
 type OpkClient struct {
 	PktCom      []byte
-	Signer      *pktoken.Signer
+	Gq          bool
 	Op          OpenIdProvider
 	MFACosigner MFACos
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	nonce, err := o.Signer.GetNonce()
+	nonce, err := cic.Commitment()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
-	idt, err := o.Op.RequestTokens(nonce)
+
+	idToken, err := o.Op.RequestTokens(nonce)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-	pkt, err := o.Signer.CreatePkToken(idt)
+
+	cicToken, err := cic.Sign(signer, idToken)
+	if err != nil {
+		return nil, fmt.Errorf("error creating cic token: %w", err)
+	}
+
+	pkt, err := pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	if o.Signer.GqSig {
-		opKey, err := o.Op.PublicKey(idt)
+	if o.Gq {
+		opKey, err := o.Op.PublicKey(idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error getting OP public key: %w", err)
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
 		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-		gqSig, err := sv.SignJWTIdentity(idt)
+		gqSig, err := sv.SignJWTIdentity(idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}

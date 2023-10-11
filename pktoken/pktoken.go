@@ -2,6 +2,7 @@ package pktoken
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -458,4 +459,20 @@ func (p *PKToken) Verify(msg string, sig []byte) error {
 
 	// verified
 	return nil
+}
+
+func (p *PKToken) Hash() (string, error) {
+	// get pktoken bytes
+	pktJson, err := p.ToJSON()
+	if err != nil {
+		return "", err
+	}
+
+	hasher := sha256.New()
+	_, err = hasher.Write(pktJson)
+	if err != nil {
+		return "", err
+	}
+	hash := hasher.Sum(nil)
+	return base64.RawURLEncoding.EncodeToString(hash), nil
 }
