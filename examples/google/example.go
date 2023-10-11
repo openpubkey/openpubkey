@@ -120,6 +120,9 @@ func GoogleCert() {
 	fmt.Println("Cert skid: " + string(skid))
 
 	skidDecoded, err := base64.RawStdEncoding.DecodeString(string(skid))
+	if err != nil {
+		fmt.Println("malformatted skid, expected base64 url encoded value")
+	}
 
 	skidpkt, err := pktoken.FromJSON(skidDecoded)
 	if err != nil {
