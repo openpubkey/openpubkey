@@ -56,7 +56,7 @@ For user-identity scenarios in which the PK Token is not made public, GQ signatu
 
 No because the OpenID Connect spec requires that all OPs (OpenID Providers) support RSA signatures.
 
-> "OPs MUST support signing ID Tokens with the RSA SHA-256 algorithm (an alg value of RS256), unless the OP only supports returning ID Tokens from the Token Endpoint (as is the case for the Authorization Code Flow) and only allows Clients to register specifying none as the requested ID Token signing algorithm."
+> OPs MUST support signing ID Tokens with the RSA SHA-256 algorithm (an alg value of RS256), unless the OP only supports returning ID Tokens from the Token Endpoint (as is the case for the Authorization Code Flow) and only allows Clients to register specifying none as the requested ID Token signing algorithm.
 
 From [OpenID Connect Core 1.0 - Section 15.1 Mandatory to Implement Features for All OpenID Providers](https://openid.net/specs/openid-connect-core-1_0.html#ServerMTI).
 
