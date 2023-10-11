@@ -26,7 +26,7 @@ As stated in the Related Work section of [the OpenPubkey paper](https://eprint.i
 
 ### How does OpenPubkey ensure the nonce claim functions as nonce?
 
-In the user-identity scenario the CIC that contains the user's public key is hashed to the `nonce` claim in the ID Token. As OIDC requires that this field never repeat, OpenPubkey includes a random value, rz, in the CIC. Thus the hash of the CIC is always different and random. This maintains the required properties needed by the `nonce` claim in OIDC.
+In the user-identity scenario the CIC (Client-Instance Claims) that contains the user's public key is hashed to the `nonce` claim in the ID Token. As OIDC requires that this field never repeat, OpenPubkey includes a random value, rz, in the CIC. Thus the hash of the CIC is always different and random. This maintains the required properties needed by the `nonce` claim in OIDC.
 
 ```golang
 rz = crypto.random()
