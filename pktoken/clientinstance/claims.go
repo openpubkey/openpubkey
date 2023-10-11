@@ -75,7 +75,7 @@ func (c *Claims) Commitment() (string, error) {
 
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
-func (c *Claims) Sign(signer signer.Signer, token []byte) ([]byte, error) {
+func (c *Claims) Sign(signer *signer.Signer, token []byte) ([]byte, error) {
 	_, payload, _, err := jws.SplitCompact(token)
 	if err != nil {
 		return nil, err
