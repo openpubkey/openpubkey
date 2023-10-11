@@ -46,7 +46,7 @@ In other OpenPubkey deployment scenarios, such as those employed by BastionZero,
 
 ### Can the ID Tokens contained in PK Token be replayed against OIDC Resource Providers?
 
-Although not present in the original OpenPubkey paper, GQ signatures have now been integrated so that the OP's (OpenID Provider) signature can be stripped from the ID Token, and a proof of the OP's signature published in its place. This prevents the ID Token present in the PK Token from being used against any OIDC resource providers as the original signature has been stripped. However the GQ Signature provides the same assurance that the original OP's signature did.
+Although not present in the original OpenPubkey paper, GQ signatures have now been integrated so that the OpenID Provider's (OP) signature can be stripped from the ID Token, and a proof of the OP's signature published in its place. This prevents the ID Token present in the PK Token from being used against any OIDC resource providers as the original signature has been removed without compromising any of the assurances that the original OP's signature provided.
 
 We follow the approach specified in the paper: [Reducing Trust in Automated Certificate Authorities via Proofs-of-Authentication.](https://arxiv.org/abs/2307.08201)
 
