@@ -40,6 +40,31 @@ type PKToken struct {
 	CosSig  []byte
 }
 
+func New(idToken []byte, cicToken []byte) (*PKToken, error) {
+	opPH, opPayload, opSig, err := jws.SplitCompact(idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure both signatures were signed over the same payload
+	if string(opPayload) != string(cicPayload) {
+		return nil, fmt.Errorf("the provided id token and cic token do not share the same payload")
+	}
+
+	return &PKToken{
+		Payload: opPayload,
+		OpPH:    opPH,
+		OpSig:   opSig,
+		CicPH:   cicPH,
+		CicSig:  cicSig,
+	}, nil
+}
+
 func FromCompact(pktCom []byte) (*PKToken, error) {
 	splitCom := bytes.Split(pktCom, []byte(":"))
 	if len(splitCom) == 5 {

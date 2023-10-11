@@ -4,25 +4,23 @@ import (
 	"crypto"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/pktoken/signer"
+	"github.com/openpubkey/openpubkey/signer"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
 type Claims struct {
 	// Claims are stored in the protected header portion of JWS signature
 	protected map[string]any
-	signer    signer.Signer
 }
 
 // Client instance claims must relate to a single key pair
-func New(signer signer.Signer, claims map[string]any) (*Claims, error) {
+func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	// Make sure no claims are using our reserved values
 	for _, reserved := range []string{"alg", "upk", "rz"} {
 		if _, ok := claims[reserved]; ok {
@@ -36,13 +34,12 @@ func New(signer signer.Signer, claims map[string]any) (*Claims, error) {
 	}
 
 	// Assign required values
-	claims["alg"] = signer.KeyAlgorithm().String()
-	claims["upk"] = signer.PublicKey()
+	claims["alg"] = publicKey.Algorithm().String()
+	claims["upk"] = publicKey
 	claims["rz"] = rand
 
 	return &Claims{
 		protected: claims,
-		signer:    signer,
 	}, nil
 }
 
@@ -76,9 +73,18 @@ func (c *Claims) Commitment() (string, error) {
 	return sha3_256(buf), nil
 }
 
-func (c *Claims) Sign(payload []byte) ([]byte, error) {
-	if c.signer == nil {
-		return nil, fmt.Errorf("missing key pair information")
+// This function signs the payload of the provided token with the protected headers
+// as defined by the client instance claims and returns a jwt in compact form.
+func (c *Claims) Sign(signer signer.Signer, token []byte) ([]byte, error) {
+	_, payload, _, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, err
+	}
+
+	// We need to make sure we're signing the decoded bytes
+	payloadDecoded, err := base64.RawURLEncoding.DecodeString(string(payload))
+	if err != nil {
+		return nil, err
 	}
 
 	headers := jws.NewHeaders()
@@ -88,11 +94,11 @@ func (c *Claims) Sign(payload []byte) ([]byte, error) {
 		}
 	}
 
-	jwt, err := jws.Sign(
-		payload,
+	cicToken, err := jws.Sign(
+		payloadDecoded,
 		jws.WithKey(
-			c.signer.KeyAlgorithm(),
-			c.signer.SecretKey(),
+			signer.JWKKey().Algorithm(),
+			signer.SigningKey(),
 			jws.WithProtectedHeaders(headers),
 		),
 	)
@@ -100,7 +106,7 @@ func (c *Claims) Sign(payload []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return jwt, nil
+	return cicToken, nil
 }
 
 func generateRand() (string, error) {
@@ -111,7 +117,7 @@ func generateRand() (string, error) {
 		return "", err
 	}
 
-	rz := hex.EncodeToString(rBytes) // LUCIE: why make this hex? too many different encodings
+	rz := base64.URLEncoding.EncodeToString(rBytes)
 	return rz, nil
 }
 
