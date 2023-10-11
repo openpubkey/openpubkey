@@ -29,7 +29,6 @@ As stated in the Related Work section of [the OpenPubkey paper](https://eprint.i
 In the user-identity scenario the CIC (Client-Instance Claims) that contains the user's public key is hashed to the `nonce` claim in the ID Token. As OIDC requires that this field never repeat, OpenPubkey includes a random value, rz, in the CIC. Thus the hash of the CIC is always different and random. This maintains the required properties needed by the `nonce` claim in OIDC.
 
 ```golang
-rz = crypto.random()
 CIC = {'rz': crypto.random(), 'upk': <publickey>, 'alg': 'EC256'}
 IDToken.nonce = SHA3(CIC)
 ```
@@ -38,7 +37,7 @@ IDToken.nonce = SHA3(CIC)
 
 The PK Tokens used by OpenPubkey contain the claims from the OIDC ID Tokens of the signer, so making them public necessarily makes those claims public too. This may include elements of the signer’s identity such as the signer’s name or email addresses. It is up to users of OpenPubkey as to whether or not PK Tokens are made public.
 
-In a public artifact signing scenario, it could be argued that these very claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
+In a public artifact signing scenario, it could be argued that these claims are the very claims upon which trust in the artifact should be based. However, some OIDC providers may include claims that the signer may wish to keep private. Users of OpenPubkey should consider carefully which OIDC providers to integrate with.
 
 Most OpenID Providers (OP) allow you to scope the fields in the ID Tokens. For instance Google’s OP is by default scoped to only include userinfo-email claims: name, email address and icon. Given that the purpose of OpenPubkey is to enable parties to verify that a particular identity, e.g., ethan@bastion.com, produced a particular signature, if you do not want signatures to be associated with OIDC identities, then OpenPubkey may not be a good fit for your use case.
 
@@ -50,7 +49,7 @@ Although not present in the original OpenPubkey paper, GQ signatures have now be
 
 We follow the approach specified in the paper: [Reducing Trust in Automated Certificate Authorities via Proofs-of-Authentication.](https://arxiv.org/abs/2307.08201)
 
-For user-identity scenarios in which the PK Token is not made public, GQ signatures are not required. Current GQ Signatures are required for all workload-identity usecases.
+For user-identity scenarios in which the PK Token is not made public, GQ signatures are not required. GQ Signatures are required for all current workload-identity use cases.
 
 ### Is it a problem that GQ Signatures only work with RSA signatures?
 
