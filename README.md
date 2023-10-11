@@ -86,7 +86,7 @@ Below consider a few of the proposed methods of ensuring the verifiability of si
 
 #### OP Public Keys via TUF (The Update Framework)
 
-Docker has proposed including a log of past OP public keys in the signed TUF state which is distributed with Docker Offical Images (DOIs). This seems like a natural fit for the Docker use case as DOIs already depend on the intrigity of TUF.
+Docker has proposed including a log of past OP public keys in the signed [TUF](https://theupdateframework.io/) state which is distributed with Docker Offical Images (DOIs). This seems like a natural fit for the Docker use case as DOIs already depend on the integrity of TUF.
 
 #### Certificate transparency logs
 
