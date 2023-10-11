@@ -12,6 +12,8 @@ import (
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/signer"
 )
 
 const gqSecurityParameter = 256
@@ -23,14 +25,16 @@ type MFACos interface {
 }
 
 type OpkClient struct {
-	PktCom      []byte
+	Pkt         *pktoken.PKToken
+	Signer      *signer.Signer
+	Cic         *clientinstance.Claims
 	Gq          bool
 	Op          OpenIdProvider
 	MFACosigner MFACos
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	nonce, err := cic.Commitment()
+	nonce, err := o.Cic.Commitment()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
@@ -40,7 +44,7 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 
-	cicToken, err := cic.Sign(signer, idToken)
+	cicToken, err := o.Cic.Sign(o.Signer.SigningKey(), o.Signer.JWKKey().Algorithm(), idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
@@ -94,7 +98,12 @@ type OpenIdProvider interface {
 }
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
-	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktCom)
+	pktJson, err := o.Pkt.ToJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", pktJson)
 	resp, err := http.Get(uri)
 	if err != nil {
 		fmt.Printf("MFA request failed: %v\n", err)
@@ -102,5 +111,8 @@ func (o *OpkClient) RequestCert() ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	certBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	return certBytes, nil
 }
