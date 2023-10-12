@@ -134,5 +134,5 @@ func hash(msg []byte) (string, error) {
 		return "", err
 	}
 	hash := hasher.Sum(nil)
-	return hex.EncodeToString(hash), nil
+	return base64.RawURLEncoding.EncodeToString(hash), nil
 }

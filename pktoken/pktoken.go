@@ -437,30 +437,6 @@ func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
 	return nil
 }
 
-func (p *PKToken) Verify(msg string, sig []byte) error {
-	jwsSig, err := jws.Parse(sig)
-	if err != nil {
-		return err
-	}
-
-	if msg != string(jwsSig.Payload()) {
-		return fmt.Errorf("Message does not match signed message")
-	}
-
-	alg, _, upk, err := p.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	_, err = jws.Verify(sig, jws.WithKey(alg, upk))
-	if err != nil {
-		return err
-	}
-
-	// verified
-	return nil
-}
-
 func (p *PKToken) Hash() (string, error) {
 	// get pktoken bytes
 	pktJson, err := p.ToJSON()
