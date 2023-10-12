@@ -76,7 +76,7 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
-	fmt.Printf("PKT=%s\n", pktJSON)
+
 	_, err = o.Op.VerifyPKToken(pktJSON, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
