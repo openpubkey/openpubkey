@@ -34,36 +34,36 @@ type OpkClient struct {
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	// Make sure our JWK has the algorithm set
+	// Make sure our JWK has the algorithm header set
 	if o.UserPublicKey.Algorithm().String() == "" {
 		return nil, fmt.Errorf("user JWK requires algorithm to be set")
 	}
 
-	// User uses key pair to generate client instance claims
+	// Use provided public key to generate client instance claims
 	cic, err := clientinstance.NewClaims(o.UserPublicKey, map[string]any{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	// Define our OIDC nonce as a commitment to our client instance claims
+	// Define our OIDC nonce as a commitment to the client instance claims
 	nonce, err := cic.Commitment()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
-	// Use that commitment nonce to complete the OIDC flow and get an ID token from the provider
+	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
 	idToken, err := o.Op.RequestTokens(nonce)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 
-	// User signs the payload from the ID token
+	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(o.SigningKey, o.UserPublicKey.Algorithm(), idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	// Combine our ID token and our signature over the cic to create our PK Token
+	// Combine our ID token and signature over the cic to create our PK Token
 	o.Pkt, err = pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)

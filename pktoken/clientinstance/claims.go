@@ -44,25 +44,6 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	}, nil
 }
 
-func Parse(raw []byte) (*Claims, error) {
-	var claims map[string]any
-	if err := json.Unmarshal(raw, &claims); err != nil {
-		return nil, err
-	}
-
-	return &Claims{
-		protected: claims,
-	}, nil
-}
-
-func (c *Claims) UserPublicKey() (jwk.Key, error) {
-	return nil, nil
-}
-
-func (c *Claims) AlgorithmKey() (jwa.KeyAlgorithm, error) {
-	return nil, nil
-}
-
 // Returns a hash of all client instance claims which includes a random value
 func (c *Claims) Commitment() (string, error) {
 	// LUCIE: Do we need to sort to maintain ordering???
