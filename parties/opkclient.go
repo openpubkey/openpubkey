@@ -8,12 +8,12 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/signer"
 )
 
 const gqSecurityParameter = 256
@@ -25,31 +25,46 @@ type MFACos interface {
 }
 
 type OpkClient struct {
-	Pkt         *pktoken.PKToken
-	Signer      *signer.Signer
-	Cic         *clientinstance.Claims
-	Gq          bool
-	Op          OpenIdProvider
-	MFACosigner MFACos
+	Pkt           *pktoken.PKToken
+	SigningKey    crypto.Signer
+	UserPublicKey jwk.Key // Requires "alg" header to be set
+	Gq            bool
+	Op            OpenIdProvider
+	MFACosigner   MFACos
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	nonce, err := o.Cic.Commitment()
+	// Make sure our JWK has the algorithm set
+	if o.UserPublicKey.Algorithm().String() == "" {
+		return nil, fmt.Errorf("user JWK requires algorithm to be set")
+	}
+
+	// User uses key pair to generate client instance claims
+	cic, err := clientinstance.NewClaims(o.UserPublicKey, map[string]any{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
+	}
+
+	// Define our OIDC nonce as a commitment to our client instance claims
+	nonce, err := cic.Commitment()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
+	// Use that commitment nonce to complete the OIDC flow and get an ID token from the provider
 	idToken, err := o.Op.RequestTokens(nonce)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 
-	cicToken, err := o.Cic.Sign(o.Signer.SigningKey(), o.Signer.JWKKey().Algorithm(), idToken)
+	// User signs the payload from the ID token
+	cicToken, err := cic.Sign(o.SigningKey, o.UserPublicKey.Algorithm(), idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	pkt, err := pktoken.New(idToken, cicToken)
+	// Combine our ID token and our signature over the cic to create our PK Token
+	o.Pkt, err = pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
@@ -67,16 +82,16 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
 
-		pkt.OpSig = gqSig
-		pkt.OpSigGQ = true
+		o.Pkt.OpSig = gqSig
+		o.Pkt.OpSigGQ = true
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	pktJSON, err := pkt.ToJSON()
+	pktJSON, err := o.Pkt.ToJSON()
 	if err != nil {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
-	fmt.Printf("PKT=%s\n", pktJSON)
+
 	_, err = o.Op.VerifyPKToken(pktJSON, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
@@ -106,7 +121,7 @@ func (o *OpkClient) RequestCert() ([]byte, error) {
 	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", pktJson)
 	resp, err := http.Get(uri)
 	if err != nil {
-		fmt.Printf("MFA request failed: %v\n", err)
+		fmt.Printf("MFA request failed: %s\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()

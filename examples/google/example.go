@@ -9,7 +9,6 @@ import (
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/parties"
-	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/signer"
 )
 
@@ -38,12 +37,8 @@ func main() {
 
 	switch command {
 	case "login":
+		// Generate user signing key pair
 		signer, err := signer.NewECDSASigner()
-		if err != nil {
-			panic(err)
-		}
-
-		cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
 		if err != nil {
 			panic(err)
 		}
@@ -58,9 +53,9 @@ func main() {
 				CallbackPath: callbackPath,
 				RedirectURI:  redirectURI,
 			},
-			Signer: signer,
-			Cic:    cic,
-			Gq:     false,
+			SigningKey:    signer.SigningKey(),
+			UserPublicKey: signer.JWKKey(),
+			Gq:            false,
 		}
 
 		pktJson, err := client.OidcAuth()
