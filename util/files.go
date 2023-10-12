@@ -140,7 +140,7 @@ func B64SHA3_256(msg []byte) []byte {
 	h := crypto.SHA3_256.New()
 	h.Write(msg)
 	image := h.Sum(nil)
-	return []byte(base64.RawURLEncoding.EncodeToString(image))
+	return []byte(base64.RawStdEncoding.EncodeToString(image))
 }
 
 func GetRandString(n int) (string, error) {
