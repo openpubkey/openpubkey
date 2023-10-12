@@ -55,7 +55,7 @@ func main() {
 			},
 			SigningKey:    signer.SigningKey(),
 			UserPublicKey: signer.JWKKey(),
-			Gq:            false,
+			Gq:            true,
 		}
 
 		pktJson, err := client.OidcAuth()
