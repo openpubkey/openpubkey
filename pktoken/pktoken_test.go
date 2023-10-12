@@ -6,6 +6,8 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/signer"
@@ -17,11 +19,16 @@ func TestPkToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pkt, err := createPKToken(signer)
+	pkt, err := generateMockPKToken(signer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	testPkTokenMessageSigning(t, pkt, signer)
+	testPkTokenSerialization(t, pkt)
+}
+
+func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signer *signer.Signer) {
 	// Create new OpenPubKey Signed Message (OSM)
 	msg := "test message!"
 	osm, err := pkt.NewSignedMessage([]byte(msg), signer.SigningKey())
@@ -40,7 +47,27 @@ func TestPkToken(t *testing.T) {
 	}
 }
 
-func createPKToken(signer *signer.Signer) (*pktoken.PKToken, error) {
+func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
+	// Test json serialization/deserialization
+	pktJson, err := pkt.ToJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := pktoken.FromJSON(pktJson)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tokenJson, err := token.ToJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	require.JSONEq(t, string(pktJson), string(tokenJson))
+}
+
+func generateMockPKToken(signer *signer.Signer) (*pktoken.PKToken, error) {
 	cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
 	if err != nil {
 		return nil, err
