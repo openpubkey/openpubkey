@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -18,6 +17,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 type CosignerConfig struct {
@@ -110,7 +110,7 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 			Critical: false,
 			Value:    []byte(oidcIssuer),
 		}},
-		SubjectKeyId: []byte(base64.URLEncoding.EncodeToString(pktJson)),
+		SubjectKeyId: []byte(util.Base64EncodeForJWT(pktJson)),
 	}
 
 	_, _, upkjwk, err := pkt.GetCicValues()
