@@ -70,9 +70,9 @@ Currently anyone using OIDC is trusting a single OpenID Provider. OpenPubkey imp
 
 ### How does OpenPubkey handle OP (OpenID Provider) public key rollover?
 
-OPs (OpenID Providers) issue ID Tokens by signing them. As required by OpenID Connect, OPs make their public keys avalaible at a JWKS (JSON Web Key Set) URI. Anyone can download the OP's public keys from the JWKS URI and verify an OP's signatures on an ID Token. The location of the JWKS URI is defined in the OPs ["/.well-known/openid-configuration"](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig). OPs rotate the public and signing keys they use for ID Tokens. This rotation frequency is between every two weeks to once a year.
+OPs (OpenID Providers) issue ID Tokens by signing them. As required by OpenID Connect, OPs make their public keys avalaible at a JWKS (JSON Web Key Set) URI. Anyone can download the OP's public keys from the JWKS URI and verify an OP's signatures on an ID Token. The location of the JWKS URI is defined in the OPs ["/.well-known/openid-configuration"](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig). OPs rotate the public and signing keys they use for ID Tokens.
 
-| OpenID Provider | .well-known/openid-configuration | JWKS URI | Key rotation |
+| OpenID Provider | .well-known/openid-configuration | JWKS URI | ~key rotation |
 | -------------| ------------- | ------------- | ------------- |
 | Google | https://accounts.google.com/.well-known/openid-configuration  | https://www.googleapis.com/oauth2/v3/certs |~14 days  |
 | GitHub Actions | https://token.actions.githubusercontent.com/.well-known/openid-configuration | https://token.actions.githubusercontent.com/.well-known/jwks  |~84 days |
