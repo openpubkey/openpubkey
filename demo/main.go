@@ -22,7 +22,6 @@ var (
 )
 
 // Simple PK Token CLI mostly for demo or testing purposes
-// Example usage: go run ./main.go -generate
 func main() {
 	parseFlags()
 
