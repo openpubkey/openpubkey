@@ -1,28 +1,18 @@
-package cert
+package pktoken_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
-
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/stretchr/testify/require"
 )
 
-// output SK
-// sign object in rektor
-// verify object in rektor using cert
+func TestPkToken(t *testing.T) {
+	TestPKTokenJSON(t)
+}
 
-func TestCertCreation(t *testing.T) {
-	caBytes, caPkSk, err := GenCAKeyPair()
-	if err != nil {
-		t.Error(err)
-	}
-
+func TestPKTokenJSON(t *testing.T) {
 	pktJson, err := json.Marshal(map[string]any{
 		"payload": "eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiIxODQ5NjgxMzg5MzgtZzFmZGRsNXRnbG83bW5sYmRhazhoYnNxaGhmNzlmMzIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMDQ4NTIwMDI0NDQ3NTQxMzYyNzEiLCJlbWFpbCI6ImFub24uYXV0aG9yLmFhcmR2YXJrQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhdF9oYXNoIjoiVmFGaGtlTE9ITXBxVWQ0RU9ZdW84ZyIsIm5vbmNlIjoiNndXMTExY25BajBlZUxzUGFDOGc5WlVkOXRDS2o1ZGNNZkt6OUZYZUFzYyIsIm5hbWUiOiJBbm9ueW1vdXMgQXV0aG9yIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FBY0hUdGRWR0Zab19aXzNoajY2ZFgzWjBHVklVUktLb2dCcGlKaDduLVhnPXM5Ni1jIiwiZ2l2ZW5fbmFtZSI6IkFub255bW91cyIsImZhbWlseV9uYW1lIjoiQXV0aG9yIiwibG9jYWxlIjoiZW4iLCJpYXQiOjE2ODUzOTU0MDEsImV4cCI6MTY4NTM5OTAwMX0",
 		"signatures": []any{
@@ -50,33 +40,19 @@ func TestCertCreation(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	requiredAudience := "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-
-	pemSubCert, err := PktTox509(pktJson, caBytes, caPkSk, requiredAudience)
-	if err != nil {
-		t.Error(err)
-	}
-
-	decodeBlock, _ := pem.Decode(pemSubCert)
-
-	cc, err := x509.ParseCertificate(decodeBlock.Bytes)
-	if err != nil {
-		t.Error(err)
-	}
-
-	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
-
-	pkt, err := pktoken.FromJSON(pktJson)
+	// Test json serialization/deserialization
+	token, err := pktoken.FromJSON(pktJson)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sigma := pkt.CicJWSCompact()
 
-	_, err = jws.Verify(sigma, jws.WithKey(jwa.ES256, certPubkey))
+	tokenJson, err := token.ToJSON()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
+
+	require.JSONEq(t, string(pktJson), string(tokenJson))
 }
