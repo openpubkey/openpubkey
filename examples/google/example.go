@@ -75,7 +75,7 @@ func main() {
 
 		var prettyJSON bytes.Buffer
 		if err := json.Indent(&prettyJSON, pktJson, "", "    "); err != nil {
-			fmt.Printf("our PK Token doesn't want to be pretty: %w\n", err)
+			fmt.Printf("our PK Token doesn't want to be pretty: %s\n", err)
 		}
 	case "sign":
 		GoogleSign()
