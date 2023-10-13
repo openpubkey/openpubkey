@@ -232,9 +232,9 @@ func (p *PKToken) GetCicValues() (jwa.KeyAlgorithm, string, jwk.Key, error) {
 	var hds map[string]interface{}
 	json.Unmarshal(decodedCicPH, &hds)
 
-	alg, _ := hds["alg"]
-	rz, _ := hds["rz"]
-	upk, _ := hds["upk"]
+	alg := hds["alg"]
+	rz := hds["rz"]
+	upk := hds["upk"]
 
 	algJwk := jwa.KeyAlgorithmFrom(alg)
 	upkBytes, err := json.Marshal(upk)
