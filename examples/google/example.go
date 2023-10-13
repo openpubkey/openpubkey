@@ -39,9 +39,9 @@ func main() {
 
 	switch command {
 	case "login":
-		// Generate user signing key pair
 		alg := jwa.ES256
 
+		// Generate a key pair in the form of a crypto.Signer and JWK-formatted public key
 		signingKey, err := util.GenKeyPair(alg)
 		if err != nil {
 			fmt.Printf("failed to generate new ecdsa key pair: %s\n", err)
