@@ -137,7 +137,7 @@ func (p *PKToken) ToJSON() ([]byte, error) {
 
 func (p *PKToken) OpJWSCompact() []byte {
 	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
+		panic(fmt.Errorf("HIIIIIIII"))
 	}
 
 	var buf bytes.Buffer
