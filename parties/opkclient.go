@@ -120,9 +120,5 @@ func (o *OpkClient) RequestCert() ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	certBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return certBytes, nil
+	return io.ReadAll(resp.Body)
 }
