@@ -127,7 +127,7 @@ Phase 1:
   - [ ] Github Actions signing example
 - [ ] [Cryptography review and remediation](https://github.com/openpubkey/openpubkey/issues/11)
 - [ ] Opensource project must haves
-  - [ ] Github actions to run unittest
+  - [x] Github actions to run unittest
   - [x] Linter enforcement
   - [ ] Code of conduct
   - [ ] Security.md
