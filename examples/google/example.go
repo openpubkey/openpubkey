@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/parties"
-	"github.com/openpubkey/openpubkey/signer"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // TODO: Create nice golang services rather than just using this handler nonsense
@@ -38,10 +40,18 @@ func main() {
 	switch command {
 	case "login":
 		// Generate user signing key pair
-		signer, err := signer.NewECDSASigner()
+		alg := jwa.ES256
+
+		signingKey, err := util.GenKeyPair(alg)
 		if err != nil {
-			panic(err)
+			fmt.Printf("failed to generate new ecdsa key pair: %s\n", err)
 		}
+
+		jwkKey, err := jwk.PublicKeyOf(signingKey)
+		if err != nil {
+			fmt.Printf("failed to generate JWK key from ecdsa private key: %s\n", err)
+		}
+		jwkKey.Set(jwk.AlgorithmKey, alg)
 
 		client := &parties.OpkClient{
 			Op: &parties.GoogleOp{
@@ -53,8 +63,8 @@ func main() {
 				CallbackPath: callbackPath,
 				RedirectURI:  redirectURI,
 			},
-			SigningKey:    signer.SigningKey(),
-			UserPublicKey: signer.JWKKey(),
+			SigningKey:    signingKey,
+			UserPublicKey: jwkKey,
 			Gq:            true,
 		}
 
@@ -65,7 +75,7 @@ func main() {
 
 		var prettyJSON bytes.Buffer
 		if err := json.Indent(&prettyJSON, pktJson, "", "    "); err != nil {
-			panic(fmt.Errorf("our PK Token doesn't want to be pretty: %w", err))
+			fmt.Printf("our PK Token doesn't want to be pretty: %w\n", err)
 		}
 	case "sign":
 		GoogleSign()

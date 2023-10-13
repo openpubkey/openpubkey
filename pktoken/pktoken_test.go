@@ -1,37 +1,48 @@
 package pktoken_test
 
 import (
+	"crypto"
 	"testing"
 	"time"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/signer"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestPkToken(t *testing.T) {
-	signer, err := signer.NewECDSASigner()
+	alg := jwa.ES256
+
+	signingKey, err := util.GenKeyPair(alg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pkt, err := generateMockPKToken(signer)
+	jwkKey, err := jwk.PublicKeyOf(signingKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwkKey.Set(jwk.AlgorithmKey, alg)
+
+	pkt, err := generateMockPKToken(signingKey, jwkKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	testPkTokenMessageSigning(t, pkt, signer)
+	testPkTokenMessageSigning(t, pkt, signingKey)
 	testPkTokenSerialization(t, pkt)
 }
 
-func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signer *signer.Signer) {
+func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signingKey crypto.Signer) {
 	// Create new OpenPubKey Signed Message (OSM)
 	msg := "test message!"
-	osm, err := pkt.NewSignedMessage([]byte(msg), signer.SigningKey())
+	osm, err := pkt.NewSignedMessage([]byte(msg), signingKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +78,8 @@ func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	require.JSONEq(t, string(pktJson), string(tokenJson))
 }
 
-func generateMockPKToken(signer *signer.Signer) (*pktoken.PKToken, error) {
-	cic, err := clientinstance.NewClaims(signer.JWKKey(), map[string]any{})
+func generateMockPKToken(signingKey crypto.Signer, jwkKey jwk.Key) (*pktoken.PKToken, error) {
+	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +97,7 @@ func generateMockPKToken(signer *signer.Signer) (*pktoken.PKToken, error) {
 	}
 
 	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signer.SigningKey(), signer.JWKKey().Algorithm(), idToken)
+	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +118,14 @@ func generateMockIDToken(nonce, issuer, audience string) ([]byte, error) {
 	token.Set(jwt.ExpirationKey, time.Now().Add(24*time.Hour).Unix())
 	token.Set(jwt.SubjectKey, "1234567890")
 
-	signer, err := signer.NewRSASigner()
+	alg := jwa.KeyAlgorithmFrom("RS256")
+	signingKey, err := util.GenKeyPair(alg)
 	if err != nil {
 		return nil, err
 	}
 
 	// Sign the token with the secret key
-	signedToken, err := jwt.Sign(token, jwt.WithKey(signer.JWKKey().Algorithm(), signer.SigningKey()))
+	signedToken, err := jwt.Sign(token, jwt.WithKey(alg, signingKey))
 	if err != nil {
 		return nil, err
 	}

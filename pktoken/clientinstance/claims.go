@@ -22,6 +22,11 @@ type Claims struct {
 
 // Client instance claims must relate to a single key pair
 func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
+	// Make sure our JWK has the algorithm header set
+	if publicKey.Algorithm().String() == "" {
+		return nil, fmt.Errorf("user JWK requires algorithm to be set")
+	}
+
 	// Make sure no claims are using our reserved values
 	for _, reserved := range []string{"alg", "upk", "rz"} {
 		if _, ok := claims[reserved]; ok {

@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
@@ -123,16 +125,14 @@ func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 	return sk, nil
 }
 
-func GenKeyPair(alg string) (*ecdsa.PrivateKey, error) {
-	if alg == "ES256" {
-		pksk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return nil, err
-		} else {
-			return pksk, nil
-		}
-	} else {
-		return nil, fmt.Errorf("Algorithm, %s, not supported", alg)
+func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
+	switch alg {
+	case jwa.ES256:
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case jwa.KeyAlgorithmFrom("RS256"): // RSASSA-PKCS-v1.5 using SHA-256
+		return rsa.GenerateKey(rand.Reader, 2048)
+	default:
+		return nil, fmt.Errorf("algorithm, %s, not supported", alg.String())
 	}
 }
 

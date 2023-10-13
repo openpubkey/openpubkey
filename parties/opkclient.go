@@ -34,11 +34,6 @@ type OpkClient struct {
 }
 
 func (o *OpkClient) OidcAuth() ([]byte, error) {
-	// Make sure our JWK has the algorithm header set
-	if o.UserPublicKey.Algorithm().String() == "" {
-		return nil, fmt.Errorf("user JWK requires algorithm to be set")
-	}
-
 	// Use provided public key to generate client instance claims
 	cic, err := clientinstance.NewClaims(o.UserPublicKey, map[string]any{})
 	if err != nil {
