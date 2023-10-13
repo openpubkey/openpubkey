@@ -17,7 +17,8 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 
-	"github.com/openpubkey/openpubkey/oidcprovider"
+	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/sha3"
@@ -79,8 +80,8 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		return err
 	}
 
-	client := &oidcprovider.OpkClient{
-		Op: &oidcprovider.GoogleOp{
+	client := &client.OpkClient{
+		Op: &providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Issuer:       issuer,
@@ -140,8 +141,8 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 }
 
 func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
-	client := &oidcprovider.OpkClient{
-		Op: &oidcprovider.GoogleOp{
+	client := &client.OpkClient{
+		Op: &providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Issuer:       issuer,

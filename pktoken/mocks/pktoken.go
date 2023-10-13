@@ -6,7 +6,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/oidcprovider"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -30,7 +30,7 @@ func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktok
 	}
 
 	// Generate mock id token
-	op, err := oidcprovider.NewMockOpenIdProvider()
+	op, err := providers.NewMockOpenIdProvider()
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package oidcprovider
+package client
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-const gqSecurityParameter = 256
+const GQSecurityParameter = 256
 
 type PublicKey interface {
 	Equal(x crypto.PublicKey) bool
@@ -59,7 +59,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 		rsaPubKey := pubKey.(*rsa.PublicKey)
 
-		err = pkt.VerifyGQSig(rsaPubKey, gqSecurityParameter)
+		err = pkt.VerifyGQSig(rsaPubKey, GQSecurityParameter)
 		if err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}

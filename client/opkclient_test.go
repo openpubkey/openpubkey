@@ -1,4 +1,4 @@
-package oidcprovider
+package client_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -22,7 +24,7 @@ func TestClient(t *testing.T) {
 		{name: "with GQ", gq: true},
 	}
 
-	op, err := NewMockOpenIdProvider()
+	op, err := providers.NewMockOpenIdProvider()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,11 +35,11 @@ func TestClient(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		client := OpkClient{
+		c := client.OpkClient{
 			Op: op,
 		}
 
-		pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, tc.gq)
+		pkt, err := c.OidcAuth(context.Background(), signer, alg, map[string]any{}, tc.gq)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +56,7 @@ func TestClient(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			sv := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), gqSecurityParameter)
+			sv := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
 			ok := sv.VerifyJWT(idt)
 			if !ok {
 				t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))

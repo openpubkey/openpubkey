@@ -1,4 +1,4 @@
-package oidcprovider
+package client
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func (o *OpkClient) OidcAuth(
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
-		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
+		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
 		gqToken, err := sv.SignJWT(idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)

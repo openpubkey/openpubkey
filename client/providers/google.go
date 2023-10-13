@@ -1,4 +1,4 @@
-package oidcprovider
+package providers
 
 import (
 	"context"
@@ -13,8 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/sirupsen/logrus"
-	"github.com/zitadel/oidc/v2/pkg/client"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -36,7 +37,7 @@ type GoogleOp struct {
 	server       *http.Server
 }
 
-var _ OpenIdProvider = (*GoogleOp)(nil)
+var _ client.OpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	cookieHandler :=
@@ -109,14 +110,14 @@ func (g *GoogleOp) NonceClaimName() string {
 	return "nonce"
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (PublicKey, error) {
+func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
 	j, err := jws.Parse(idt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)
 	}
 	kid := j.Signatures()[0].ProtectedHeaders().KeyID()
 
-	discConf, err := client.Discover(g.Issuer, http.DefaultClient)
+	discConf, err := oidcclient.Discover(g.Issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}

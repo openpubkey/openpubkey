@@ -1,4 +1,4 @@
-package oidcprovider
+package providers
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/zitadel/oidc/v2/pkg/client"
+	"github.com/openpubkey/openpubkey/client"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -23,7 +24,7 @@ type GithubOp struct {
 	tokenRequestAuthToken string
 }
 
-var _ OpenIdProvider = (*GithubOp)(nil)
+var _ client.OpenIdProvider = (*GithubOp)(nil)
 
 func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	tokenURL, err := getEnvVar("ACTIONS_ID_TOKEN_REQUEST_URL")
@@ -73,7 +74,7 @@ func (g *GithubOp) NonceClaimName() string {
 	return "aud"
 }
 
-func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (PublicKey, error) {
+func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
 	j, err := jws.Parse(idt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)
@@ -84,7 +85,7 @@ func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (PublicKey, error)
 		return nil, fmt.Errorf("expected RS256 alg claim, got %s", alg)
 	}
 
-	discConf, err := client.Discover(githubIssuer, http.DefaultClient)
+	discConf, err := oidcclient.Discover(githubIssuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
@@ -150,5 +151,5 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, e
 }
 
 func (*GithubOp) VerifyOIDCSig(context.Context, []byte, string) error {
-	return ErrNonGQUnsupported
+	return client.ErrNonGQUnsupported
 }
