@@ -3,7 +3,6 @@ package clientinstance
 import (
 	"crypto"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -74,7 +74,7 @@ func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []
 	}
 
 	// We need to make sure we're signing the decoded bytes
-	payloadDecoded, err := base64.RawURLEncoding.DecodeString(string(payload))
+	payloadDecoded, err := util.Base64DecodeForJWT(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -120,5 +120,5 @@ func hash(msg []byte) (string, error) {
 		return "", err
 	}
 	hash := hasher.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(hash), nil
+	return string(util.Base64EncodeForJWT(hash)), nil
 }

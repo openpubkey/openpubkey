@@ -11,6 +11,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 const SigTypeHeader = "sig_type"
@@ -396,5 +397,5 @@ func (p *PKToken) Hash() (string, error) {
 		return "", err
 	}
 	hash := hasher.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(hash), nil
+	return string(util.Base64EncodeForJWT(hash)), nil
 }
