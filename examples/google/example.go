@@ -1,36 +1,36 @@
 package main
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 // TODO: Create nice golang services rather than just using this handler nonsense
 
 type ReceiveIDTHandler func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
 
-func GoogleSign() {
-	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256", false, nil)
+func login() error {
+	signer, err := pktoken.NewSigner(fpClientCfg, keyAlgorithm.String(), gq, map[string]any{"extra": "yes"})
 	if err != nil {
-		logrus.Fatalf("Error loading client state: %s", err.Error())
-		return
+		return err
 	}
 
 	client := &parties.OpkClient{
-		Signer: signer,
 		Op: &parties.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -40,52 +40,63 @@ func GoogleSign() {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
+		Signer: signer,
 	}
 
-	msg, err := os.ReadFile("hunter.txt")
+	pktJson, err := client.OidcAuth()
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	// Pretty print our json token
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
+		return err
+	}
+
+	fmt.Println(prettyJSON.String())
+
+	// Save our signer and pktoken by writing them to a file
+	return signer.WriteToFile()
+}
+
+func googleSign(message string) error {
+	signer, err := pktoken.LoadFromFile(fpClientCfg, keyAlgorithm.String(), false, nil)
+	if err != nil {
+		return fmt.Errorf("failed to load client state: %w", err)
 	}
 
 	msgHash := sha256.New()
-	_, err = msgHash.Write(msg)
+	_, err = msgHash.Write([]byte(message))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	msgHashSum := msgHash.Sum(nil)
-	hashhex := hex.EncodeToString(msgHashSum)
 
-	rawSigma, err := client.Signer.Pksk.Sign(rand.Reader, msgHashSum, crypto.SHA256)
+	rawSigma, err := signer.Pksk.Sign(rand.Reader, msgHashSum, crypto.SHA256)
 	if err != nil {
-		logrus.Fatalf("Error signing: %s", err.Error())
-		return
+		return err
 	}
 
-	err = os.WriteFile("sigma.sig", rawSigma, 0644)
+	fmt.Println("Praise Sigma: ", base64.StdEncoding.EncodeToString(rawSigma))
+	fmt.Println("Hash: ", hex.EncodeToString(msgHashSum))
+	fmt.Println("Cert: ")
 
-	sigma := base64.StdEncoding.EncodeToString(rawSigma)
-	if err != nil {
-		panic(err)
+	// Pretty print our json token
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, signer.PktJson, "", "  "); err != nil {
+		return err
 	}
-	cert, err := os.ReadFile("pkt.cert")
-	if err != nil {
-		panic(err)
-	}
 
-	certstr := make([]byte, base64.StdEncoding.EncodedLen(len(cert)))
-	base64.StdEncoding.Encode(certstr, cert)
+	fmt.Println(prettyJSON.String())
 
-	fmt.Println("Praise Sigma: " + string(sigma))
-	fmt.Println("Hash: " + string(hashhex))
-	fmt.Println("Cert: " + string(certstr))
+	return nil
 }
 
-func GoogleCert() {
-
-	signer, err := pktoken.LoadFromFile(fpClientCfg, "ES256", false, nil)
+func googleCert() error {
+	signer, err := pktoken.LoadFromFile(fpClientCfg, keyAlgorithm.String(), false, nil)
 	if err != nil {
-		fmt.Printf("Error loading client state: %s", err.Error())
-		return
+		return fmt.Errorf("failed to load client state: %w", err)
 	}
 
 	client := &parties.OpkClient{
@@ -103,74 +114,63 @@ func GoogleCert() {
 
 	certBytes, err := client.RequestCert()
 	if err != nil {
-		fmt.Printf("Error signing: %s", err.Error())
-		return
+		return fmt.Errorf("failed to request certificate: %w", err)
 	}
-	fmt.Println("Cert received: " + string(certBytes))
+	fmt.Println("Cert received: ", string(certBytes))
 
 	block, _ := pem.Decode(certBytes)
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		fmt.Printf("Error failed to parse cert: %s", err.Error())
-		return
+		return fmt.Errorf("failed to parse cert: %s", err)
 	}
 
 	skid := cert.SubjectKeyId
 
-	fmt.Println("Cert skid: " + string(skid))
+	fmt.Println("Cert skid: ", string(skid))
 
-	skidDecoded, err := base64.RawStdEncoding.DecodeString(string(skid))
+	skidDecoded, err := util.Base64DecodeForJWT(skid)
 	if err != nil {
-		fmt.Println("malformatted skid, expected base64 url encoded value")
+		return fmt.Errorf("malformatted skid: %w", err)
 	}
 
 	skidpkt, err := pktoken.FromJSON(skidDecoded)
 	if err != nil {
-		fmt.Printf("Error failed to parse PK Token from Subject Key ID in x509 cert: %s", err.Error())
-		return
+		return fmt.Errorf("failed to parse PK Token from Subject Key ID in x509 cert: %w", err)
 	}
 
-	fmt.Println("Cert skid PK Token Payload: " + string(skidpkt.Payload))
+	fmt.Println("Cert skid PK Token Payload: ", string(skidpkt.Payload))
 
 	err = skidpkt.VerifyCicSig()
 	if err != nil {
-		fmt.Printf("Error CIC verification failed in  PK Token from Subject Key ID in x509 cert: %s", err.Error())
-		return
+		return fmt.Errorf("cic verification failed in  PK Token from Subject Key ID in x509 cert: %w", err)
 	}
 
-	fmt.Println("Cert: " + string(certBytes))
-
+	fmt.Println("Cert: ", string(certBytes))
+	return nil
 }
 
-func CaKeyGen() {
+func caKeyGen() error {
 	ca := &parties.Ca{}
-	err := ca.KeyGen(fpCaCfg, "ES256")
+	err := ca.KeyGen(fpCaCfg, keyAlgorithm.String())
 	if err != nil {
-		fmt.Printf("Error keygen: %s \n", err.Error())
-		return
+		return fmt.Errorf("failed to generate keys for CA: %w", err)
 	}
+	return nil
 }
 
-func CaServ() {
-
+func caServ() error {
 	ca := &parties.Ca{}
-	err := ca.Load("ES256")
+	err := ca.Load(keyAlgorithm.String())
 	if err != nil {
-		fmt.Printf("Error Loading CA state: %s \n", err.Error())
-		return
+		return fmt.Errorf("failed to load CA state: %w", err)
 	}
 	ca.Serv()
-
+	return nil
 }
 
-func SigStoreSign() {}
+func sigStoreSign() {}
 
 func main() {
-
-	fpClientCfg = "configs/clcfg"
-	fpMfaCfg = "configs/mfacfg"
-	fpCaCfg = "configs/cacfg"
-
 	if len(os.Args) < 2 {
 		fmt.Printf("OpenPubkey: command required choices are login, sign, cert, cagen, ca")
 		return
@@ -180,46 +180,30 @@ func main() {
 
 	switch command {
 	case "login":
-		{
-			opkClientAlg := "ES256"
-			gq := true
-
-			signer, err := pktoken.NewSigner(fpClientCfg, opkClientAlg, gq, map[string]any{"extra": "yes"})
-			if err != nil {
-				panic(err)
-			}
-
-			client := &parties.OpkClient{
-				Op: &parties.GoogleOp{
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
-					Issuer:       issuer,
-					Scopes:       scopes,
-					RedirURIPort: redirURIPort,
-					CallbackPath: callbackPath,
-					RedirectURI:  redirectURI,
-				},
-				Signer: signer,
-			}
-
-			client.OidcAuth()
+		if err := login(); err != nil {
+			fmt.Println("Error logging in: ", err)
+		} else {
+			fmt.Println("Login successful!")
 		}
 	case "sign":
-		GoogleSign()
-
+		if err := googleSign("this is a test"); err != nil {
+			fmt.Println("Failed to sign message: ", err)
+		}
 	case "cert":
-		GoogleCert()
-
+		if err := googleCert(); err != nil {
+			fmt.Println("Error: ", err)
+		}
 	case "cagen":
-		CaKeyGen()
-
+		if err := caKeyGen(); err != nil {
+			fmt.Println("Error: ", err)
+		}
 	case "ca":
-		CaServ()
-
+		if err := caServ(); err != nil {
+			fmt.Println("Error: ", err)
+		}
 	case "sss":
-		SigStoreSign()
-
+		sigStoreSign()
 	default:
-		fmt.Printf("Error! No valid command")
+		fmt.Println("Unrecognized command: ", command)
 	}
 }

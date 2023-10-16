@@ -30,7 +30,7 @@ type Signer struct {
 	rz       string
 	cfgPath  string
 	GqSig    bool
-	PktCom   []byte
+	PktJson  []byte
 	extraCIC map[string]any
 }
 
@@ -61,7 +61,7 @@ func NewSigner(cfgPath string, alg string, gqSig bool, extraCIC map[string]any) 
 	return &us, nil
 }
 
-func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
+func LoadSigner(cfgPath string, pktJson []byte, uSk *ecdsa.PrivateKey, alg string, gqSig bool, extraCIC map[string]any) (*Signer, error) {
 	err := checkExtraCIC(extraCIC)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func LoadSigner(cfgPath string, pktCom []byte, uSk *ecdsa.PrivateKey, alg string
 		Pksk:     uSk,
 		alg:      alg,
 		rz:       rz,
-		PktCom:   pktCom,
+		PktJson:  pktJson,
 		GqSig:    gqSig,
 		cfgPath:  cfgPath,
 		extraCIC: extraCIC,
@@ -91,7 +91,7 @@ func LoadFromFile(cfgPath string, alg string, gqSig bool, extraCIC map[string]an
 	fpPkT := path.Join(cfgPath, "pkt.pub")
 	fpUsK := path.Join(cfgPath, "usk.sk")
 
-	pktCom, err := os.ReadFile(fpPkT)
+	pktJson, err := os.ReadFile(fpPkT)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func LoadFromFile(cfgPath string, alg string, gqSig bool, extraCIC map[string]an
 		return nil, err
 	}
 
-	return LoadSigner(cfgPath, pktCom, pksk, alg, gqSig, extraCIC)
+	return LoadSigner(cfgPath, pktJson, pksk, alg, gqSig, extraCIC)
 }
 
 func checkExtraCIC(extraCIC map[string]any) error {
@@ -119,7 +119,7 @@ func checkExtraCIC(extraCIC map[string]any) error {
 	return nil
 }
 
-func (u *Signer) WriteToFile(pktCom []byte) error {
+func (u *Signer) WriteToFile() error {
 	err := os.MkdirAll(u.cfgPath, os.ModePerm)
 	if err != nil {
 		return err
@@ -132,7 +132,8 @@ func (u *Signer) WriteToFile(pktCom []byte) error {
 		return err
 	}
 
-	err = os.WriteFile(fpPkT, pktCom, 0600)
+	fmt.Println(string(u.PktJson))
+	err = os.WriteFile(fpPkT, u.PktJson, 0600)
 	if err != nil {
 		return err
 	}
@@ -173,7 +174,7 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 		return nil, err
 	}
 
-	return &PKToken{
+	pkt := &PKToken{
 		Payload: payload,
 		OpPH:    opPH,
 		OpSig:   opSig,
@@ -181,7 +182,10 @@ func (s *Signer) CreatePkToken(idtCom []byte) (*PKToken, error) {
 		CicSig:  cicSig,
 		CosSig:  nil,
 		CosPH:   nil,
-	}, nil
+	}
+
+	s.PktJson, err = pkt.ToJSON()
+	return pkt, err
 }
 
 func (s *Signer) CicSignature(payload []byte) ([]byte, []byte, error) {

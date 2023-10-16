@@ -1,6 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/lestrrat-go/jwx/v2/jwa"
+)
+
+const (
+	gq           = true
+	keyAlgorithm = jwa.ES256
+
+	// Directories for saving data
+	fpClientCfg = "configs/clcfg"
+	fpCaCfg     = "configs/cacfg"
+	fpMfaCfg    = "configs/mfacfg"
+)
 
 var (
 	key              = []byte("NotASecureKey123")
@@ -13,8 +27,4 @@ var (
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
-
-	fpClientCfg = "configs/clcfg"
-	fpMfaCfg    = "configs/mfacfg"
-	fpCaCfg     = "configs/cacfg"
 )
