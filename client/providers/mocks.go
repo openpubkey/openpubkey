@@ -61,10 +61,10 @@ func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (client.
 	return m.signer.Public().(*rsa.PublicKey), nil
 }
 
-func (m *MockOpenIdProvider) NonceClaimName() string {
-	return "nonce"
+func (m *MockOpenIdProvider) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
+	return nil
 }
 
-func (m *MockOpenIdProvider) VerifyOIDCSig(ctx context.Context, idt []byte, expectedNonce string) error {
+func (m *MockOpenIdProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
 	return nil
 }

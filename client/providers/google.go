@@ -106,8 +106,17 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, e
 	}
 }
 
-func (g *GoogleOp) NonceClaimName() string {
-	return "nonce"
+func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
+	cicHash, err := client.ExtractClaim(idt, "nonce")
+	if err != nil {
+		return err
+	}
+
+	if cicHash != expectedCICHash {
+		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
+	}
+
+	return nil
 }
 
 func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
@@ -141,7 +150,7 @@ func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey,
 	return pubKey, err
 }
 
-func (g *GoogleOp) VerifyOIDCSig(ctx context.Context, idt []byte, expectedNonce string) error {
+func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
 	options := []rp.Option{
 		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
 	}

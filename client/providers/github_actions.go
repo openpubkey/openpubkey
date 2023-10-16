@@ -70,8 +70,17 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func (g *GithubOp) NonceClaimName() string {
-	return "aud"
+func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
+	cicHash, err := client.ExtractClaim(idt, "aud")
+	if err != nil {
+		return err
+	}
+
+	if cicHash != expectedCICHash {
+		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
+	}
+
+	return nil
 }
 
 func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
@@ -150,6 +159,6 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, e
 	return []byte(jwt.Value), err
 }
 
-func (*GithubOp) VerifyOIDCSig(context.Context, []byte, string) error {
+func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
 	return client.ErrNonGQUnsupported
 }

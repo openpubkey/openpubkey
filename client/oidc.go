@@ -9,7 +9,9 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 const GQSecurityParameter = 256
@@ -24,8 +26,8 @@ var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) ([]byte, error)
 	PublicKey(ctx context.Context, idt []byte) (PublicKey, error)
-	NonceClaimName() string
-	VerifyOIDCSig(ctx context.Context, idt []byte, expectedNonce string) error
+	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
+	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
 
 func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider, cosPk crypto.PublicKey) error {
@@ -64,19 +66,12 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 
-		var payload map[string]any
-		err = json.Unmarshal(pkt.Payload, &payload)
+		err = provider.VerifyCICHash(ctx, idt, string(commitment))
 		if err != nil {
-			return fmt.Errorf("failed to unmarshal payload")
-		}
-
-		nonceClaimName := provider.NonceClaimName()
-		nonce := payload[nonceClaimName]
-		if nonce != string(commitment) {
-			return fmt.Errorf("aud doesn't match, got %q, expected %q", nonce, string(commitment))
+			return fmt.Errorf("failed to verify CIC hash: %w", err)
 		}
 	case pktoken.Oidc:
-		err = provider.VerifyOIDCSig(ctx, idt, string(commitment))
+		err = provider.VerifyNonGQSig(ctx, idt, string(commitment))
 		if err != nil {
 			if err == ErrNonGQUnsupported {
 				return fmt.Errorf("oidc provider doesn't support non-GQ signatures")
@@ -104,4 +99,34 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	}
 
 	return nil
+}
+
+func ExtractClaim(idt []byte, claimName string) (string, error) {
+	_, payloadB64, _, err := jws.SplitCompact(idt)
+	if err != nil {
+		return "", fmt.Errorf("failed to split/decode JWT: %w", err)
+	}
+
+	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode payload")
+	}
+
+	var payload map[string]any
+	err = json.Unmarshal(payloadJSON, &payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal payload")
+	}
+
+	claim, ok := payload[claimName]
+	if !ok {
+		return "", fmt.Errorf("claim '%s' missing from payload", claimName)
+	}
+
+	claimStr, ok := claim.(string)
+	if !ok {
+		return "", fmt.Errorf("expected claim '%s' to be a string, was %T", claimName, claim)
+	}
+
+	return claimStr, nil
 }
