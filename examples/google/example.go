@@ -13,9 +13,22 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+)
+
+// Variables for building our google provider
+var (
+	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
+	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	issuer       = "https://accounts.google.com"
+	scopes       = []string{"openid profile email"}
+	redirURIPort = "3000"
+	callbackPath = "/login-callback"
+	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
 )
 
 func main() {
@@ -24,31 +37,36 @@ func main() {
 		return
 	}
 
-	command := os.Args[1]
+	signGQ := true
+	keyAlgorithm := jwa.ES256
 
+	// Directory for saving data
+	outputDir := "opk/google"
+
+	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(); err != nil {
-			fmt.Println("Error logging in: ", err)
+		if err := login(outputDir, keyAlgorithm, signGQ); err != nil {
+			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login successful!")
 		}
 	case "sign":
 		message := "sign me!!"
-		if err := googleSign(message); err != nil {
-			fmt.Println("Failed to sign test message: ", err)
+		if err := googleSign(message, outputDir, keyAlgorithm, signGQ); err != nil {
+			fmt.Println("Failed to sign test message:", err)
 		}
 	case "cert":
-		if err := googleCert(); err != nil {
-			fmt.Println("Failed to generate certificate: ", err)
+		if err := googleCert(outputDir, keyAlgorithm, signGQ); err != nil {
+			fmt.Println("Failed to generate certificate:", err)
 		}
 	default:
-		fmt.Println("Unrecognized command: ", command)
+		fmt.Println("Unrecognized command:", command)
 	}
 }
 
-func login() error {
-	signer, err := pktoken.NewSigner(fpClientCfg, keyAlgorithm.String(), gq, map[string]any{"extra": "yes"})
+func login(config string, alg jwa.KeyAlgorithm, signGQ bool) error {
+	signer, err := pktoken.NewSigner(config, alg.String(), signGQ, map[string]any{"extra": "yes"})
 	if err != nil {
 		return err
 	}
@@ -83,8 +101,8 @@ func login() error {
 	return signer.WriteToFile()
 }
 
-func googleSign(message string) error {
-	signer, err := pktoken.LoadFromFile(fpClientCfg, keyAlgorithm.String(), false, nil)
+func googleSign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+	signer, err := pktoken.LoadFromFile(outputDir, alg.String(), signGq, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)
 	}
@@ -101,9 +119,10 @@ func googleSign(message string) error {
 		return err
 	}
 
-	fmt.Println("Praise Sigma: ", base64.StdEncoding.EncodeToString(rawSigma))
-	fmt.Println("Hash: ", hex.EncodeToString(msgHashSum))
-	fmt.Println("Cert: ")
+	fmt.Println("Signed Message:", message)
+	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(rawSigma))
+	fmt.Println("Hash:", hex.EncodeToString(msgHashSum))
+	fmt.Println("Cert:")
 
 	// Pretty print our json token
 	var prettyJSON bytes.Buffer
@@ -116,8 +135,8 @@ func googleSign(message string) error {
 	return nil
 }
 
-func googleCert() error {
-	signer, err := pktoken.LoadFromFile(fpClientCfg, keyAlgorithm.String(), false, nil)
+func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+	signer, err := pktoken.LoadFromFile(outputDir, alg.String(), false, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)
 	}
@@ -137,9 +156,9 @@ func googleCert() error {
 
 	certBytes, err := client.RequestCert()
 	if err != nil {
-		return fmt.Errorf("failed to request certificate: %w", err)
+		return err
 	}
-	fmt.Println("Cert received: ", string(certBytes))
+	fmt.Println("Cert received:", string(certBytes))
 
 	block, _ := pem.Decode(certBytes)
 	cert, err := x509.ParseCertificate(block.Bytes)
@@ -149,7 +168,7 @@ func googleCert() error {
 
 	skid := cert.SubjectKeyId
 
-	fmt.Println("Cert skid: ", string(skid))
+	fmt.Println("Cert skid:", string(skid))
 
 	skidDecoded, err := util.Base64DecodeForJWT(skid)
 	if err != nil {
@@ -161,13 +180,13 @@ func googleCert() error {
 		return fmt.Errorf("failed to extract PK Token from x509 cert: %w", err)
 	}
 
-	fmt.Println("Cert skid PK Token payload: ", string(skidpkt.Payload))
+	fmt.Println("Cert skid PK Token payload:", string(skidpkt.Payload))
 
 	err = skidpkt.VerifyCicSig()
 	if err != nil {
 		return fmt.Errorf("cic verification failed in PK Token: %w", err)
 	}
 
-	fmt.Println("Cert: ", string(certBytes))
+	fmt.Println("Cert:", string(certBytes))
 	return nil
 }

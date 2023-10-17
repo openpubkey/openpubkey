@@ -5,8 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -88,11 +86,13 @@ type OpenIdProvider interface {
 }
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
-	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
-	resp, err := http.Get(uri)
-	if err != nil {
-		return nil, fmt.Errorf("MFA request failed: %s", err)
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	return nil, fmt.Errorf("cosigning currently unsupported")
+
+	// uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
+	// resp, err := http.Get(uri)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("MFA request failed: %s", err)
+	// }
+	// defer resp.Body.Close()
+	// return io.ReadAll(resp.Body)
 }
