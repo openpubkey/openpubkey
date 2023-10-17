@@ -65,8 +65,8 @@ func main() {
 	}
 }
 
-func login(config string, alg jwa.KeyAlgorithm, signGQ bool) error {
-	signer, err := pktoken.NewSigner(config, alg.String(), signGQ, map[string]any{"extra": "yes"})
+func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
+	signer, err := pktoken.NewSigner(outputDir, alg.String(), signGQ, map[string]any{"extra": "yes"})
 	if err != nil {
 		return err
 	}
