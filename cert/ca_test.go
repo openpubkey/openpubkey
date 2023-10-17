@@ -5,22 +5,22 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
-
-// output SK
-// sign object in rektor
-// verify object in rektor using cert
 
 func TestCertCreation(t *testing.T) {
 	caBytes, caPkSk, err := GenCAKeyPair()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	pktJson, err := json.Marshal(map[string]any{
@@ -50,21 +50,21 @@ func TestCertCreation(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	requiredAudience := "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
 
 	pemSubCert, err := PktTox509(pktJson, caBytes, caPkSk, requiredAudience)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	decodeBlock, _ := pem.Decode(pemSubCert)
 
 	cc, err := x509.ParseCertificate(decodeBlock.Bytes)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
@@ -77,6 +77,22 @@ func TestCertCreation(t *testing.T) {
 
 	_, err = jws.Verify(sigma, jws.WithKey(jwa.ES256, certPubkey))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	}
+
+	// Test writing and reading our certificate to and from disk
+	certPath := path.Join(os.TempDir(), "cert.pem")
+	err = util.WriteCertFile(certPath, cc.Raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	readCert, err := util.ReadCertFile(certPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(cc.Raw) != string(readCert.Raw) {
+		t.Fatal(fmt.Errorf("did not read in same certificate as we wrote to file"))
 	}
 }
