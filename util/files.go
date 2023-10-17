@@ -7,12 +7,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func WriteCertFile(fpath string, cert []byte) error {
@@ -75,6 +75,41 @@ func ReadCertFile(fpath string) (*x509.Certificate, error) {
 	return cert, nil
 }
 
+func SecretKeyFromBytes(pemBytes []byte) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode(pemBytes)
+	return x509.ParseECPrivateKey(block.Bytes)
+}
+
+func X509PublicKeyBytesFromJWK(upkjwk jwk.Key) ([]byte, error) {
+	var rawkey interface{}
+	if err := upkjwk.Raw(&rawkey); err != nil {
+		return nil, err
+	}
+	pupkPKTCom := rawkey.(*ecdsa.PublicKey)
+
+	x509PublicKeyBytes, err := x509.MarshalPKIXPublicKey(pupkPKTCom)
+	if err != nil {
+		return nil, err
+	} else {
+		return x509PublicKeyBytes, nil
+	}
+}
+
+func ReadPKFile(fpath string) (*ecdsa.PublicKey, error) {
+	pemBytes, err := os.ReadFile(fpath)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(pemBytes)
+	pkAny, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	pk := pkAny.(*ecdsa.PublicKey)
+	return pk, nil
+}
+
 func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 	pemBytes, err := os.ReadFile(fpath)
 	if err != nil {
@@ -103,5 +138,5 @@ func B64SHA3_256(msg []byte) []byte {
 	h := crypto.SHA3_256.New()
 	h.Write(msg)
 	image := h.Sum(nil)
-	return []byte(base64.RawURLEncoding.EncodeToString(image))
+	return Base64EncodeForJWT(image)
 }
