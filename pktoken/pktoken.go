@@ -43,6 +43,8 @@ type PKToken struct {
 	CicSig  []byte
 	CosPH   []byte
 	CosSig  []byte
+
+	raw []byte // the original, raw representation of the object
 }
 
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
@@ -70,7 +72,7 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	}, nil
 }
 
-func FromJWS(jws *JWS) *PKToken {
+func FromJWS(jws *JWS, raw []byte) *PKToken {
 	var cic, op, cos JWSignature
 
 	gq := false
@@ -102,6 +104,10 @@ func FromJWS(jws *JWS) *PKToken {
 	if hasCos {
 		tok.CosPH = []byte(cos.Protected)
 		tok.CosSig = []byte(cos.Signature)
+	}
+
+	if raw != nil {
+		tok.raw = raw
 	}
 
 	return tok
@@ -153,7 +159,7 @@ func FromJSON(in []byte) (*PKToken, error) {
 		return nil, err
 	}
 
-	return FromJWS(jws), nil
+	return FromJWS(jws, in), nil
 }
 
 func (p *PKToken) ToJSON() ([]byte, error) {
@@ -388,14 +394,23 @@ func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
 }
 
 func (p *PKToken) Hash() (string, error) {
-	// get pktoken bytes
-	pktJson, err := p.ToJSON()
-	if err != nil {
-		return "", err
+	/*
+		We set the raw variable when unmarshaling from json (the only current string representation of a
+		PK Token) so when we hash we use the same representation that was given for consistency. When the
+		token being hashed is a new PK Token, we marshal it ourselves. This can introduce some issues based
+		on how different languages format their json strings.
+	*/
+	message := p.raw
+	var err error
+	if message == nil {
+		message, err = p.ToJSON()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	hasher := crypto.SHA3_256.New()
-	_, err = hasher.Write(pktJson)
+	_, err = hasher.Write(message)
 	if err != nil {
 		return "", err
 	}
