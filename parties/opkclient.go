@@ -40,7 +40,7 @@ func (o *OpkClient) OidcAuth(
 	// Use our signing key to generate a JWK key with the alg header set
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate JWK key from ecdsa private key: %w", err)
+		return nil, err
 	}
 	jwkKey.Set(jwk.AlgorithmKey, alg)
 
