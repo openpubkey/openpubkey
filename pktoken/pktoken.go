@@ -2,7 +2,7 @@ package pktoken
 
 import (
 	"bytes"
-	"crypto/sha256"
+	"crypto"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -11,7 +11,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+
 	"github.com/openpubkey/openpubkey/util"
+
+	_ "golang.org/x/crypto/sha3"
 )
 
 const SigTypeHeader = "sig_type"
@@ -391,7 +394,7 @@ func (p *PKToken) Hash() (string, error) {
 		return "", err
 	}
 
-	hasher := sha256.New()
+	hasher := crypto.SHA3_256.New()
 	_, err = hasher.Write(pktJson)
 	if err != nil {
 		return "", err
