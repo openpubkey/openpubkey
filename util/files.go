@@ -130,7 +130,7 @@ func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
 	case jwa.KeyAlgorithmFrom("RS256"): // RSASSA-PKCS-v1.5 using SHA-256
 		return rsa.GenerateKey(rand.Reader, 2048)
 	default:
-		return nil, fmt.Errorf("algorithm, %s, not supported", alg.String())
+		return nil, fmt.Errorf("unsupported algorithm: %s", alg.String())
 	}
 }
 

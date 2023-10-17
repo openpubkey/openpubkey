@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -25,17 +26,26 @@ type MFACos interface {
 }
 
 type OpkClient struct {
-	Pkt           *pktoken.PKToken
-	SigningKey    crypto.Signer
-	UserPublicKey jwk.Key // Requires "alg" header to be set
-	Gq            bool
-	Op            OpenIdProvider
-	MFACosigner   MFACos
+	Pkt         *pktoken.PKToken
+	Op          OpenIdProvider
+	MFACosigner MFACos
 }
 
-func (o *OpkClient) OidcAuth() ([]byte, error) {
+func (o *OpkClient) OidcAuth(
+	signer crypto.Signer,
+	alg jwa.KeyAlgorithm,
+	extraClaims map[string]any,
+	signGQ bool,
+) ([]byte, error) {
+	// Use our signing key to generate a JWK key with the alg header set
+	jwkKey, err := jwk.PublicKeyOf(signer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWK key from ecdsa private key: %w", err)
+	}
+	jwkKey.Set(jwk.AlgorithmKey, alg)
+
 	// Use provided public key to generate client instance claims
-	cic, err := clientinstance.NewClaims(o.UserPublicKey, map[string]any{})
+	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
@@ -53,7 +63,7 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 	}
 
 	// Sign over the payload from the ID token and client instance claims
-	cicToken, err := cic.Sign(o.SigningKey, o.UserPublicKey.Algorithm(), idToken)
+	cicToken, err := cic.Sign(signer, alg, idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
@@ -64,7 +74,7 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	if o.Gq {
+	if signGQ {
 		opKey, err := o.Op.PublicKey(idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error getting OP public key: %w", err)
@@ -116,8 +126,7 @@ func (o *OpkClient) RequestCert() ([]byte, error) {
 	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", pktJson)
 	resp, err := http.Get(uri)
 	if err != nil {
-		fmt.Printf("MFA request failed: %s\n", err)
-		return nil, err
+		return nil, fmt.Errorf("MFA request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	return io.ReadAll(resp.Body)

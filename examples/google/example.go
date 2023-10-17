@@ -40,6 +40,7 @@ func main() {
 	switch command {
 	case "login":
 		alg := jwa.ES256
+		signGQ := true // are we using gq proofs?
 
 		// Generate a key pair in the form of a crypto.Signer and JWK-formatted public key
 		signingKey, err := util.GenKeyPair(alg)
@@ -63,12 +64,9 @@ func main() {
 				CallbackPath: callbackPath,
 				RedirectURI:  redirectURI,
 			},
-			SigningKey:    signingKey,
-			UserPublicKey: jwkKey,
-			Gq:            true,
 		}
 
-		pktJson, err := client.OidcAuth()
+		pktJson, err := client.OidcAuth(signingKey, alg, map[string]any{}, signGQ)
 		if err != nil {
 			panic(err)
 		}
