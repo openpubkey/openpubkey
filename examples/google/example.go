@@ -13,16 +13,39 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zitadel/oidc/v2/pkg/oidc"
-
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
-// TODO: Create nice golang services rather than just using this handler nonsense
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("OpenPubkey: command choices are login, sign, and cert")
+		return
+	}
 
-type ReceiveIDTHandler func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
+	command := os.Args[1]
+
+	switch command {
+	case "login":
+		if err := login(); err != nil {
+			fmt.Println("Error logging in: ", err)
+		} else {
+			fmt.Println("Login successful!")
+		}
+	case "sign":
+		message := "sign me!!"
+		if err := googleSign(message); err != nil {
+			fmt.Println("Failed to sign test message: ", err)
+		}
+	case "cert":
+		if err := googleCert(); err != nil {
+			fmt.Println("Failed to generate certificate: ", err)
+		}
+	default:
+		fmt.Println("Unrecognized command: ", command)
+	}
+}
 
 func login() error {
 	signer, err := pktoken.NewSigner(fpClientCfg, keyAlgorithm.String(), gq, map[string]any{"extra": "yes"})
@@ -135,75 +158,16 @@ func googleCert() error {
 
 	skidpkt, err := pktoken.FromJSON(skidDecoded)
 	if err != nil {
-		return fmt.Errorf("failed to parse PK Token from Subject Key ID in x509 cert: %w", err)
+		return fmt.Errorf("failed to extract PK Token from x509 cert: %w", err)
 	}
 
-	fmt.Println("Cert skid PK Token Payload: ", string(skidpkt.Payload))
+	fmt.Println("Cert skid PK Token payload: ", string(skidpkt.Payload))
 
 	err = skidpkt.VerifyCicSig()
 	if err != nil {
-		return fmt.Errorf("cic verification failed in  PK Token from Subject Key ID in x509 cert: %w", err)
+		return fmt.Errorf("cic verification failed in PK Token: %w", err)
 	}
 
 	fmt.Println("Cert: ", string(certBytes))
 	return nil
-}
-
-func caKeyGen() error {
-	ca := &parties.Ca{}
-	err := ca.KeyGen(fpCaCfg, keyAlgorithm.String())
-	if err != nil {
-		return fmt.Errorf("failed to generate keys for CA: %w", err)
-	}
-	return nil
-}
-
-func caServ() error {
-	ca := &parties.Ca{}
-	err := ca.Load(keyAlgorithm.String())
-	if err != nil {
-		return fmt.Errorf("failed to load CA state: %w", err)
-	}
-	ca.Serv()
-	return nil
-}
-
-func sigStoreSign() {}
-
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("OpenPubkey: command required choices are login, sign, cert, cagen, ca")
-		return
-	}
-
-	command := os.Args[1]
-
-	switch command {
-	case "login":
-		if err := login(); err != nil {
-			fmt.Println("Error logging in: ", err)
-		} else {
-			fmt.Println("Login successful!")
-		}
-	case "sign":
-		if err := googleSign("this is a test"); err != nil {
-			fmt.Println("Failed to sign message: ", err)
-		}
-	case "cert":
-		if err := googleCert(); err != nil {
-			fmt.Println("Error: ", err)
-		}
-	case "cagen":
-		if err := caKeyGen(); err != nil {
-			fmt.Println("Error: ", err)
-		}
-	case "ca":
-		if err := caServ(); err != nil {
-			fmt.Println("Error: ", err)
-		}
-	case "sss":
-		sigStoreSign()
-	default:
-		fmt.Println("Unrecognized command: ", command)
-	}
 }
