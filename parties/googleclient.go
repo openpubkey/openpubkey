@@ -3,7 +3,7 @@ package parties
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -113,7 +113,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
+func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk crypto.Signer) (map[string]any, error) {
 	pkt, err := pktoken.FromJSON(pktJSON)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing PK Token: %w", err)

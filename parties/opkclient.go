@@ -2,7 +2,6 @@ package parties
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
 	"io"
@@ -113,7 +112,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error)
+	VerifyPKToken(pktJSON []byte, cosPk crypto.Signer) (map[string]any, error)
 	PublicKey(idt []byte) (PublicKey, error)
 }
 
