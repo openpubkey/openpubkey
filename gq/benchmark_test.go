@@ -3,7 +3,6 @@ package gq_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -15,8 +14,7 @@ var boolResult bool
 
 type testTuple struct {
 	rsaPublicKey *rsa.PublicKey
-	private      string
-	message      string
+	token        []byte
 }
 
 func BenchmarkSigning(b *testing.B) {
@@ -26,14 +24,12 @@ func BenchmarkSigning(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	fmt.Println("here")
-
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		_, err = signerVerifier.Sign([]byte(matrix[i].private), []byte(matrix[i].message))
+		_, err = signerVerifier.SignJWT(matrix[i].token)
 	}
 
 	// Avoid compiler optimisations eliminating the function under test and artificially lowering the run time of the benchmark
@@ -49,15 +45,15 @@ func BenchmarkVerifying(b *testing.B) {
 	}
 
 	// Generate signatures using matrix
-	signatures := [][]byte{}
+	gqSignedTokens := [][]byte{}
 	for i := 0; i < b.N; i++ {
 		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		sig, err := signerVerifier.Sign([]byte(matrix[i].private), []byte(matrix[i].message))
+		sig, err := signerVerifier.SignJWT(matrix[i].token)
 		if err != nil {
 			b.Fatal(err)
 		}
 
-		signatures = append(signatures, sig)
+		gqSignedTokens = append(gqSignedTokens, sig)
 	}
 
 	// Reset the benchmark timer to exclude setup time
@@ -66,7 +62,7 @@ func BenchmarkVerifying(b *testing.B) {
 	var ok bool
 	for i := 0; i < b.N; i++ {
 		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		ok = signerVerifier.Verify(signatures[i], []byte(matrix[i].private), []byte(matrix[i].message))
+		ok = signerVerifier.VerifyJWT(gqSignedTokens[i])
 		if !ok {
 			b.Fatal(fmt.Errorf("Failed to verify signature!"))
 		}
@@ -85,43 +81,13 @@ func generateTestMatrix(n, privateSize, messageSize int) ([]testTuple, error) {
 			return nil, err
 		}
 
-		// Generate the test value on the fly before each benchmark iteration
-		p, err := generateRandomBase64String(privateSize)
+		jwt, err := createOIDCToken(key, "very_fake_audience_claim")
 		if err != nil {
 			return nil, err
 		}
 
-		m, err := generateRandomBase64String(messageSize)
-		if err != nil {
-			return nil, err
-		}
-
-		tests = append(tests, testTuple{rsaPublicKey: &key.PublicKey, private: p, message: m})
+		tests = append(tests, testTuple{rsaPublicKey: &key.PublicKey, token: jwt})
 	}
 
 	return tests, nil
-}
-
-func generateRandomBase64String(length int) (string, error) {
-	// Calculate the number of random bytes required to generate the desired length of Base64 characters
-	byteLength := (length * 6) / 8 // Each Base64 character represents 6 bits
-
-	// Create a byte slice to hold the random bytes
-	randomBytes := make([]byte, byteLength)
-
-	// Read random bytes from the crypto/rand package
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		return "", err
-	}
-
-	// Encode the random bytes as Base64
-	randomBase64 := base64.RawURLEncoding.EncodeToString(randomBytes)
-
-	// Truncate the result to the desired length
-	if len(randomBase64) > length {
-		randomBase64 = randomBase64[:length]
-	}
-
-	return randomBase64, nil
 }

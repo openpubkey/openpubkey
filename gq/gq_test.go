@@ -37,7 +37,7 @@ func TestProveVerify(t *testing.T) {
 	}
 }
 
-func createOIDCToken(t *testing.T, oidcPrivKey *rsa.PrivateKey, audience string) []byte {
+func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
 	alg := jwa.KeyAlgorithmFrom("RS256") // RSASSA-PKCS-v1.5 using SHA-256
 
 	oidcHeader := jws.NewHeaders()
@@ -67,5 +67,5 @@ func createOIDCToken(t *testing.T, oidcPrivKey *rsa.PrivateKey, audience string)
 		return nil, err
 	}
 
-	return jwt
+	return jwt, nil
 }
