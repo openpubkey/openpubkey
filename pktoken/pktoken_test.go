@@ -118,7 +118,7 @@ func generateMockIDToken(nonce, issuer, audience string) ([]byte, error) {
 	token.Set(jwt.ExpirationKey, time.Now().Add(24*time.Hour).Unix())
 	token.Set(jwt.SubjectKey, "1234567890")
 
-	alg := jwa.KeyAlgorithmFrom("RS256")
+	alg := jwa.RS256
 	signingKey, err := util.GenKeyPair(alg)
 	if err != nil {
 		return nil, err

@@ -2,7 +2,6 @@ package pktoken
 
 import (
 	"bytes"
-	"crypto"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -409,11 +408,6 @@ func (p *PKToken) Hash() (string, error) {
 		}
 	}
 
-	hasher := crypto.SHA3_256.New()
-	_, err = hasher.Write(message)
-	if err != nil {
-		return "", err
-	}
-	hash := hasher.Sum(nil)
-	return string(util.Base64EncodeForJWT(hash)), nil
+	hash := util.B64SHA3_256(message)
+	return string(hash), nil
 }
