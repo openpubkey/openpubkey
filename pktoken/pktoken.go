@@ -40,60 +40,6 @@ type PKToken struct {
 	CosSig  []byte
 }
 
-func FromCompact(pktCom []byte) (*PKToken, error) {
-	splitCom := bytes.Split(pktCom, []byte(":"))
-	if len(splitCom) == 5 {
-		return &PKToken{
-			Payload: splitCom[0],
-			OpPH:    splitCom[1],
-			OpSig:   splitCom[2],
-			CicPH:   splitCom[3],
-			CicSig:  splitCom[4],
-			CosPH:   nil,
-			CosSig:  nil,
-		}, nil
-	} else if len(splitCom) == 7 {
-		return &PKToken{
-			Payload: splitCom[0],
-			OpPH:    splitCom[1],
-			OpSig:   splitCom[2],
-			CicPH:   splitCom[3],
-			CicSig:  splitCom[4],
-			CosPH:   splitCom[5],
-			CosSig:  splitCom[6],
-		}, nil
-	} else {
-		return nil, fmt.Errorf("A valid PK Token should have exactly two or three (protected header, signature pairs), but has %d signatures", len(splitCom))
-	}
-}
-
-func (p *PKToken) ToCompact() []byte {
-	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(string(p.Payload))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.OpPH))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.OpSig))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.CicPH))
-	buf.WriteByte(':')
-	buf.WriteString(string(p.CicSig))
-
-	if p.CosPH != nil {
-		buf.WriteByte(':')
-		buf.WriteString(string(p.CosPH))
-		buf.WriteByte(':')
-		buf.WriteString(string(p.CosSig))
-	}
-
-	pktCom := buf.Bytes()
-	return pktCom
-}
-
 func FromJWS(jws *JWS) *PKToken {
 	var cic, op, cos JWSignature
 
@@ -286,9 +232,9 @@ func (p *PKToken) GetCicValues() (jwa.KeyAlgorithm, string, jwk.Key, error) {
 	var hds map[string]interface{}
 	json.Unmarshal(decodedCicPH, &hds)
 
-	alg, _ := hds["alg"]
-	rz, _ := hds["rz"]
-	upk, _ := hds["upk"]
+	alg := hds["alg"]
+	rz := hds["rz"]
+	upk := hds["upk"]
 
 	algJwk := jwa.KeyAlgorithmFrom(alg)
 	upkBytes, err := json.Marshal(upk)

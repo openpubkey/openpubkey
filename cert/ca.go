@@ -17,6 +17,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 type CosignerConfig struct {
@@ -56,9 +57,9 @@ func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 	return caBytes, caPkSk, nil
 }
 
-func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
+func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
 
-	pkt, err := pktoken.FromCompact(pktCom)
+	pkt, err := pktoken.FromJSON(pktJson)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func PktTox509(pktCom []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, required
 			Critical: false,
 			Value:    []byte(oidcIssuer),
 		}},
-		SubjectKeyId: []byte(pktCom),
+		SubjectKeyId: []byte(util.Base64EncodeForJWT(pktJson)),
 	}
 
 	_, _, upkjwk, err := pkt.GetCicValues()

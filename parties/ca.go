@@ -169,7 +169,7 @@ func (a *Ca) Serv() {
 
 func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 
-	pkt, err := pktoken.FromCompact(pktCom)
+	pkt, err := pktoken.FromJSON(pktCom)
 
 	if err != nil {
 		return nil, err
