@@ -138,6 +138,19 @@ Phase 2:
 
 - [ ] Additional Signers (TBD)
 
+## GQ Benchmarks
+Benchmark metrics for signing and verifying JWTs.
+
+```shell
+goos: darwin
+goarch: arm64
+pkg: github.com/openpubkey/openpubkey/gq
+BenchmarkSigning-10                 1056           1139994 ns/op          236609 B/op        438 allocs/op
+BenchmarkVerifying-10               1094           1091559 ns/op          199087 B/op        368 allocs/op
+PASS
+ok      github.com/openpubkey/openpubkey/gq     271.329s
+```
+
 # How to use this library
 
 To interact with OpenPubkey as a signer use the OpkClient struct.
