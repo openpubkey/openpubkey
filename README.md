@@ -139,9 +139,10 @@ Phase 2:
 - [ ] Additional Signers (TBD)
 
 ## GQ Benchmarks
-`BenchmarkSigning` benchmarks GQ signing a Json Web Token (JWT), `BenchmarkVerifying` benchmarks GQ verifying a Json Web Token (JWT) both with a security parameter of 256. After 1056 and 1094 iterations of creating a GQ signature or verifying a GQ signature, respectively, the results were that they both take about 0.0011 seconds.
+`BenchmarkSigning` benchmarks GQ signing a Json Web Token (JWT), `BenchmarkVerifying` benchmarks GQ verifying a Json Web Token (JWT) both with a security parameter of 256. After 1056 and 1094 iterations of creating a GQ signature or verifying a GQ signature, respectively, the results were that they both take about 11 milliseconds. This is roughly equivalent to RSA signing and verifying durations, at least on the machine on which the below values were taken.
 
 ```shell
+% go test -benchmem -bench . 
 goos: darwin
 goarch: arm64
 pkg: github.com/openpubkey/openpubkey/gq
