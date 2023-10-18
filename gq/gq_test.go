@@ -20,7 +20,10 @@ func TestProveVerify(t *testing.T) {
 
 	oidcPubKey := &oidcPrivKey.PublicKey
 
-	idToken := createOIDCToken(t, oidcPrivKey, "test")
+	idToken, err := createOIDCToken(oidcPrivKey, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
 	gqToken, err := signerVerifier.SignJWT(idToken)
@@ -49,7 +52,7 @@ func createOIDCToken(t *testing.T, oidcPrivKey *rsa.PrivateKey, audience string)
 	}
 	payloadBytes, err := json.Marshal(oidcPayload)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	jwt, err := jws.Sign(
@@ -61,7 +64,7 @@ func createOIDCToken(t *testing.T, oidcPrivKey *rsa.PrivateKey, audience string)
 		),
 	)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	return jwt

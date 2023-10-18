@@ -2,36 +2,104 @@ package gq_test
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
+	"fmt"
 	"testing"
+
+	"github.com/openpubkey/openpubkey/gq"
 )
 
+var result error
+var boolResult bool
+
+type testTuple struct {
+	rsaPublicKey *rsa.PublicKey
+	private      string
+	message      string
+}
+
 func BenchmarkSigning(b *testing.B) {
-	// Perform the operations you want to benchmark
-	for i := 0; i < b.N; i++ {
-		_ = YourFunctionToBenchmark(42) // Call your function
+	// Generate test matrix
+	matrix, err := generateTestMatrix(b.N, 10, 10)
+	if err != nil {
+		b.Fatal(err)
 	}
+
+	fmt.Println("here")
+
+	// Reset the benchmark timer to exclude setup time
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		_, err = signerVerifier.Sign([]byte(matrix[i].private), []byte(matrix[i].message))
+	}
+
+	// Avoid compiler optimisations eliminating the function under test and artificially lowering the run time of the benchmark
+	// ref: https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
+	result = err
 }
 
 func BenchmarkVerifying(b *testing.B) {
-	tests := []string{}
+	// Generate test matrix
+	matrix, err := generateTestMatrix(b.N, 10, 10)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// Generate signatures using matrix
+	signatures := [][]byte{}
 	for i := 0; i < b.N; i++ {
-		// Generate the test value on the fly before each benchmark iteration
-		randomBase64String, err := generateRandomBase64String(32)
+		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		sig, err := signerVerifier.Sign([]byte(matrix[i].private), []byte(matrix[i].message))
 		if err != nil {
-			b.Fatalf("Error: %v", err)
+			b.Fatal(err)
 		}
-		// Perform your benchmarked operation using randomBase64String
-		_ = randomBase64String
+
+		signatures = append(signatures, sig)
 	}
 
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
 
-	var result error
+	var ok bool
 	for i := 0; i < b.N; i++ {
-		_ = YourFunctionToBenchmark(42) // Call your function
+		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		ok = signerVerifier.Verify(signatures[i], []byte(matrix[i].private), []byte(matrix[i].message))
+		if !ok {
+			b.Fatal(fmt.Errorf("Failed to verify signature!"))
+		}
 	}
+
+	// Avoid compiler optimisations eliminating the function under test and artificially lowering the run time of the benchmark
+	// ref: https://dave.cheney.net/2013/06/30/how-to-write-benchmarks-in-go
+	boolResult = ok
+}
+
+func generateTestMatrix(n, privateSize, messageSize int) ([]testTuple, error) {
+	tests := []testTuple{}
+	for i := 0; i < n; i++ {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			return nil, err
+		}
+
+		// Generate the test value on the fly before each benchmark iteration
+		p, err := generateRandomBase64String(privateSize)
+		if err != nil {
+			return nil, err
+		}
+
+		m, err := generateRandomBase64String(messageSize)
+		if err != nil {
+			return nil, err
+		}
+
+		tests = append(tests, testTuple{rsaPublicKey: &key.PublicKey, private: p, message: m})
+	}
+
+	return tests, nil
 }
 
 func generateRandomBase64String(length int) (string, error) {
