@@ -139,7 +139,7 @@ Phase 2:
 - [ ] Additional Signers (TBD)
 
 ## GQ Benchmarks
-`BenchmarkSigning` benchmarks GQ signing a Json Web Token (JWT), `BenchmarkVerifying` benchmarks GQ verifying a Json Web Token (JWT) both with a security parameter of 256. After 1056 and 1094 iterations of creating a gq signature or verifying a gq signature, respectively, the results were that both take about 0.0011 seconds.
+`BenchmarkSigning` benchmarks GQ signing a Json Web Token (JWT), `BenchmarkVerifying` benchmarks GQ verifying a Json Web Token (JWT) both with a security parameter of 256. After 1056 and 1094 iterations of creating a gq signature or verifying a gq signature, respectively, the results were that they both take about 0.0011 seconds.
 
 ```shell
 goos: darwin
