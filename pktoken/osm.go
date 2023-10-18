@@ -58,9 +58,11 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	protected := message.Signatures()[0].ProtectedHeaders()
 
 	// Verify typ header matches expected "osm" value
-	if typ, ok := protected.Get("typ"); !ok {
+	typ, ok := protected.Get("typ")
+	if !ok {
 		return nil, fmt.Errorf("missing required header `typ`")
-	} else if typ != "osm" {
+	}
+	if typ != "osm" {
 		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but recieved %s`, typ)
 	}
 
@@ -70,11 +72,17 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	}
 
 	// Verify kid header matches hash of pktoken
-	if kid, ok := protected.Get("kid"); !ok {
+	kid, ok := protected.Get("kid")
+	if !ok {
 		return nil, fmt.Errorf("missing required header `kid`")
-	} else if pktHash, err := p.Hash(); err != nil {
+	}
+
+	pktHash, err := p.Hash()
+	if err != nil {
 		return nil, fmt.Errorf("unable to hash PK Token: %w", err)
-	} else if kid != string(pktHash) {
+	}
+
+	if kid != string(pktHash) {
 		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but recieved %s`, pktHash, kid)
 	}
 
