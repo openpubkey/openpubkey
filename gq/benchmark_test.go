@@ -19,7 +19,7 @@ type testTuple struct {
 
 func BenchmarkSigning(b *testing.B) {
 	// Generate test matrix
-	matrix, err := generateTestMatrix(b.N, 10, 10)
+	matrix, err := generateTestMatrix(b.N)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func BenchmarkSigning(b *testing.B) {
 
 func BenchmarkVerifying(b *testing.B) {
 	// Generate test matrix
-	matrix, err := generateTestMatrix(b.N, 10, 10)
+	matrix, err := generateTestMatrix(b.N)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func BenchmarkVerifying(b *testing.B) {
 	boolResult = ok
 }
 
-func generateTestMatrix(n, privateSize, messageSize int) ([]testTuple, error) {
+func generateTestMatrix(n int) ([]testTuple, error) {
 	tests := []testTuple{}
 	for i := 0; i < n; i++ {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
