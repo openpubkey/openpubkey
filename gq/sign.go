@@ -84,7 +84,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	}
 
 	// Now make a new GQ-signed token
-	gqToken := append(signingPayload, []byte(".")...)
+	gqToken := append(signingPayload, '.')
 	gqToken = append(gqToken, gqSig...)
 
 	return gqToken, nil
