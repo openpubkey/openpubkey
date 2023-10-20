@@ -7,6 +7,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
@@ -79,9 +80,13 @@ func (o *OpkClient) OidcAuth(
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
 		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-		gqSig, err := sv.SignJWT(idToken)
+		gqToken, err := sv.SignJWT(idt)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
+		}
+		_, _, gqSig, err := jws.SplitCompact(gqToken)
+		if err != nil {
+			return nil, err
 		}
 
 		o.Pkt.OpSig = gqSig
