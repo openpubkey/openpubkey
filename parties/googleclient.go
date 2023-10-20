@@ -112,12 +112,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk crypto.Signer) (map[string]any, error) {
-	pkt, err := pktoken.FromJSON(pktJSON)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing PK Token: %w", err)
-	}
-
+func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.Signer) (map[string]any, error) {
 	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
 	if err != nil {
 		return nil, err
@@ -135,7 +130,7 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk crypto.Signer) (map[strin
 		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
 		ok := sv.VerifyJWT(idt)
 		if !ok {
-			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid): %w", err)
+			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 		}
 
 		_, payloadB64, _, err := jws.SplitCompact(idt)

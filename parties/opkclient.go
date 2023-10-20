@@ -94,7 +94,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
 
-	_, err = o.Op.VerifyPKToken(pktJson, nil)
+	_, err = o.Op.VerifyPKToken(o.Pkt, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
@@ -111,7 +111,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pktJSON []byte, cosPk crypto.Signer) (map[string]any, error)
+	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.Signer) (map[string]any, error)
 	PublicKey(idt []byte) (PublicKey, error)
 }
 
