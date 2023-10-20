@@ -135,7 +135,7 @@ func (g *GoogleOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[st
 		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
 		ok := sv.VerifyJWT(idt)
 		if !ok {
-			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid): %w", err)
+			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 		}
 
 		_, payloadB64, _, err := jws.SplitCompact(idt)
