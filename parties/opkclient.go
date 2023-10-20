@@ -5,8 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -23,7 +21,7 @@ type MFACos interface {
 }
 
 type OpkClient struct {
-	PktCom      []byte
+	PktJson     []byte
 	Signer      *pktoken.Signer
 	Op          OpenIdProvider
 	MFACosigner MFACos
@@ -61,16 +59,17 @@ func (o *OpkClient) OidcAuth() ([]byte, error) {
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	pktJSON, err := pkt.ToJSON()
+	o.PktJson, err = pkt.ToJSON()
 	if err != nil {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
-	fmt.Printf("PKT=%s\n", pktJSON)
-	_, err = o.Op.VerifyPKToken(pktJSON, nil)
+
+	_, err = o.Op.VerifyPKToken(o.PktJson, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
-	return pktJSON, nil
+
+	return o.PktJson, nil
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
@@ -87,12 +86,13 @@ type OpenIdProvider interface {
 }
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
-	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktCom)
-	resp, err := http.Get(uri)
-	if err != nil {
-		fmt.Printf("MFA request failed: %v\n", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	return nil, fmt.Errorf("cosigning currently unsupported")
+
+	// uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
+	// resp, err := http.Get(uri)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("MFA request failed: %s", err)
+	// }
+	// defer resp.Body.Close()
+	// return io.ReadAll(resp.Body)
 }
