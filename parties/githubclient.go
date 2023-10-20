@@ -149,7 +149,7 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.Signer) (map[string]any, error) {
+func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
 	if !pkt.OpSigGQ {
 		return nil, fmt.Errorf("non-GQ signatures not supported for github")
 	}

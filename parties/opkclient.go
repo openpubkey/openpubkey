@@ -116,7 +116,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.Signer) (map[string]any, error)
+	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error)
 	PublicKey(idt []byte) (PublicKey, error)
 }
 

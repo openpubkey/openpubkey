@@ -112,7 +112,7 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.Signer) (map[string]any, error) {
+func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
 	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
 	if err != nil {
 		return nil, err
