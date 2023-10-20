@@ -89,7 +89,12 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		},
 	}
 
-	pktJson, err := client.OidcAuth(signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	pkt, err := client.OidcAuth(signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	if err != nil {
+		return err
+	}
+
+	pktJson, err := pkt.ToJSON()
 	if err != nil {
 		return err
 	}
