@@ -119,13 +119,13 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 	}
 
 	msgHashSum := sha3.Sum256([]byte(message))
-	rawSigma, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
+	sig, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Signed Message:", message)
-	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(rawSigma))
+	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(sig))
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
