@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -12,11 +12,13 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	"golang.org/x/crypto/sha3"
 )
 
 // Variables for building our google provider
@@ -29,6 +31,10 @@ var (
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
+
+	// File names for when we save or load our pktoken and the corresponding signing key
+	skFileName  = "key.pem"
+	pktFileName = "pktoken.json"
 )
 
 func main() {
@@ -53,7 +59,7 @@ func main() {
 		}
 	case "sign":
 		message := "sign me!!"
-		if err := googleSign(message, outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := sign(message, outputDir, keyAlgorithm, signGQ); err != nil {
 			fmt.Println("Failed to sign test message:", err)
 		}
 	case "cert":
@@ -66,7 +72,7 @@ func main() {
 }
 
 func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
-	signer, err := pktoken.NewSigner(outputDir, alg.String(), signGQ, map[string]any{"extra": "yes"})
+	signer, err := util.GenKeyPair(alg)
 	if err != nil {
 		return err
 	}
@@ -81,10 +87,14 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
-		Signer: signer,
 	}
 
-	pktJson, err := client.OidcAuth()
+	pkt, err := client.OidcAuth(signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	if err != nil {
+		return err
+	}
+
+	pktJson, err := pkt.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -94,53 +104,47 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
 		return err
 	}
-
 	fmt.Println(prettyJSON.String())
 
 	// Save our signer and pktoken by writing them to a file
-	return signer.WriteToFile()
+	saveLogin(outputDir, signer.(*ecdsa.PrivateKey), pktJson)
+
+	return nil
 }
 
-func googleSign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
-	signer, err := pktoken.LoadFromFile(outputDir, alg.String(), signGq, nil)
+func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+	signer, pkt, err := loadLogin(outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)
 	}
 
-	msgHash := sha256.New()
-	_, err = msgHash.Write([]byte(message))
-	if err != nil {
-		return err
-	}
-	msgHashSum := msgHash.Sum(nil)
-
-	rawSigma, err := signer.Pksk.Sign(rand.Reader, msgHashSum, crypto.SHA256)
+	msgHashSum := sha3.Sum256([]byte(message))
+	sig, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Signed Message:", message)
-	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(rawSigma))
-	fmt.Println("Hash:", hex.EncodeToString(msgHashSum))
+	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(sig))
+	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	// Pretty print our json token
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, signer.PktJson, "", "  "); err != nil {
+	pktJson, err := pkt.ToJSON()
+	if err != nil {
 		return err
 	}
 
+	// Pretty print our json token
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
+		return err
+	}
 	fmt.Println(prettyJSON.String())
 
 	return nil
 }
 
 func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
-	signer, err := pktoken.LoadFromFile(outputDir, alg.String(), false, nil)
-	if err != nil {
-		return fmt.Errorf("failed to load client state: %w", err)
-	}
-
 	client := &parties.OpkClient{
 		Op: &parties.GoogleOp{
 			ClientID:     clientID,
@@ -151,7 +155,6 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
-		Signer: signer,
 	}
 
 	certBytes, err := client.RequestCert()
@@ -189,4 +192,35 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 
 	fmt.Println("Cert:", string(certBytes))
 	return nil
+}
+
+func saveLogin(outputDir string, sk *ecdsa.PrivateKey, pktJson []byte) error {
+	skFilePath := path.Join(outputDir, skFileName)
+	if err := util.WriteSKFile(skFilePath, sk); err != nil {
+		return err
+	}
+
+	pktFilePath := path.Join(outputDir, pktFileName)
+	return os.WriteFile(pktFilePath, pktJson, 0600)
+}
+
+func loadLogin(outputDir string) (crypto.Signer, *pktoken.PKToken, error) {
+	skFilePath := path.Join(outputDir, skFileName)
+	key, err := util.ReadSKFile(skFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pktFilePath := path.Join(outputDir, pktFileName)
+	pktJson, err := os.ReadFile(pktFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pkt, err := pktoken.FromJSON(pktJson)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return key, pkt, nil
 }

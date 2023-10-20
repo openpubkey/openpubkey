@@ -5,23 +5,19 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"os"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func WriteCertFile(fpath string, cert []byte) error {
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
-	err := os.WriteFile(fpath, pemBytes, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(fpath, pemBytes, 0600)
 }
 
 func WritePKFile(fpath string, pk *ecdsa.PublicKey) error {
@@ -31,11 +27,7 @@ func WritePKFile(fpath string, pk *ecdsa.PublicKey) error {
 	}
 	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509Encoded})
 
-	err = os.WriteFile(fpath, pemBytes, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(fpath, pemBytes, 0600)
 }
 
 func SKToX509Bytes(sk *ecdsa.PrivateKey) ([]byte, error) {
@@ -48,17 +40,12 @@ func SKToX509Bytes(sk *ecdsa.PrivateKey) ([]byte, error) {
 }
 
 func WriteSKFile(fpath string, sk *ecdsa.PrivateKey) error {
-
 	pemBytes, err := SKToX509Bytes(sk)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(fpath, pemBytes, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(fpath, pemBytes, 0600)
 }
 
 func ReadCertFile(fpath string) (*x509.Certificate, error) {
@@ -68,11 +55,7 @@ func ReadCertFile(fpath string) (*x509.Certificate, error) {
 	}
 
 	block, _ := pem.Decode(pemBytes)
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
+	return x509.ParseCertificate(block.Bytes)
 }
 
 func SecretKeyFromBytes(pemBytes []byte) (*ecdsa.PrivateKey, error) {
@@ -87,12 +70,7 @@ func X509PublicKeyBytesFromJWK(upkjwk jwk.Key) ([]byte, error) {
 	}
 	pupkPKTCom := rawkey.(*ecdsa.PublicKey)
 
-	x509PublicKeyBytes, err := x509.MarshalPKIXPublicKey(pupkPKTCom)
-	if err != nil {
-		return nil, err
-	} else {
-		return x509PublicKeyBytes, nil
-	}
+	return x509.MarshalPKIXPublicKey(pupkPKTCom)
 }
 
 func ReadPKFile(fpath string) (*ecdsa.PublicKey, error) {
@@ -116,23 +94,17 @@ func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 		return nil, err
 	}
 	block, _ := pem.Decode([]byte(pemBytes))
-	sk, err := x509.ParseECPrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return sk, nil
+	return x509.ParseECPrivateKey(block.Bytes)
 }
 
-func GenKeyPair(alg string) (*ecdsa.PrivateKey, error) {
-	if alg == "ES256" {
-		pksk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return nil, err
-		} else {
-			return pksk, nil
-		}
-	} else {
-		return nil, fmt.Errorf("Algorithm, %s, not supported", alg)
+func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
+	switch alg {
+	case jwa.ES256:
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case jwa.RS256: // RSASSA-PKCS-v1.5 using SHA-256
+		return rsa.GenerateKey(rand.Reader, 2048)
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", alg.String())
 	}
 }
 
@@ -140,14 +112,5 @@ func B64SHA3_256(msg []byte) []byte {
 	h := crypto.SHA3_256.New()
 	h.Write(msg)
 	image := h.Sum(nil)
-	return []byte(base64.RawStdEncoding.EncodeToString(image))
-}
-
-func GetRandString(n int) (string, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), err
+	return Base64EncodeForJWT(image)
 }

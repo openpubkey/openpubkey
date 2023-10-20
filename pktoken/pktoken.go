@@ -10,6 +10,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+
+	"github.com/openpubkey/openpubkey/util"
+
+	_ "golang.org/x/crypto/sha3"
 )
 
 const SigTypeHeader = "sig_type"
@@ -38,9 +42,36 @@ type PKToken struct {
 	CicSig  []byte
 	CosPH   []byte
 	CosSig  []byte
+
+	raw []byte // the original, raw representation of the object
 }
 
-func FromJWS(jws *JWS) *PKToken {
+func New(idToken []byte, cicToken []byte) (*PKToken, error) {
+	opPH, opPayload, opSig, err := jws.SplitCompact(idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make sure both signatures were signed over the same payload
+	if string(opPayload) != string(cicPayload) {
+		return nil, fmt.Errorf("the provided id token and cic token do not share the same payload")
+	}
+
+	return &PKToken{
+		Payload: opPayload,
+		OpPH:    opPH,
+		OpSig:   opSig,
+		CicPH:   cicPH,
+		CicSig:  cicSig,
+	}, nil
+}
+
+func FromJWS(jws *JWS, raw []byte) *PKToken {
 	var cic, op, cos JWSignature
 
 	gq := false
@@ -72,6 +103,10 @@ func FromJWS(jws *JWS) *PKToken {
 	if hasCos {
 		tok.CosPH = []byte(cos.Protected)
 		tok.CosSig = []byte(cos.Signature)
+	}
+
+	if raw != nil {
+		tok.raw = raw
 	}
 
 	return tok
@@ -123,7 +158,7 @@ func FromJSON(in []byte) (*PKToken, error) {
 		return nil, err
 	}
 
-	return FromJWS(jws), nil
+	return FromJWS(jws, in), nil
 }
 
 func (p *PKToken) ToJSON() ([]byte, error) {
@@ -357,26 +392,22 @@ func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
 	return nil
 }
 
-func (p *PKToken) Verify(msg string, sig []byte) error {
-	jwsSig, err := jws.Parse(sig)
-	if err != nil {
-		return err
+func (p *PKToken) Hash() ([]byte, error) {
+	/*
+		We set the raw variable when unmarshaling from json (the only current string representation of a
+		PK Token) so when we hash we use the same representation that was given for consistency. When the
+		token being hashed is a new PK Token, we marshal it ourselves. This can introduce some issues based
+		on how different languages format their json strings.
+	*/
+	message := p.raw
+	var err error
+	if message == nil {
+		message, err = p.ToJSON()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if msg != string(jwsSig.Payload()) {
-		return fmt.Errorf("Message does not match signed message")
-	}
-
-	alg, _, upk, err := p.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	_, err = jws.Verify(sig, jws.WithKey(alg, upk))
-	if err != nil {
-		return err
-	}
-
-	// verified
-	return nil
+	hash := util.B64SHA3_256(message)
+	return hash, nil
 }

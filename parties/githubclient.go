@@ -2,7 +2,7 @@ package parties
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -149,12 +149,7 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
-	pkt, err := pktoken.FromJSON(pktJSON)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing PK Token: %w", err)
-	}
-
+func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
 	if !pkt.OpSigGQ {
 		return nil, fmt.Errorf("non-GQ signatures not supported for github")
 	}
