@@ -63,7 +63,7 @@ func main() {
 			fmt.Println("Failed to sign test message:", err)
 		}
 	case "cert":
-		if err := mfaCert(outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := googleCert(outputDir, keyAlgorithm, signGQ); err != nil {
 			fmt.Println("Failed to generate certificate:", err)
 		}
 	default:
@@ -139,7 +139,7 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 	return nil
 }
 
-func mfaCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 	client := &parties.OpkClient{
 		Op: &parties.GoogleOp{
 			ClientID:     clientID,
