@@ -392,7 +392,7 @@ func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
 	return nil
 }
 
-func (p *PKToken) Hash() (string, error) {
+func (p *PKToken) Hash() ([]byte, error) {
 	/*
 		We set the raw variable when unmarshaling from json (the only current string representation of a
 		PK Token) so when we hash we use the same representation that was given for consistency. When the
@@ -404,10 +404,10 @@ func (p *PKToken) Hash() (string, error) {
 	if message == nil {
 		message, err = p.ToJSON()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	hash := util.B64SHA3_256(message)
-	return string(hash), nil
+	return hash, nil
 }
