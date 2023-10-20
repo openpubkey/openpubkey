@@ -4,8 +4,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -91,16 +89,17 @@ func (o *OpkClient) OidcAuth(
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	pktJSON, err := o.Pkt.ToJSON()
+	pktJson, err := o.Pkt.ToJSON()
 	if err != nil {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
 
-	_, err = o.Op.VerifyPKToken(pktJSON, nil)
+	_, err = o.Op.VerifyPKToken(pktJson, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
-	return pktJSON, nil
+
+	return pktJson, nil
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
@@ -117,16 +116,13 @@ type OpenIdProvider interface {
 }
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
-	pktJson, err := o.Pkt.ToJSON()
-	if err != nil {
-		return nil, err
-	}
+	return nil, fmt.Errorf("cosigning currently unsupported")
 
-	uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", pktJson)
-	resp, err := http.Get(uri)
-	if err != nil {
-		return nil, fmt.Errorf("MFA request failed: %w", err)
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+	// uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
+	// resp, err := http.Get(uri)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("MFA request failed: %s", err)
+	// }
+	// defer resp.Body.Close()
+	// return io.ReadAll(resp.Body)
 }
