@@ -23,7 +23,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 	if err := protected.Set("alg", alg); err != nil {
 		return nil, err
 	}
-	if err := protected.Set("kid", pktHash); err != nil {
+	if err := protected.Set("kid", string(pktHash)); err != nil {
 		return nil, err
 	}
 	if err := protected.Set("typ", "osm"); err != nil {
