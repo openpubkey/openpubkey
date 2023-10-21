@@ -8,7 +8,7 @@ import (
 )
 
 func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte, error) {
-	alg, _, _, err := p.GetCicValues()
+	cic, err := p.GetCicValues()
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 
 	// Create our headers as defined by section 3.5 of the OpenPubkey paper
 	protected := jws.NewHeaders()
-	if err := protected.Set("alg", alg); err != nil {
+	if err := protected.Set("alg", cic.PublicKey().Algorithm()); err != nil {
 		return nil, err
 	}
 	if err := protected.Set("kid", pktHash); err != nil {
@@ -33,7 +33,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 	return jws.Sign(
 		content,
 		jws.WithKey(
-			alg,
+			cic.PublicKey().Algorithm(),
 			signer,
 			jws.WithProtectedHeaders(protected),
 		),
@@ -41,7 +41,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 }
 
 func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
-	alg, _, upk, err := p.GetCicValues()
+	cic, err := p.GetCicValues()
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +67,8 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	}
 
 	// Verify key algorithm header matches cic
-	if protected.Algorithm() != alg {
-		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but recieved %s`, alg, protected.Algorithm())
+	if protected.Algorithm() != cic.PublicKey().Algorithm() {
+		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but recieved %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
 	}
 
 	// Verify kid header matches hash of pktoken
@@ -86,7 +86,7 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but recieved %s`, pktHash, kid)
 	}
 
-	_, err = jws.Verify(osm, jws.WithKey(alg, upk))
+	_, err = jws.Verify(osm, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
 	if err != nil {
 		return nil, err
 	}

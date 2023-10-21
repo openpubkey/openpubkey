@@ -14,9 +14,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/util"
 	"github.com/zitadel/oidc/v2/pkg/client"
 )
 
@@ -149,77 +147,64 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
-	if !pkt.OpSigGQ {
-		return nil, fmt.Errorf("non-GQ signatures not supported for github")
+func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+	if pkt.OpSigType() != pktoken.Gq {
+		return fmt.Errorf("github only support gq signatures")
 	}
 
-	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
+	cic, err := pkt.GetCicValues()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	expectedAud := string(util.B64SHA3_256(cicphJSON))
+	commitment, err := cic.Commitment()
+	if err != nil {
+		return err
+	}
 
-	idt := pkt.OpJWSCompact()
+	idt, err := pkt.OpJWSCompact()
+	if err != nil {
+		return err
+	}
 
 	// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 	pubKey, err := g.PublicKey(idt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get OP public key: %w", err)
+		return fmt.Errorf("failed to get OP public key: %w", err)
 	}
 
-	rsaPubKey := pubKey.(*rsa.PublicKey)
-
-	sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
-	ok := sv.VerifyJWT(idt)
-	if !ok {
-		return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
+	if err := pkt.VerifyGQSig(pubKey.(*rsa.PublicKey), gqSecurityParameter); err != nil {
+		return err
 	}
 
-	_, payloadB64, _, err := jws.SplitCompact(idt)
-	if err != nil {
-		return nil, err
+	var payload struct {
+		Audience string `json:"aud"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
+		return err
 	}
 
-	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode payload")
-	}
-
-	var payload map[string]any
-	err = json.Unmarshal(payloadJSON, &payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal payload")
-	}
-	aud := payload["aud"]
-	if aud != expectedAud {
-		return nil, fmt.Errorf("aud doesn't match, got %q, expected %q", aud, expectedAud)
+	if payload.Audience != commitment {
+		return fmt.Errorf("nonce doesn't match")
 	}
 
 	err = pkt.VerifyCicSig()
 	if err != nil {
-		return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
 	// Skip Cosigner signature verification if no cosigner pubkey is supplied
 	if cosPk != nil {
 		cosPkJwk, err := jwk.FromRaw(cosPk)
 		if err != nil {
-			return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 		}
 
 		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
 		if err != nil {
-			return nil, fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
+			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
 		}
 	}
 
-	cicPH := make(map[string]any)
-	err = json.Unmarshal(cicphJSON, &cicPH)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling CIC: %w", err)
-	}
-
-	return cicPH, nil
+	return nil
 }

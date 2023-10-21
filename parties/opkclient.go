@@ -3,11 +3,11 @@ package parties
 import (
 	"crypto"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
@@ -84,23 +84,17 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
-		_, _, gqSig, err := jws.SplitCompact(gqToken)
-		if err != nil {
-			return nil, err
-		}
 
-		o.Pkt.OpSig = gqSig
-		o.Pkt.OpSigGQ = true
+		o.Pkt.AddSignature(gqToken, pktoken.Gq)
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	pktJson, err := o.Pkt.ToJSON()
+	pktJson, err := json.Marshal(o.Pkt)
 	if err != nil {
 		return nil, fmt.Errorf("error serializing PK Token: %w", err)
 	}
 
-	_, err = o.Op.VerifyPKToken(o.Pkt, nil)
-	if err != nil {
+	if err = o.Op.VerifyPKToken(o.Pkt, nil); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
@@ -116,7 +110,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error)
+	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error
 	PublicKey(idt []byte) (PublicKey, error)
 }
 

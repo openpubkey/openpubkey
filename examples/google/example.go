@@ -124,7 +124,7 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	pktJson, err := pkt.ToJSON()
+	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return err
 	}
@@ -173,8 +173,8 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 		return fmt.Errorf("malformatted skid: %w", err)
 	}
 
-	skidpkt, err := pktoken.FromJSON(skidDecoded)
-	if err != nil {
+	var skidpkt *pktoken.PKToken
+	if err := json.Unmarshal(skidDecoded, skidpkt); err != nil {
 		return fmt.Errorf("failed to extract PK Token from x509 cert: %w", err)
 	}
 
@@ -212,8 +212,8 @@ func loadLogin(outputDir string) (crypto.Signer, *pktoken.PKToken, error) {
 		return nil, nil, err
 	}
 
-	pkt, err := pktoken.FromJSON(pktJson)
-	if err != nil {
+	var pkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, pkt); err != nil {
 		return nil, nil, err
 	}
 

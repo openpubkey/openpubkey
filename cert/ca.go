@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -58,15 +59,19 @@ func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 }
 
 func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, requiredAudience string) ([]byte, error) {
+	var pkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, &pkt); err != nil {
+		return nil, err
+	}
 
-	pkt, err := pktoken.FromJSON(pktJson)
+	fmt.Println("bEFORE CIC")
+
+	err := pkt.VerifyCicSig()
 	if err != nil {
 		return nil, err
 	}
-	err = pkt.VerifyCicSig()
-	if err != nil {
-		return nil, err
-	}
+
+	fmt.Println("AFTER CIC")
 
 	// TODO: verify cosigner
 	// cosignerConfig := &CosignerConfig {
@@ -78,22 +83,28 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 	// 	return nil, err
 	// }
 
-	iss, aud, email, err := pkt.GetClaims()
-	if err != nil {
+	var payload struct {
+		Issuer   string `json:"iss"`
+		Audience string `json:"aud"`
+		Email    string `json:"sub"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
 		return nil, err
 	}
 
-	if string(aud) != requiredAudience {
-		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", string(aud))
+	if payload.Audience != requiredAudience {
+		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience)
 	}
+
+	fmt.Println("HERE")
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	subject := string(email)
-	oidcIssuer := iss
+	subject := payload.Email
+	oidcIssuer := payload.Issuer
 
 	// Based on template from https://github.com/sigstore/fulcio/blob/3c8fbea99c71fedfe47d39e12159286eb443a917/pkg/test/cert_utils.go#L195
 	subTemplate := &x509.Certificate{
@@ -113,24 +124,18 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 		SubjectKeyId: []byte(util.Base64EncodeForJWT(pktJson)),
 	}
 
-	_, _, upkjwk, err := pkt.GetCicValues()
+	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return nil, err
 	}
-
-	upk, err := upkjwk.PublicKey()
-	if err != nil {
-		return nil, err
-	}
-	_ = upk
+	upk := cic.PublicKey()
 
 	var rawkey interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
-	if err := upkjwk.Raw(&rawkey); err != nil {
+	if err := upk.Raw(&rawkey); err != nil {
 		return nil, err
 	}
-	pk := rawkey.(*ecdsa.PublicKey)
 
-	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, pk, caPkSk)
+	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, upk, caPkSk)
 	if err != nil {
 		return nil, err
 	}
@@ -147,5 +152,4 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 	}
 
 	return pemSubCert.Bytes(), nil
-
 }

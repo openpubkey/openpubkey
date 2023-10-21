@@ -11,10 +11,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
+	"golang.org/x/crypto/sha3"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
 type Claims struct {
+	publicKey jwk.Key
+
 	// Claims are stored in the protected header portion of JWS signature
 	protected map[string]any
 }
@@ -44,8 +47,46 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	claims["rz"] = rand
 
 	return &Claims{
+		publicKey: publicKey,
 		protected: claims,
 	}, nil
+}
+
+func ParseClaims(protected map[string]any) (*Claims, error) {
+	// Get our standard headers and make sure they match up
+	if _, ok := protected["rz"]; !ok {
+		return nil, fmt.Errorf(`missing required "rz" claim`)
+	}
+	upk, ok := protected["upk"]
+	if !ok {
+		return nil, fmt.Errorf(`missing required "upk" claim`)
+	}
+	upkBytes, err := json.Marshal(upk)
+	if err != nil {
+		return nil, err
+	}
+	upkjwk, err := jwk.ParseKey(upkBytes)
+	if err != nil {
+		return nil, err
+	}
+	alg, ok := protected["alg"]
+	if !ok {
+		return nil, fmt.Errorf(`missing required "alg" claim`)
+	} else if alg != upkjwk.Algorithm() {
+		return nil, fmt.Errorf(`provided "alg" value different from algorithm provided in "upk" jwk`)
+	}
+	return &Claims{
+		publicKey: upkjwk,
+		protected: protected,
+	}, nil
+}
+
+func (c *Claims) PublicKey() jwk.Key {
+	return c.publicKey
+}
+
+func (c *Claims) KeyAlgorithm() jwa.KeyAlgorithm {
+	return c.publicKey.Algorithm()
 }
 
 // Returns a hash of all client instance claims which includes a random value
@@ -55,7 +96,7 @@ func (c *Claims) Commitment() (string, error) {
 		return "", err
 	}
 
-	digest := util.B64SHA3_256(buf)
+	digest, err := hash(buf)
 	if err != nil {
 		return "", err
 	}
@@ -97,6 +138,16 @@ func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []
 	}
 
 	return cicToken, nil
+}
+
+func hash(msg []byte) ([]byte, error) {
+	hasher := sha3.New256()
+	if _, err := hasher.Write(msg); err != nil {
+		return nil, err
+	}
+
+	hash := hasher.Sum(nil)
+	return util.Base64EncodeForJWT(hash), nil
 }
 
 func generateRand() (string, error) {
