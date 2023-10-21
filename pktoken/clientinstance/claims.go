@@ -11,7 +11,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
-	"golang.org/x/crypto/sha3"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
@@ -96,7 +95,7 @@ func (c *Claims) Commitment() (string, error) {
 		return "", err
 	}
 
-	digest, err := hash(buf)
+	digest := util.B64SHA3_256(buf)
 	if err != nil {
 		return "", err
 	}
@@ -138,16 +137,6 @@ func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []
 	}
 
 	return cicToken, nil
-}
-
-func hash(msg []byte) ([]byte, error) {
-	hasher := sha3.New256()
-	if _, err := hasher.Write(msg); err != nil {
-		return nil, err
-	}
-
-	hash := hasher.Sum(nil)
-	return util.Base64EncodeForJWT(hash), nil
 }
 
 func generateRand() (string, error) {

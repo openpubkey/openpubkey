@@ -3,11 +3,11 @@ package parties
 import (
 	"crypto"
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
@@ -24,7 +24,6 @@ type MFACos interface {
 }
 
 type OpkClient struct {
-	Pkt         *pktoken.PKToken
 	Op          OpenIdProvider
 	MFACosigner MFACos
 }
@@ -34,7 +33,7 @@ func (o *OpkClient) OidcAuth(
 	alg jwa.KeyAlgorithm,
 	extraClaims map[string]any,
 	signGQ bool,
-) ([]byte, error) {
+) (*pktoken.PKToken, error) {
 	// Use our signing key to generate a JWK key with the alg header set
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	if err != nil {
@@ -67,7 +66,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	o.Pkt, err = pktoken.New(idToken, cicToken)
+	pkt, err := pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
@@ -84,21 +83,21 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
+		_, _, gqSig, err := jws.SplitCompact(gqToken)
+		if err != nil {
+			return nil, err
+		}
 
 		o.Pkt.AddSignature(gqToken, pktoken.Gq)
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	pktJson, err := json.Marshal(o.Pkt)
+	_, err = o.Op.VerifyPKToken(pkt, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error serializing PK Token: %w", err)
-	}
-
-	if err = o.Op.VerifyPKToken(o.Pkt, nil); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
-	return pktJson, nil
+	return pkt, nil
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
