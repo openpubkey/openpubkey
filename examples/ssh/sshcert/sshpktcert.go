@@ -115,7 +115,7 @@ func (o *OpkCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
 	return nil
 }
 
-func (o *OpkCert) GetPKTokenJson() ([]byte, error) {
+func (o *OpkCert) GetPKToken() (*pktoken.PKToken, error) {
 	pktB64, ok := o.Cert.Extensions["openpubkey-pkt"]
 	if !ok {
 		return nil, fmt.Errorf("cert is missing required openpubkey-pkt extension")
@@ -124,24 +124,20 @@ func (o *OpkCert) GetPKTokenJson() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
-	return pktJson, nil
+	return pktoken.FromJSON(pktJson)
 }
 
 func (o *OpkCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
-	pktJson, err := o.GetPKTokenJson()
+	pkt, err := o.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	_, err = op.VerifyPKToken(pktJson, nil)
+	_, err = op.VerifyPKToken(pkt, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	pkt, err := pktoken.FromJSON(pktJson)
-	if err != nil {
-		return nil, err
-	}
 	_, _, upk, err := pkt.GetCicValues()
 	if err != nil {
 		return nil, err

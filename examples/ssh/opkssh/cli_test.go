@@ -1,11 +1,12 @@
 package main
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"testing"
 
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/parties"
+	"github.com/openpubkey/openpubkey/pktoken"
 )
 
 var (
@@ -19,7 +20,7 @@ type MockOp struct{}
 func (m *MockOp) RequestTokens(cicHash string) ([]byte, error) {
 	return nil, nil
 }
-func (m *MockOp) VerifyPKToken(pktJSON []byte, cosPk *ecdsa.PublicKey) (map[string]any, error) {
+func (m *MockOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
 	return nil, nil
 }
 func (g *MockOp) PublicKey(idt []byte) (parties.PublicKey, error) {

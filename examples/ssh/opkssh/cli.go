@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -8,9 +9,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/parties"
-	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 func NewSshPublicSignerPublicKey() []byte {
@@ -94,8 +96,9 @@ func AuthorizedPrincipalsCommand(userArg string, typArg string, certB64Arg strin
 	}
 }
 
-func RequestSSHCert(client *parties.OpkClient, principals []string, certIssuer sshcert.CertIssuer) ([]byte, []byte, []byte, error) {
-	pktJson, err := client.OidcAuth()
+func RequestSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string, certIssuer sshcert.CertIssuer) ([]byte, []byte, []byte, error) {
+	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
+	pktJson, err := pkt.ToJSON()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -108,13 +111,13 @@ func RequestSSHCert(client *parties.OpkClient, principals []string, certIssuer s
 
 	certBytes := ssh.MarshalAuthorizedKey(cert)
 
-	pubkeySsh, err := ssh.NewPublicKey(&(client.Signer.Pksk.PublicKey))
+	pubkeySsh, err := ssh.NewPublicKey(signer.Public)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	pubkeySshBytes := ssh.MarshalAuthorizedKey(pubkeySsh)
 
-	seckeySsh, err := ssh.MarshalPrivateKey(client.Signer.Pksk, "openpubkey cert")
+	seckeySsh, err := ssh.MarshalPrivateKey(signer, "openpubkey cert")
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -185,18 +188,17 @@ func main() {
 			seckeyPath := "./ssh-key"
 			pubkeyPath := seckeyPath + ".pub"
 			certPath := "./ssh-key-cert.pub"
-			opkClientAlg := "ES256"
 			gqFalse := false
+			alg := jwa.ES256
 
-			signer, err := pktoken.NewSigner(fpClientCfg, opkClientAlg, gqFalse, map[string]any{})
+			signer, err := util.GenKeyPair(alg)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 
 			client := &parties.OpkClient{
-				Op:     &op,
-				Signer: signer,
+				Op: &op,
 			}
 
 			caSigner, err := NewSshPublicSigner()
@@ -208,7 +210,7 @@ func main() {
 				Signer: caSigner,
 			}
 
-			certBytes, pubkeySshBytes, seckeySshPem, err := RequestSSHCert(client, principals, ca.IssueCert)
+			certBytes, pubkeySshBytes, seckeySshPem, err := RequestSSHCert(client, signer, alg, gqFalse, principals, ca.IssueCert)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
