@@ -104,15 +104,22 @@ func TestSshCertCreation(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	ca := SshCa{
-		Signer: caSigner,
-	}
 
 	principals := []string{"guest", "dev"}
-	sshCert, err := ca.IssueCert(testPktJson, principals)
 
-	err = caPubkey.Verify(sshCert.Marshal(), sshCert.Signature)
-	if err == nil {
+	cert, err := BuildSshCert(testPktJson, principals)
+	if err != nil {
+		t.Error(err)
+	}
+
+	sshCert, err := cert.SignCert(caSigner)
+
+	if err := cert.VerifyCaSig(caPubkey); err != nil {
+		t.Error(err)
+	}
+
+	checker := ssh.CertChecker{}
+	if err = checker.CheckCert("guest", sshCert); err != nil {
 		t.Error(err)
 	}
 

@@ -81,13 +81,11 @@ DPPto1eoC7jABRetAAAAB3VzZXJfY2EBAgM=
 // %u The username (requested principal) - userArg
 // %t The certificate type - typArg
 // %k The base64-encoded certificate for authentication - certB64Arg
-func AuthorizedPrincipalsCommand(userArg string, typArg string, certB64Arg string, policyEnforcer sshcert.PolicyEnforcer, op parties.OpenIdProvider) (string, error) {
-	certB64 := typArg + " " + certB64Arg
-	certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certB64))
+func AuthorizedPrincipalsCommand(userArg string, typArg string, certB64Arg string, policyEnforcer sshcert.PolicyCheck, op parties.OpenIdProvider) (string, error) {
+	cert, err := sshcert.NewSshCertFromBytes(typArg, certB64Arg)
 	if err != nil {
 		return "", err
 	}
-	cert := certPubkey.(*ssh.Certificate)
 
 	if err := sshcert.CheckCert(userArg, cert, policyEnforcer, op); err != nil {
 		return "", err
@@ -249,11 +247,16 @@ func main() {
 					fmt.Println("Couldn't write to file")
 				}
 			}
+
+			policyEnforcer := sshcert.SimpleFilePolicyEnforcer{
+				PolicyFilePath: "/etc/opk/policy",
+			}
+
 			userArg := os.Args[2]
 			typArg := os.Args[3]
 			certB64Arg := os.Args[4]
 
-			principal, err := AuthorizedPrincipalsCommand(userArg, typArg, certB64Arg, sshcert.SimpleFilePolicyEnforcer, &op)
+			principal, err := AuthorizedPrincipalsCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
 			if err != nil {
 				os.Exit(1)
 			} else {
