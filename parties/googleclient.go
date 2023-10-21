@@ -121,7 +121,7 @@ func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 		return err
 	}
 
-	idt, err := pkt.OpJWSCompact()
+	idt, err := pkt.Compact(pkt.Op)
 	if err != nil {
 		return err
 	}

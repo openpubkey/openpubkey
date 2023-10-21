@@ -60,7 +60,7 @@ func TestCertCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sigma, err := pkt.CicJWSCompact()
+	sigma, err := pkt.Compact(pkt.Cic)
 	if err != nil {
 		t.Fatal(err)
 	}

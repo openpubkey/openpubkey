@@ -8,7 +8,7 @@ import (
 )
 
 func (p *PKToken) VerifyGQSig(pubKey *rsa.PublicKey, gqSecurityParameter int) error {
-	token, err := p.OpJWSCompact()
+	token, err := p.Compact(p.Op)
 	if err != nil {
 		return err
 	}

@@ -87,28 +87,10 @@ func (p *PKToken) ProviderSignatureType() (SignatureType, bool) {
 	return SignatureType(sigType.(string)), true
 }
 
-func (p *PKToken) OpJWSCompact() ([]byte, error) {
+func (p *PKToken) Compact(sig *jws.Signature) ([]byte, error) {
 	message := jws.NewMessage().
 		SetPayload(p.Payload).
-		AppendSignature(p.Op)
-	return jws.Compact(message)
-}
-
-func (p *PKToken) CicJWSCompact() ([]byte, error) {
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(p.Cic)
-	return jws.Compact(message)
-}
-
-func (p *PKToken) CosJWSCompact() ([]byte, error) {
-	if p.Cos == nil {
-		return nil, fmt.Errorf("no cosigner signature on PK Token")
-	}
-
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(p.Cos)
+		AppendSignature(sig)
 	return jws.Compact(message)
 }
 
