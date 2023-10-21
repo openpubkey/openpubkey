@@ -2,8 +2,6 @@ package sshcert
 
 import (
 	"crypto/rand"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -40,31 +38,35 @@ func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 	return ssh.NewSignerWithAlgorithms(caSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
 }
 
-func (ca *SshCa) IssueCert(pktJson []byte, principals []string) (*ssh.Certificate, error) {
-	if sshcert, err := BuildSshCert(pktJson, principals); err != nil {
+func (ca *SshCa) IssueCert(pkt *pktoken.PKToken, principals []string) (*ssh.Certificate, error) {
+	if sshcert, err := BuildSshCert(pkt, principals); err != nil {
 		return nil, err
 	} else {
 		return sshcert.SignCert(ca.Signer)
 	}
 }
 
-type CertIssuer func(pktJson []byte, principals []string) (*ssh.Certificate, error)
+type CertIssuer func(pkt *pktoken.PKToken, principals []string) (*ssh.Certificate, error)
 
-type OpkCert struct {
+type OpkSshCert struct {
 	Cert *ssh.Certificate
 }
 
-func BuildSshCert(pktJson []byte, principals []string) (*OpkCert, error) {
-	emailOrSub, err := EmailOrSubFromPKTJson(pktJson)
+func BuildSshCert(pkt *pktoken.PKToken, principals []string) (*OpkSshCert, error) {
+	emailOrSub, err := EmailOrSubFromPKT(pkt)
 	if err != nil {
 		return nil, err
 	}
-	pubkeySsh, err := SshPubkeyFromPKT(pktJson)
+	pubkeySsh, err := SshPubkeyFromPKT(pkt)
+	if err != nil {
+		return nil, err
+	}
+	pktJson, err := pkt.ToJSON()
 	if err != nil {
 		return nil, err
 	}
 	pktB64 := string(util.Base64EncodeForJWT(pktJson))
-	opkcert := OpkCert{
+	opkcert := OpkSshCert{
 		Cert: &ssh.Certificate{
 			Key:             pubkeySsh,
 			CertType:        ssh.UserCert,
@@ -86,25 +88,25 @@ func BuildSshCert(pktJson []byte, principals []string) (*OpkCert, error) {
 	return &opkcert, nil
 }
 
-func NewSshCertFromBytes(certType string, cert64 string) (*OpkCert, error) {
+func NewSshCertFromBytes(certType string, cert64 string) (*OpkSshCert, error) {
 	if certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certType + " " + cert64)); err != nil {
 		return nil, err
 	} else {
-		opkcert := &OpkCert{
+		opkcert := &OpkSshCert{
 			Cert: certPubkey.(*ssh.Certificate),
 		}
 		return opkcert, nil
 	}
 }
 
-func (o *OpkCert) SignCert(caSigner ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
+func (o *OpkSshCert) SignCert(caSigner ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
 	if err := o.Cert.SignCert(rand.Reader, caSigner); err != nil {
 		return nil, err
 	}
 	return o.Cert, nil
 }
 
-func (o *OpkCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
+func (o *OpkSshCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
 	certCopy := *(o.Cert)
 	certCopy.Signature = nil
 	certBytes := certCopy.Marshal()
@@ -115,7 +117,7 @@ func (o *OpkCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
 	return nil
 }
 
-func (o *OpkCert) GetPKToken() (*pktoken.PKToken, error) {
+func (o *OpkSshCert) GetPKToken() (*pktoken.PKToken, error) {
 	pktB64, ok := o.Cert.Extensions["openpubkey-pkt"]
 	if !ok {
 		return nil, fmt.Errorf("cert is missing required openpubkey-pkt extension")
@@ -127,7 +129,7 @@ func (o *OpkCert) GetPKToken() (*pktoken.PKToken, error) {
 	return pktoken.FromJSON(pktJson)
 }
 
-func (o *OpkCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
+func (o *OpkSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
 	pkt, err := o.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
@@ -156,34 +158,9 @@ func (o *OpkCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken,
 	}
 }
 
-// TODO: Collapse these three funcs into the pktoken object by adding a GetClaim(claimKey) func after PR #39 is merged
-func EmailFromPKT(pkt *pktoken.PKToken) (string, error) {
-	decodePayload, err := base64.RawStdEncoding.DecodeString(string(pkt.Payload))
+func EmailOrSubFromPKT(pkt *pktoken.PKToken) (string, error) {
+	claims, err := pkt.GetClaimMap()
 	if err != nil {
-		return "", err
-	}
-	var claims map[string]interface{}
-	if err = json.Unmarshal(decodePayload, &claims); err != nil {
-		return "", err
-	}
-	if email, ok := claims["email"]; ok {
-		return email.(string), nil
-	} else {
-		return "", fmt.Errorf("ID Token does not contain the required email claim")
-	}
-}
-
-func EmailOrSubFromPKTJson(pktJson []byte) (string, error) {
-	pkt, err := pktoken.FromJSON(pktJson)
-	if err != nil {
-		return "", err
-	}
-	decodePayload, err := base64.RawStdEncoding.DecodeString(string(pkt.Payload))
-	if err != nil {
-		return "", err
-	}
-	var claims map[string]interface{}
-	if err = json.Unmarshal(decodePayload, &claims); err != nil {
 		return "", err
 	}
 	if email, ok := claims["email"]; ok {
@@ -196,11 +173,7 @@ func EmailOrSubFromPKTJson(pktJson []byte) (string, error) {
 	}
 }
 
-func SshPubkeyFromPKT(pktJson []byte) (ssh.PublicKey, error) {
-	pkt, err := pktoken.FromJSON(pktJson)
-	if err != nil {
-		return nil, err
-	}
+func SshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 	_, _, upk, err := pkt.GetCicValues()
 	if err != nil {
 		return nil, err
@@ -213,7 +186,7 @@ func SshPubkeyFromPKT(pktJson []byte) (ssh.PublicKey, error) {
 	return ssh.NewPublicKey(rawkey)
 }
 
-func CheckCert(userDesired string, cert *OpkCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
+func CheckCert(userDesired string, cert *OpkSshCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
 	pkt, err := cert.VerifySshPktCert(op)
 	if err != nil {
 		return err
@@ -262,11 +235,11 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 	if err != nil {
 		return err
 	}
-	email, err := EmailFromPKT(pkt)
+	email, err := pkt.GetClaim("email")
 	if err != nil {
 		return err
 	}
-	if allowedPrincipals, ok := policyMap[email]; ok {
+	if allowedPrincipals, ok := policyMap[string(email)]; ok {
 		if slices.Contains(allowedPrincipals, principalDesired) {
 			return nil
 		}

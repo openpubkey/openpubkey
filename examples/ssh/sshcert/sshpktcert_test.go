@@ -106,8 +106,12 @@ func TestSshCertCreation(t *testing.T) {
 	}
 
 	principals := []string{"guest", "dev"}
+	pkt, err := pktoken.FromJSON(testPktJson)
+	if err != nil {
+		t.Error(err)
+	}
 
-	cert, err := BuildSshCert(testPktJson, principals)
+	cert, err := BuildSshCert(pkt, principals)
 	if err != nil {
 		t.Error(err)
 	}
@@ -132,12 +136,12 @@ func TestSshCertCreation(t *testing.T) {
 	if !ok {
 		t.Error(err)
 	}
-	pktJson, err := util.Base64DecodeForJWT([]byte(pktB64))
-	pkt, err := pktoken.FromJSON(pktJson)
+	pktExtJson, err := util.Base64DecodeForJWT([]byte(pktB64))
+	pktExt, err := pktoken.FromJSON(pktExtJson)
 	if err != nil {
 		t.Error(err)
 	}
-	_, _, upk, err := pkt.GetCicValues()
+	_, _, upk, err := pktExt.GetCicValues()
 	if err != nil {
 		t.Error(err)
 	}

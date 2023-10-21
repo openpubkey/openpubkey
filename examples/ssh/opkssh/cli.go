@@ -98,17 +98,12 @@ func AuthorizedPrincipalsCommand(userArg string, typArg string, certB64Arg strin
 
 func RequestSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string, certIssuer sshcert.CertIssuer) ([]byte, []byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
-	pktJson, err := pkt.ToJSON()
-	if err != nil {
-		return nil, nil, nil, err
-	}
 
 	// Get Openpubkey certificate issued for your PK Token
-	cert, err := certIssuer(pktJson, principals)
+	cert, err := certIssuer(pkt, principals)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
 	certBytes := ssh.MarshalAuthorizedKey(cert)
 
 	pubkeySsh, err := ssh.NewPublicKey(signer.Public)

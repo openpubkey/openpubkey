@@ -239,6 +239,34 @@ func (p *PKToken) GetNonce() ([]byte, error) {
 	return []byte(nonce), nil
 }
 
+func (p *PKToken) GetClaim(key string) ([]byte, error) {
+	decodePayload, err := base64.RawStdEncoding.DecodeString(string(p.Payload))
+	if err != nil {
+		return nil, err
+	}
+	var payMap map[string]interface{}
+	if err = json.Unmarshal(decodePayload, &payMap); err != nil {
+		return nil, err
+	}
+	if value, ok := payMap[key].(string); ok {
+		return []byte(value), nil
+	} else {
+		return nil, fmt.Errorf("claim=(%s) does not exist in ID Token payload", key)
+	}
+}
+
+func (p *PKToken) GetClaimMap() (map[string]interface{}, error) {
+	decodePayload, err := base64.RawStdEncoding.DecodeString(string(p.Payload))
+	if err != nil {
+		return nil, err
+	}
+	var claims map[string]interface{}
+	if err = json.Unmarshal(decodePayload, &claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
 func (p *PKToken) GetClaims() ([]byte, []byte, []byte, error) {
 	decodePayload, err := base64.RawStdEncoding.DecodeString(string(p.Payload))
 	if err != nil {
