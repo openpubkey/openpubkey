@@ -26,10 +26,10 @@ const (
 type PKToken struct {
 	raw []byte // the original, raw representation of the object
 
-	Payload []byte
-	Op      *jws.Signature
-	Cic     *jws.Signature
-	Cos     *jws.Signature
+	Payload []byte         // decoded payload
+	Op      *jws.Signature // Provider Signature
+	Cic     *jws.Signature // Client Signature
+	Cos     *jws.Signature // Cosigner Signature
 }
 
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
@@ -51,12 +51,18 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 		return err
 	}
 
-	if p.Payload != nil && !bytes.Equal(p.Payload, message.Payload()) {
+	// If there is no payload, we set the provided token's payload as current, otherwise
+	// we make sure that the new payload matches current
+	if p.Payload == nil {
+		p.Payload = message.Payload()
+	} else if !bytes.Equal(p.Payload, message.Payload()) {
 		return fmt.Errorf("payload in the GQ token (%s) does not match the existing payload in the PK Token (%s)", p.Payload, message.Payload())
 	}
 
 	public := jws.NewHeaders()
-	public.Set(sigTypeHeader, string(sigType))
+	if err := public.Set(sigTypeHeader, string(sigType)); err != nil {
+		return err
+	}
 	signature := message.Signatures()[0].SetPublicHeaders(public)
 
 	switch sigType {
@@ -72,9 +78,13 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	return nil
 }
 
-func (p *PKToken) OpSigType() SignatureType {
-	sigType, _ := p.Op.ProtectedHeaders().Get(sigTypeHeader)
-	return SignatureType(sigType.(string))
+func (p *PKToken) ProviderSignatureType() (SignatureType, bool) {
+	sigType, ok := p.Op.PublicHeaders().Get(sigTypeHeader)
+	if !ok {
+		return "", ok
+	}
+
+	return SignatureType(sigType.(string)), true
 }
 
 func (p *PKToken) OpJWSCompact() ([]byte, error) {

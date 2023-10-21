@@ -126,7 +126,12 @@ func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 		return err
 	}
 
-	if pkt.OpSigType() == pktoken.Gq {
+	sigType, ok := pkt.ProviderSignatureType()
+	if !ok {
+		return fmt.Errorf("provider signature type missing")
+	}
+
+	if sigType == pktoken.Gq {
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := g.PublicKey(idt)
 		if err != nil {

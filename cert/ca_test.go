@@ -40,8 +40,7 @@ func TestCertCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	requiredAudience := "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-
+	requiredAudience := "also_me"
 	pemSubCert, err := PktTox509(pktJson, caBytes, caPkSk, requiredAudience)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +56,7 @@ func TestCertCreation(t *testing.T) {
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
 
 	var pkt *pktoken.PKToken
-	if err := json.Unmarshal(pktJson, pkt); err != nil {
+	if err := json.Unmarshal(pktJson, &pkt); err != nil {
 		t.Fatal(err)
 	}
 

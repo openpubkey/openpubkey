@@ -7,7 +7,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
@@ -83,16 +82,12 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
-		_, _, gqSig, err := jws.SplitCompact(gqToken)
-		if err != nil {
-			return nil, err
-		}
 
-		o.Pkt.AddSignature(gqToken, pktoken.Gq)
+		pkt.AddSignature(gqToken, pktoken.Gq)
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	_, err = o.Op.VerifyPKToken(pkt, nil)
+	err = o.Op.VerifyPKToken(pkt, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}

@@ -31,10 +31,5 @@ func (p *PKToken) VerifyCicSig() error {
 	}
 
 	_, err = jws.Verify(token, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
-	if err != nil {
-		return err
-	}
-
-	// Verified
-	return nil
+	return err
 }

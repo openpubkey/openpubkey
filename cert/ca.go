@@ -64,14 +64,10 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 		return nil, err
 	}
 
-	fmt.Println("bEFORE CIC")
-
 	err := pkt.VerifyCicSig()
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("AFTER CIC")
 
 	// TODO: verify cosigner
 	// cosignerConfig := &CosignerConfig {
@@ -84,19 +80,17 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 	// }
 
 	var payload struct {
-		Issuer   string `json:"iss"`
-		Audience string `json:"aud"`
-		Email    string `json:"sub"`
+		Issuer   string   `json:"iss"`
+		Audience []string `json:"aud"`
+		Email    string   `json:"sub"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
 		return nil, err
 	}
 
-	if payload.Audience != requiredAudience {
+	if payload.Audience[0] != requiredAudience {
 		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience)
 	}
-
-	fmt.Println("HERE")
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
 	if err != nil {
@@ -134,8 +128,9 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 	if err := upk.Raw(&rawkey); err != nil {
 		return nil, err
 	}
+	pk := rawkey.(*ecdsa.PublicKey)
 
-	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, upk, caPkSk)
+	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, pk, caPkSk)
 	if err != nil {
 		return nil, err
 	}

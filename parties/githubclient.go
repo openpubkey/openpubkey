@@ -148,7 +148,12 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 }
 
 func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
-	if pkt.OpSigType() != pktoken.Gq {
+	sigType, ok := pkt.ProviderSignatureType()
+	if !ok {
+		return fmt.Errorf("provider signature type missing")
+	}
+
+	if sigType != pktoken.Gq {
 		return fmt.Errorf("github only support gq signatures")
 	}
 
