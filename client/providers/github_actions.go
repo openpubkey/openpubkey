@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -83,7 +84,7 @@ func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
-func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
+func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
 	j, err := jws.Parse(idt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)

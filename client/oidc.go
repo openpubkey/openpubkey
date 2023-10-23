@@ -16,16 +16,12 @@ import (
 
 const GQSecurityParameter = 256
 
-type PublicKey interface {
-	Equal(x crypto.PublicKey) bool
-}
-
 var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) ([]byte, error)
-	PublicKey(ctx context.Context, idt []byte) (PublicKey, error)
+	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }

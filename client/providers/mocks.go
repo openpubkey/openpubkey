@@ -3,13 +3,11 @@ package providers
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
-	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -57,8 +55,8 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	return signedToken, nil
 }
 
-func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (client.PublicKey, error) {
-	return m.signer.Public().(*rsa.PublicKey), nil
+func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
+	return m.signer.Public(), nil
 }
 
 func (m *MockOpenIdProvider) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
