@@ -43,7 +43,7 @@ func TestClient(t *testing.T) {
 
 		if tc.gq {
 			// Verify our GQ signature
-			idt, err := pkt.OpJWSCompact()
+			idt, err := pkt.Compact(pkt.Op)
 			if err != nil {
 				t.Fatal(err)
 			}
