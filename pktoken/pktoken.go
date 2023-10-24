@@ -23,13 +23,15 @@ const (
 	Cos  SignatureType = "cos"
 )
 
+type Signature = jws.Signature
+
 type PKToken struct {
 	raw []byte // the original, raw representation of the object
 
-	Payload []byte         // decoded payload
-	Op      *jws.Signature // Provider Signature
-	Cic     *jws.Signature // Client Signature
-	Cos     *jws.Signature // Cosigner Signature
+	Payload []byte     // decoded payload
+	Op      *Signature // Provider Signature
+	Cic     *Signature // Client Signature
+	Cos     *Signature // Cosigner Signature
 }
 
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
@@ -87,7 +89,7 @@ func (p *PKToken) ProviderSignatureType() (SignatureType, bool) {
 	return SignatureType(sigType.(string)), true
 }
 
-func (p *PKToken) Compact(sig *jws.Signature) ([]byte, error) {
+func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
 	message := jws.NewMessage().
 		SetPayload(p.Payload).
 		AppendSignature(sig)
@@ -133,7 +135,7 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	p.Payload = parsed.Payload()
+	p.Payload = parsed.Payload() // base64 decoded
 
 	opCount := 0
 	cicCount := 0
