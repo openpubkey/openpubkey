@@ -47,7 +47,7 @@ func main() {
 	keyAlgorithm := jwa.ES256
 
 	// Directory for saving data
-	outputDir := "opk/google"
+	outputDir := "output/google"
 
 	command := os.Args[1]
 	switch command {
