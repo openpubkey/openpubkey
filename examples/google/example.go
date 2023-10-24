@@ -188,7 +188,7 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 }
 
 func saveLogin(outputDir string, sk *ecdsa.PrivateKey, pkt *pktoken.PKToken) error {
-	if err := os.MkdirAll(outputDir, os.ModeDir); err != nil {
+	if err := os.MkdirAll(outputDir, 0777); err != nil {
 		return err
 	}
 
