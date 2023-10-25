@@ -18,14 +18,6 @@ type SshCa struct {
 	Signer ssh.MultiAlgorithmSigner
 }
 
-func NewSshSignerFromFile(fpath string) (ssh.MultiAlgorithmSigner, error) {
-	if pemBytes, err := os.ReadFile(fpath); err != nil {
-		return nil, err
-	} else {
-		return NewSshSignerFromPem(pemBytes)
-	}
-}
-
 func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 	caKey, err := ssh.ParseRawPrivateKey(pemBytes)
 	if err != nil {
