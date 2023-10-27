@@ -57,6 +57,10 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = jws.Verify(modifiedToken, jws.WithKey(jwa.RS256, oidcPubKey))
+	if err == nil {
+		t.Fatal("ID token signature should fail for modified token")
+	}
 
 	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
 	gqToken, err := signerVerifier.SignJWT(modifiedToken)
@@ -66,7 +70,7 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 
 	ok := signerVerifier.VerifyJWT(gqToken)
 	if ok {
-		t.Fatal("signature verification passed for invalid payload")
+		t.Fatal("GQ signature verification passed for invalid payload")
 	}
 }
 
@@ -97,7 +101,7 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 	ok := signerVerifier.VerifyJWT(modifiedToken)
 	if ok {
-		t.Fatal("signature verification passed for invalid payload")
+		t.Fatal("GQ signature verification passed for invalid payload")
 	}
 }
 
