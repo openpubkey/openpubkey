@@ -1,6 +1,7 @@
 package gq_test
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -52,13 +53,13 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 	}
 
 	// modify the ID Token payload to detect IdP signature invalidity via GQ verify
-	err = modifyTokenPayload(idToken, "fail")
+	modifiedToken, err := modifyTokenPayload(idToken, "fail")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
-	gqToken, err := signerVerifier.SignJWT(idToken)
+	gqToken, err := signerVerifier.SignJWT(modifiedToken)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,21 +90,21 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 	}
 
 	// modify the ID Token payload to detect GQ signature invalidity
-	err = modifyTokenPayload(gqToken, "fail")
+	modifiedToken, err := modifyTokenPayload(gqToken, "fail")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ok := signerVerifier.VerifyJWT(gqToken)
+	ok := signerVerifier.VerifyJWT(modifiedToken)
 	if ok {
 		t.Fatal("signature verification passed for invalid payload")
 	}
 }
 
-func modifyTokenPayload(token []byte, audience string) error {
-	_, payload, _, err := jws.SplitCompact(token)
+func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
+	headers, _, signature, err := jws.SplitCompact(token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	newPayload := map[string]any{
 		"sub": "1",
@@ -113,10 +114,10 @@ func modifyTokenPayload(token []byte, audience string) error {
 	}
 	modifiedPayload, err := json.Marshal(newPayload)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	copy(payload, util.Base64EncodeForJWT(modifiedPayload))
-	return nil
+	newToken := bytes.Join([][]byte{headers, util.Base64EncodeForJWT(modifiedPayload), signature}, []byte{'.'})
+	return newToken, nil
 }
 
 func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
