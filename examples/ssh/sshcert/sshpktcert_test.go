@@ -111,7 +111,7 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	cert, err := BuildSshCert(pkt, principals)
+	cert, err := BuildPktSshCert(pkt, principals)
 	if err != nil {
 		t.Error(err)
 	}

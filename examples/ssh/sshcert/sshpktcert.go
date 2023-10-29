@@ -3,6 +3,7 @@ package sshcert
 import (
 	"crypto/rand"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -13,10 +14,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 )
-
-type SshCa struct {
-	Signer ssh.MultiAlgorithmSigner
-}
 
 func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 	caKey, err := ssh.ParseRawPrivateKey(pemBytes)
@@ -30,21 +27,11 @@ func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 	return ssh.NewSignerWithAlgorithms(caSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
 }
 
-func (ca *SshCa) IssueCert(pkt *pktoken.PKToken, principals []string) (*ssh.Certificate, error) {
-	if sshcert, err := BuildSshCert(pkt, principals); err != nil {
-		return nil, err
-	} else {
-		return sshcert.SignCert(ca.Signer)
-	}
+type PktSshCert struct {
+	SshCert *ssh.Certificate
 }
 
-type CertIssuer func(pkt *pktoken.PKToken, principals []string) (*ssh.Certificate, error)
-
-type OpkSshCert struct {
-	Cert *ssh.Certificate
-}
-
-func BuildSshCert(pkt *pktoken.PKToken, principals []string) (*OpkSshCert, error) {
+func BuildPktSshCert(pkt *pktoken.PKToken, principals []string) (*PktSshCert, error) {
 	emailOrSub, err := EmailOrSubFromPKT(pkt)
 	if err != nil {
 		return nil, err
@@ -58,8 +45,8 @@ func BuildSshCert(pkt *pktoken.PKToken, principals []string) (*OpkSshCert, error
 		return nil, err
 	}
 	pktB64 := string(util.Base64EncodeForJWT(pktJson))
-	opkcert := OpkSshCert{
-		Cert: &ssh.Certificate{
+	opkcert := PktSshCert{
+		SshCert: &ssh.Certificate{
 			Key:             pubkeySsh,
 			CertType:        ssh.UserCert,
 			KeyId:           emailOrSub,
@@ -80,37 +67,37 @@ func BuildSshCert(pkt *pktoken.PKToken, principals []string) (*OpkSshCert, error
 	return &opkcert, nil
 }
 
-func NewSshCertFromBytes(certType string, cert64 string) (*OpkSshCert, error) {
+func NewSshCertFromBytes(certType string, cert64 string) (*PktSshCert, error) {
 	if certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certType + " " + cert64)); err != nil {
 		return nil, err
 	} else {
-		opkcert := &OpkSshCert{
-			Cert: certPubkey.(*ssh.Certificate),
+		opkcert := &PktSshCert{
+			SshCert: certPubkey.(*ssh.Certificate),
 		}
 		return opkcert, nil
 	}
 }
 
-func (o *OpkSshCert) SignCert(caSigner ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
-	if err := o.Cert.SignCert(rand.Reader, caSigner); err != nil {
+func (o *PktSshCert) SignCert(caSigner ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
+	if err := o.SshCert.SignCert(rand.Reader, caSigner); err != nil {
 		return nil, err
 	}
-	return o.Cert, nil
+	return o.SshCert, nil
 }
 
-func (o *OpkSshCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
-	certCopy := *(o.Cert)
+func (o *PktSshCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
+	certCopy := *(o.SshCert)
 	certCopy.Signature = nil
 	certBytes := certCopy.Marshal()
 	certBytes = certBytes[:len(certBytes)-4] // Drops signature length bytes (see crypto.ssh.certs.go)
-	if err := caPubkey.Verify(certBytes, o.Cert.Signature); err != nil {
+	if err := caPubkey.Verify(certBytes, o.SshCert.Signature); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (o *OpkSshCert) GetPKToken() (*pktoken.PKToken, error) {
-	pktB64, ok := o.Cert.Extensions["openpubkey-pkt"]
+func (o *PktSshCert) GetPKToken() (*pktoken.PKToken, error) {
+	pktB64, ok := o.SshCert.Extensions["openpubkey-pkt"]
 	if !ok {
 		return nil, fmt.Errorf("cert is missing required openpubkey-pkt extension")
 	}
@@ -121,7 +108,7 @@ func (o *OpkSshCert) GetPKToken() (*pktoken.PKToken, error) {
 	return pktoken.FromJSON(pktJson)
 }
 
-func (o *OpkSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
+func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
 	pkt, err := o.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
@@ -137,7 +124,7 @@ func (o *OpkSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKTok
 		return nil, err
 	}
 
-	cryptoCertKey := (o.Cert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
+	cryptoCertKey := (o.SshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
 	if err != nil {
 		return nil, err
@@ -178,7 +165,7 @@ func SshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 	return ssh.NewPublicKey(rawkey)
 }
 
-func CheckCert(userDesired string, cert *OpkSshCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
+func CheckCert(userDesired string, cert *PktSshCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
 	pkt, err := cert.VerifySshPktCert(op)
 	if err != nil {
 		return err
@@ -203,6 +190,20 @@ type SimpleFilePolicyEnforcer struct {
 }
 
 func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (map[string][]string, error) {
+	info, err := os.Stat(p.PolicyFilePath)
+	if err != nil {
+		return nil, err
+	}
+	mode := info.Mode()
+
+	// Only the owner of this file should be able to write to it
+	if mode.Perm() != fs.FileMode(600) {
+		return nil, fmt.Errorf("policy file has insecure permissions, expected (600), got (%d)", mode.Perm())
+	}
+	// TODO: Ideally we would also check the owner of the file is the same as
+	// the user of the current process however this is not cross platform and
+	// not well supported in golang
+
 	content, err := os.ReadFile(p.PolicyFilePath)
 	if err != nil {
 		return nil, err
@@ -221,7 +222,6 @@ func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (map[string][]string, error)
 	return policyMap, nil
 }
 
-// TODO: Check file permissions on `/etc/opk/policy` to ensure it is only root writable
 func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
 	policyMap, err := p.ReadPolicyFile()
 	if err != nil {

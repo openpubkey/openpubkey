@@ -3,8 +3,11 @@ package main
 import (
 	"crypto"
 	"encoding/pem"
+	"errors"
 	"fmt"
+
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -38,7 +41,7 @@ func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 		// sshd expects the public key in the cert, not the cert itself.
 		// This public key is key of the CA the signs the cert, in our
 		// setting there is no CA.
-		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.Cert.SignatureKey)
+		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
 		return "cert-authority " + string(pubkeyBytes), nil
 	}
 }
@@ -46,7 +49,7 @@ func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 func RequestSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
 
-	cert, err := sshcert.BuildSshCert(pkt, principals)
+	cert, err := sshcert.BuildPktSshCert(pkt, principals)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,6 +77,72 @@ func RequestSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.Key
 	seckeySshBytes := pem.EncodeToMemory(seckeySsh)
 
 	return certBytes, seckeySshBytes, nil
+}
+
+func WriteKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
+	// Write ssh secret key to filesystem
+	err := os.WriteFile(seckeyPath, seckeySshPem, 0600)
+	if err != nil {
+		return err
+	}
+
+	certBytes = append(certBytes, []byte(" "+"openpubkey")...)
+
+	// Write ssh public key (certificate) to filesystem
+	err = os.WriteFile(pubkeyPath, certBytes, 0777)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func FileExists(fPath string) bool {
+	_, error := os.Open(fPath)
+	return !errors.Is(error, os.ErrNotExist)
+}
+
+func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	sshPath := filepath.Join(homePath, ".ssh")
+
+	//  To enable ssh to automatically find the key created by openpubkey we
+	// need to use a default ssh key path. However this means that this
+	// filename might already be in use by the user. To ensure we don't
+	// overwrite a ssh key not created by openpubkey we check the comment in the
+	// key to see if it was created by openpubkey
+	defaultKeyNames := []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"}
+	for i := range []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"} {
+		seckeyPath := filepath.Join(sshPath, defaultKeyNames[i])
+		pubkeyPath := seckeyPath + ".pub"
+
+		if !FileExists(seckeyPath) {
+			// If ssh key file does not currently exist, we don't have to worry about overwriting it
+			return WriteKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
+		} else if !FileExists(pubkeyPath) {
+			continue
+		} else {
+			// If ssh key does file does exist, check if it is an openpubkey file, if it is then it is safe to overwrite
+			sshPubkey, err := os.ReadFile(pubkeyPath)
+			if err != nil {
+				fmt.Println("Failed to read:", pubkeyPath)
+				continue
+			}
+			sshPubkeyTok := strings.Split(string(sshPubkey), " ")
+			if len(sshPubkeyTok) != 3 {
+				fmt.Println("Failed to parse:", pubkeyPath)
+				continue
+			}
+			// check if pubkey comment to see if it an openpubkey ssh key
+			if strings.Contains(sshPubkeyTok[2], ("openpubkey")) {
+				// safe to overwrite
+				return WriteKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
+			}
+		}
+	}
+	return fmt.Errorf("no default ssh key file free for openpubkey")
 }
 
 func log(line string) {
@@ -107,12 +176,8 @@ func main() {
 	}
 
 	// TODO: Use a command parser so that users can specify filepaths for keys and supply their own certificates
-	// TODO: Store keys in SSH Agent rather than the current directory in the filesystem
-	// TODO: Access log should be optional, support windows and osx, and use a logger
-	// TODO: Add command that will check security of server configuration,
-	//   e.g., alarm if TrustedUserCAKeys is enabled in sshd_config without AuthorizedPrincipalsCommand, policy file is only root writable, ...
+	// TODO: Access log should be optional and use a logger
 	// TODO: Support the github OP
-	// TODO: Support certificate signing algorithms other than RSA
 	switch command {
 	case "config":
 		{
@@ -124,7 +189,6 @@ func main() {
 				"   sudo chown root /etc/opk/opkssh \n" +
 				"   sudo chmod 700 /etc/opk/opkssh \n" +
 				"2. Configure the sshd_config by adding the following lines to /etc/ssh/sshd_config: \n" +
-				"   TrustedUserCAKeys /etc/ssh/opk_user_ca.pub \n" +
 				"   AuthorizedKeyCommand /etc/opk/opkssh ver %%u %%t %%k \n" +
 				"   AuthorizedKeyCommandUser root \n" +
 				"3. Restart sshd server: \n" +
@@ -144,9 +208,6 @@ func main() {
 			principals := strings.Split(os.Args[2], ",")
 			principals = []string{}
 
-			// TODO: Use SSH Agent
-			seckeyPath := "./ssh-key"
-			pubkeyPath := seckeyPath + ".pub"
 			gqFalse := false
 			alg := jwa.ES256
 
@@ -166,15 +227,8 @@ func main() {
 				os.Exit(1)
 			}
 
-			// Write ssh secret key to filesystem
-			err = os.WriteFile(seckeyPath, seckeySshPem, 0600)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			// Write ssh public key (certificate) to filesystem
-			err = os.WriteFile(pubkeyPath, certBytes, 0777)
+			// Write ssh secret key and public key to filesystem
+			err = WriteKeysToSSHDir(seckeySshPem, certBytes)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -184,7 +238,6 @@ func main() {
 	case "ver":
 		{
 			log(strings.Join(os.Args, " "))
-
 			policyEnforcer := sshcert.SimpleFilePolicyEnforcer{
 				PolicyFilePath: "/etc/opk/policy",
 			}
