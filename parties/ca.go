@@ -191,7 +191,7 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 	var payload struct {
 		Issuer   string `json:"iss"`
 		Audience string `json:"aud"`
-		Email    string `json:"sub"`
+		Email    string `json:"email"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
 		return nil, err

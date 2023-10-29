@@ -82,7 +82,7 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 	var payload struct {
 		Issuer   string   `json:"iss"`
 		Audience []string `json:"aud"`
-		Email    string   `json:"sub"`
+		Email    string   `json:"email"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
 		return nil, err
