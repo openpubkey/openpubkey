@@ -47,13 +47,13 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Define our OIDC nonce as a commitment to the client instance claims
-	nonce, err := cic.Commitment()
+	nonce, err := cic.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(nonce)
+	idToken, err := o.Op.RequestTokens(string(nonce))
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}

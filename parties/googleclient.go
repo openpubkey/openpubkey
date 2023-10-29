@@ -116,7 +116,7 @@ func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 		return err
 	}
 
-	commitment, err := cic.Commitment()
+	commitment, err := cic.Hash()
 	if err != nil {
 		return err
 	}
@@ -149,13 +149,13 @@ func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 			return err
 		}
 
-		if payload.Nonce != commitment {
+		if payload.Nonce != string(commitment) {
 			return fmt.Errorf("nonce doesn't match")
 		}
 
 	} else {
 		options := []rp.Option{
-			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return commitment })),
+			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return string(commitment) })),
 		}
 
 		googleRP, err := rp.NewRelyingPartyOIDC(

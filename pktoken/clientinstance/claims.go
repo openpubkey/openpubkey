@@ -89,18 +89,13 @@ func (c *Claims) KeyAlgorithm() jwa.KeyAlgorithm {
 }
 
 // Returns a hash of all client instance claims which includes a random value
-func (c *Claims) Commitment() (string, error) {
+func (c *Claims) Hash() ([]byte, error) {
 	buf, err := json.Marshal(c.protected)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	digest := util.B64SHA3_256(buf)
-	if err != nil {
-		return "", err
-	}
-
-	return string(digest), nil
+	return util.B64SHA3_256(buf), nil
 }
 
 // This function signs the payload of the provided token with the protected headers

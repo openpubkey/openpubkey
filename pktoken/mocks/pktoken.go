@@ -23,7 +23,7 @@ func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktok
 	}
 
 	// Calculate our nonce from our cic values
-	nonce, err := cic.Commitment()
+	nonce, err := cic.Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktok
 		return nil, err
 	}
 
-	idToken, err := op.RequestTokens(nonce)
+	idToken, err := op.RequestTokens(string(nonce))
 	if err != nil {
 		return nil, err
 	}

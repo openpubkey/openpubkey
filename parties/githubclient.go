@@ -162,7 +162,7 @@ func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 		return err
 	}
 
-	commitment, err := cic.Commitment()
+	commitment, err := cic.Hash()
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 		return err
 	}
 
-	if payload.Audience != commitment {
+	if payload.Audience != string(commitment) {
 		return fmt.Errorf("nonce doesn't match")
 	}
 
