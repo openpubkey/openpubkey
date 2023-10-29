@@ -97,13 +97,10 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 		return nil, err
 	}
 
-	subject := payload.Email
-	oidcIssuer := payload.Issuer
-
 	// Based on template from https://github.com/sigstore/fulcio/blob/3c8fbea99c71fedfe47d39e12159286eb443a917/pkg/test/cert_utils.go#L195
 	subTemplate := &x509.Certificate{
 		SerialNumber:   big.NewInt(1),
-		EmailAddresses: []string{subject},
+		EmailAddresses: []string{payload.Email},
 		NotBefore:      time.Now().Add(-1 * time.Minute),
 		NotAfter:       time.Now().Add(time.Hour),
 		KeyUsage:       x509.KeyUsageDigitalSignature,
@@ -113,7 +110,7 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 			// OID for OIDC Issuer extension
 			Id:       asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1},
 			Critical: false,
-			Value:    []byte(oidcIssuer),
+			Value:    []byte(payload.Issuer),
 		}},
 		SubjectKeyId: []byte(util.Base64EncodeForJWT(pktJson)),
 	}
