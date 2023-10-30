@@ -2,15 +2,16 @@ package pktoken_test
 
 import (
 	"crypto"
+	"encoding/json"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/pktoken/mocks"
+
+	"github.com/lestrrat-go/jwx/v2/jwa"
+
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -22,13 +23,7 @@ func TestPkToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jwkKey, err := jwk.PublicKeyOf(signingKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	jwkKey.Set(jwk.AlgorithmKey, alg)
-
-	pkt, err := generateMockPKToken(signingKey, jwkKey)
+	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,53 +53,20 @@ func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signingKey cr
 
 func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	// Test json serialization/deserialization
-	pktJson, err := pkt.ToJSON()
+	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	token, err := pktoken.FromJSON(pktJson)
+	var newPkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, &newPkt); err != nil {
+		t.Fatal(err)
+	}
+
+	newPktJson, err := json.Marshal(newPkt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	tokenJson, err := token.ToJSON()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	require.JSONEq(t, string(pktJson), string(tokenJson))
-}
-
-func generateMockPKToken(signingKey crypto.Signer, jwkKey jwk.Key) (*pktoken.PKToken, error) {
-	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate our nonce from our cic values
-	nonce, err := cic.Commitment()
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate mock id token
-	op, err := parties.NewMockOpenIdProvider()
-	if err != nil {
-		return nil, err
-	}
-
-	idToken, err := op.RequestTokens(nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
-	if err != nil {
-		return nil, err
-	}
-
-	// Combine two tokens into a PK Token
-	return pktoken.New(idToken, cicToken)
+	require.JSONEq(t, string(pktJson), string(newPktJson))
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
@@ -48,13 +47,13 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Define our OIDC nonce as a commitment to the client instance claims
-	nonce, err := cic.Commitment()
+	nonce, err := cic.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(nonce)
+	idToken, err := o.Op.RequestTokens(string(nonce))
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
@@ -83,17 +82,12 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
-		_, _, gqSig, err := jws.SplitCompact(gqToken)
-		if err != nil {
-			return nil, err
-		}
 
-		pkt.OpSig = gqSig
-		pkt.OpSigGQ = true
+		pkt.AddSignature(gqToken, pktoken.Gq)
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	_, err = o.Op.VerifyPKToken(pkt, nil)
+	err = o.Op.VerifyPKToken(pkt, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
@@ -110,7 +104,7 @@ type PublicKey interface {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error)
+	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error
 	PublicKey(idt []byte) (PublicKey, error)
 }
 

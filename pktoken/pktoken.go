@@ -2,13 +2,9 @@ package pktoken
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -16,383 +12,91 @@ import (
 	_ "golang.org/x/crypto/sha3"
 )
 
-const SigTypeHeader = "sig_type"
-const SigTypeOIDC = "oidc"
-const SigTypeGQ = "oidc_gq"
-const SigTypeCIC = "cic"
-const SigTypeCos = "cos"
+const sigTypeHeader = "sig_type"
 
-type JWS struct {
-	Payload    string        `json:"payload"`
-	Signatures []JWSignature `json:"signatures"`
-}
+type SignatureType string
 
-type JWSignature struct {
-	Protected string         `json:"protected"`
-	Public    map[string]any `json:"header"`
-	Signature string         `json:"signature"`
-}
+const (
+	Oidc SignatureType = "oidc"
+	Gq   SignatureType = "oidc_gq"
+	Cic  SignatureType = "cic"
+	Cos  SignatureType = "cos"
+)
+
+type Signature = jws.Signature
 
 type PKToken struct {
-	Payload []byte
-	OpPH    []byte
-	OpSig   []byte
-	OpSigGQ bool
-	CicPH   []byte
-	CicSig  []byte
-	CosPH   []byte
-	CosSig  []byte
-
 	raw []byte // the original, raw representation of the object
+
+	Payload []byte     // decoded payload
+	Op      *Signature // Provider Signature
+	Cic     *Signature // Client Signature
+	Cos     *Signature // Cosigner Signature
 }
 
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
-	opPH, opPayload, opSig, err := jws.SplitCompact(idToken)
-	if err != nil {
+	pkt := &PKToken{}
+	if err := pkt.AddSignature(idToken, Oidc); err != nil {
 		return nil, err
 	}
 
-	cicPH, cicPayload, cicSig, err := jws.SplitCompact(cicToken)
-	if err != nil {
+	if err := pkt.AddSignature(cicToken, Cic); err != nil {
 		return nil, err
 	}
 
-	// Make sure both signatures were signed over the same payload
-	if string(opPayload) != string(cicPayload) {
-		return nil, fmt.Errorf("the provided id token and cic token do not share the same payload")
-	}
-
-	return &PKToken{
-		Payload: opPayload,
-		OpPH:    opPH,
-		OpSig:   opSig,
-		CicPH:   cicPH,
-		CicSig:  cicSig,
-	}, nil
+	return pkt, nil
 }
 
-func FromJWS(jws *JWS, raw []byte) *PKToken {
-	var cic, op, cos JWSignature
-
-	gq := false
-	hasCos := false
-	for _, sig := range jws.Signatures {
-		switch sig.Public[SigTypeHeader] {
-		case SigTypeOIDC:
-			op = sig
-		case SigTypeGQ:
-			op = sig
-			gq = true
-		case SigTypeCIC:
-			cic = sig
-		case SigTypeCos:
-			cos = sig
-			hasCos = true
-		}
-	}
-
-	tok := &PKToken{
-		Payload: []byte(jws.Payload),
-		OpPH:    []byte(op.Protected),
-		OpSig:   []byte(op.Signature),
-		OpSigGQ: gq,
-		CicPH:   []byte(cic.Protected),
-		CicSig:  []byte(cic.Signature),
-	}
-
-	if hasCos {
-		tok.CosPH = []byte(cos.Protected)
-		tok.CosSig = []byte(cos.Signature)
-	}
-
-	if raw != nil {
-		tok.raw = raw
-	}
-
-	return tok
-}
-
-func (p *PKToken) ToJWS() *JWS {
-	var opSignType string
-	if p.OpSigGQ {
-		opSignType = SigTypeGQ
-	} else {
-		opSignType = SigTypeOIDC
-	}
-
-	opHeaders := map[string]any{
-		SigTypeHeader: opSignType,
-	}
-
-	signatures := []JWSignature{
-		{
-			Public:    map[string]any{SigTypeHeader: SigTypeCIC},
-			Protected: string(p.CicPH),
-			Signature: string(p.CicSig),
-		},
-		{
-			Public:    opHeaders,
-			Protected: string(p.OpPH),
-			Signature: string(p.OpSig),
-		},
-	}
-
-	if p.CosPH != nil {
-		signatures = append(signatures, JWSignature{
-			Public:    map[string]any{SigTypeHeader: SigTypeCos},
-			Protected: string(p.CosPH),
-			Signature: string(p.CosSig),
-		})
-	}
-
-	return &JWS{
-		Payload:    string(p.Payload),
-		Signatures: signatures,
-	}
-}
-
-func FromJSON(in []byte) (*PKToken, error) {
-	jws := new(JWS)
-	err := json.Unmarshal(in, jws)
-	if err != nil {
-		return nil, err
-	}
-
-	return FromJWS(jws, in), nil
-}
-
-func (p *PKToken) ToJSON() ([]byte, error) {
-	jws := p.ToJWS()
-	jwsJSON, err := json.Marshal(jws)
-	if err != nil {
-		return nil, err
-	}
-	return jwsJSON, nil
-}
-
-func (p *PKToken) OpJWSCompact() []byte {
-	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(string(p.OpPH))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.Payload))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.OpSig))
-
-	jwsCom := buf.Bytes()
-	return jwsCom
-}
-
-func (p *PKToken) CicJWSCompact() []byte {
-	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(string(p.CicPH))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.Payload))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.CicSig))
-
-	jwsCom := buf.Bytes()
-	return jwsCom
-}
-
-func (p *PKToken) CosJWSCompact() []byte {
-	if p.Payload == nil {
-		panic(fmt.Errorf("Payload can not be nil"))
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(string(p.CosPH))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.Payload))
-	buf.WriteByte('.')
-	buf.WriteString(string(p.CosSig))
-
-	jwsCom := buf.Bytes()
-	return jwsCom
-}
-
-func (p *PKToken) GetNonce() ([]byte, error) {
-	decodePayload, err := base64.RawStdEncoding.DecodeString(string(p.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	var payMap map[string]json.RawMessage
-	err = json.Unmarshal(decodePayload, &payMap)
-	if err != nil {
-		return nil, err
-	}
-
-	var nonce string
-	err = json.Unmarshal(payMap["nonce"], &nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	return []byte(nonce), nil
-}
-
-func (p *PKToken) GetClaims() ([]byte, []byte, []byte, error) {
-	decodePayload, err := base64.RawStdEncoding.DecodeString(string(p.Payload))
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	var payMap map[string]interface{}
-	err = json.Unmarshal(decodePayload, &payMap)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	iss := payMap["iss"].(string)
-	aud := payMap["aud"].(string)
-	email := payMap["email"].(string)
-
-	return []byte(iss), []byte(aud), []byte(email), nil
-}
-
-func (p *PKToken) GetCicValues() (jwa.KeyAlgorithm, string, jwk.Key, error) {
-	decodedCicPH, err := base64.RawStdEncoding.DecodeString(string(p.CicPH))
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	var hds map[string]interface{}
-	json.Unmarshal(decodedCicPH, &hds)
-
-	alg := hds["alg"]
-	rz := hds["rz"]
-	upk := hds["upk"]
-
-	algJwk := jwa.KeyAlgorithmFrom(alg)
-	upkBytes, err := json.Marshal(upk)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	upkjwk, err := jwk.ParseKey(upkBytes)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	return algJwk, rz.(string), upkjwk, nil
-}
-
-type CosPHeader struct {
-	Alg       string
-	Jwk       interface{}
-	Kid       string
-	Csid      string
-	Eid       string
-	Auth_time int64
-	Iat       int64
-	Exp       int64
-	Mfa       string
-	Ruri      string
-}
-
-func (p *PKToken) GetCosValues() (*CosPHeader, error) {
-	decodedCosPH, err := base64.RawStdEncoding.DecodeString(string(p.CosPH))
-	if err != nil {
-		return nil, err
-	}
-
-	var hds *CosPHeader
-	json.Unmarshal(decodedCosPH, &hds)
-
-	return hds, nil
-}
-
-// func (p *PKToken) GetPublicKey() ([]byte error){
-// 	p.GetCicValues()
-// }
-
-func (p *PKToken) VerifyCicSig() error {
-	cicJwsCom := p.CicJWSCompact()
-
-	alg, _, upk, err := p.GetCicValues()
+func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
+	message, err := jws.Parse(token)
 	if err != nil {
 		return err
 	}
 
-	_, err = jws.Verify(cicJwsCom, jws.WithKey(alg, upk))
-	if err != nil {
-		return err
+	// If there is no payload, we set the provided token's payload as current, otherwise
+	// we make sure that the new payload matches current
+	if p.Payload == nil {
+		p.Payload = message.Payload()
+	} else if !bytes.Equal(p.Payload, message.Payload()) {
+		return fmt.Errorf("payload in the GQ token (%s) does not match the existing payload in the PK Token (%s)", p.Payload, message.Payload())
 	}
 
-	// Verified
+	public := jws.NewHeaders()
+	if err := public.Set(sigTypeHeader, string(sigType)); err != nil {
+		return err
+	}
+	signature := message.Signatures()[0].SetPublicHeaders(public)
+
+	switch sigType {
+	case Oidc, Gq:
+		p.Op = signature
+	case Cic:
+		p.Cic = signature
+	case Cos:
+		p.Cos = signature
+	default:
+		return fmt.Errorf("unrecognized signature type: %s", string(sigType))
+	}
 	return nil
 }
 
-func (p *PKToken) AddCosSig(jwsCom []byte) error {
-
-	cosPH, cosPayload, cosSig, err := jws.SplitCompact(jwsCom)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(p.Payload, cosPayload) {
-		return fmt.Errorf("Payload in the Cosigner JWS (%s) does not match the existing payload in the PK Token (%s).", p.Payload, cosPayload)
+func (p *PKToken) ProviderSignatureType() (SignatureType, bool) {
+	sigType, ok := p.Op.PublicHeaders().Get(sigTypeHeader)
+	if !ok {
+		return "", ok
 	}
 
-	p.CosPH = cosPH
-	p.CosSig = cosSig
-	return nil
+	return SignatureType(sigType.(string)), true
 }
 
-// TODO: Make this take a cosignerid and JWKS that we trust
-func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
-	if p.CosPH == nil {
-		return fmt.Errorf("Failed to verify Cosigner signature as Cosigner Protected header is nil.")
-	}
-	if p.CosSig == nil {
-		return fmt.Errorf("Failed to verify Cosigner signature as the Cosigner Signature is nil.")
-	}
-
-	cosJwsCom := p.CosJWSCompact()
-	_, err := jws.Verify(cosJwsCom, jws.WithKey(alg, cosPk))
-	if err != nil {
-		return err
-	}
-
-	hrs, err := p.GetCosValues()
-	if err != nil {
-		return err
-	}
-
-	// Expiration check
-	if hrs.Exp < time.Now().Unix() {
-		return fmt.Errorf("Cosigner Signature on PK Token is expired by %d seconds.", time.Now().Unix()-hrs.Exp)
-	}
-
-	// Check algorithms match
-	if hrs.Alg != alg.String() {
-		return fmt.Errorf("Algorithm in cosigner protected header, %s, does not match algorithm provided, %s.", hrs.Alg, alg)
-	}
-
-	cosPkBytes, err := json.Marshal(hrs.Jwk)
-	if err != nil {
-		return err
-	}
-	cosPkInPH, err := jwk.ParseKey(cosPkBytes)
-	if err != nil {
-		return err
-	}
-	if cosPkInPH.X509CertThumbprint() != cosPk.X509CertThumbprint() {
-		return fmt.Errorf("JWK of cosigner public key in protected header, %v, does not match JWK public key provided, %v.", cosPkInPH, cosPk)
-	}
-
-	// verified
-	return nil
+func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
+	message := jws.NewMessage().
+		SetPayload(p.Payload).
+		AppendSignature(sig)
+	return jws.Compact(message)
 }
 
-func (p *PKToken) Hash() ([]byte, error) {
+func (p *PKToken) Hash() (string, error) {
 	/*
 		We set the raw variable when unmarshaling from json (the only current string representation of a
 		PK Token) so when we hash we use the same representation that was given for consistency. When the
@@ -402,12 +106,85 @@ func (p *PKToken) Hash() ([]byte, error) {
 	message := p.raw
 	var err error
 	if message == nil {
-		message, err = p.ToJSON()
+		message, err = json.Marshal(p)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 	}
 
 	hash := util.B64SHA3_256(message)
-	return hash, nil
+	return string(hash), nil
+}
+
+func (p *PKToken) MarshalJSON() ([]byte, error) {
+	message := jws.NewMessage().
+		SetPayload(p.Payload).
+		AppendSignature(p.Op).
+		AppendSignature(p.Cic)
+
+	if p.Cos != nil {
+		message.AppendSignature(p.Cos)
+	}
+
+	return json.Marshal(message)
+}
+
+func (p *PKToken) UnmarshalJSON(data []byte) error {
+	var parsed jws.Message
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+
+	p.Payload = parsed.Payload() // base64 decoded
+
+	opCount := 0
+	cicCount := 0
+	cosCount := 0
+	for _, signature := range parsed.Signatures() {
+		sigHeader, ok := signature.PublicHeaders().Get(sigTypeHeader)
+		if !ok {
+			return fmt.Errorf(`pk token signature is missing required "%s" header as public header`, sigTypeHeader)
+		}
+
+		sigHeaderString, ok := sigHeader.(string)
+		if !ok {
+			return fmt.Errorf(`provided "%s" is of wrong type, expected string`, sigTypeHeader)
+		}
+
+		switch SignatureType(sigHeaderString) {
+		case Oidc:
+			opCount += 1
+			p.Op = signature
+		case Gq:
+			opCount += 1
+			p.Op = signature
+		case Cic:
+			cicCount += 1
+			p.Cic = signature
+		case Cos:
+			cosCount += 1
+			p.Cos = signature
+		default:
+			return fmt.Errorf("unrecognized signature types: %s", sigHeaderString)
+		}
+	}
+
+	// Do some signature count verifications
+	if opCount == 0 {
+		return fmt.Errorf(`at least one signature of type "oidc" or "oidc_gq" is required`)
+	} else if opCount > 1 {
+		return fmt.Errorf(`only one signature of type "oidc" or "oidc_gq" is allowed, found %d`, opCount)
+	}
+
+	if cicCount == 0 {
+		return fmt.Errorf(`at least one signature of type "cic" is required`)
+	} else if cicCount > 1 {
+		return fmt.Errorf(`only one signature of type "cic" is allowed, found %d`, cicCount)
+	}
+
+	if cosCount > 1 {
+		return fmt.Errorf(`only one signature of type "cos" is allowed, found %d`, cosCount)
+	}
+
+	return nil
 }
