@@ -3,16 +3,12 @@ package sshcert
 import (
 	"crypto/rand"
 	"fmt"
-	"io/fs"
-	"os"
-	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 )
 
 func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
@@ -163,78 +159,4 @@ func SshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 		return nil, err
 	}
 	return ssh.NewPublicKey(rawkey)
-}
-
-func CheckCert(userDesired string, cert *PktSshCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
-	pkt, err := cert.VerifySshPktCert(op)
-	if err != nil {
-		return err
-	}
-
-	err = policyEnforcer(userDesired, pkt)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
-
-func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
-	return nil
-}
-
-type SimpleFilePolicyEnforcer struct {
-	PolicyFilePath string
-}
-
-func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (map[string][]string, error) {
-	info, err := os.Stat(p.PolicyFilePath)
-	if err != nil {
-		return nil, err
-	}
-	mode := info.Mode()
-
-	// Only the owner of this file should be able to write to it
-	if mode.Perm() != fs.FileMode(600) {
-		return nil, fmt.Errorf("policy file has insecure permissions, expected (600), got (%d)", mode.Perm())
-	}
-	// TODO: Ideally we would also check the owner of the file is the same as
-	// the user of the current process however this is not cross platform and
-	// not well supported in golang
-
-	content, err := os.ReadFile(p.PolicyFilePath)
-	if err != nil {
-		return nil, err
-	}
-	rows := strings.Split(string(content), "\n")
-	policyMap := make(map[string][]string)
-
-	for i := range rows {
-		row := strings.Fields(rows[i])
-		if len(row) > 1 {
-			email := row[0]
-			allowedPrincipals := row[1:]
-			policyMap[email] = allowedPrincipals
-		}
-	}
-	return policyMap, nil
-}
-
-func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	policyMap, err := p.ReadPolicyFile()
-	if err != nil {
-		return err
-	}
-	email, err := pkt.GetClaim("email")
-	if err != nil {
-		return err
-	}
-	if allowedPrincipals, ok := policyMap[string(email)]; ok {
-		if slices.Contains(allowedPrincipals, principalDesired) {
-			return nil
-		}
-	}
-	return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", email, principalDesired, p.PolicyFilePath)
 }

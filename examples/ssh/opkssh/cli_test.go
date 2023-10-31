@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -28,10 +27,14 @@ func (g *MockOp) PublicKey(idt []byte) (parties.PublicKey, error) {
 	return nil, nil
 }
 
+func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
+	return nil
+}
+
 func TestAuthorizedKeysCommand(t *testing.T) {
 	op := &MockOp{}
 
-	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, sshcert.AllowAllPolicyEnforcer, op)
+	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
 	if err != nil {
 		t.Error(err)
 	}
