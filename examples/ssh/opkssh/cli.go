@@ -30,7 +30,7 @@ import (
 //
 // The parameters specified in the config map the parameters send the function below. They are:
 // %u The username (requested principal) - userArg
-// %t The public key type - typArg - in this case a certification being used as a public key
+// %t The public key type - typArg - in this case a certificate being used as a public key
 // %k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
 func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op parties.OpenIdProvider) (string, error) {
 	cert, err := sshcert.NewSshCertFromBytes(typArg, certB64Arg)
