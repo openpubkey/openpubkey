@@ -2,6 +2,7 @@ package sshcert
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -36,7 +37,7 @@ func BuildPktSshCert(pkt *pktoken.PKToken, principals []string) (*PktSshCert, er
 	if err != nil {
 		return nil, err
 	}
-	pktJson, err := pkt.ToJSON()
+	pktJson, err := pkt.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +102,12 @@ func (o *PktSshCert) GetPKToken() (*pktoken.PKToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
-	return pktoken.FromJSON(pktJson)
+	var pkt *pktoken.PKToken
+	if err = json.Unmarshal(pktJson, &pkt); err != nil {
+		return nil, err
+	} else {
+		return pkt, nil
+	}
 }
 
 func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
@@ -110,12 +116,12 @@ func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKTok
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	_, err = op.VerifyPKToken(pkt, nil)
+	err = op.VerifyPKToken(pkt, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	_, _, upk, err := pkt.GetCicValues()
+	upk, err := pkt.GetCicPublicKey()
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +155,7 @@ func EmailOrSubFromPKT(pkt *pktoken.PKToken) (string, error) {
 }
 
 func SshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
-	_, _, upk, err := pkt.GetCicValues()
+	upk, err := pkt.GetCicPublicKey()
 	if err != nil {
 		return nil, err
 	}

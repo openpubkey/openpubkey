@@ -20,8 +20,8 @@ type MockOp struct{}
 func (m *MockOp) RequestTokens(cicHash string) ([]byte, error) {
 	return nil, nil
 }
-func (m *MockOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
-	return nil, nil
+func (m *MockOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+	return nil
 }
 func (g *MockOp) PublicKey(idt []byte) (parties.PublicKey, error) {
 	return nil, nil

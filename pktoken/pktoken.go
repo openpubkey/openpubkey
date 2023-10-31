@@ -188,3 +188,21 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+func (p *PKToken) GetClaimMap() (map[string]interface{}, error) {
+	var claims map[string]interface{}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+func (p *PKToken) GetClaim(key string) ([]byte, error) {
+	if payMap, err := p.GetClaimMap(); err != nil {
+		return nil, err
+	} else if value, ok := payMap[key].(string); ok {
+		return []byte(value), nil
+	} else {
+		return nil, fmt.Errorf("claim=(%s) does not exist in ID Token payload", key)
+	}
+}

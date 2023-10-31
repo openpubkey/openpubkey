@@ -71,9 +71,9 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	alg, ok := protected["alg"]
 	if !ok {
 		return nil, fmt.Errorf(`missing required "alg" claim`)
-	} else if alg != upkjwk.Algorithm() {
-		return nil, fmt.Errorf(`provided "alg" value different from algorithm provided in "upk" jwk`)
 	}
+	upkjwk.Set(jwk.AlgorithmKey, alg)
+
 	return &Claims{
 		publicKey: upkjwk,
 		protected: protected,
