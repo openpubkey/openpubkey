@@ -226,10 +226,10 @@ func log(line string) {
 	}
 }
 
-// This code is currently intended as an example for how OpenPubkey can secure SSH access. It is still under active development.
+// This code is currently intended as an example for how OpenPubkey can secure SSH access.
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are login, ver")
+		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
 		return
 	}
 	command := os.Args[1]
