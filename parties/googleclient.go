@@ -23,9 +23,7 @@ import (
 
 	httphelper "github.com/zitadel/oidc/v2/pkg/http"
 
-	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/util"
 )
 
 var (
@@ -112,45 +110,52 @@ func (g *GoogleOp) RequestTokens(cicHash string) ([]byte, error) {
 	}
 }
 
-func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (map[string]any, error) {
-	cicphJSON, err := util.Base64DecodeForJWT(pkt.CicPH)
+func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+	cic, err := pkt.GetCicValues()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	nonce := string(util.B64SHA3_256(cicphJSON))
+	commitment, err := cic.Hash()
+	if err != nil {
+		return err
+	}
 
-	idt := pkt.OpJWSCompact()
-	if pkt.OpSigGQ {
+	idt, err := pkt.Compact(pkt.Op)
+	if err != nil {
+		return err
+	}
+
+	sigType, ok := pkt.ProviderSignatureType()
+	if !ok {
+		return fmt.Errorf("provider signature type missing")
+	}
+
+	if sigType == pktoken.Gq {
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := g.PublicKey(idt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get OP public key: %w", err)
-		}
-		sv := gq.NewSignerVerifier(pubKey.(*rsa.PublicKey), gqSecurityParameter)
-		ok := sv.VerifyJWT(idt)
-		if !ok {
-			return nil, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
+			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		_, payloadB64, _, err := jws.SplitCompact(idt)
-		if err != nil {
-			return nil, err
-		}
-		payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode header: %w", err)
+		if err := pkt.VerifyGQSig(pubKey.(*rsa.PublicKey), gqSecurityParameter); err != nil {
+			return err
 		}
 
-		var payload map[string]any
-		json.Unmarshal(payloadJSON, &payload)
-		if payload["nonce"] != nonce {
-			return nil, fmt.Errorf("nonce doesn't match")
+		var payload struct {
+			Nonce string `json:"nonce"`
+		}
+		if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
+			return err
+		}
+
+		if payload.Nonce != string(commitment) {
+			return fmt.Errorf("nonce doesn't match")
 		}
 
 	} else {
 		options := []rp.Option{
-			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return nonce })),
+			rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return string(commitment) })),
 		}
 
 		googleRP, err := rp.NewRelyingPartyOIDC(
@@ -158,40 +163,34 @@ func (g *GoogleOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) (
 			options...)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+			return fmt.Errorf("failed to create RP to verify token: %w", err)
 		}
 
 		_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](context.TODO(), string(idt), googleRP.IDTokenVerifier())
 		if err != nil {
-			return nil, fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
+			return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
 		}
 	}
 
 	err = pkt.VerifyCicSig()
 	if err != nil {
-		return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
 	// Skip Cosigner signature verification if no cosigner pubkey is supplied
 	if cosPk != nil {
 		cosPkJwk, err := jwk.FromRaw(cosPk)
 		if err != nil {
-			return nil, fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 		}
 
 		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
 		if err != nil {
-			return nil, fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
+			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
 		}
 	}
 
-	cicPH := make(map[string]any)
-	err = json.Unmarshal(cicphJSON, &cicPH)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling CIC: %w", err)
-	}
-
-	return cicPH, nil
+	return nil
 }
 
 func (g *GoogleOp) PublicKey(idt []byte) (PublicKey, error) {

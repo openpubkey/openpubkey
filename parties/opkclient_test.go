@@ -10,7 +10,7 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-func TestSigner(t *testing.T) {
+func TestClient(t *testing.T) {
 	alg := jwa.ES256
 
 	testCases := []struct {
@@ -43,7 +43,11 @@ func TestSigner(t *testing.T) {
 
 		if tc.gq {
 			// Verify our GQ signature
-			idt := pkt.OpJWSCompact()
+			idt, err := pkt.Compact(pkt.Op)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			opPubKey, err := op.PublicKey(idt)
 			if err != nil {
 				t.Fatal(err)

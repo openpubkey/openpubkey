@@ -47,7 +47,7 @@ func main() {
 	keyAlgorithm := jwa.ES256
 
 	// Directory for saving data
-	outputDir := "opk/google"
+	outputDir := "output/google"
 
 	command := os.Args[1]
 	switch command {
@@ -94,22 +94,15 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		return err
 	}
 
-	pktJson, err := pkt.ToJSON()
+	// Pretty print our json token
+	pktJson, err := json.MarshalIndent(pkt, "", "  ")
 	if err != nil {
 		return err
 	}
-
-	// Pretty print our json token
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
-		return err
-	}
-	fmt.Println(prettyJSON.String())
+	fmt.Println(string(pktJson))
 
 	// Save our signer and pktoken by writing them to a file
-	saveLogin(outputDir, signer.(*ecdsa.PrivateKey), pktJson)
-
-	return nil
+	return saveLogin(outputDir, signer.(*ecdsa.PrivateKey), pkt)
 }
 
 func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
@@ -129,7 +122,7 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	pktJson, err := pkt.ToJSON()
+	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return err
 	}
@@ -178,8 +171,8 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 		return fmt.Errorf("malformatted skid: %w", err)
 	}
 
-	skidpkt, err := pktoken.FromJSON(skidDecoded)
-	if err != nil {
+	var skidpkt *pktoken.PKToken
+	if err := json.Unmarshal(skidDecoded, skidpkt); err != nil {
 		return fmt.Errorf("failed to extract PK Token from x509 cert: %w", err)
 	}
 
@@ -194,13 +187,21 @@ func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
 	return nil
 }
 
-func saveLogin(outputDir string, sk *ecdsa.PrivateKey, pktJson []byte) error {
+func saveLogin(outputDir string, sk *ecdsa.PrivateKey, pkt *pktoken.PKToken) error {
+	if err := os.MkdirAll(outputDir, 0777); err != nil {
+		return err
+	}
+
 	skFilePath := path.Join(outputDir, skFileName)
 	if err := util.WriteSKFile(skFilePath, sk); err != nil {
 		return err
 	}
 
 	pktFilePath := path.Join(outputDir, pktFileName)
+	pktJson, err := json.Marshal(pkt)
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(pktFilePath, pktJson, 0600)
 }
 
@@ -217,8 +218,8 @@ func loadLogin(outputDir string) (crypto.Signer, *pktoken.PKToken, error) {
 		return nil, nil, err
 	}
 
-	pkt, err := pktoken.FromJSON(pktJson)
-	if err != nil {
+	var pkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, &pkt); err != nil {
 		return nil, nil, err
 	}
 
