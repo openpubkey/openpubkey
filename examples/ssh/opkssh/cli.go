@@ -74,8 +74,8 @@ func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
 	mode := info.Mode()
 
 	// Only the owner of this file should be able to write to it
-	if mode.Perm() != fs.FileMode(600) {
-		return "", nil, fmt.Errorf("policy file has insecure permissions, expected (600), got (%d)", mode.Perm())
+	if mode.Perm() != fs.FileMode(0600) {
+		return "", nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
 	}
 
 	content, err := os.ReadFile(p.PolicyFilePath)
@@ -118,7 +118,6 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 
 func CreateSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
-
 	cert, err := sshcert.BuildPktSshCert(pkt, principals)
 	if err != nil {
 		return nil, nil, err
