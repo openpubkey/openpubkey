@@ -104,8 +104,7 @@ func TestSshCertCreation(t *testing.T) {
 
 	principals := []string{"guest", "dev"}
 	var pkt *pktoken.PKToken
-	err = json.Unmarshal(testPktJson, &pkt)
-	if err != nil {
+	if err = json.Unmarshal(testPktJson, &pkt); err != nil {
 		t.Error(err)
 	}
 
