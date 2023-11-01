@@ -5,7 +5,6 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"golang.org/x/crypto/sha3"
 )
@@ -92,7 +91,7 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	return bytes, nil
 }
 
-func parseJWT(jwt []byte) ([]byte, *memguard.LockedBuffer, error) {
+func parseJWT(jwt []byte) ([]byte, []byte, error) {
 	headers, payload, signature, err := jws.SplitCompact(jwt)
 	if err != nil {
 		return nil, nil, err
@@ -103,5 +102,5 @@ func parseJWT(jwt []byte) ([]byte, *memguard.LockedBuffer, error) {
 	signingPayload := append(headers, []byte(".")...)
 	signingPayload = append(signingPayload, payload...)
 
-	return signingPayload, memguard.NewBufferFromBytes(signature), nil
+	return signingPayload, signature, nil
 }

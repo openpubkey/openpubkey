@@ -71,11 +71,10 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 
 	// When jwt is parsed it's split into base64-encoded bytes, but
 	// we need the raw signature to calculate mod inverse
-	decodedSig, err := util.Base64DecodeForJWT(signature.Bytes())
+	decodedSig, err := util.Base64DecodeForJWT(signature)
 	if err != nil {
 		return nil, err
 	}
-	signature.Destroy()
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
 	private := sv.modInverse(memguard.NewBufferFromBytes(decodedSig))
