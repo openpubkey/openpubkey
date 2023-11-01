@@ -1,6 +1,7 @@
-package parties
+package client
 
 import (
+	"context"
 	"crypto"
 	"crypto/rsa"
 	"fmt"
@@ -14,8 +15,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
-const gqSecurityParameter = 256
-
 // Interface for interacting with the MFA Cosigner (MFACos)
 type MFACos interface {
 	// place holder for MFA Cosigner
@@ -28,6 +27,7 @@ type OpkClient struct {
 }
 
 func (o *OpkClient) OidcAuth(
+	ctx context.Context,
 	signer crypto.Signer,
 	alg jwa.KeyAlgorithm,
 	extraClaims map[string]any,
@@ -53,7 +53,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(string(nonce))
+	idToken, err := o.Op.RequestTokens(ctx, string(nonce))
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
@@ -71,13 +71,13 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	if signGQ {
-		opKey, err := o.Op.PublicKey(idToken)
+		opKey, err := o.Op.PublicKey(ctx, idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error getting OP public key: %w", err)
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
-		sv := gq.NewSignerVerifier(rsaPubKey, gqSecurityParameter)
+		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
 		gqToken, err := sv.SignJWT(idToken)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
@@ -87,7 +87,7 @@ func (o *OpkClient) OidcAuth(
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	err = o.Op.VerifyPKToken(pkt, nil)
+	err = VerifyPKToken(ctx, pkt, o.Op, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
@@ -96,17 +96,6 @@ func (o *OpkClient) OidcAuth(
 }
 
 type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
-
-type PublicKey interface {
-	Equal(x crypto.PublicKey) bool
-}
-
-// Interface for interacting with the OP (OpenID Provider)
-type OpenIdProvider interface {
-	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error
-	PublicKey(idt []byte) (PublicKey, error)
-}
 
 func (o *OpkClient) RequestCert() ([]byte, error) {
 	return nil, fmt.Errorf("cosigning currently unsupported")

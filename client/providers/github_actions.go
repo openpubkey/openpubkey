@@ -1,4 +1,4 @@
-package parties
+package providers
 
 import (
 	"context"
@@ -14,8 +14,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/zitadel/oidc/v2/pkg/client"
+	"github.com/openpubkey/openpubkey/client"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -25,7 +25,7 @@ type GithubOp struct {
 	tokenRequestAuthToken string
 }
 
-var _ OpenIdProvider = (*GithubOp)(nil)
+var _ client.OpenIdProvider = (*GithubOp)(nil)
 
 func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	tokenURL, err := getEnvVar("ACTIONS_ID_TOKEN_REQUEST_URL")
@@ -71,7 +71,20 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
+func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
+	cicHash, err := client.ExtractClaim(idt, "aud")
+	if err != nil {
+		return err
+	}
+
+	if cicHash != expectedCICHash {
+		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
+	}
+
+	return nil
+}
+
+func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
 	j, err := jws.Parse(idt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JWS: %w", err)
@@ -82,12 +95,12 @@ func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
 		return nil, fmt.Errorf("expected RS256 alg claim, got %s", alg)
 	}
 
-	discConf, err := client.Discover(githubIssuer, http.DefaultClient)
+	discConf, err := oidcclient.Discover(githubIssuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
 
-	jwks, err := jwk.Fetch(context.TODO(), discConf.JwksURI)
+	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
@@ -110,13 +123,13 @@ func (g *GithubOp) PublicKey(idt []byte) (PublicKey, error) {
 	return pubKey, err
 }
 
-func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
+func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {
 		return nil, err
 	}
 
-	request, err := http.NewRequest("GET", tokenURL, nil)
+	request, err := http.NewRequestWithContext(ctx, "GET", tokenURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -147,69 +160,6 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
-	sigType, ok := pkt.ProviderSignatureType()
-	if !ok {
-		return fmt.Errorf("provider signature type missing")
-	}
-
-	if sigType != pktoken.Gq {
-		return fmt.Errorf("github only support gq signatures")
-	}
-
-	cic, err := pkt.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	commitment, err := cic.Hash()
-	if err != nil {
-		return err
-	}
-
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
-	// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-	pubKey, err := g.PublicKey(idt)
-	if err != nil {
-		return fmt.Errorf("failed to get OP public key: %w", err)
-	}
-
-	if err := pkt.VerifyGQSig(pubKey.(*rsa.PublicKey), gqSecurityParameter); err != nil {
-		return err
-	}
-
-	var payload struct {
-		Audience string `json:"aud"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
-		return err
-	}
-
-	if payload.Audience != string(commitment) {
-		return fmt.Errorf("nonce doesn't match")
-	}
-
-	err = pkt.VerifyCicSig()
-	if err != nil {
-		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
-			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
-		}
-	}
-
-	return nil
+func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
+	return client.ErrNonGQUnsupported
 }
