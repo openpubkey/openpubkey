@@ -34,42 +34,87 @@ var (
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
 )
 
-// This function is called by the SSH server as the AuthorizedKeysCommand:
-//
-// The following lines are added to /etc/ssh/sshd_config:
-//
-//	AuthorizedKeysCommand /etc/opk/opkssh ver %u %t %k
-//	AuthorizedPrincipalsCommandUser root
-//
-// The parameters specified in the config map the parameters send the function below. They are:
-// %u The username (requested principal) - userArg
-// %t The public key type - typArg - in this case a certificate being used as a public key
-// %k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
-func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op parties.OpenIdProvider) (string, error) {
-	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
-	if err != nil {
-		return "", err
+// This code is currently intended as an example for how OpenPubkey can secure SSH access.
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
+		return
 	}
-	if err := CheckCert(userArg, cert, policyEnforcer, op); err != nil {
-		return "", err
-	} else {
-		// sshd expects the public key in the cert, not the cert itself.
-		// This public key is key of the CA the signs the cert, in our
-		// setting there is no CA.
-		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
-		return "cert-authority " + string(pubkeyBytes), nil
+	command := os.Args[1]
+
+	op := parties.GoogleOp{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Issuer:       issuer,
+		Scopes:       scopes,
+		RedirURIPort: redirURIPort,
+		CallbackPath: callbackPath,
+		RedirectURI:  redirectURI,
+	}
+
+	switch command {
+	case "login":
+		{
+			if len(os.Args) != 2 {
+				fmt.Println("Invalid number of arguments for login, should be `opkssh login`")
+				os.Exit(1)
+			}
+
+			// If principals is empty the server does not enforce any principal.
+			// The OPK verifier should use policy to make this decision.
+			principals := []string{}
+
+			gqFalse := false
+			alg := jwa.ES256
+
+			signer, err := util.GenKeyPair(alg)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			client := &parties.OpkClient{
+				Op: &op,
+			}
+
+			certBytes, seckeySshPem, err := CreateSSHCert(client, signer, alg, gqFalse, principals)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			// Write ssh secret key and public key to filesystem
+			err = WriteKeysToSSHDir(seckeySshPem, certBytes)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	case "ver":
+		{
+			log(strings.Join(os.Args, " "))
+			policyEnforcer := SimpleFilePolicyEnforcer{
+				PolicyFilePath: "/etc/opk/policy",
+			}
+
+			userArg := os.Args[2]
+			certB64Arg := os.Args[3]
+			typArg := os.Args[4]
+
+			authKey, err := AuthorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
+			if err != nil {
+				log(fmt.Sprint(err))
+				os.Exit(1)
+			} else {
+				fmt.Println(authKey)
+				os.Exit(0)
+			}
+		}
+	default:
+		fmt.Println("Error! Unrecognized command:", command)
 	}
 }
-
-func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
-	pkt, err := cert.VerifySshPktCert(op)
-	if err != nil {
-		return err
-	}
-	return policyEnforcer(userDesired, pkt)
-}
-
-type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
 
 type SimpleFilePolicyEnforcer struct {
 	PolicyFilePath string
@@ -124,6 +169,47 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 		return fmt.Errorf("no policy for email %s, allowed email is %s, check policy config in %s", email, allowedEmail, p.PolicyFilePath)
 	}
 }
+
+// This function is called by the SSH server as the AuthorizedKeysCommand:
+//
+// The following lines are added to /etc/ssh/sshd_config:
+//
+//	AuthorizedKeysCommand /etc/opk/opkssh ver %u %t %k
+//	AuthorizedPrincipalsCommandUser root
+//
+// The parameters specified in the config map the parameters sent to the function below.
+// We prepend "Arg" to specify which ones are arguments sent by sshd. They are:
+//
+//	%u The username (requested principal) - userArg
+//	%t The public key type - typArg - in this case a certificate being used as a public key
+//	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
+func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op parties.OpenIdProvider) (string, error) {
+	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
+	if err != nil {
+		return "", err
+	}
+	if pkt, err := cert.VerifySshPktCert(op); err != nil {
+		return "", err
+	} else if err := policyEnforcer(userArg, pkt); err != nil {
+		return "", err
+	} else {
+		// sshd expects the public key in the cert, not the cert itself.
+		// This public key is key of the CA the signs the cert, in our
+		// setting there is no CA.
+		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
+		return "cert-authority " + string(pubkeyBytes), nil
+	}
+}
+
+func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
+	pkt, err := cert.VerifySshPktCert(op)
+	if err != nil {
+		return err
+	}
+	return policyEnforcer(userDesired, pkt)
+}
+
+type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
 
 func CreateSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
@@ -224,87 +310,5 @@ func log(line string) {
 		if _, err = f.WriteString(line + "\n"); err != nil {
 			fmt.Println("Couldn't write to file")
 		}
-	}
-}
-
-// This code is currently intended as an example for how OpenPubkey can secure SSH access.
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
-		return
-	}
-	command := os.Args[1]
-
-	op := parties.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Issuer:       issuer,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-	}
-
-	switch command {
-	case "login":
-		{
-			if len(os.Args) != 2 {
-				fmt.Println("Invalid number of arguments for login, should be `opkssh login`")
-				os.Exit(1)
-			}
-
-			// If principals is empty the server does not enforce any principal.
-			// The OPK verifier should use policy to make this decision.
-			principals := []string{}
-
-			gqFalse := false
-			alg := jwa.ES256
-
-			signer, err := util.GenKeyPair(alg)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			client := &parties.OpkClient{
-				Op: &op,
-			}
-
-			certBytes, seckeySshPem, err := CreateSSHCert(client, signer, alg, gqFalse, principals)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			// Write ssh secret key and public key to filesystem
-			err = WriteKeysToSSHDir(seckeySshPem, certBytes)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			os.Exit(0)
-		}
-	case "ver":
-		{
-			log(strings.Join(os.Args, " "))
-			policyEnforcer := SimpleFilePolicyEnforcer{
-				PolicyFilePath: "/etc/opk/policy",
-			}
-
-			userArg := os.Args[2]
-			certB64Arg := os.Args[3]
-			typArg := os.Args[4]
-
-			authKey, err := AuthorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
-			if err != nil {
-				log(fmt.Sprint(err))
-				os.Exit(1)
-			} else {
-				fmt.Println(authKey)
-				os.Exit(0)
-			}
-		}
-	default:
-		fmt.Println("Error! Unrecognized command:", command)
 	}
 }
