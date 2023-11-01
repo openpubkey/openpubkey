@@ -80,11 +80,11 @@ func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
 	}
 	rows := strings.Split(string(content), "\n")
 
-	for i := range rows {
-		row := strings.Fields(rows[i])
-		if len(row) > 1 {
-			email := row[0]
-			allowedPrincipals := row[1:]
+	for _, row := range rows {
+		entries := strings.Fields(row)
+		if len(entries) > 1 {
+			email := entries
+			allowedPrincipals := entries[1:]
 			return email, allowedPrincipals, nil
 		}
 	}
