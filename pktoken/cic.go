@@ -3,7 +3,6 @@ package pktoken
 import (
 	"context"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -15,15 +14,6 @@ func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
 	}
 
 	return clientinstance.ParseClaims(cicPH)
-}
-
-func (p *PKToken) GetCicPublicKey() (jwk.Key, error) {
-	cic, err := p.GetCicValues()
-	if err != nil {
-		return nil, err
-	} else {
-		return cic.PublicKey(), nil
-	}
 }
 
 func (p *PKToken) VerifyCicSig() error {

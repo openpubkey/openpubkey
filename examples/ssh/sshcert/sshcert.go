@@ -142,10 +142,11 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 // }
 
 func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
-	upk, err := pkt.GetCicPublicKey()
+	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return nil, err
 	}
+	upk := cic.PublicKey()
 
 	var rawkey any
 	if err := upk.Raw(&rawkey); err != nil {

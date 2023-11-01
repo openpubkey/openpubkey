@@ -1,4 +1,4 @@
-package sshcert2
+package sshcert
 
 import (
 	"crypto/rand"
@@ -144,10 +144,11 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	upk, err := pktExt.GetCicPublicKey()
+	cic, err := pktExt.GetCicValues()
 	if err != nil {
 		t.Error(err)
 	}
+	upk := cic.PublicKey()
 
 	cryptoCertKey := (sshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
