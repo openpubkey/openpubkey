@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -123,7 +124,7 @@ func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey,
 	return pubKey, err
 }
 
-func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {
 		return nil, err
@@ -153,11 +154,12 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, e
 	}
 
 	var jwt struct {
-		Value string
+		Value *memguard.LockedBuffer
 	}
 	err = json.Unmarshal(rawBody, &jwt)
+	memguard.WipeBytes(rawBody)
 
-	return []byte(jwt.Value), err
+	return jwt.Value, err
 }
 
 func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {

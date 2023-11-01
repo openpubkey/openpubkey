@@ -41,11 +41,11 @@ func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktok
 	}
 
 	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
+	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken.Bytes())
 	if err != nil {
 		return nil, err
 	}
 
 	// Combine two tokens into a PK Token
-	return pktoken.New(idToken, cicToken)
+	return pktoken.New(idToken.Bytes(), cicToken)
 }
