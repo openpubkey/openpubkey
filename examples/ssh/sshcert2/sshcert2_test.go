@@ -1,4 +1,4 @@
-package sshcert
+package sshcert2
 
 import (
 	"crypto/rand"
