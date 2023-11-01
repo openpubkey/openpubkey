@@ -115,6 +115,9 @@ func TestSshCertCreation(t *testing.T) {
 	}
 
 	sshCert, err := cert.SignCert(caSigner)
+	if err != nil {
+		t.Error(err)
+	}
 
 	if err := cert.VerifyCaSig(caPubkey); err != nil {
 		t.Error(err)
