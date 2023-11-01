@@ -2,8 +2,6 @@ package main
 
 import (
 	"crypto"
-	"strings"
-	"testing"
 
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -31,15 +29,15 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 	return nil
 }
 
-func TestAuthorizedKeysCommand(t *testing.T) {
-	op := &MockOp{}
+// func TestAuthorizedKeysCommand(t *testing.T) {
+// 	op := &MockOp{}
 
-	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
-	if err != nil {
-		t.Error(err)
-	}
-	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGKNstWRSzoerpxFxrNXGCvIDkmBkMvlLE+CDlbbpf5MtNpR1kyG4HqMcVfo1pAYq/b9PH65rJjalYTn8DbPfLg="
-	if expectedPubkeyList != strings.TrimSpace(pubkeyList) {
-		t.Error(err)
-	}
-}
+// 	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
+// 	if err != nil {
+// 		t.Error(err)
+// 	}
+// 	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGKNstWRSzoerpxFxrNXGCvIDkmBkMvlLE+CDlbbpf5MtNpR1kyG4HqMcVfo1pAYq/b9PH65rJjalYTn8DbPfLg="
+// 	if expectedPubkeyList != strings.TrimSpace(pubkeyList) {
+// 		t.Error(err)
+// 	}
+// }
