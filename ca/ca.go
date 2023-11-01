@@ -1,4 +1,4 @@
-package parties
+package ca
 
 import (
 	"bytes"
