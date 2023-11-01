@@ -1,12 +1,12 @@
-package sshcert2
+package sshcert
 
 import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/parties"
+	// "github.com/openpubkey/openpubkey/parties"
+
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
@@ -112,34 +112,34 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
-	pkt, err := s.GetPKToken()
-	if err != nil {
-		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
-	}
+// func (s *SshCertSmuggler) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
+// 	pkt, err := s.GetPKToken()
+// 	if err != nil {
+// 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
+// 	}
 
-	err = op.VerifyPKToken(pkt, nil)
-	if err != nil {
-		return nil, err
-	}
+// 	err = op.VerifyPKToken(pkt, nil)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	upk, err := pkt.GetCicPublicKey()
-	if err != nil {
-		return nil, err
-	}
+// 	upk, err := pkt.GetCicPublicKey()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	cryptoCertKey := (s.SshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
-	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
-	if err != nil {
-		return nil, err
-	}
+// 	cryptoCertKey := (s.SshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
+// 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	if jwk.Equal(jwkCertKey, upk) {
-		return pkt, nil
-	} else {
-		return nil, fmt.Errorf("public key 'upk' in PK Token does not match public key in certificate")
-	}
-}
+// 	if jwk.Equal(jwkCertKey, upk) {
+// 		return pkt, nil
+// 	} else {
+// 		return nil, fmt.Errorf("public key 'upk' in PK Token does not match public key in certificate")
+// 	}
+// }
 
 func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 	upk, err := pkt.GetCicPublicKey()

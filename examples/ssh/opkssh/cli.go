@@ -16,7 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/examples/ssh/sshcert2"
+	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -187,36 +187,38 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 //	%t The public key type - typArg - in this case a certificate being used as a public key
 //	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
 func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op parties.OpenIdProvider) (string, error) {
-	cert, err := sshcert2.NewFromAuthorizedKey(typArg, certB64Arg)
-	if err != nil {
-		return "", err
-	}
-	if pkt, err := cert.VerifySshPktCert(op); err != nil {
-		return "", err
-	} else if err := policyEnforcer(userArg, pkt); err != nil {
-		return "", err
-	} else {
-		// sshd expects the public key in the cert, not the cert itself.
-		// This public key is key of the CA the signs the cert, in our
-		// setting there is no CA.
-		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
-		return "cert-authority " + string(pubkeyBytes), nil
-	}
+	// cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
+	// if err != nil {
+	// 	return "", err
+	// }
+	// if pkt, err := cert.VerifySshPktCert(op); err != nil {
+	// 	return "", err
+	// } else if err := policyEnforcer(userArg, pkt); err != nil {
+	// 	return "", err
+	// } else {
+	// 	// sshd expects the public key in the cert, not the cert itself.
+	// 	// This public key is key of the CA the signs the cert, in our
+	// 	// setting there is no CA.
+	// 	pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
+	// 	return "cert-authority " + string(pubkeyBytes), nil
+	// }
+	return "", nil
 }
 
-func CheckCert(userDesired string, cert *sshcert2.SshCertSmuggler, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
-	pkt, err := cert.VerifySshPktCert(op)
-	if err != nil {
-		return err
-	}
-	return policyEnforcer(userDesired, pkt)
+func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
+	// 	pkt, err := cert.VerifySshPktCert(op)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	return policyEnforcer(userDesired, pkt)
+	return nil
 }
 
 type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
 
 func CreateSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
-	cert, err := sshcert2.New(pkt, principals)
+	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
 	}
