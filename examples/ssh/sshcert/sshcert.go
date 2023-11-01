@@ -147,7 +147,7 @@ func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 		return nil, err
 	}
 
-	var rawkey interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
+	var rawkey any
 	if err := upk.Raw(&rawkey); err != nil {
 		return nil, err
 	}
