@@ -86,9 +86,6 @@ func TestCASignerCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	if err != nil {
-		t.Error(err)
-	}
 	sshSig, err := caSigner.Sign(rand.Reader, testMsg)
 	if err != nil {
 		t.Error(err)
