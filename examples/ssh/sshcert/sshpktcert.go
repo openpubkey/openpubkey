@@ -13,27 +13,33 @@ import (
 )
 
 func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
-	caKey, err := ssh.ParseRawPrivateKey(pemBytes)
+	rawKey, err := ssh.ParseRawPrivateKey(pemBytes)
 	if err != nil {
 		return nil, err
 	}
-	caSigner, err := ssh.NewSignerFromKey(caKey)
+	sshSigner, err := ssh.NewSignerFromKey(rawKey)
 	if err != nil {
 		return nil, err
 	}
-	return ssh.NewSignerWithAlgorithms(caSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
+	return ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
 }
 
-type PktSshCert struct {
+type SshCertSmuggler struct {
 	SshCert *ssh.Certificate
 }
 
-func BuildPktSshCert(pkt *pktoken.PKToken, principals []string) (*PktSshCert, error) {
-	emailOrSub, err := EmailOrSubFromPKT(pkt)
-	if err != nil {
+func New(pkt *pktoken.PKToken, principals []string) (*SshCertSmuggler, error) {
+
+	// TODO: assumes email exists in ID Token,
+	// this will break for OPs like Azure that do not have email as a claim
+	var claims struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return nil, err
 	}
-	pubkeySsh, err := SshPubkeyFromPKT(pkt)
+
+	pubkeySsh, err := sshPubkeyFromPKT(pkt)
 	if err != nil {
 		return nil, err
 	}
@@ -42,11 +48,11 @@ func BuildPktSshCert(pkt *pktoken.PKToken, principals []string) (*PktSshCert, er
 		return nil, err
 	}
 	pktB64 := string(util.Base64EncodeForJWT(pktJson))
-	opkcert := PktSshCert{
+	sshSmuggler := SshCertSmuggler{
 		SshCert: &ssh.Certificate{
 			Key:             pubkeySsh,
 			CertType:        ssh.UserCert,
-			KeyId:           emailOrSub,
+			KeyId:           claims.Email,
 			ValidPrincipals: principals,
 			ValidBefore:     ssh.CertTimeInfinity,
 			Permissions: ssh.Permissions{
@@ -61,40 +67,37 @@ func BuildPktSshCert(pkt *pktoken.PKToken, principals []string) (*PktSshCert, er
 			},
 		},
 	}
-	return &opkcert, nil
+	return &sshSmuggler, nil
 }
 
-func NewSshCertFromBytes(certType string, cert64 string) (*PktSshCert, error) {
-	if certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certType + " " + cert64)); err != nil {
+func NewFromAuthorizedKey(certType string, certB64 string) (*SshCertSmuggler, error) {
+	if certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certType + " " + certB64)); err != nil {
 		return nil, err
 	} else {
-		opkcert := &PktSshCert{
+		opkcert := &SshCertSmuggler{
 			SshCert: certPubkey.(*ssh.Certificate),
 		}
 		return opkcert, nil
 	}
 }
 
-func (o *PktSshCert) SignCert(caSigner ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
-	if err := o.SshCert.SignCert(rand.Reader, caSigner); err != nil {
+func (s *SshCertSmuggler) SignCert(signerMas ssh.MultiAlgorithmSigner) (*ssh.Certificate, error) {
+	if err := s.SshCert.SignCert(rand.Reader, signerMas); err != nil {
 		return nil, err
 	}
-	return o.SshCert, nil
+	return s.SshCert, nil
 }
 
-func (o *PktSshCert) VerifyCaSig(caPubkey ssh.PublicKey) error {
-	certCopy := *(o.SshCert)
+func (s *SshCertSmuggler) VerifyCaSig(caPubkey ssh.PublicKey) error {
+	certCopy := *(s.SshCert)
 	certCopy.Signature = nil
 	certBytes := certCopy.Marshal()
 	certBytes = certBytes[:len(certBytes)-4] // Drops signature length bytes (see crypto.ssh.certs.go)
-	if err := caPubkey.Verify(certBytes, o.SshCert.Signature); err != nil {
-		return err
-	}
-	return nil
+	return caPubkey.Verify(certBytes, s.SshCert.Signature)
 }
 
-func (o *PktSshCert) GetPKToken() (*pktoken.PKToken, error) {
-	pktB64, ok := o.SshCert.Extensions["openpubkey-pkt"]
+func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
+	pktB64, ok := s.SshCert.Extensions["openpubkey-pkt"]
 	if !ok {
 		return nil, fmt.Errorf("cert is missing required openpubkey-pkt extension")
 	}
@@ -105,13 +108,12 @@ func (o *PktSshCert) GetPKToken() (*pktoken.PKToken, error) {
 	var pkt *pktoken.PKToken
 	if err = json.Unmarshal(pktJson, &pkt); err != nil {
 		return nil, err
-	} else {
-		return pkt, nil
 	}
+	return pkt, nil
 }
 
-func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
-	pkt, err := o.GetPKToken()
+func (s *SshCertSmuggler) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKToken, error) {
+	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
@@ -126,7 +128,7 @@ func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKTok
 		return nil, err
 	}
 
-	cryptoCertKey := (o.SshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
+	cryptoCertKey := (s.SshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
 	if err != nil {
 		return nil, err
@@ -135,26 +137,11 @@ func (o *PktSshCert) VerifySshPktCert(op parties.OpenIdProvider) (*pktoken.PKTok
 	if jwk.Equal(jwkCertKey, upk) {
 		return pkt, nil
 	} else {
-		return nil, fmt.Errorf("identity's public key, 'upk', does not match (cert.key') public key in certificate")
+		return nil, fmt.Errorf("public key 'upk' in PK Token does not match public key in certificate")
 	}
 }
 
-func EmailOrSubFromPKT(pkt *pktoken.PKToken) (string, error) {
-	claims, err := pkt.GetClaimMap()
-	if err != nil {
-		return "", err
-	}
-	if email, ok := claims["email"]; ok {
-		return email.(string), nil
-	}
-	if sub, ok := claims["sub"]; ok {
-		return sub.(string), nil
-	} else {
-		return "", fmt.Errorf("ID Token does not contain the required sub claim")
-	}
-}
-
-func SshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
+func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
 	upk, err := pkt.GetCicPublicKey()
 	if err != nil {
 		return nil, err

@@ -21,6 +21,19 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+var (
+	key              = []byte("NotASecureKey123")
+	clientID         = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
+	requiredAudience = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
+	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	issuer       = "https://accounts.google.com"
+	scopes       = []string{"openid profile email"}
+	redirURIPort = "3000"
+	callbackPath = "/login-callback"
+	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
+)
+
 // This function is called by the SSH server as the AuthorizedKeysCommand:
 //
 // The following lines are added to /etc/ssh/sshd_config:
@@ -33,7 +46,7 @@ import (
 // %t The public key type - typArg - in this case a certificate being used as a public key
 // %k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
 func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op parties.OpenIdProvider) (string, error) {
-	cert, err := sshcert.NewSshCertFromBytes(typArg, certB64Arg)
+	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
 	if err != nil {
 		return "", err
 	}
@@ -48,7 +61,7 @@ func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 	}
 }
 
-func CheckCert(userDesired string, cert *sshcert.PktSshCert, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
+func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op parties.OpenIdProvider) error {
 	pkt, err := cert.VerifySshPktCert(op)
 	if err != nil {
 		return err
@@ -83,7 +96,7 @@ func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
 	for _, row := range rows {
 		entries := strings.Fields(row)
 		if len(entries) > 1 {
-			email := entries
+			email := entries[0]
 			allowedPrincipals := entries[1:]
 			return email, allowedPrincipals, nil
 		}
@@ -114,26 +127,25 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 
 func CreateSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(signer, alg, map[string]any{}, gqFlag)
-	cert, err := sshcert.BuildPktSshCert(pkt, principals)
+	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
 	}
-	caSigner, err := ssh.NewSignerFromSigner(signer)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	mas, err := ssh.NewSignerWithAlgorithms(caSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoECDSA256})
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	sshcert, err := cert.SignCert(mas)
-
+	signerMas, err := ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoECDSA256})
 	if err != nil {
 		return nil, nil, err
 	}
-	certBytes := ssh.MarshalAuthorizedKey(sshcert)
+
+	sshCert, err := cert.SignCert(signerMas)
+	if err != nil {
+		return nil, nil, err
+	}
+	certBytes := ssh.MarshalAuthorizedKey(sshCert)
 
 	seckeySsh, err := ssh.MarshalPrivateKey(signer, "openpubkey cert")
 	if err != nil {
@@ -146,23 +158,18 @@ func CreateSSHCert(client *parties.OpkClient, signer crypto.Signer, alg jwa.KeyA
 
 func WriteKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
 	// Write ssh secret key to filesystem
-	err := os.WriteFile(seckeyPath, seckeySshPem, 0600)
-	if err != nil {
+	if err := os.WriteFile(seckeyPath, seckeySshPem, 0600); err != nil {
 		return err
 	}
-	certBytes = append(certBytes, []byte(" "+"openpubkey")...)
 
+	certBytes = append(certBytes, []byte(" "+"openpubkey")...)
 	// Write ssh public key (certificate) to filesystem
-	err = os.WriteFile(pubkeyPath, certBytes, 0777)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(pubkeyPath, certBytes, 0777)
 }
 
 func FileExists(fPath string) bool {
-	_, error := os.Open(fPath)
-	return !errors.Is(error, os.ErrNotExist)
+	_, err := os.Open(fPath)
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
@@ -177,9 +184,8 @@ func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 	// filename might already be in use by the user. To ensure we don't
 	// overwrite a ssh key not created by openpubkey we check the comment in the
 	// key to see if it was created by openpubkey
-	defaultKeyNames := []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"}
-	for i := range []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"} {
-		seckeyPath := filepath.Join(sshPath, defaultKeyNames[i])
+	for _, keyFilename := range []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"} {
+		seckeyPath := filepath.Join(sshPath, keyFilename)
 		pubkeyPath := seckeyPath + ".pub"
 
 		if !FileExists(seckeyPath) {
@@ -194,13 +200,13 @@ func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 				fmt.Println("Failed to read:", pubkeyPath)
 				continue
 			}
-			sshPubkeyTok := strings.Split(string(sshPubkey), " ")
-			if len(sshPubkeyTok) != 3 {
+			sshPubkeySplit := strings.Split(string(sshPubkey), " ")
+			if len(sshPubkeySplit) != 3 {
 				fmt.Println("Failed to parse:", pubkeyPath)
 				continue
 			}
 			// check if pubkey comment to see if it an openpubkey ssh key
-			if strings.Contains(sshPubkeyTok[2], ("openpubkey")) {
+			if strings.Contains(sshPubkeySplit[2], ("openpubkey")) {
 				// safe to overwrite
 				return WriteKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
 			}
@@ -299,6 +305,6 @@ func main() {
 			}
 		}
 	default:
-		fmt.Printf("Error! No valid command")
+		fmt.Println("Error! Unrecognized command:", command)
 	}
 }
