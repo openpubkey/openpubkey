@@ -53,11 +53,7 @@ func CheckCert(userDesired string, cert *sshcert.PktSshCert, policyEnforcer Poli
 	if err != nil {
 		return err
 	}
-	err = policyEnforcer(userDesired, pkt)
-	if err != nil {
-		return err
-	}
-	return nil
+	return policyEnforcer(userDesired, pkt)
 }
 
 type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
