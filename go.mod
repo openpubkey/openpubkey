@@ -3,11 +3,11 @@ module github.com/openpubkey/openpubkey
 go 1.20
 
 require (
-	github.com/google/uuid v1.3.0
-	github.com/lestrrat-go/jwx/v2 v2.0.14
-	github.com/sirupsen/logrus v1.9.2
+	github.com/google/uuid v1.4.0
+	github.com/lestrrat-go/jwx/v2 v2.0.16
+	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
-	github.com/zitadel/oidc/v2 v2.6.1
+	github.com/zitadel/oidc/v2 v2.11.0
 	golang.org/x/crypto v0.14.0
 )
 
@@ -29,11 +29,11 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/oauth2 v0.8.0 // indirect
+	golang.org/x/oauth2 v0.13.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/appengine v1.6.8 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
