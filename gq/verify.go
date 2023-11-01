@@ -79,7 +79,7 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 		return false
 	}
 
-	return sv.Verify(signature, signingPayload, signingPayload)
+	return sv.Verify(signature.Bytes(), signingPayload, signingPayload)
 }
 
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {

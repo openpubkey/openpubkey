@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"math/big"
 
+	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -70,18 +71,20 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 
 	// When jwt is parsed it's split into base64-encoded bytes, but
 	// we need the raw signature to calculate mod inverse
-	decodedSig, err := util.Base64DecodeForJWT(signature)
+	decodedSig, err := util.Base64DecodeForJWT(signature.Bytes())
 	if err != nil {
 		return nil, err
 	}
+	signature.Destroy()
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
-	private := sv.modInverse(decodedSig)
+	private := sv.modInverse(memguard.NewBufferFromBytes(decodedSig))
 
-	gqSig, err := sv.Sign(private, signingPayload)
+	gqSig, err := sv.Sign(private.Bytes(), signingPayload)
 	if err != nil {
 		return nil, err
 	}
+	private.Destroy()
 
 	// Now make a new GQ-signed token
 	gqToken := append(signingPayload, '.')
@@ -90,12 +93,13 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	return gqToken, nil
 }
 
-func (sv *signerVerifier) modInverse(b []byte) []byte {
-	x := new(big.Int).SetBytes(b)
+func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) *memguard.LockedBuffer {
+	x := new(big.Int).SetBytes(b.Bytes())
 	x.ModInverse(x, sv.n)
 
-	ret := make([]byte, len(b))
-	return x.FillBytes(ret)
+	ret := make([]byte, len(b.Bytes()))
+	b.Destroy()
+	return memguard.NewBufferFromBytes(x.FillBytes(ret))
 }
 
 func encodeProof(R, S []byte) []byte {
