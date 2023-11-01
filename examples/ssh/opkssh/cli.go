@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -154,19 +155,21 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 	if err != nil {
 		return err
 	}
-	email, err := pkt.GetClaim("email")
-	if err != nil {
+	var claims struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return err
 	}
-	if string(email) == allowedEmail {
+	if string(claims.Email) == allowedEmail {
 		if slices.Contains(allowedPrincipals, principalDesired) {
 			// Access granted
 			return nil
 		} else {
-			return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", email, principalDesired, p.PolicyFilePath)
+			return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", claims.Email, principalDesired, p.PolicyFilePath)
 		}
 	} else {
-		return fmt.Errorf("no policy for email %s, allowed email is %s, check policy config in %s", email, allowedEmail, p.PolicyFilePath)
+		return fmt.Errorf("no policy for email %s, allowed email is %s, check policy config in %s", claims.Email, allowedEmail, p.PolicyFilePath)
 	}
 }
 
