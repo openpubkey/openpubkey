@@ -40,7 +40,7 @@ jobs:
         go-version: 1.20.8
 
     - name: Vet
-      run: go clean; go vet ./...
+      run: go vet ./...
 
   gotest:
     name: Run Tests
