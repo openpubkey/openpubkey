@@ -15,18 +15,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func NewSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
-	rawKey, err := ssh.ParseRawPrivateKey(pemBytes)
-	if err != nil {
-		return nil, err
-	}
-	sshSigner, err := ssh.NewSignerFromKey(rawKey)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
-}
-
 type SshCertSmuggler struct {
 	SshCert *ssh.Certificate
 }

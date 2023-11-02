@@ -3,15 +3,11 @@ package main
 import (
 	"context"
 	"crypto"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	"os"
 
@@ -19,7 +15,6 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
 )
@@ -80,7 +75,7 @@ func main() {
 				Op: &op,
 			}
 
-			certBytes, seckeySshPem, err := CreateSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
+			certBytes, seckeySshPem, err := createSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -101,11 +96,15 @@ func main() {
 				PolicyFilePath: "/etc/opk/policy",
 			}
 
+			if len(os.Args) != 5 {
+				fmt.Println("Invalid number of arguments for ver, should be `opkssh ver <User (TOKEN u)> <Key type (TOKEN t)> <Cert (TOKEN k)> `")
+				os.Exit(1)
+			}
 			userArg := os.Args[2]
 			certB64Arg := os.Args[3]
 			typArg := os.Args[4]
 
-			authKey, err := AuthorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
+			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
 			if err != nil {
 				log(fmt.Sprint(err))
 				os.Exit(1)
@@ -119,67 +118,11 @@ func main() {
 	}
 }
 
-type SimpleFilePolicyEnforcer struct {
-	PolicyFilePath string
-}
-
-func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
-	info, err := os.Stat(p.PolicyFilePath)
-	if err != nil {
-		return "", nil, err
-	}
-	mode := info.Mode()
-
-	// Only the owner of this file should be able to write to it
-	if mode.Perm() != fs.FileMode(0600) {
-		return "", nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
-	}
-
-	content, err := os.ReadFile(p.PolicyFilePath)
-	if err != nil {
-		return "", nil, err
-	}
-	rows := strings.Split(string(content), "\n")
-
-	for _, row := range rows {
-		entries := strings.Fields(row)
-		if len(entries) > 1 {
-			email := entries[0]
-			allowedPrincipals := entries[1:]
-			return email, allowedPrincipals, nil
-		}
-	}
-	return "", nil, fmt.Errorf("policy file contained no policy")
-}
-
-func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	allowedEmail, allowedPrincipals, err := p.ReadPolicyFile()
-	if err != nil {
-		return err
-	}
-	var claims struct {
-		Email string `json:"email"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return err
-	}
-	if string(claims.Email) == allowedEmail {
-		if slices.Contains(allowedPrincipals, principalDesired) {
-			// Access granted
-			return nil
-		} else {
-			return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", claims.Email, principalDesired, p.PolicyFilePath)
-		}
-	} else {
-		return fmt.Errorf("no policy for email %s, allowed email is %s, check policy config in %s", claims.Email, allowedEmail, p.PolicyFilePath)
-	}
-}
-
-// This function is called by the SSH server as the AuthorizedKeysCommand:
+// This function is called by the SSH server as the authorizedKeysCommand:
 //
 // The following lines are added to /etc/ssh/sshd_config:
 //
-//	AuthorizedKeysCommand /etc/opk/opkssh ver %u %t %k
+//	authorizedKeysCommand /etc/opk/opkssh ver %u %t %k
 //	AuthorizedPrincipalsCommandUser root
 //
 // The parameters specified in the config map the parameters sent to the function below.
@@ -188,7 +131,7 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 //	%u The username (requested principal) - userArg
 //	%t The public key type - typArg - in this case a certificate being used as a public key
 //	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
-func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op client.OpenIdProvider) (string, error) {
+func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op client.OpenIdProvider) (string, error) {
 	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
 	if err != nil {
 		return "", err
@@ -206,17 +149,7 @@ func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 	}
 }
 
-func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op client.OpenIdProvider) error {
-	pkt, err := cert.VerifySshPktCert(op)
-	if err != nil {
-		return err
-	}
-	return policyEnforcer(userDesired, pkt)
-}
-
-type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
-
-func CreateSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
+func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.OidcAuth(cxt, signer, alg, map[string]any{}, gqFlag)
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
@@ -247,7 +180,7 @@ func CreateSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 	return certBytes, seckeySshBytes, nil
 }
 
-func WriteKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
+func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
 	// Write ssh secret key to filesystem
 	if err := os.WriteFile(seckeyPath, seckeySshPem, 0600); err != nil {
 		return err
@@ -281,7 +214,7 @@ func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 
 		if !FileExists(seckeyPath) {
 			// If ssh key file does not currently exist, we don't have to worry about overwriting it
-			return WriteKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
+			return writeKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
 		} else if !FileExists(pubkeyPath) {
 			continue
 		} else {
@@ -299,7 +232,7 @@ func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 			// check if pubkey comment to see if it an openpubkey ssh key
 			if strings.Contains(sshPubkeySplit[2], ("openpubkey")) {
 				// safe to overwrite
-				return WriteKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
+				return writeKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
 			}
 		}
 	}

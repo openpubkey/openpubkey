@@ -24,7 +24,7 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
+	pubkeyList, err := authorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
 	if err != nil {
 		t.Error(err)
 	}

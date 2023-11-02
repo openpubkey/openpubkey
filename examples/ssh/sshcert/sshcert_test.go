@@ -55,8 +55,20 @@ func testkey(key string) []byte {
 	return []byte(strings.ReplaceAll(key, "TEST KEY: DO NOT REPORT", "PRIVATE KEY"))
 }
 
+func newSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
+	rawKey, err := ssh.ParseRawPrivateKey(pemBytes)
+	if err != nil {
+		return nil, err
+	}
+	sshSigner, err := ssh.NewSignerFromKey(rawKey)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner), []string{ssh.KeyAlgoRSASHA256})
+}
+
 func TestCASignerCreation(t *testing.T) {
-	caSigner, err := NewSshSignerFromPem(caSecretKey)
+	caSigner, err := newSshSignerFromPem(caSecretKey)
 	if err != nil {
 		t.Error(err)
 	}
@@ -72,7 +84,7 @@ func TestCASignerCreation(t *testing.T) {
 }
 
 func TestSshCertCreation(t *testing.T) {
-	caSigner, err := NewSshSignerFromPem(caSecretKey)
+	caSigner, err := newSshSignerFromPem(caSecretKey)
 	if err != nil {
 		t.Error(err)
 	}
