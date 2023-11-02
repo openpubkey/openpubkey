@@ -46,7 +46,7 @@ func New(pkt *pktoken.PKToken, principals []string) (*SshCertSmuggler, error) {
 	if err != nil {
 		return nil, err
 	}
-	pktJson, err := pkt.MarshalJSON()
+	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return nil, err
 	}
