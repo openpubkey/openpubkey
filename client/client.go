@@ -58,6 +58,7 @@ func (o *OpkClient) OidcAuth(
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
+	defer idToken.Destroy()
 
 	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
@@ -84,10 +85,8 @@ func (o *OpkClient) OidcAuth(
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
 
-		// wipe ID token and OIDC signature
-		idToken.Destroy()
+		// wipe OIDC signature and replace with GQ signature
 		memguard.WipeBytes(pkt.Op.Signature())
-
 		pkt.AddSignature(gqToken, pktoken.Gq)
 	}
 

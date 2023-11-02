@@ -78,12 +78,12 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
 	private := sv.modInverse(memguard.NewBufferFromBytes(decodedSig))
+	defer private.Destroy()
 
 	gqSig, err := sv.Sign(private.Bytes(), signingPayload)
 	if err != nil {
 		return nil, err
 	}
-	private.Destroy()
 
 	// Now make a new GQ-signed token
 	gqToken := append(signingPayload, '.')
