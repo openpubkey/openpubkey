@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto"
+	"strings"
+	"testing"
 
-	"github.com/openpubkey/openpubkey/parties"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
@@ -15,29 +17,35 @@ var (
 
 type MockOp struct{}
 
-func (m *MockOp) RequestTokens(cicHash string) ([]byte, error) {
+func (m *MockOp) RequestTokens(cxt context.Context, cicHash string) ([]byte, error) {
 	return nil, nil
 }
-func (m *MockOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+
+func (g *MockOp) PublicKey(cxt context.Context, idt []byte) (crypto.PublicKey, error) {
+	return nil, nil
+}
+
+func (g *MockOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
 	return nil
 }
-func (g *MockOp) PublicKey(idt []byte) (parties.PublicKey, error) {
-	return nil, nil
+
+func (g *MockOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
+	return nil
 }
 
 func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 	return nil
 }
 
-// func TestAuthorizedKeysCommand(t *testing.T) {
-// 	op := &MockOp{}
+func TestAuthorizedKeysCommand(t *testing.T) {
+	op := &MockOp{}
 
-// 	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-// 	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGKNstWRSzoerpxFxrNXGCvIDkmBkMvlLE+CDlbbpf5MtNpR1kyG4HqMcVfo1pAYq/b9PH65rJjalYTn8DbPfLg="
-// 	if expectedPubkeyList != strings.TrimSpace(pubkeyList) {
-// 		t.Error(err)
-// 	}
-// }
+	pubkeyList, err := AuthorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
+	if err != nil {
+		t.Error(err)
+	}
+	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGKNstWRSzoerpxFxrNXGCvIDkmBkMvlLE+CDlbbpf5MtNpR1kyG4HqMcVfo1pAYq/b9PH65rJjalYTn8DbPfLg="
+	if expectedPubkeyList != strings.TrimSpace(pubkeyList) {
+		t.Error(err)
+	}
+}
