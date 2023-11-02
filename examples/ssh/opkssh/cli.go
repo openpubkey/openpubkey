@@ -80,7 +80,7 @@ func main() {
 				Op: &op,
 			}
 
-			certBytes, seckeySshPem, err := CreateSSHCert(client, signer, alg, gqFalse, principals)
+			certBytes, seckeySshPem, err := CreateSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -204,7 +204,6 @@ func AuthorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
 		return "cert-authority " + string(pubkeyBytes), nil
 	}
-	return "", nil
 }
 
 func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer PolicyCheck, op client.OpenIdProvider) error {
@@ -217,8 +216,8 @@ func CheckCert(userDesired string, cert *sshcert.SshCertSmuggler, policyEnforcer
 
 type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
 
-func CreateSSHCert(client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
-	pkt, err := client.OidcAuth(context.TODO(), signer, alg, map[string]any{}, gqFlag)
+func CreateSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
+	pkt, err := client.OidcAuth(cxt, signer, alg, map[string]any{}, gqFlag)
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
