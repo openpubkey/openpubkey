@@ -82,7 +82,7 @@ func main() {
 			}
 
 			// Write ssh secret key and public key to filesystem
-			err = WriteKeysToSSHDir(seckeySshPem, certBytes)
+			err = writeKeysToSSHDir(seckeySshPem, certBytes)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -191,12 +191,12 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 	return os.WriteFile(pubkeyPath, certBytes, 0777)
 }
 
-func FileExists(fPath string) bool {
+func fileExists(fPath string) bool {
 	_, err := os.Open(fPath)
 	return !errors.Is(err, os.ErrNotExist)
 }
 
-func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
+func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -212,10 +212,10 @@ func WriteKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 		seckeyPath := filepath.Join(sshPath, keyFilename)
 		pubkeyPath := seckeyPath + ".pub"
 
-		if !FileExists(seckeyPath) {
+		if !fileExists(seckeyPath) {
 			// If ssh key file does not currently exist, we don't have to worry about overwriting it
 			return writeKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
-		} else if !FileExists(pubkeyPath) {
+		} else if !fileExists(pubkeyPath) {
 			continue
 		} else {
 			// If ssh key does file does exist, check if it is an openpubkey file, if it is then it is safe to overwrite
