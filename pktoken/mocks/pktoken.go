@@ -23,7 +23,7 @@ func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm
 	}
 	jwkKey.Set(jwk.AlgorithmKey, alg)
 
-	if email != "no-email" {
+	if email != "" {
 		jwkKey.Set("email", email)
 	}
 
