@@ -96,8 +96,10 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) *memguard.LockedB
 	x := new(big.Int).SetBytes(b.Bytes())
 	x.ModInverse(x, sv.n)
 
+	// need to allocate memory for fixed length slice using FillBytes
 	ret := make([]byte, len(b.Bytes()))
-	b.Destroy()
+	defer b.Destroy()
+
 	return memguard.NewBufferFromBytes(x.FillBytes(ret))
 }
 
