@@ -208,7 +208,7 @@ func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 	// filename might already be in use by the user. To ensure we don't
 	// overwrite a ssh key not created by openpubkey we check the comment in the
 	// key to see if it was created by openpubkey
-	for _, keyFilename := range []string{"id_ecdsa_sk", "id_ecdsa", "id_dsa"} {
+	for _, keyFilename := range []string{"id_ecdsa", "id_dsa"} {
 		seckeyPath := filepath.Join(sshPath, keyFilename)
 		pubkeyPath := seckeyPath + ".pub"
 
