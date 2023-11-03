@@ -12,11 +12,20 @@ import (
 )
 
 func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
+	return GenerateMockPKTokenWithEmail(signingKey, alg, "")
+}
+
+func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
+
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
 		return nil, err
 	}
 	jwkKey.Set(jwk.AlgorithmKey, alg)
+
+	if email != "" {
+		jwkKey.Set("email", email)
+	}
 
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
 	if err != nil {
