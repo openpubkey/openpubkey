@@ -12,7 +12,7 @@ import (
 )
 
 func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithEmail(signingKey, alg, "no-email")
+	return GenerateMockPKTokenWithEmail(signingKey, alg, "")
 }
 
 func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
