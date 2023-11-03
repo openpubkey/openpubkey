@@ -11,11 +11,11 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type SimpleFilePolicyEnforcer struct {
+type simpleFilePolicyEnforcer struct {
 	PolicyFilePath string
 }
 
-func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
+func (p *simpleFilePolicyEnforcer) readPolicyFile() (string, []string, error) {
 	info, err := os.Stat(p.PolicyFilePath)
 	if err != nil {
 		return "", nil, err
@@ -44,8 +44,8 @@ func (p *SimpleFilePolicyEnforcer) ReadPolicyFile() (string, []string, error) {
 	return "", nil, fmt.Errorf("policy file contained no policy")
 }
 
-func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	allowedEmail, allowedPrincipals, err := p.ReadPolicyFile()
+func (p *simpleFilePolicyEnforcer) checkPolicy(principalDesired string, pkt *pktoken.PKToken) error {
+	allowedEmail, allowedPrincipals, err := p.readPolicyFile()
 	if err != nil {
 		return err
 	}
@@ -67,4 +67,4 @@ func (p *SimpleFilePolicyEnforcer) CheckPolicy(principalDesired string, pkt *pkt
 	}
 }
 
-type PolicyCheck func(userDesired string, pkt *pktoken.PKToken) error
+type policyCheck func(userDesired string, pkt *pktoken.PKToken) error

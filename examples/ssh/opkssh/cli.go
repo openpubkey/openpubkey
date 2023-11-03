@@ -92,7 +92,7 @@ func main() {
 	case "ver":
 		{
 			log(strings.Join(os.Args, " "))
-			policyEnforcer := SimpleFilePolicyEnforcer{
+			policyEnforcer := simpleFilePolicyEnforcer{
 				PolicyFilePath: "/etc/opk/policy",
 			}
 
@@ -104,7 +104,7 @@ func main() {
 			certB64Arg := os.Args[3]
 			typArg := os.Args[4]
 
-			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
+			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.checkPolicy, &op)
 			if err != nil {
 				log(fmt.Sprint(err))
 				os.Exit(1)
@@ -131,7 +131,7 @@ func main() {
 //	%u The username (requested principal) - userArg
 //	%t The public key type - typArg - in this case a certificate being used as a public key
 //	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
-func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer PolicyCheck, op client.OpenIdProvider) (string, error) {
+func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, policyEnforcer policyCheck, op client.OpenIdProvider) (string, error) {
 	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
 	if err != nil {
 		return "", err
