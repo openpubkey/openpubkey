@@ -56,7 +56,7 @@ func (m *MockOpenIdProvider) RequestTokens(cicHash string) ([]byte, error) {
 	return signedToken, nil
 }
 
-func (m *MockOpenIdProvider) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+func (m *MockOpenIdProvider) VerifyPKToken(pkt *pktoken.PKToken) error {
 	return nil
 }
 

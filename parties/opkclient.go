@@ -7,7 +7,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -16,15 +15,32 @@ import (
 
 const gqSecurityParameter = 256
 
-// Interface for interacting with the MFA Cosigner (MFACos)
-type MFACos interface {
-	// place holder for MFA Cosigner
-	// TODO: Add MFA Cosigner
+type PublicKey interface {
+	Equal(x crypto.PublicKey) bool
+}
+
+// Interface for interacting with the OP (OpenID Provider)
+type OpenIdProvider interface {
+	RequestTokens(cicHash string) ([]byte, error)
+	VerifyPKToken(pkt *pktoken.PKToken) error
+	PublicKey(idt []byte) (PublicKey, error)
+}
+
+type Cosigner interface {
+	Cosign(pkt *pktoken.PKToken) ([]byte, error) // returns cosign token
+	VerifyPKToken(pkt *pktoken.PKToken) error
 }
 
 type OpkClient struct {
-	Op          OpenIdProvider
-	MFACosigner MFACos
+	Op        OpenIdProvider
+	Cosigners []Cosigner
+}
+
+func NewOpkClient(op OpenIdProvider, cosigners []Cosigner) *OpkClient {
+	return &OpkClient{
+		Op:        op,
+		Cosigners: cosigners,
+	}
 }
 
 func (o *OpkClient) OidcAuth(
@@ -87,35 +103,10 @@ func (o *OpkClient) OidcAuth(
 		// TODO: make sure old value of OpSig is fully gone from memory
 	}
 
-	err = o.Op.VerifyPKToken(pkt, nil)
+	err = o.Op.VerifyPKToken(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
 	return pkt, nil
-}
-
-type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
-
-type PublicKey interface {
-	Equal(x crypto.PublicKey) bool
-}
-
-// Interface for interacting with the OP (OpenID Provider)
-type OpenIdProvider interface {
-	RequestTokens(cicHash string) ([]byte, error)
-	VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error
-	PublicKey(idt []byte) (PublicKey, error)
-}
-
-func (o *OpkClient) RequestCert() ([]byte, error) {
-	return nil, fmt.Errorf("cosigning currently unsupported")
-
-	// uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
-	// resp, err := http.Get(uri)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("MFA request failed: %s", err)
-	// }
-	// defer resp.Body.Close()
-	// return io.ReadAll(resp.Body)
 }

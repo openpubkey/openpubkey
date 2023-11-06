@@ -69,16 +69,6 @@ func PktTox509(pktJson []byte, caBytes []byte, caPkSk *ecdsa.PrivateKey, require
 		return nil, err
 	}
 
-	// TODO: verify cosigner
-	// cosignerConfig := &CosignerConfig {
-	// 	Alg: "ES256",
-	// 	Pubkey: "TODO",
-	// }
-	// err = pkt.VerifyCosSig()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	var payload struct {
 		Issuer   string   `json:"iss"`
 		Audience []string `json:"aud"`

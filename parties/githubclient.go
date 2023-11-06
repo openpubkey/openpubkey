@@ -2,7 +2,6 @@ package parties
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -147,7 +146,7 @@ func (g *GithubOp) RequestTokens(cicHash string) ([]byte, error) {
 	return []byte(jwt.Value), err
 }
 
-func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) error {
+func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken) error {
 	sigType, ok := pkt.ProviderSignatureType()
 	if !ok {
 		return fmt.Errorf("provider signature type missing")
@@ -196,19 +195,6 @@ func (g *GithubOp) VerifyPKToken(pkt *pktoken.PKToken, cosPk crypto.PublicKey) e
 	err = pkt.VerifyCicSig()
 	if err != nil {
 		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
-			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
-		}
 	}
 
 	return nil
