@@ -47,7 +47,7 @@
 
         async function register() {
             try {
-                let response = await fetch('/beginRegistration', {
+                let response = await fetch('/register/begin', {
                     method: 'GET'
                 });
 
@@ -89,7 +89,7 @@
                 let credentialsForServer = prepareCredentialsForJson(credentials);
 
                 // Send credentials back to server to save
-                let res = await fetch('/finishRegistration', {
+                let res = await fetch('/register/finish', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
