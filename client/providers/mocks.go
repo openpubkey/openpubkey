@@ -39,6 +39,7 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	token := openid.New()
 
 	token.Set("nonce", cicHash)
+	token.Set("email", "arthur.aardvark@example.com")
 
 	// Required token payload values for OpenID
 	token.Set(jwt.IssuerKey, issuer)
