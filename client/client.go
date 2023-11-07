@@ -66,12 +66,6 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
-	if err != nil {
-		return nil, fmt.Errorf("error creating PK Token: %w", err)
-	}
-
 	if signGQ {
 		opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
 		if err != nil {
@@ -84,10 +78,13 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
+		idToken = memguard.NewBufferFromBytes(gqToken)
+	}
 
-		// wipe OIDC signature and replace with GQ signature
-		memguard.WipeBytes(pkt.Op.Signature())
-		pkt.AddSignature(gqToken, pktoken.Gq)
+	// Combine our ID token and signature over the cic to create our PK Token
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	if err != nil {
+		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
 	err = VerifyPKToken(ctx, pkt, o.Op, nil)
