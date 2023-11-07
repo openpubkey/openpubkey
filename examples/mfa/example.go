@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
 	"github.com/openpubkey/openpubkey/parties"
-	"github.com/openpubkey/openpubkey/parties/webauthn"
+	"github.com/openpubkey/openpubkey/parties/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -22,13 +24,19 @@ var (
 )
 
 func main() {
-	cosigner, err := webauthn.New()
+	authenticator, err := webauthn.New()
+	if err != nil {
+		fmt.Println("error instantiating mfa:", err.Error())
+		return
+	}
+
+	fmt.Println("MFA ready, now initializing cosigner")
+
+	cosigner, err := mfa.NewCosigner(authenticator)
 	if err != nil {
 		fmt.Println("error instantiating cosigner:", err.Error())
 		return
 	}
-
-	fmt.Println("Cosigner ready, now testing registration")
 
 	signer, err := util.GenKeyPair(jwa.ES256)
 	if err != nil {
@@ -54,12 +62,13 @@ func main() {
 		return
 	}
 
-	costoken, err := cosigner.Cosign(pkt)
-	if err != nil {
+	if err := cosigner.Cosign(pkt); err != nil {
 		fmt.Println("error cosigning:", err.Error())
 		return
 	}
 
-	fmt.Println(costoken)
+	pktJson, _ := json.MarshalIndent(pkt, "", "  ")
+	fmt.Println(string(pktJson))
+
 	select {}
 }
