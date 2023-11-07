@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -13,7 +14,9 @@ import (
 	"path"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/parties"
+
+	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/sha3"
@@ -71,8 +74,8 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		return err
 	}
 
-	client := &parties.OpkClient{
-		Op: &parties.GoogleOp{
+	client := &client.OpkClient{
+		Op: &providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Issuer:       issuer,
@@ -83,7 +86,7 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		},
 	}
 
-	pkt, err := client.OidcAuth(signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
 	if err != nil {
 		return err
 	}
