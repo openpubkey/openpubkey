@@ -9,6 +9,7 @@ type webAuthnUser struct {
 	id          []byte
 	username    string
 	displayName string
+	credentials []webauthn.Credential
 }
 
 var _ webauthn.User = (*webAuthnUser)(nil)
@@ -29,6 +30,10 @@ func (u *webAuthnUser) WebAuthnIcon() string {
 	return ""
 }
 
+func (u *webAuthnUser) AddCredential(cred webauthn.Credential) {
+	u.credentials = append(u.credentials, cred)
+}
+
 func (u *webAuthnUser) WebAuthnCredentials() []webauthn.Credential {
-	return []webauthn.Credential{}
+	return u.credentials
 }

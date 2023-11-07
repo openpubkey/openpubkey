@@ -75,7 +75,7 @@ func (c *WebAuthnCosigner) Cosign(pkt *pktoken.PKToken) ([]byte, error) {
 		return nil, err
 	}
 
-	err = server.Register(&webAuthnUser{
+	err = server.RegisterOrLogin(&webAuthnUser{
 		id:          []byte(claims.Subject),
 		username:    "lucie",
 		displayName: "lucie",

@@ -4,45 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-        function bufferDecode(value) {
+        // Convert a Base64 URL-encoded string to an ArrayBuffer
+        function base64UrlDecode(value) {
             let avlue = value.replace(/\-/g, '+') // Replace '-' with '+'
                 .replace(/\_/g, '/') // Replace '_' with '/'
                 .replace(/=+$/, ''); // Remove padding
             return Uint8Array.from(atob(avlue), c => c.charCodeAt(0));
         }
 
-        // Helper function to convert an ArrayBuffer to Base64 URL-encoded string
-        function bufferEncode(buffer) {
+        // Convert an ArrayBuffer to Base64 URL-encoded string
+        function base64UrlEncode(buffer) {
             let binary = '';
             let bytes = new Uint8Array(buffer);
             let len = bytes.byteLength;
             for (let i = 0; i < len; i++) {
                 binary += String.fromCharCode(bytes[i]);
             }
-            // Convert binary to Base64 and replace URL-unsafe characters with URL-safe ones
+
             return window.btoa(binary)
                 .replace(/\+/g, '-') // Replace '+' with '-'
                 .replace(/\//g, '_') // Replace '/' with '_'
                 .replace(/=+$/, ''); // Remove padding
-        }
-
-        // Helper function to prepare credentials to be JSON-stringifiable
-        function prepareCredentialsForJson(credentials) {
-            let cred = {
-                id: credentials.id,
-                type: credentials.type,
-                rawId: bufferEncode(credentials.rawId),
-                response: {
-                    clientDataJSON: bufferEncode(credentials.response.clientDataJSON),
-                    attestationObject: bufferEncode(credentials.response.attestationObject)
-                }
-            };
-            
-            if (credentials.response.userHandle) {
-                cred.response.userHandle = bufferEncode(credentials.response.userHandle);
-            }
-            
-            return cred;
         }
 
         async function register() {
@@ -56,37 +38,23 @@
                 }
 
                 let data = await response.json();
-                
-                // Assuming 'data' is your provided data object
-                let adjustedData = {
-                    publicKey: {
-                        ...data.publicKey, // spread the rest of the data
-                        // Decode the user.id from URL encoded string to Uint8Array
-                        user: {
-                            ...data.publicKey.user,
-                            id: bufferDecode(data.publicKey.user.id),
-                        },
-                        // Decode the challenge from URL encoded string to Uint8Array
-                        challenge:bufferDecode(data.publicKey.challenge),
+                data.publicKey.user.id = base64UrlDecode(data.publicKey.user.id);
+                data.publicKey.challenge = base64UrlDecode(data.publicKey.challenge)
+
+                credentials = await navigator.credentials.create(data);
+                let credentialsForServer = {
+                    id: credentials.id,
+                    type: credentials.type,
+                    rawId: base64UrlEncode(credentials.rawId),
+                    response: {
+                        clientDataJSON: base64UrlEncode(credentials.response.clientDataJSON),
+                        attestationObject: base64UrlEncode(credentials.response.attestationObject)
                     }
                 };
-
-                console.log('Adjusted data for credentials.create:', adjustedData);
-                let credentials;
-                try {
-                    credentials = await navigator.credentials.create(adjustedData);
-                    console.log('Credentials:', credentials);
-                } catch (error) {
-                    console.error('Error during credentials.create:', error);
+                
+                if (credentials.response.userHandle) {
+                    cred.response.userHandle = base64UrlEncode(credentials.response.userHandle);
                 }
-
-                if (!credentials) {
-                    console.error('Credentials object is undefined after create call');
-                }
-
-                // let credentials = await navigator.credentials.create(adjustedData);
-
-                let credentialsForServer = prepareCredentialsForJson(credentials);
 
                 // Send credentials back to server to save
                 let res = await fetch('/register/finish', {
@@ -106,10 +74,57 @@
                 console.error('Error during registration:', error);
             }
         }
+
+        async function login() {
+            try {
+                let response = await fetch('/login/begin', {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                let data = await response.json();
+                data.publicKey.challenge = base64UrlDecode(data.publicKey.challenge)
+                data.publicKey.allowCredentials.forEach(function (listItem) {
+                    listItem.id = base64UrlDecode(listItem.id)
+                });
+
+                let assertion = await navigator.credentials.get(data);
+
+                // Send credentials back to server to save
+                let res = await fetch('/login/finish', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: assertion.id,
+                        rawId: base64UrlEncode(assertion.rawId),
+                        type: assertion.type,
+                        response: {
+                            authenticatorData: base64UrlEncode(assertion.response.authenticatorData),
+                            clientDataJSON: base64UrlEncode(assertion.response.clientDataJSON),
+                            signature: base64UrlEncode(assertion.response.signature),
+                            userHandle: base64UrlEncode(assertion.response.userHandle),
+                        }
+                    })
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+
+                console.log("Login complete!");
+            } catch (error) {
+                console.error('Error during login:', error);
+            }
+        }
     </script>
 </head>
 <body>
-    <!-- Adding a button that calls the register function on click -->
     <button onclick="register()">Register</button>
+    <button onclick="login()">Login</button>
 </body>
 </html>
