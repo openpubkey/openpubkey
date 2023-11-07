@@ -72,6 +72,10 @@ func NewCosigner(authenticator MFA) (*Cosigner, error) {
 	return cosigner, nil
 }
 
+func (c *Cosigner) Verify() error {
+	return nil
+}
+
 func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 	if err := c.mfa.Authenticate(pkt); err != nil {
 		return err
@@ -97,7 +101,7 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 		return err
 	}
 
-	// Now that our mfa has authenticated the user, we can sign using our key
+	// Now that our mfa has authenticated the user, we can add our signature
 	return pkt.Sign(pktoken.Cos, c.signer, c.alg, headers)
 }
 
