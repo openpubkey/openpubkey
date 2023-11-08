@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/cosigner/mfa"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
-	"github.com/openpubkey/openpubkey/parties"
-	"github.com/openpubkey/openpubkey/parties/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -44,8 +46,8 @@ func main() {
 		return
 	}
 
-	client := &parties.OpkClient{
-		Op: &parties.GoogleOp{
+	client := &client.OpkClient{
+		Op: &providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Issuer:       issuer,
@@ -56,7 +58,7 @@ func main() {
 		},
 	}
 
-	pkt, err := client.OidcAuth(signer, jwa.ES256, map[string]any{"extra": "yes"}, false)
+	pkt, err := client.OidcAuth(context.TODO(), signer, jwa.ES256, map[string]any{"extra": "yes"}, false)
 	if err != nil {
 		fmt.Println("error generating key pair: ", err.Error())
 		return
