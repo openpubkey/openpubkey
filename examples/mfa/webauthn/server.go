@@ -43,7 +43,7 @@ func New() (*Server, error) {
 
 	// WebAuthn configuration
 	cfg := &webauthn.Config{
-		RPDisplayName: "OPK Webauthn",
+		RPDisplayName: "OpenPubkey",
 		RPID:          "localhost",
 		RPOrigin:      server.uri,
 	}
