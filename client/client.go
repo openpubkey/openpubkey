@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
@@ -57,34 +58,33 @@ func (o *OpkClient) OidcAuth(
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
+	defer idToken.Destroy()
 
 	// Sign over the payload from the ID token and client instance claims
-	cicToken, err := cic.Sign(signer, alg, idToken)
+	cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken, cicToken)
-	if err != nil {
-		return nil, fmt.Errorf("error creating PK Token: %w", err)
-	}
-
 	if signGQ {
-		opKey, err := o.Op.PublicKey(ctx, idToken)
+		opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error getting OP public key: %w", err)
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
 		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
-		gqToken, err := sv.SignJWT(idToken)
+		gqToken, err := sv.SignJWT(idToken.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
+		idToken = memguard.NewBufferFromBytes(gqToken)
+	}
 
-		pkt.AddSignature(gqToken, pktoken.Gq)
-		// TODO: make sure old value of OpSig is fully gone from memory
+	// Combine our ID token and signature over the cic to create our PK Token
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	if err != nil {
+		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
 	err = VerifyPKToken(ctx, pkt, o.Op, nil)

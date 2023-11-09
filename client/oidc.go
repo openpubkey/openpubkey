@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -20,7 +21,7 @@ var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
-	RequestTokens(ctx context.Context, cicHash string) ([]byte, error)
+	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
 	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error

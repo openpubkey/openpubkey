@@ -11,6 +11,7 @@ import (
 
 	"time"
 
+	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -40,7 +41,7 @@ type GoogleOp struct {
 
 var _ client.OpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -103,7 +104,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) ([]byte, e
 	case err := <-chErr:
 		return nil, err
 	case token := <-ch:
-		return token, nil
+		return memguard.NewBufferFromBytes(token), nil
 	}
 }
 

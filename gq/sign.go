@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"math/big"
 
+	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -76,9 +77,10 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	}
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
-	private := sv.modInverse(decodedSig)
+	private := sv.modInverse(memguard.NewBufferFromBytes(decodedSig))
+	defer private.Destroy()
 
-	gqSig, err := sv.Sign(private, signingPayload)
+	gqSig, err := sv.Sign(private.Bytes(), signingPayload)
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +92,15 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	return gqToken, nil
 }
 
-func (sv *signerVerifier) modInverse(b []byte) []byte {
-	x := new(big.Int).SetBytes(b)
+func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) *memguard.LockedBuffer {
+	x := new(big.Int).SetBytes(b.Bytes())
 	x.ModInverse(x, sv.n)
 
-	ret := make([]byte, len(b))
-	return x.FillBytes(ret)
+	// need to allocate memory for fixed length slice using FillBytes
+	ret := make([]byte, len(b.Bytes()))
+	defer b.Destroy()
+
+	return memguard.NewBufferFromBytes(x.FillBytes(ret))
 }
 
 func encodeProof(R, S []byte) []byte {
