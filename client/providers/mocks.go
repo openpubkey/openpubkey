@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"time"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
@@ -34,7 +35,7 @@ func NewMockOpenIdProvider() (*MockOpenIdProvider, error) {
 	}, nil
 }
 
-func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	token := openid.New()
 
 	token.Set("nonce", cicHash)
@@ -52,8 +53,7 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	if err != nil {
 		return nil, err
 	}
-
-	return signedToken, nil
+	return memguard.NewBufferFromBytes(signedToken), nil
 }
 
 func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 
 	"github.com/openpubkey/openpubkey/client"
@@ -39,6 +40,12 @@ var (
 )
 
 func main() {
+	// Safely terminate in case of an interrupt signal
+	memguard.CatchInterrupt()
+
+	// Purge the session when we return
+	defer memguard.Purge()
+
 	if len(os.Args) < 2 {
 		fmt.Printf("OpenPubkey: command choices are login, sign, and cert")
 		return
