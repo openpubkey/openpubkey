@@ -28,7 +28,7 @@ type User interface {
 	AddCredential(cred webauthn.Credential)
 }
 
-var _ mfa.MFA = (*Server)(nil)
+var _ mfa.Authenticator = (*Server)(nil)
 
 func New() (*Server, error) {
 	server := &Server{

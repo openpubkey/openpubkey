@@ -9,13 +9,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type Protocol string
-
-const (
-	TOTP     Protocol = "totp"
-	WebAuthn Protocol = "webauthn"
-)
-
 type Cosigner struct {
 	csid string
 	kid  string
@@ -24,15 +17,15 @@ type Cosigner struct {
 	signer crypto.Signer
 
 	// The MFA in MFACosigner, we use this to authenticate the user
-	mfa MFA
+	mfa Authenticator
 }
 
-type MFA interface {
+type Authenticator interface {
 	Authenticate(pkt *pktoken.PKToken) error
 	URI() string
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, csid, kid string, authenticator MFA) (*Cosigner, error) {
+func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, csid, kid string, authenticator Authenticator) (*Cosigner, error) {
 	return &Cosigner{
 		csid:   csid,
 		kid:    kid,
