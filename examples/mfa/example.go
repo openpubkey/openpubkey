@@ -9,6 +9,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
 	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -26,41 +27,37 @@ var (
 )
 
 func main() {
-	authenticator, err := webauthn.New()
-	if err != nil {
-		fmt.Println("error instantiating mfa:", err.Error())
-		return
-	}
-
-	fmt.Println("MFA ready, now initializing cosigner")
-
-	cosigner, err := mfa.NewCosigner(authenticator)
-	if err != nil {
-		fmt.Println("error instantiating cosigner:", err.Error())
-		return
-	}
-
-	signer, err := util.GenKeyPair(jwa.ES256)
+	clientKey, err := util.GenKeyPair(jwa.ES256)
 	if err != nil {
 		fmt.Println("error generating key pair:", err.Error())
 		return
 	}
 
-	client := &client.OpkClient{
-		Op: &providers.GoogleOp{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Issuer:       issuer,
-			Scopes:       scopes,
-			RedirURIPort: redirURIPort,
-			CallbackPath: callbackPath,
-			RedirectURI:  redirectURI,
-		},
+	provider := &providers.GoogleOp{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Issuer:       issuer,
+		Scopes:       scopes,
+		RedirURIPort: redirURIPort,
+		CallbackPath: callbackPath,
+		RedirectURI:  redirectURI,
 	}
 
-	pkt, err := client.OidcAuth(context.TODO(), signer, jwa.ES256, map[string]any{"extra": "yes"}, false)
+	opk := &client.OpkClient{
+		Op: provider,
+	}
+
+	pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{"extra": "yes"}, false)
 	if err != nil {
 		fmt.Println("error generating key pair: ", err.Error())
+		return
+	}
+
+	fmt.Println("New PK token generated")
+
+	cosigner, err := initCosigner()
+	if err != nil {
+		fmt.Println("failed to initialize cosigner: ", err.Error())
 		return
 	}
 
@@ -69,8 +66,39 @@ func main() {
 		return
 	}
 
+	fmt.Println("PK token cosigned")
+
+	// Verify our pktoken including the cosigner signature
+	if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
+		fmt.Println("failed to verify PK token:", err.Error())
+	}
+
+	fmt.Println("PK token verified!")
+
 	pktJson, _ := json.MarshalIndent(pkt, "", "  ")
 	fmt.Println(string(pktJson))
+}
 
-	select {}
+func initCosigner() (*mfa.Cosigner, error) {
+	authenticator, err := webauthn.New()
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate the key pair for our cosigner
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	if err != nil {
+		return nil, err
+	}
+
+	kid := "test-kid"
+	server, err := jwks.NewServer(signer, alg, kid)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
+
+	return mfa.NewCosigner(signer, alg, server.URI(), kid, authenticator)
 }

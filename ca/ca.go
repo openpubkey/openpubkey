@@ -144,19 +144,6 @@ func (a *Ca) Serv() {
 			return
 		}
 
-		// kid := m.cosigner.GetPublicKey().X509CertThumbprint()
-		// cosPktCom, err := m.cosigner.SignPKToken(pktCom, ruri, kid)
-		// if err != nil {
-		// 	fmt.Printf("Error getting PK Token cosigned: %s", err.Error())
-		// 	return
-		// }
-		// fmt.Printf("Successfully created a cosigned PK Token: %v\n", string(cosPktCom))
-
-		// authcode := "1234567890" // TODO: Make random
-		// m.authCodeMap[authcode] = string(cosPktCom)
-
-		// fmt.Printf("Got authcode map value: |%s|\n", m.authCodeMap[authcode])
-
 		w.Write(pktX509)
 	})
 
@@ -177,16 +164,6 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 	if err := pkt.VerifyCicSig(); err != nil {
 		return nil, err
 	}
-
-	// TODO: verify cocigner
-	// cosignerConfig := &CosignerConfig {
-	// 	Alg: "ES256",
-	// 	Pubkey: "TODO",
-	// }
-	// err = pkt.VerifyCosSig()
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	var payload struct {
 		Issuer   string `json:"iss"`

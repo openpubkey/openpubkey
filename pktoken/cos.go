@@ -4,95 +4,113 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/util"
 )
 
-type CosPHeader struct {
-	Alg       string
-	Jwk       interface{}
-	Kid       string
-	Csid      string
-	Eid       string
-	Auth_time int64
-	Iat       int64
-	Exp       int64
-	Mfa       string
-	Ruri      string
+type CosignerClaims struct {
+	ID          string `json:"csid"`
+	KeyID       string `json:"kid"`
+	Algorithm   string `json:"alg"`
+	AuthID      string `json:"eid"`
+	AuthTime    int64  `json:"auth_time"`
+	IssuedAt    int64  `json:"iat"` // may differ from auth_time because of refresh
+	Expiration  int64  `json:"exp"`
+	RedirectURI string `json:"ruri"`
 }
 
-func (p *PKToken) GetCosValues() (*CosPHeader, error) {
-	if p.Cos == nil {
-		return nil, fmt.Errorf("cos signature missing")
-	}
-
-	cosPH, err := p.Cos.ProtectedHeaders().AsMap(context.TODO())
-	if err != nil {
+func ParseHeader(protected []byte) (*CosignerClaims, error) {
+	var claims CosignerClaims
+	if err := json.Unmarshal(protected, &claims); err != nil {
 		return nil, err
 	}
 
-	cosPHBytes, err := json.Marshal(cosPH)
-	if err != nil {
-		return nil, err
+	// Check that all fields are present
+	var missing []string
+	if claims.ID == "" {
+		missing = append(missing, `csid`)
+	}
+	if claims.KeyID == "" {
+		missing = append(missing, `kid`)
+	}
+	if claims.Algorithm == "" {
+		missing = append(missing, `alg`)
+	}
+	if claims.AuthID == "" {
+		missing = append(missing, `eid`)
+	}
+	if claims.AuthTime == 0 {
+		missing = append(missing, `auth_time`)
+	}
+	if claims.IssuedAt == 0 {
+		missing = append(missing, `iat`)
+	}
+	if claims.Expiration == 0 {
+		missing = append(missing, `exp`)
+	}
+	if claims.RedirectURI == "" {
+		missing = append(missing, `ruri`)
 	}
 
-	var hds *CosPHeader
-	if err := json.Unmarshal(cosPHBytes, &hds); err != nil {
-		return nil, err
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("cosigner protect header missing required headers: %v", missing)
 	}
 
-	return hds, nil
+	return &claims, nil
 }
 
-// TODO: Make this take a cosignerid and JWKS that we trust
-func (p *PKToken) VerifyCosSig(cosPk jwk.Key, alg jwa.KeyAlgorithm) error {
+func (p *PKToken) VerifyCosignerSignature() error {
 	if p.Cos == nil {
-		return fmt.Errorf("Failed to verify Cosigner signature as the Cosigner Signature is nil.")
+		return fmt.Errorf("no cosigner signature")
 	}
 
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(p.Cic)
-	cosJwsCom, err := jws.Compact(message)
+	cosToken, err := p.Compact(p.Cos)
 	if err != nil {
 		return err
 	}
 
-	_, err = jws.Verify(cosJwsCom, jws.WithKey(alg, cosPk))
+	// Parse our header
+	rawHeader, _, _, err := jws.SplitCompact(cosToken)
+	if err != nil {
+		return err
+	}
+	decodedHeader, err := util.Base64DecodeForJWT(rawHeader)
+	if err != nil {
+		return err
+	}
+	header, err := ParseHeader(decodedHeader)
 	if err != nil {
 		return err
 	}
 
-	hrs, err := p.GetCosValues()
+	// Check if it's expired
+	if time.Now().After(time.Unix(header.Expiration, 0)) {
+		return fmt.Errorf("cosigner signature expired")
+	}
+
+	// Grab the public keys from the JWKS endpoint
+	jwksUrl, err := url.ParseRequestURI(header.ID)
+	if err != nil {
+		return err
+	}
+	jwksUrl.Path = `/.well-known/jwks.json`
+	// TODO: verify scheme matches some expected value
+
+	set, err := jwk.Fetch(context.Background(), jwksUrl.String())
 	if err != nil {
 		return err
 	}
 
-	// Expiration check
-	if hrs.Exp < time.Now().Unix() {
-		return fmt.Errorf("Cosigner Signature on PK Token is expired by %d seconds.", time.Now().Unix()-hrs.Exp)
+	key, ok := set.LookupKeyID(header.KeyID)
+	if !ok {
+		return fmt.Errorf("missing key id!")
 	}
 
-	// Check algorithms match
-	if hrs.Alg != alg.String() {
-		return fmt.Errorf("Algorithm in cosigner protected header, %s, does not match algorithm provided, %s.", hrs.Alg, alg)
-	}
-
-	cosPkBytes, err := json.Marshal(hrs.Jwk)
-	if err != nil {
-		return err
-	}
-	cosPkInPH, err := jwk.ParseKey(cosPkBytes)
-	if err != nil {
-		return err
-	}
-	if cosPkInPH.X509CertThumbprint() != cosPk.X509CertThumbprint() {
-		return fmt.Errorf("JWK of cosigner public key in protected header, %v, does not match JWK public key provided, %v.", cosPkInPH, cosPk)
-	}
-
-	// verified
-	return nil
+	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))
+	return err
 }
