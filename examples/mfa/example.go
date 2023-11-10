@@ -29,7 +29,7 @@ var (
 func main() {
 	clientKey, err := util.GenKeyPair(jwa.ES256)
 	if err != nil {
-		fmt.Println("error generating key pair:", err.Error())
+		fmt.Println("error generating key pair:", err)
 		return
 	}
 
@@ -47,9 +47,9 @@ func main() {
 		Op: provider,
 	}
 
-	pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{"extra": "yes"}, false)
+	pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 	if err != nil {
-		fmt.Println("error generating key pair: ", err.Error())
+		fmt.Println("error generating key pair: ", err)
 		return
 	}
 
@@ -57,12 +57,12 @@ func main() {
 
 	cosigner, err := initCosigner()
 	if err != nil {
-		fmt.Println("failed to initialize cosigner: ", err.Error())
+		fmt.Println("failed to initialize cosigner: ", err)
 		return
 	}
 
 	if err := cosigner.Cosign(pkt); err != nil {
-		fmt.Println("error cosigning:", err.Error())
+		fmt.Println("error cosigning:", err)
 		return
 	}
 
@@ -70,7 +70,7 @@ func main() {
 
 	// Verify our pktoken including the cosigner signature
 	if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
-		fmt.Println("failed to verify PK token:", err.Error())
+		fmt.Println("failed to verify PK token:", err)
 	}
 
 	fmt.Println("PK token verified!")

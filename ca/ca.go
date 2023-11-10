@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/sirupsen/logrus"
 
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -29,11 +28,6 @@ import (
 var (
 	requiredAudience = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
 )
-
-type CosignerConfig struct {
-	Alg    jwa.KeyAlgorithm
-	Pubkey jwk.Key
-}
 
 type Ca struct {
 	pksk        *ecdsa.PrivateKey

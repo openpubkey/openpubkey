@@ -79,7 +79,6 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
 	if pkt.Cos != nil {
 		if err := pkt.VerifyCosignerSignature(); err != nil {
 			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)

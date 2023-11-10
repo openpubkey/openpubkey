@@ -14,17 +14,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
-
-type CosignerConfig struct {
-	Alg    jwa.KeyAlgorithm
-	Pubkey jwk.Key
-}
 
 func GenCAKeyPair() ([]byte, *ecdsa.PrivateKey, error) {
 	caTemplate := &x509.Certificate{

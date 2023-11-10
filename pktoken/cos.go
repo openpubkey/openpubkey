@@ -24,7 +24,7 @@ type CosignerClaims struct {
 	RedirectURI string `json:"ruri"`
 }
 
-func ParseHeader(protected []byte) (*CosignerClaims, error) {
+func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	var claims CosignerClaims
 	if err := json.Unmarshal(protected, &claims); err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (p *PKToken) VerifyCosignerSignature() error {
 	if err != nil {
 		return err
 	}
-	header, err := ParseHeader(decodedHeader)
+	header, err := ParseCosignerClaims(decodedHeader)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (p *PKToken) VerifyCosignerSignature() error {
 
 	key, ok := set.LookupKeyID(header.KeyID)
 	if !ok {
-		return fmt.Errorf("missing key id!")
+		return fmt.Errorf("missing key id")
 	}
 
 	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))

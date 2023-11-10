@@ -14,15 +14,8 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
-// Interface for interacting with the MFA Cosigner (MFACos)
-type MFACos interface {
-	// place holder for MFA Cosigner
-	// TODO: Add MFA Cosigner
-}
-
 type OpkClient struct {
-	Op          OpenIdProvider
-	MFACosigner MFACos
+	Op OpenIdProvider
 }
 
 func (o *OpkClient) OidcAuth(
