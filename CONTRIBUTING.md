@@ -9,7 +9,7 @@ Whether you're addressing an open issue (or filing a new one), fixing a typo in 
 ## Include Licensing at the Top of Each File
 At the top of each file in your commit, please ensure the following is captured in a comment: 
 
-``` SPDX-License-Identifier: Apache-2.0 ```
+` SPDX-License-Identifier: Apache-2.0 `
 
 ## Sign Off on Your Commits
 Contributors are required to sign off on their commits. A sign off certifies that you wrote the associated change or have permission to submit it as an open-source patch. All submissions are bound by the [Developer's Certificate of Origin 1.1](https://developercertificate.org/) and [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
