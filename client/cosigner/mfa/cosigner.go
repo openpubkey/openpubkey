@@ -22,6 +22,7 @@ type Cosigner struct {
 
 type Authenticator interface {
 	Authenticate(pkt *pktoken.PKToken) error
+	URI() string
 }
 
 func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, csid, kid string, authenticator Authenticator) (*Cosigner, error) {
@@ -47,7 +48,7 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
-		RedirectURI: "localhost",
+		RedirectURI: c.mfa.URI(),
 	}
 
 	jsonBytes, err := json.Marshal(protected)

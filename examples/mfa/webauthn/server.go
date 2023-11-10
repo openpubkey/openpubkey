@@ -72,6 +72,10 @@ func New() (*Server, error) {
 	return server, nil
 }
 
+func (s *Server) URI() string {
+	return s.uri
+}
+
 func (s *Server) Authenticate(pkt *pktoken.PKToken) error {
 	// extract our user information from the id token
 	var claims struct {
