@@ -10,9 +10,8 @@ import (
 )
 
 type Cosigner struct {
-	csid string
-	kid  string
-
+	issuer string
+	keyID  string
 	alg    jwa.KeyAlgorithm
 	signer crypto.Signer
 
@@ -25,10 +24,10 @@ type Authenticator interface {
 	URI() string
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, csid, kid string, authenticator Authenticator) (*Cosigner, error) {
+func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, authenticator Authenticator) (*Cosigner, error) {
 	return &Cosigner{
-		csid:   csid,
-		kid:    kid,
+		issuer: issuer,
+		keyID:  keyID,
 		alg:    alg,
 		signer: signer,
 		mfa:    authenticator,
@@ -41,8 +40,8 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 	}
 
 	protected := pktoken.CosignerClaims{
-		ID:          c.csid,
-		KeyID:       c.kid,
+		ID:          c.issuer,
+		KeyID:       c.keyID,
 		Algorithm:   c.alg.String(),
 		AuthID:      "12345678",
 		AuthTime:    time.Now().Unix(),

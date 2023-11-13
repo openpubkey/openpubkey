@@ -76,6 +76,10 @@ func (s *Server) URI() string {
 	return s.uri
 }
 
+// TODO: This function trusts that the requesting party is allowed to request MFA
+// authentication. According to the paper, this should be doing the POP Auth flow
+// to verify that the requesting party has the corresponding signing key. Details
+// in https://github.com/openpubkey/openpubkey/issues/58
 func (s *Server) Authenticate(pkt *pktoken.PKToken) error {
 	// extract our user information from the id token
 	var claims struct {
