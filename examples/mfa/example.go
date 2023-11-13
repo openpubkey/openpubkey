@@ -7,8 +7,8 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
 	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
 	"github.com/openpubkey/openpubkey/util"

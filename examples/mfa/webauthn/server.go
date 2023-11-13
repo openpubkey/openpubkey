@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/openpubkey/openpubkey/client/cosigner/mfa"
+	"github.com/openpubkey/openpubkey/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
