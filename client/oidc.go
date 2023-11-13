@@ -8,8 +8,6 @@ import (
 	"fmt"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -27,7 +25,7 @@ type OpenIdProvider interface {
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
 
-func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider, cosPk crypto.PublicKey) error {
+func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return err
@@ -82,15 +80,8 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
-	// Skip Cosigner signature verification if no cosigner pubkey is supplied
-	if cosPk != nil {
-		cosPkJwk, err := jwk.FromRaw(cosPk)
-		if err != nil {
-			return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-		}
-
-		err = pkt.VerifyCosSig(cosPkJwk, jwa.KeyAlgorithmFrom("ES256"))
-		if err != nil {
+	if pkt.Cos != nil {
+		if err := pkt.VerifyCosignerSignature(); err != nil {
 			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
 		}
 	}

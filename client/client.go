@@ -9,22 +9,14 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
-// Interface for interacting with the MFA Cosigner (MFACos)
-type MFACos interface {
-	// place holder for MFA Cosigner
-	// TODO: Add MFA Cosigner
-}
-
 type OpkClient struct {
-	Op          OpenIdProvider
-	MFACosigner MFACos
+	Op OpenIdProvider
 }
 
 func (o *OpkClient) OidcAuth(
@@ -87,24 +79,10 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	err = VerifyPKToken(ctx, pkt, o.Op, nil)
+	err = VerifyPKToken(ctx, pkt, o.Op)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
 	return pkt, nil
-}
-
-type TokenCallback func(tokens *oidc.Tokens[*oidc.IDTokenClaims])
-
-func (o *OpkClient) RequestCert() ([]byte, error) {
-	return nil, fmt.Errorf("cosigning currently unsupported")
-
-	// uri := fmt.Sprintf("http://localhost:3002/cert?pkt=%s", o.PktJson)
-	// resp, err := http.Get(uri)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("MFA request failed: %s", err)
-	// }
-	// defer resp.Body.Close()
-	// return io.ReadAll(resp.Body)
 }

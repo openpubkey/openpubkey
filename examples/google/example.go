@@ -6,11 +6,9 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"path"
@@ -71,10 +69,6 @@ func main() {
 		message := "sign me!!"
 		if err := sign(message, outputDir, keyAlgorithm, signGQ); err != nil {
 			fmt.Println("Failed to sign test message:", err)
-		}
-	case "cert":
-		if err := googleCert(outputDir, keyAlgorithm, signGQ); err != nil {
-			fmt.Println("Failed to generate certificate:", err)
 		}
 	default:
 		fmt.Println("Unrecognized command:", command)
@@ -144,56 +138,6 @@ func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) e
 	}
 	fmt.Println(prettyJSON.String())
 
-	return nil
-}
-
-func googleCert(outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
-	client := &client.OpkClient{
-		Op: &providers.GoogleOp{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Issuer:       issuer,
-			Scopes:       scopes,
-			RedirURIPort: redirURIPort,
-			CallbackPath: callbackPath,
-			RedirectURI:  redirectURI,
-		},
-	}
-
-	certBytes, err := client.RequestCert()
-	if err != nil {
-		return err
-	}
-	fmt.Println("Cert received:", string(certBytes))
-
-	block, _ := pem.Decode(certBytes)
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return fmt.Errorf("failed to parse cert: %s", err)
-	}
-
-	skid := cert.SubjectKeyId
-
-	fmt.Println("Cert skid:", string(skid))
-
-	skidDecoded, err := util.Base64DecodeForJWT(skid)
-	if err != nil {
-		return fmt.Errorf("malformatted skid: %w", err)
-	}
-
-	var skidpkt *pktoken.PKToken
-	if err := json.Unmarshal(skidDecoded, skidpkt); err != nil {
-		return fmt.Errorf("failed to extract PK Token from x509 cert: %w", err)
-	}
-
-	fmt.Println("Cert skid PK Token payload:", string(skidpkt.Payload))
-
-	err = skidpkt.VerifyCicSig()
-	if err != nil {
-		return fmt.Errorf("cic verification failed in PK Token: %w", err)
-	}
-
-	fmt.Println("Cert:", string(certBytes))
 	return nil
 }
 

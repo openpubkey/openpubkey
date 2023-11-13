@@ -6,8 +6,6 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/http"
-	"os/exec"
-	"runtime"
 
 	"time"
 
@@ -16,6 +14,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
@@ -89,7 +88,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	logrus.Infof("listening on http://%s/", lis)
 	logrus.Info("press ctrl+c to stop")
 	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
-	openUrl(earl)
+	util.OpenUrl(earl)
 
 	go func() {
 		err := g.server.ListenAndServe()
@@ -171,23 +170,4 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	}
 
 	return nil
-}
-
-// https://stackoverflow.com/questions/39320371/how-start-web-server-to-open-page-in-browser-in-golang
-// open opens the specified URL in the default browser of the user.
-func openUrl(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start"}
-	case "darwin":
-		cmd = "open"
-	default: // "linux", "freebsd", "openbsd", "netbsd"
-		cmd = "xdg-open"
-	}
-	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
 }

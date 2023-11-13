@@ -2,9 +2,11 @@ package pktoken
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -45,6 +47,34 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	}
 
 	return pkt, nil
+}
+
+func (p *PKToken) Sign(
+	sigType SignatureType,
+	signer crypto.Signer,
+	alg jwa.KeyAlgorithm,
+	protected map[string]any,
+) error {
+	headers := jws.NewHeaders()
+	for key, val := range protected {
+		if err := headers.Set(key, val); err != nil {
+			return fmt.Errorf("malformatted headers: %w", err)
+		}
+	}
+
+	token, err := jws.Sign(
+		p.Payload,
+		jws.WithKey(
+			alg,
+			signer,
+			jws.WithProtectedHeaders(headers),
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	return p.AddSignature(token, sigType)
 }
 
 func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
