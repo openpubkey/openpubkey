@@ -129,6 +129,7 @@
 
             if (!data.isRegistered) {
                 try {
+                    statusDiv.textContent = "Registering user with WebAuthn...";
                     await register();
                 } catch(error) {
                     statusDiv.textContent = `Error during registration: ${error}`;
@@ -143,6 +144,7 @@
             }
 
             try {
+                statusDiv.textContent = "Authenticating user with WebAuthn...";
                 await login();
             } catch(error) {
                 statusDiv.textContent = `Error during login: ${error}`;
