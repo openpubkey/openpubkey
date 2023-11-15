@@ -2,7 +2,11 @@ package mfa
 
 import (
 	"crypto"
+	"crypto/hmac"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"math/big"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -10,10 +14,12 @@ import (
 )
 
 type Cosigner struct {
-	issuer string
-	keyID  string
-	alg    jwa.KeyAlgorithm
-	signer crypto.Signer
+	issuer     string
+	keyID      string
+	alg        jwa.KeyAlgorithm
+	signer     crypto.Signer
+	authIdIter *big.Int
+	hmacKey    []byte
 
 	// The MFA in MFACosigner, we use this to authenticate the user
 	mfa Authenticator
@@ -25,12 +31,20 @@ type Authenticator interface {
 }
 
 func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, authenticator Authenticator) (*Cosigner, error) {
+	hmacKey := make([]byte, 64)
+
+	if _, err := rand.Read(hmacKey); err != nil {
+		return nil, err
+	}
+
 	return &Cosigner{
-		issuer: issuer,
-		keyID:  keyID,
-		alg:    alg,
-		signer: signer,
-		mfa:    authenticator,
+		issuer:     issuer,
+		keyID:      keyID,
+		alg:        alg,
+		signer:     signer,
+		authIdIter: big.NewInt(0),
+		hmacKey:    hmacKey,
+		mfa:        authenticator,
 	}, nil
 }
 
@@ -39,11 +53,17 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 		return err
 	}
 
+	mac := hmac.New(crypto.SHA3_512.New, c.hmacKey)
+	mac.Write(c.authIdIter.Bytes())
+	authID := hex.EncodeToString(mac.Sum(nil))
+
+	c.authIdIter.Add(c.authIdIter, big.NewInt(1))
+
 	protected := pktoken.CosignerClaims{
 		ID:          c.issuer,
 		KeyID:       c.keyID,
 		Algorithm:   c.alg.String(),
-		AuthID:      "12345678",
+		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
