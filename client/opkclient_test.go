@@ -10,6 +10,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -44,7 +45,12 @@ func TestClient(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if tc.gq {
+		sigType, ok := pkt.ProviderSignatureType()
+		if !ok {
+			t.Fatal(fmt.Errorf("missing provider type"))
+		}
+
+		if sigType == pktoken.Gq {
 			// Verify our GQ signature
 			idt, err := pkt.Compact(pkt.Op)
 			if err != nil {

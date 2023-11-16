@@ -74,7 +74,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken, signGQ)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
