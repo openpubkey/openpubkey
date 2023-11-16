@@ -164,6 +164,8 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
 
+	fmt.Println(string(idt))
+
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(idt), googleRP.IDTokenVerifier())
 	if err != nil {
 		return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)

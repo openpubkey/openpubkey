@@ -56,5 +56,5 @@ func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm
 	}
 
 	// Combine two tokens into a PK Token
-	return pktoken.New(idToken.Bytes(), cicToken)
+	return pktoken.New(idToken.Bytes(), cicToken, false)
 }
