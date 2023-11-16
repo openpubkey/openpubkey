@@ -53,7 +53,7 @@ func main() {
 	case "login":
 		{
 			if len(os.Args) != 2 {
-				fmt.Println("Invalid number of arguments for login, should be `opkssh login`")
+				fmt.Println("ERROR: login does not accept any arguments")
 				os.Exit(1)
 			}
 
@@ -88,22 +88,31 @@ func main() {
 			}
 			os.Exit(0)
 		}
-	case "ver":
+	case "verify":
+		// The "verify" command is designed to be used by sshd and specified as an AuthorizedKeysCommand
+		// ref: https://man.openbsd.org/sshd_config#AuthorizedKeysCommand
 		{
 			log(strings.Join(os.Args, " "))
 			policyEnforcer := policy.Enforcer{
 				PolicyFilePath: "/etc/opk/policy",
 			}
 
+			// These arguments are sent by sshd and dictated by the pattern as defined in the sshd config
+			// Example line in sshd config:
+			// 		AuthorizedKeysCommand /etc/opk/freessh verify %u %k %t
+			//
+			//	%u The desired user being assumed on the target (aka requested principal).
+			//	%k The base64-encoded public key for authentication.
+			//	%t The public key type, in this case an ssh certificate being used as a public key.
 			if len(os.Args) != 5 {
-				fmt.Println("Invalid number of arguments for ver, should be `opkssh ver <User (TOKEN u)> <Key type (TOKEN t)> <Cert (TOKEN k)> `")
+				fmt.Println("Invalid number of arguments for verify, expected: `<User (TOKEN u)> <Key type (TOKEN t)> <Cert (TOKEN k)>`")
 				os.Exit(1)
 			}
-			userArg := os.Args[2]
-			certB64Arg := os.Args[3]
-			typArg := os.Args[4]
+			user := os.Args[2]
+			certB64 := os.Args[3]
+			pubkeyType := os.Args[4]
 
-			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.CheckPolicy, &op)
+			authKey, err := authorizedKeysCommand(user, certB64, pubkeyType, policyEnforcer.CheckPolicy, &op)
 			if err != nil {
 				log(fmt.Sprint(err))
 				os.Exit(1)
@@ -113,31 +122,18 @@ func main() {
 			}
 		}
 	default:
-		fmt.Println("Error! Unrecognized command:", command)
+		fmt.Println("ERROR: Unrecognized command:", command)
 	}
 }
 
-// This function is called by the SSH server as the authorizedKeysCommand:
-//
-// The following lines are added to /etc/ssh/sshd_config:
-//
-//	authorizedKeysCommand /etc/opk/opkssh ver %u %t %k
-//	AuthorizedPrincipalsCommandUser root
-//
-// The parameters specified in the config map the parameters sent to the function below.
-// We prepend "Arg" to specify which ones are arguments sent by sshd. They are:
-//
-//	%u The username (requested principal) - userArg
-//	%t The public key type - typArg - in this case a certificate being used as a public key
-//	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
 func authorizedKeysCommand(
 	userArg string,
-	typArg string,
 	certB64Arg string,
+	pubkeyTypeArg string,
 	policyCheck func(userDesired string, pkt *pktoken.PKToken) error,
 	op client.OpenIdProvider,
 ) (string, error) {
-	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
+	cert, err := sshcert.NewFromAuthorizedKey(pubkeyTypeArg, certB64Arg)
 	if err != nil {
 		return "", err
 	}
@@ -189,22 +185,6 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 	return certBytes, seckeySshBytes, nil
 }
 
-func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
-	// Write ssh secret key to filesystem
-	if err := os.WriteFile(seckeyPath, seckeySshPem, 0600); err != nil {
-		return err
-	}
-
-	certBytes = append(certBytes, []byte(" openpubkey")...)
-	// Write ssh public key (certificate) to filesystem
-	return os.WriteFile(pubkeyPath, certBytes, 0777)
-}
-
-func fileExists(fPath string) bool {
-	_, err := os.Open(fPath)
-	return !errors.Is(err, os.ErrNotExist)
-}
-
 func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
@@ -246,6 +226,25 @@ func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 		}
 	}
 	return fmt.Errorf("no default ssh key file free for openpubkey")
+}
+
+func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBytes []byte) error {
+	// Write ssh secret key to filesystem
+	if err := os.WriteFile(seckeyPath, seckeySshPem, 0600); err != nil {
+		return err
+	}
+
+	fmt.Println("writing secret key to", seckeyPath)
+	fmt.Println("writing public key to", pubkeyPath)
+
+	certBytes = append(certBytes, []byte(" openpubkey")...)
+	// Write ssh public key (certificate) to filesystem
+	return os.WriteFile(pubkeyPath, certBytes, 0777)
+}
+
+func fileExists(fPath string) bool {
+	_, err := os.Open(fPath)
+	return !errors.Is(err, os.ErrNotExist)
 }
 
 func log(line string) {

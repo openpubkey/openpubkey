@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/lestrrat-go/jwx/v2 v2.0.16
-	github.com/openpubkey/openpubkey v0.2.0
+	github.com/openpubkey/openpubkey v0.2.1
 	golang.org/x/crypto v0.15.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )

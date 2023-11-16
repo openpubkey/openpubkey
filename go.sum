@@ -42,8 +42,8 @@ github.com/lestrrat-go/option v1.0.1/go.mod h1:5ZHFbivi4xwXxhxY9XHDe2FHo6/Z7WWmt
 github.com/muhlemmer/gu v0.3.1 h1:7EAqmFrW7n3hETvuAdmFmn4hS8W+z3LgKtrnow+YzNM=
 github.com/muhlemmer/gu v0.3.1/go.mod h1:YHtHR+gxM+bKEIIs7Hmi9sPT3ZDUvTN/i88wQpZkrdM=
 github.com/muhlemmer/httpforwarded v0.1.0 h1:x4DLrzXdliq8mprgUMR0olDvHGkou5BJsK/vWUetyzY=
-github.com/openpubkey/openpubkey v0.2.0 h1:kV0W6Pd7dSBPb4OMidAtEjqn74CCwvW/02m0tjSnHNY=
-github.com/openpubkey/openpubkey v0.2.0/go.mod h1:3F73Co3Y5+VMWCSy1rCidAjGua6L71vjcHNe5DjoLL8=
+github.com/openpubkey/openpubkey v0.2.1 h1:l3tQVfEkuOmVmxYl61nQaCPFShD67qzNY30suU/VXPQ=
+github.com/openpubkey/openpubkey v0.2.1/go.mod h1:3F73Co3Y5+VMWCSy1rCidAjGua6L71vjcHNe5DjoLL8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rs/cors v1.10.0 h1:62NOS1h+r8p1mW6FM0FSB0exioXLhd/sh15KpjWBZ+8=

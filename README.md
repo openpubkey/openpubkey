@@ -13,7 +13,7 @@ GOARCH=amd64 GOOS=linux go build
 ```
 2. Copy the built binary up to the SSH server you want to configure
 ```bash
-scp freessh ${HOSTNAME}:~
+scp freessh ${USER}@${HOSTNAME}:~
 ```
 3. SSH onto the server 
 ```bash
@@ -26,12 +26,19 @@ sudo mv ~/freessh /etc/opk
 sudo chown root /etc/opk/freessh
 sudo chmod 700 /etc/opk/freessh 
 ```
-4. Create our policy on the server
+5. Create our policy on the server
 ```bash
-sudo touch /etc/opk/policy
-sudo echo "${YOUR_EMAIL} ec2-user" > /etc/opk/policy
-sudo chown root /etc/opk/policy
+echo "${YOUR_EMAIL} ${USER}" | sudo tee /etc/opk/policy
 sudo chmod 600 /etc/opk/policy
+```
+6. Add the folowing lines to the sshd file `/etc/ssh/sshd_config`
+```bash
+AuthorizedKeysCommand /etc/opk/freessh verify %u %k %t
+AuthorizedKeysCommandUser root
+```
+7. Restart sshd
+```bash
+sudo systemctl restart sshd
 ```
 
 ## Connecting via the Client
@@ -49,5 +56,5 @@ ssh lucie-linux-agent "curl -s http://169.254.169.254/latest/meta-data/public-ip
 ```
 4. SSH to server
 ```bash
-ssh ${IP_ADDRESS}
+ssh ${USER}@${IP_ADDRESS}
 ```
