@@ -91,7 +91,16 @@ func (o *OpkClient) OidcAuth(
 
 			w.Write([]byte("You may now close this window"))
 
-			requestURL := fmt.Sprintf("http://localhost:3003/sign?authcode=%s", mfaAuthCode)
+			// msgHashSum := sha3.Sum256([]byte(mfaAuthCode))
+			// sig, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
+
+			sig, err := pkt.NewSignedMessage([]byte(mfaAuthCode), signer)
+			if err != nil {
+				fmt.Printf("error signing mfaauthcode  %s\n", err)
+				os.Exit(1)
+			}
+
+			requestURL := fmt.Sprintf("http://localhost:3003/sign?authcode=%s&sig=%s", mfaAuthCode, sig)
 			res, err := http.Get(requestURL)
 			if err != nil {
 				fmt.Printf("error making http request: %s\n", err)

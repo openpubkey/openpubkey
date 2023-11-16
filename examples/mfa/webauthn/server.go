@@ -1,6 +1,7 @@
 package webauthn
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -306,8 +307,24 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authcode := []byte(r.URL.Query().Get("authcode"))
+	sig := []byte(r.URL.Query().Get("sig"))
+	if err != nil {
+		fmt.Println("error debase64ing sig:", err)
+		return
+	}
 
 	if pkt, ok := s.authCodeMap[string(authcode)]; ok {
+
+		msg, err := pkt.VerifySignedMessage(sig)
+		if err != nil {
+			fmt.Println("error verifying sig:", err)
+			return
+		}
+		if !bytes.Equal(msg, authcode) {
+			fmt.Println("error message doesn't make authcode:", err)
+			return
+		}
+
 		if err := s.cosigner.Cosign(pkt); err != nil {
 			fmt.Println("error cosigning:", err)
 			return

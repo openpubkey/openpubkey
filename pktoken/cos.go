@@ -64,6 +64,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	return &claims, nil
 }
 
+// TODO: This is not secure because it does not check that issuer is the expected issuer
 func (p *PKToken) VerifyCosignerSignature() error {
 	if p.Cos == nil {
 		return fmt.Errorf("no cosigner signature")

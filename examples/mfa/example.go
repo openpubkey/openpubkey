@@ -67,6 +67,11 @@ func main() {
 		}
 		fmt.Println("New PK token generated")
 
+		// Verify our pktoken including the cosigner signature
+		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
+			fmt.Println("failed to verify PK token:", err)
+		}
+
 		pktJson, err := json.Marshal(pkt)
 		if err != nil {
 			fmt.Println("error serializing pktJson: ", err)
