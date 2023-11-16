@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"crypto"
+	"net/http"
 	"time"
 
 	"github.com/awnumar/memguard"
@@ -36,6 +37,28 @@ func NewMockOpenIdProvider() (*MockOpenIdProvider, error) {
 }
 
 func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+	token := openid.New()
+
+	token.Set("nonce", cicHash)
+	token.Set("email", "arthur.aardvark@example.com")
+
+	// Required token payload values for OpenID
+	token.Set(jwt.IssuerKey, issuer)
+	token.Set(jwt.AudienceKey, audience)
+	token.Set(jwt.IssuedAtKey, time.Now().Unix())
+	token.Set(jwt.ExpirationKey, time.Now().Add(24*time.Hour).Unix())
+	token.Set(jwt.SubjectKey, "1234567890")
+
+	// Sign the token with the secret key
+	signedToken, err := jwt.Sign(token, jwt.WithKey(m.alg, m.signer))
+	if err != nil {
+		return nil, err
+	}
+	return memguard.NewBufferFromBytes(signedToken), nil
+}
+
+func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, callback func(w http.ResponseWriter, r *http.Request, pktJson []byte, state string) []byte) (*memguard.LockedBuffer, error) {
+
 	token := openid.New()
 
 	token.Set("nonce", cicHash)

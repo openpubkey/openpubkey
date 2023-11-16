@@ -31,8 +31,8 @@
                 .replace(/=+$/, ''); // Remove padding
         }
 
-        async function register() {
-            let response = await fetch('/register/begin', {
+        async function register(pkt) {
+            let response = await fetch(`/register/begin?pkt=${pkt}`, {
                 method: 'GET'
             });
 
@@ -60,7 +60,7 @@
             }
 
             // Send credentials back to server to save
-            let res = await fetch('/register/finish', {
+            let res = await fetch(`/register/finish?pkt=${pkt}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -75,8 +75,8 @@
             console.log("Registration complete!");
         }
 
-        async function login() {
-            let response = await fetch('/login/begin', {
+        async function login(pkt) {
+            let response = await fetch(`/login/begin?pkt=${pkt}`, {
                 method: 'GET'
             });
 
@@ -93,7 +93,7 @@
             let assertion = await navigator.credentials.get(data);
 
             // Send credentials back to server to save
-            let res = await fetch('/login/finish', {
+            let res = await fetch(`/login/finish?pkt=${pkt}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -115,22 +115,32 @@
                 throw new Error(`HTTP error! status: ${res.status}`);
             }
 
+            let authcodeData = await res.json();
+            window.location.replace(authcodeData.redirect_uri);
+
             console.log("Login complete!");
         }
 
         document.addEventListener('DOMContentLoaded', async (event) => {
             const statusDiv = document.getElementById('status');
+            
+            
+            const queryString = window.location.search;
+            let searchParams = new URLSearchParams(queryString);
+            const pkt = searchParams.get('pkt')
+            console.log(pkt);
 
-            const response = await fetch('/check-registration', {
+            const response = await fetch(`/check-registration?pkt=${pkt}`, {
                 method: 'GET',
             });
 
-            let data = response.json();
+
+            let data = await response.json();
 
             if (!data.isRegistered) {
                 try {
                     statusDiv.textContent = "Registering user with WebAuthn...";
-                    await register();
+                    await register(pkt);
                 } catch(error) {
                     statusDiv.textContent = `Error during registration: ${error}`;
                     await fetch('/done', {
@@ -145,7 +155,7 @@
 
             try {
                 statusDiv.textContent = "Authenticating user with WebAuthn...";
-                await login();
+                let response = await login(pkt);
             } catch(error) {
                 statusDiv.textContent = `Error during login: ${error}`;
                 await fetch('/done', {
@@ -157,10 +167,14 @@
                 });
             }
 
-            statusDiv.textContent = "MFA authentication complete! You may now close this window";
+
+
+            statusDiv.textContent = "MFA authentication complete!";
             await fetch('/done', {
                 method: 'GET',
             });
+
+  
         })
     </script>
 </body>

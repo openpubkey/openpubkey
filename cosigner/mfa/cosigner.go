@@ -49,9 +49,9 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 }
 
 func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
-	if err := c.mfa.Authenticate(pkt); err != nil {
-		return err
-	}
+	// if err := c.mfa.Authenticate(pkt); err != nil {
+	// 	return err
+	// }
 
 	mac := hmac.New(crypto.SHA3_512.New, c.hmacKey)
 	mac.Write(c.authIdIter.Bytes())
@@ -67,7 +67,7 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
-		RedirectURI: c.mfa.URI(),
+		RedirectURI: "http://localhost:3003",
 	}
 
 	jsonBytes, err := json.Marshal(protected)

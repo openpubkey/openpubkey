@@ -1,26 +1,33 @@
 package webauthn
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 
+	"encoding/hex"
+
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/cosigner/mfa"
+	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 type Server struct {
-	uri      string
-	doneChan chan error
-	user     User
-	auth     *webauthn.WebAuthn
-	session  *webauthn.SessionData
+	uri         string
+	doneChan    chan error
+	user        User
+	users       map[string]User
+	auth        *webauthn.WebAuthn
+	session     *webauthn.SessionData
+	authCodeMap map[string]*pktoken.PKToken
+	cosigner    *mfa.Cosigner
 }
 
 type User interface {
@@ -35,11 +42,20 @@ func New() (*Server, error) {
 		doneChan: make(chan error),
 	}
 
-	listener, err := net.Listen("tcp", ":0")
+	cosigner, err := initCosigner()
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind to an available port: %w", err)
+		fmt.Println("failed to initialize cosigner: ", err)
+		return nil, err
 	}
-	server.uri = fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port)
+
+	server.cosigner = cosigner
+
+	// listener, err := net.Listen("tcp", ":0")
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to bind to an available port: %w", err)
+	// }
+	// server.uri = fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port)
+	server.uri = fmt.Sprintf("http://localhost:3003")
 
 	// WebAuthn configuration
 	cfg := &webauthn.Config{
@@ -48,10 +64,14 @@ func New() (*Server, error) {
 		RPOrigin:      server.uri,
 	}
 
-	server.auth, err = webauthn.New(cfg)
+	wauth, err := webauthn.New(cfg)
 	if err != nil {
 		return nil, err
 	}
+	server.auth = wauth
+
+	server.users = make(map[string]User)
+	server.authCodeMap = make(map[string]*pktoken.PKToken)
 
 	http.Handle("/", http.FileServer(http.Dir("webauthn/static")))
 
@@ -63,13 +83,12 @@ func New() (*Server, error) {
 	http.HandleFunc("/login/begin", server.beginLogin)
 	http.HandleFunc("/login/finish", server.finishLogin)
 
+	http.HandleFunc("/sign", server.signPkt)
+
 	http.HandleFunc("/done", server.done)
 
-	go func() {
-		http.Serve(listener, nil)
-	}()
-
-	return server, nil
+	err = http.ListenAndServe(":3003", nil)
+	return nil, err
 }
 
 func (s *Server) URI() string {
@@ -123,10 +142,13 @@ func (s *Server) done(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
-	registered := false
-	if len(s.user.WebAuthnCredentials()) > 0 {
-		registered = true
+	email, _, _, err := ClaimsFromPktInURL(r)
+	if err != nil {
+		http.Error(w, "Error reading pkt in URI", http.StatusInternalServerError)
+		return
 	}
+	_, ok := s.users[string(email)]
+	registered := ok
 
 	response, _ := json.Marshal(map[string]bool{
 		"isRegistered": registered,
@@ -136,8 +158,49 @@ func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
+func ClaimsFromPktInURL(r *http.Request) (string, string, *pktoken.PKToken, error) {
+	err := r.ParseForm()
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	pktB64 := []byte(r.URL.Query().Get("pkt"))
+	pktJson, err := util.Base64DecodeForJWT(pktB64)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	var pkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, &pkt); err != nil {
+		return "", "", nil, err
+	}
+
+	var claims struct {
+		Subject string `json:"sub"`
+		Email   string `json:"email"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+		return "", "", nil, err
+	}
+
+	return claims.Email, claims.Subject, pkt, nil
+}
+
 func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
-	options, session, err := s.auth.BeginRegistration(s.user)
+	email, subject, _, err := ClaimsFromPktInURL(r)
+
+	if err != nil {
+		fmt.Printf("Error attempting to unmarshal pkt: %v", err)
+		http.Error(w, "Error attempting to unmarshal pkt:", http.StatusBadRequest)
+		return
+	}
+	cred := &user{
+		id:          []byte(subject),
+		username:    email,
+		displayName: strings.Split(email, "@")[0],
+	}
+
+	options, session, err := s.auth.BeginRegistration(cred)
 	if err != nil {
 		fmt.Println("Failed to begin webauthn registration:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -157,14 +220,25 @@ func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request) {
-	credential, err := s.auth.FinishRegistration(s.user, *s.session, r)
+	email, subject, _, err := ClaimsFromPktInURL(r)
+
+	cred := &user{
+		id:          []byte(subject),
+		username:    email,
+		displayName: strings.Split(email, "@")[0],
+	}
+
+	credential, err := s.auth.FinishRegistration(cred, *s.session, r)
 	if err != nil {
 		fmt.Println("Failed to finish registration:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	s.user.AddCredential(*credential)
+	cred.AddCredential(*credential)
+
+	// TODO: Check if user already has a cred and reject so that an attacker can't just overwrite an existing cred
+	s.users[email] = cred
 
 	w.WriteHeader(201)
 	w.Write([]byte("MFA registration Successful! You may now close this window"))
@@ -172,7 +246,9 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
-	options, session, err := s.auth.BeginLogin(s.user)
+	email, _, _, err := ClaimsFromPktInURL(r)
+
+	options, session, err := s.auth.BeginLogin(s.users[email])
 	if err != nil {
 		fmt.Println("Failed to begin webauthn login:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -193,16 +269,101 @@ func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
-	credential, err := s.auth.FinishLogin(s.user, *s.session, r)
+	email, _, pkt, err := ClaimsFromPktInURL(r)
+
+	credential, err := s.auth.FinishLogin(s.users[email], *s.session, r)
 	if err != nil {
 		fmt.Println("Failed to finish login:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	s.user.AddCredential(*credential)
+	s.users[email].AddCredential(*credential)
+	// w.Write([]byte("MFA login successful!"))
+
+	authCode, err := s.GenAuthCode(pkt)
+	if err != nil {
+		fmt.Println("Failed to generate authcode:", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	mfaURI := fmt.Sprintf("http://localhost:3000/mfacallback?authcode=%s", authCode)
+
+	response, _ := json.Marshal(map[string]string{
+		"redirect_uri": mfaURI,
+	})
 
 	w.WriteHeader(201)
-	w.Write([]byte("MFA login successful! You may now close this window"))
-	fmt.Println("MFA login complete")
+	w.Write(response)
+}
+
+func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Println("error parsing authcode:", err)
+		return
+	}
+
+	authcode := []byte(r.URL.Query().Get("authcode"))
+
+	if pkt, ok := s.authCodeMap[string(authcode)]; ok {
+		if err := s.cosigner.Cosign(pkt); err != nil {
+			fmt.Println("error cosigning:", err)
+			return
+		}
+
+		pktJson, err := json.Marshal(pkt)
+		if err != nil {
+			fmt.Println("error unmarshal:", err)
+			return
+		}
+
+		pktB64 := util.Base64EncodeForJWT(pktJson)
+
+		response, _ := json.Marshal(map[string]string{
+			"pkt": string(pktB64),
+		})
+
+		w.WriteHeader(201)
+		w.Write(response)
+	}
+
+}
+
+func (s *Server) GenAuthCode(pkt *pktoken.PKToken) (string, error) {
+
+	authCodeBytes := make([]byte, 32)
+
+	if _, err := rand.Read(authCodeBytes); err != nil {
+		return "", err
+	}
+
+	authCode := hex.EncodeToString(authCodeBytes)
+	s.authCodeMap[authCode] = pkt
+	return authCode, nil
+}
+
+func initCosigner() (*mfa.Cosigner, error) {
+	// authenticator, err := webauthn.New()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// Generate the key pair for our cosigner
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	if err != nil {
+		return nil, err
+	}
+
+	kid := "test-kid"
+	server, err := jwks.NewServer(signer, alg, kid)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
+
+	return mfa.NewCosigner(signer, alg, server.URI(), kid, nil)
 }
