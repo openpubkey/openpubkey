@@ -74,7 +74,7 @@ func New() (*Server, error) {
 	server.users = make(map[string]User)
 	server.authCodeMap = make(map[string]*pktoken.PKToken)
 
-	http.Handle("/", http.FileServer(http.Dir("webauthn/static")))
+	http.Handle("/", http.FileServer(http.Dir("../mfa/webauthn/static")))
 
 	http.HandleFunc("/check-registration", server.checkIfRegistered)
 
