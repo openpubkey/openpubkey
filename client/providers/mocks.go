@@ -3,13 +3,13 @@ package providers
 import (
 	"context"
 	"crypto"
-	"net/http"
 	"time"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -57,7 +57,7 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	return memguard.NewBufferFromBytes(signedToken), nil
 }
 
-func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, callback func(w http.ResponseWriter, r *http.Request, pktJson []byte, state string) []byte) (*memguard.LockedBuffer, error) {
+func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.OidcEnder) (*client.OidcDone, error) {
 
 	token := openid.New()
 
@@ -76,7 +76,10 @@ func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash strin
 	if err != nil {
 		return nil, err
 	}
-	return memguard.NewBufferFromBytes(signedToken), nil
+	oidc := client.OidcDone{
+		Token: memguard.NewBufferFromBytes(signedToken),
+	}
+	return &oidc, nil
 }
 
 func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {

@@ -107,7 +107,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 }
 
-func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, callback func(w http.ResponseWriter, r *http.Request, idt []byte, state string) []byte) (*memguard.LockedBuffer, error) {
+func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.OidcEnder) (*client.OidcDone, error) {
 
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
@@ -130,7 +130,7 @@ func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, callbac
 		return uuid.New().String()
 	}
 
-	ch := make(chan []byte)
+	ch := make(chan client.OidcDone)
 	chErr := make(chan error)
 
 	http.Handle("/login", rp.AuthURLHandler(state, provider, rp.WithURLParam("nonce", cicHash)))
@@ -141,13 +141,11 @@ func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, callbac
 			return
 		}
 
-		pktCosJson := callback(w, r, []byte(tokens.IDToken), state)
+		ch <- client.OidcDone{
+			Token: memguard.NewBufferFromBytes([]byte(tokens.IDToken)),
+		}
 
-		ch <- pktCosJson
-
-		// g.server.Shutdown(ctx)
-
-		// w.Write([]byte("You may now close this window"))
+		oidcEnder(w, r)
 	}
 	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
 
@@ -168,13 +166,15 @@ func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, callbac
 		}
 	}()
 
-	defer g.server.Shutdown(ctx)
+	// defer g.server.Shutdown(ctx)
 
 	select {
 	case err := <-chErr:
 		return nil, err
-	case pktCosJson := <-ch:
-		return memguard.NewBufferFromBytes(pktCosJson), nil
+	case oidcDone := <-ch:
+		// w := oidcDone.WriteHttp
+		// w.Write([]byte("You may now close this window2"))
+		return &oidcDone, nil
 	}
 }
 

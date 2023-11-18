@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
@@ -48,112 +47,107 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
-	callback := func(w http.ResponseWriter, r *http.Request, idt []byte, state string) []byte {
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return nil
-		}
-		idToken := memguard.NewBufferFromBytes(idt)
-
-		// Sign over the payload from the ID token and client instance claims
-		cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
-		if err != nil {
-			fmt.Errorf("error creating cic token: %w", err)
-			return nil
-		}
-
-		// Combine our ID token and signature over the cic to create our PK Token
-		pkt, err := pktoken.New(idToken.Bytes(), cicToken)
-		if err != nil {
-			fmt.Printf("error creating PK Token: %w", err)
-			return nil
-		}
-
-		err = VerifyPKToken(ctx, pkt, o.Op)
-		if err != nil {
-			fmt.Printf("error verifying PK Token: %w", err)
-		}
-
-		// w.Write([]byte("You may now close this window"))
-		pktJson, err := json.Marshal(pkt)
-		if err != nil {
-			fmt.Printf("error serializing PK Token: %w", err)
-		}
-
-		ch2 := make(chan []byte)
-		// This is where we get the mfa authcode
-		mfaAuthCodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			params := r.URL.Query()
-			fmt.Printf("params: %s\n", params)
-			mfaAuthCode := params["authcode"][0]
-
-			fmt.Printf("Successfully Received Auth Code: %v\n", mfaAuthCode)
-
-			w.Write([]byte("You may now close this window"))
-
-			// msgHashSum := sha3.Sum256([]byte(mfaAuthCode))
-			// sig, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
-
-			sig, err := pkt.NewSignedMessage([]byte(mfaAuthCode), signer)
-			if err != nil {
-				fmt.Printf("error signing mfaauthcode  %s\n", err)
-				os.Exit(1)
-			}
-
-			requestURL := fmt.Sprintf("http://localhost:3003/sign?authcode=%s&sig=%s", mfaAuthCode, sig)
-			res, err := http.Get(requestURL)
-			if err != nil {
-				fmt.Printf("error making http request: %s\n", err)
-				os.Exit(1)
-			}
-
-			fmt.Printf("client: got response!\n")
-			fmt.Printf("client: status code: %d\n", res.StatusCode)
-			resBody, err := io.ReadAll(res.Body)
-			if err != nil {
-				fmt.Printf("client: could not read response body: %s\n", err)
-				os.Exit(1)
-			}
-			fmt.Printf("resBody: %s\n", resBody)
-
-			var jsonResp struct {
-				PktB64 string `json:"pkt"`
-			}
-			if err := json.Unmarshal(resBody, &jsonResp); err != nil {
-				fmt.Printf("client: could not read response body: %s\n", err)
-				os.Exit(1)
-			}
-			pktCosB64 := []byte(jsonResp.PktB64)
-
-			pktCosJson, err := util.Base64DecodeForJWT(pktCosB64)
-
-			ch2 <- pktCosJson
-		})
-		http.Handle("/mfacallback", mfaAuthCodeHandler)
-
-		pktB63 := util.Base64EncodeForJWT(pktJson)
-
-		mfaURI := fmt.Sprintf("http://localhost:3003/?pkt=%s", string(pktB63))
-		http.Redirect(w, r, mfaURI, http.StatusFound)
-		fmt.Printf("Redirecting: \n")
-
-		select {
-		case pktCosJson := <-ch2:
-			return pktCosJson
-		}
-
+	redirCh := make(chan string)
+	oidcEnder := func(w http.ResponseWriter, r *http.Request) {
+		redirectUri := <-redirCh
+		http.Redirect(w, r, redirectUri, http.StatusFound)
 	}
-
-	pktCosJson, err := o.Op.RequestTokensCos(ctx, string(nonce), callback)
+	oidcDone, err := o.Op.RequestTokensCos(ctx, string(nonce), oidcEnder)
 	if err != nil {
 		return nil, err
 	}
-	var pkt *pktoken.PKToken
+	idToken := oidcDone.Token
 
-	if err := json.Unmarshal(pktCosJson.Bytes(), &pkt); err != nil {
-		fmt.Printf("client: could not unmarshal pktCos: %s\n", err)
+	// Sign over the payload from the ID token and client instance claims
+	cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
+	if err != nil {
+		fmt.Errorf("error creating cic token: %w", err)
 		return nil, err
-	} else {
+	}
+
+	// Combine our ID token and signature over the cic to create our PK Token
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	if err != nil {
+		fmt.Printf("error creating PK Token: %w", err)
+		return nil, err
+	}
+
+	err = VerifyPKToken(ctx, pkt, o.Op)
+	if err != nil {
+		fmt.Printf("error verifying PK Token: %w", err)
+		return nil, err
+	}
+
+	return o.CosAuth(signer, pkt, redirCh)
+
+}
+
+func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+	ch2 := make(chan []byte)
+	// This is where we get the mfa authcode
+	mfaAuthCodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		fmt.Printf("params: %s\n", params)
+		mfaAuthCode := params["authcode"][0]
+
+		fmt.Printf("Successfully Received Auth Code: %v\n", mfaAuthCode)
+
+		sig, err := pkt.NewSignedMessage([]byte(mfaAuthCode), signer)
+		if err != nil {
+			fmt.Printf("error signing mfaauthcode  %s\n", err)
+			os.Exit(1)
+		}
+
+		requestURL := fmt.Sprintf("http://localhost:3003/sign?authcode=%s&sig=%s", mfaAuthCode, sig)
+
+		res, err := http.Get(requestURL)
+		if err != nil {
+			fmt.Printf("error making http request: %s\n", err)
+			os.Exit(1)
+		}
+
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			fmt.Printf("client: could not read response body: %s\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("resBody: %s\n", resBody)
+
+		var jsonResp struct {
+			PktB64 string `json:"pkt"`
+		}
+		if err := json.Unmarshal(resBody, &jsonResp); err != nil {
+			fmt.Printf("client: could not read response body: %s\n", err)
+			os.Exit(1)
+		}
+		pktCosB64 := []byte(jsonResp.PktB64)
+
+		pktCosJson, err := util.Base64DecodeForJWT(pktCosB64)
+
+		w.Write([]byte("You may now close this window"))
+
+		ch2 <- pktCosJson
+	})
+	http.Handle("/mfacallback", mfaAuthCodeHandler)
+
+	pktJson, err := json.Marshal(pkt)
+	if err != nil {
+		fmt.Printf("error serializing PK Token: %w", err)
+	}
+
+	pktB63 := util.Base64EncodeForJWT(pktJson)
+
+	redirCh <- fmt.Sprintf("http://localhost:3003/?pkt=%s", string(pktB63))
+
+	fmt.Printf("Redirecting: \n")
+
+	select {
+	case pktCosJson := <-ch2:
+		var pkt *pktoken.PKToken
+		if err := json.Unmarshal(pktCosJson, &pkt); err != nil {
+			fmt.Printf("client: could not read response body: %s\n", err)
+			return nil, err
+		}
 		return pkt, nil
 	}
 }
