@@ -24,7 +24,6 @@ import (
 )
 
 var (
-	//
 	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
 	clientSecret     = "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" // Google requires a ClientSecret even if this a public OIDC App
 	issuer           = "https://accounts.google.com"
