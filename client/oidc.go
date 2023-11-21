@@ -10,6 +10,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -93,8 +94,15 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	switch sigType {
 	case pktoken.Gq:
+		origHeaders, err := gq.OriginalJWTHeaders(idt)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(origHeaders))
+
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-		pubKey, err := provider.PublicKey(ctx, idt)
+		pubKey, err := provider.PublicKey(ctx, origHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}

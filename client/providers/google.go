@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
@@ -120,12 +120,19 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
-	j, err := jws.Parse(idt)
+func (g *GoogleOp) PublicKey(ctx context.Context, headersEnc []byte) (crypto.PublicKey, error) {
+	headersJSON, err := util.Base64DecodeForJWT(headersEnc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWS: %w", err)
+		return nil, err
 	}
-	kid := j.Signatures()[0].ProtectedHeaders().KeyID()
+
+	headers := make(map[string]any)
+	err = json.Unmarshal(headersJSON, &headers)
+	if err != nil {
+		return nil, err
+	}
+
+	kid := headers["kid"].(string)
 
 	discConf, err := oidcclient.Discover(g.Issuer, http.DefaultClient)
 	if err != nil {
@@ -139,7 +146,7 @@ func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey,
 
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
-		return nil, fmt.Errorf("key isn't in JWKS")
+		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
 	}
 
 	pubKey := new(rsa.PublicKey)
