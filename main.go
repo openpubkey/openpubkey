@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"freessh/policy"
+	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"os"
@@ -22,13 +24,13 @@ import (
 )
 
 var (
-	clientID     = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
-	issuer       = "https://accounts.google.com"
-	scopes       = []string{"openid profile email"}
-	redirURIPort = "3000"
-	callbackPath = "/login-callback"
-	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
+	//
+	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
+	clientSecret     = "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" // Google requires a ClientSecret even if this a public OIDC App
+	issuer           = "https://accounts.google.com"
+	scopes           = []string{"openid profile email"}
+	avilableURIPorts = []int{49172, 51252, 58243, 59360, 62109}
+	callbackPath     = "/login-callback"
 )
 
 // This code is currently intended as an example for how OpenPubkey can secure SSH access.
@@ -39,12 +41,31 @@ func main() {
 	}
 	command := os.Args[1]
 
+	redirectURIPort := 0
+	for index, port := range avilableURIPorts {
+		fmt.Printf(strconv.Itoa(index), port)
+		available, err := checkPortIsAvailable(port)
+		if err != nil {
+			fmt.Printf("Port %v is not available.", port)
+		} else if available {
+			redirectURIPort = port
+			break
+		}
+	}
+
+	// If none of our preconfigured ports are available, then let the user know and exit
+	if redirectURIPort == 0 {
+		fmt.Printf("Log in listener could not bind to any of the default ports. Please make sure atleast one of the ports is open/whitelisted.")
+	}
+
+	redirectURI := fmt.Sprintf("http://localhost:%v%v", redirectURIPort, callbackPath)
+
 	op := providers.GoogleOp{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Issuer:       issuer,
 		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
+		RedirURIPort: strconv.Itoa(redirectURIPort),
 		CallbackPath: callbackPath,
 		RedirectURI:  redirectURI,
 	}
@@ -257,4 +278,28 @@ func log(line string) {
 			fmt.Println("Couldn't write to file")
 		}
 	}
+}
+
+// Reference -> https://gist.github.com/montanaflynn/b59c058ce2adc18f31d6
+// Check if a port is available
+func checkPortIsAvailable(port int) (status bool, err error) {
+
+	// Concatenate a colon and the port
+	host := ":" + strconv.Itoa(port)
+
+	// Try to create a server with the port
+	server, err := net.Listen("tcp", host)
+
+	// if it fails then the port is likely taken
+	if err != nil {
+		return false, err
+	}
+
+	// close the server
+	server.Close()
+
+	// we successfully used and closed the port
+	// so it's now available to be used again
+	return true, nil
+
 }
