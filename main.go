@@ -23,8 +23,18 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// This code is currently intended as an example for how OpenPubkey can secure
-// SSH access.
+// This code is currently intended as an example for how OpenPubkey can secure SSH access.
+var (
+	//
+	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
+	clientSecret     = "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" // Google requires a ClientSecret even if this a public OIDC App
+	issuer           = "https://accounts.google.com"
+	scopes           = []string{"openid profile email"}
+	avilableURIPorts = []int{49172, 51252, 58243, 59360, 62109}
+	callbackPath     = "/login-callback"
+)
+
+// This code is currently intended as an example for how OpenPubkey can secure SSH access.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
@@ -34,6 +44,22 @@ func main() {
 
 	// OIDC provider is hardcoded to Google for now
 	op := internal.GoogleOp
+	redirectURIPort := 0
+	for index, port := range avilableURIPorts {
+		fmt.Printf(strconv.Itoa(index), port)
+		available, err := checkPortIsAvailable(port)
+		if err != nil {
+			fmt.Printf("Port %v is not available.", port)
+		} else if available {
+			redirectURIPort = port
+			break
+		}
+	}
+
+	// If none of our preconfigured ports are available, then let the user know and exit
+	if redirectURIPort == 0 {
+		fmt.Printf("Log in listener could not bind to any of the default ports. Please make sure atleast one of the ports is open/whitelisted.")
+	}
 
 	switch command {
 	case "login":
