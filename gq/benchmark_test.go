@@ -27,8 +27,12 @@ func BenchmarkSigning(b *testing.B) {
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
 
+	var signerVerifier gq.SignerVerifier
 	for i := 0; i < b.N; i++ {
-		signerVerifier, _ := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err = gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		if err != nil {
+			b.Fatal(err)
+		}
 		_, err = signerVerifier.SignJWT(matrix[i].token)
 	}
 
