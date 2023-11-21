@@ -2,11 +2,13 @@ package gq
 
 import (
 	"crypto/rsa"
+	"encoding/json"
 	"io"
 	"math/big"
 
 	"filippo.io/bigmod"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -96,16 +98,23 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	return bytes, nil
 }
 
-func parseJWT(jwt []byte) ([]byte, []byte, error) {
-	headers, payload, signature, err := jws.SplitCompact(jwt)
+func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
+	headersEnc, _, _, err := jws.SplitCompact(jwt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Signatures are over header and payload in the base64 url-encoded byte
-	// form of `header + '.' + payload`
-	signingPayload := append(headers, []byte(".")...)
-	signingPayload = append(signingPayload, payload...)
+	headersJSON, err := util.Base64DecodeForJWT(headersEnc)
+	if err != nil {
+		return nil, err
+	}
 
-	return signingPayload, signature, nil
+	headers := make(map[string]any)
+	err = json.Unmarshal(headersJSON, &headers)
+	if err != nil {
+		return nil, err
+	}
+
+	origHeaders := []byte(headers["orig"].(string))
+	return origHeaders, nil
 }
