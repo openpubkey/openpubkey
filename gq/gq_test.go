@@ -27,8 +27,11 @@ func TestProveVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// FIXME:
-	signerVerifier, _ := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gqToken, err := signerVerifier.SignJWT(idToken)
 	if err != nil {
 		t.Fatal(err)
