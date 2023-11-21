@@ -28,8 +28,6 @@ func BenchmarkSigning(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		// FIXME:
-		fmt.Println("pooooo")
 		signerVerifier, _ := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		_, err = signerVerifier.SignJWT(matrix[i].token)
 	}
