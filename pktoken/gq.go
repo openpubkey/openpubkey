@@ -17,7 +17,6 @@ func (p *PKToken) VerifyGQSig(pubKey *rsa.PublicKey, gqSecurityParameter int) er
 	if err != nil {
 		return err
 	}
-
 	ok := sv.VerifyJWT(token)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
