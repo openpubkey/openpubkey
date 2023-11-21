@@ -65,7 +65,11 @@ func (o *OpkClient) OidcAuth(
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
-		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		sv, err := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		if err != nil {
+			return nil, fmt.Errorf("error creating GQ signature: %w", err)
+		}
+
 		gqToken, err := sv.SignJWT(idToken.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
@@ -74,7 +78,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken, signGQ)
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}

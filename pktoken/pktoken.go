@@ -36,15 +36,9 @@ type PKToken struct {
 	Cos     *Signature // Cosigner Signature
 }
 
-func New(idToken []byte, cicToken []byte, isGQ bool) (*PKToken, error) {
+func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	pkt := &PKToken{}
-
-	sigType := Oidc
-	if isGQ {
-		sigType = Gq
-	}
-
-	if err := pkt.AddSignature(idToken, sigType); err != nil {
+	if err := pkt.AddSignature(idToken, Oidc); err != nil {
 		return nil, err
 	}
 
