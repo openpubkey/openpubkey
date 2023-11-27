@@ -28,12 +28,17 @@ type Server struct {
 	auth        *webauthn.WebAuthn
 	session     *webauthn.SessionData
 	authCodeMap map[string]*pktoken.PKToken
-	cosigner    *mfa.Cosigner
+	cosigner    *MfaCosigner
 }
 
 type User interface {
 	webauthn.User
 	AddCredential(cred webauthn.Credential)
+}
+
+type InitMFAAuth struct {
+	RedirectUri string `json:"ruri"`
+	TimeSigned  int64  `json:"time"`
 }
 
 var _ mfa.Authenticator = (*Server)(nil)
@@ -76,6 +81,8 @@ func New() (*Server, error) {
 
 	http.Handle("/", http.FileServer(http.Dir("../mfa/webauthn/static")))
 
+	http.HandleFunc("/mfa-auth-init", server.initAuth)
+
 	http.HandleFunc("/check-registration", server.checkIfRegistered)
 
 	http.HandleFunc("/register/begin", server.beginRegistration)
@@ -96,29 +103,90 @@ func (s *Server) URI() string {
 	return s.uri
 }
 
+func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		return
+	}
+
+	pktB64 := []byte(r.URL.Query().Get("pkt"))
+	pktJson, err := util.Base64DecodeForJWT(pktB64)
+	if err != nil {
+		return
+	}
+
+	var pkt *pktoken.PKToken
+	if err := json.Unmarshal(pktJson, &pkt); err != nil {
+		return
+	}
+	var claims struct {
+		Subject string `json:"sub"`
+	}
+	fmt.Println("wew", claims)
+
+	sig := []byte(r.URL.Query().Get("sig"))
+	// pktJson, err := util.Base64DecodeForJWT(pktB64)
+	// if err != nil {
+	// 	return
+	// }
+
+	_, err = pkt.VerifySignedMessage(sig)
+	if err != nil {
+		fmt.Println("error verifying sig:", err)
+		return
+	}
+
+	var initMFAAuth *InitMFAAuth
+	if err := json.Unmarshal(sig, &initMFAAuth); err != nil {
+		fmt.Printf("error creating init auth message: %s", err)
+	}
+
+	authId := s.cosigner.NewAuthID(pkt, initMFAAuth.RedirectUri)
+
+	if s.cosigner.IsRegistered(claims.Subject) {
+		regURI := fmt.Sprintf("/register/%s", authId)
+
+		response, _ := json.Marshal(map[string]string{
+			"redirect_uri": regURI,
+		})
+
+		w.WriteHeader(201)
+		w.Write(response)
+	} else {
+		loginUri := fmt.Sprintf("/login/%s", authId)
+
+		response, _ := json.Marshal(map[string]string{
+			"redirect_uri": loginUri,
+		})
+
+		w.WriteHeader(201)
+		w.Write(response)
+	}
+}
+
 // TODO: This function trusts that the requesting party is allowed to request MFA
 // authentication. According to the paper, this should be doing the POP Auth flow
 // to verify that the requesting party has the corresponding signing key. Details
 // in https://github.com/openpubkey/openpubkey/issues/58
-func (s *Server) Authenticate(pkt *pktoken.PKToken) error {
-	// extract our user information from the id token
-	var claims struct {
-		Subject string `json:"sub"`
-		Email   string `json:"email"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return err
-	}
+// func (s *Server) Authenticate(pkt *pktoken.PKToken) error {
+// 	// extract our user information from the id token
+// 	var claims struct {
+// 		Subject string `json:"sub"`
+// 		Email   string `json:"email"`
+// 	}
+// 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+// 		return err
+// 	}
 
-	s.user = &user{
-		id:          []byte(claims.Subject),
-		username:    claims.Email,
-		displayName: strings.Split(claims.Email, "@")[0],
-	}
+// 	s.user = &user{
+// 		id:          []byte(claims.Subject),
+// 		username:    claims.Email,
+// 		displayName: strings.Split(claims.Email, "@")[0],
+// 	}
 
-	util.OpenUrl(s.uri)
-	return <-s.doneChan
-}
+// 	util.OpenUrl(s.uri)
+// 	return <-s.doneChan
+// }
 
 func (s *Server) done(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
@@ -143,11 +211,47 @@ func (s *Server) done(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
-	email, _, _, err := ClaimsFromPktInURL(r)
+	email, _, pkt, err := ClaimsFromPktInURL(r)
 	if err != nil {
 		http.Error(w, "Error reading pkt in URI", http.StatusInternalServerError)
 		return
 	}
+
+	err = r.ParseForm()
+	if err != nil {
+		http.Error(w, "Error reading sig in URI", http.StatusInternalServerError)
+		return
+	}
+
+	sigB64 := []byte(r.URL.Query().Get("sig"))
+	sig, err := util.Base64DecodeForJWT(sigB64)
+	if err != nil {
+		http.Error(w, "Error reading sig in URI", http.StatusInternalServerError)
+		return
+	}
+
+	//TODO: deserialize
+	fmt.Printf("%s \n", sig)
+
+	_, err = pkt.VerifySignedMessage(sig)
+	if err != nil {
+		fmt.Println("error verifying sig:", err)
+		return
+	}
+
+	var initMFAAuth struct {
+		redirectUri string `json:"ruri"`
+		currentTime int64  `json:"time"`
+	}
+
+	if err := json.Unmarshal(pkt.Payload, &initMFAAuth); err != nil {
+		fmt.Println("error unmarshaling osmMsg:", err)
+		return
+	}
+
+	// TODO: Save redirect URI
+	// TODO: check time is expired
+
 	_, ok := s.users[string(email)]
 	registered := ok
 
@@ -308,10 +412,6 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 
 	authcode := []byte(r.URL.Query().Get("authcode"))
 	sig := []byte(r.URL.Query().Get("sig"))
-	if err != nil {
-		fmt.Println("error debase64ing sig:", err)
-		return
-	}
 
 	if pkt, ok := s.authCodeMap[string(authcode)]; ok {
 
@@ -361,7 +461,7 @@ func (s *Server) GenAuthCode(pkt *pktoken.PKToken) (string, error) {
 	return authCode, nil
 }
 
-func initCosigner() (*mfa.Cosigner, error) {
+func initCosigner() (*MfaCosigner, error) {
 	// authenticator, err := webauthn.New()
 	// if err != nil {
 	// 	return nil, err
@@ -382,5 +482,5 @@ func initCosigner() (*mfa.Cosigner, error) {
 
 	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
 
-	return mfa.NewCosigner(signer, alg, server.URI(), kid, nil)
+	return NewCosigner(signer, alg, server.URI(), kid)
 }

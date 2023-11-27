@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -82,7 +83,9 @@ func (o *OpkClient) OidcAuth(
 
 }
 
-func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken,
+	redirCh chan string) (*pktoken.PKToken, error) {
+
 	ch2 := make(chan []byte)
 	// This is where we get the mfa authcode
 	mfaAuthCodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,10 +137,29 @@ func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh 
 	if err != nil {
 		fmt.Printf("error serializing PK Token: %w", err)
 	}
-
 	pktB63 := util.Base64EncodeForJWT(pktJson)
 
-	redirCh <- fmt.Sprintf("http://localhost:3003/?pkt=%s", string(pktB63))
+	type InitMFAAuth struct {
+		redirectUri string `json:"ruri"`
+		currentTime int64  `json:"time"`
+	}
+
+	initAuthMsg := InitMFAAuth{
+		redirectUri: "http://localhost:3000/mfacallback",
+		currentTime: time.Now().Unix(),
+	}
+	initAuthMsgJson, err := json.Marshal(initAuthMsg)
+	if err != nil {
+		fmt.Printf("error creating init auth message: %w", err)
+	}
+
+	sig1, err := pkt.NewSignedMessage([]byte(initAuthMsgJson), signer)
+	if err != nil {
+		fmt.Printf("error signing init auth message  %s\n", err)
+		os.Exit(1)
+	}
+
+	redirCh <- fmt.Sprintf("http://localhost:3003/?pkt=%s&sig1=%s", string(pktB63), string(sig1))
 
 	fmt.Printf("Redirecting: \n")
 

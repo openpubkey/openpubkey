@@ -13,6 +13,11 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
+type AuthState struct {
+	Pkt      *pktoken.PKToken
+	InitTime int64
+}
+
 type Cosigner struct {
 	issuer     string
 	keyID      string
@@ -21,12 +26,15 @@ type Cosigner struct {
 	authIdIter *big.Int
 	hmacKey    []byte
 
+	authIdMap   map[string]*AuthState
+	authCodeMap map[string]string
+
 	// The MFA in MFACosigner, we use this to authenticate the user
 	mfa Authenticator
 }
 
 type Authenticator interface {
-	Authenticate(pkt *pktoken.PKToken) error
+	// Authenticate(pkt *pktoken.PKToken) error
 	URI() string
 }
 
@@ -48,16 +56,21 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	}, nil
 }
 
-func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
-	// if err := c.mfa.Authenticate(pkt); err != nil {
-	// 	return err
-	// }
-
+func (c *Cosigner) NewAuthID(pkt *pktoken.PKToken) string {
 	mac := hmac.New(crypto.SHA3_512.New, c.hmacKey)
 	mac.Write(c.authIdIter.Bytes())
 	authID := hex.EncodeToString(mac.Sum(nil))
 
 	c.authIdIter.Add(c.authIdIter, big.NewInt(1))
+
+	return authID
+}
+
+func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
+	// if err := c.mfa.Authenticate(pkt); err != nil {
+	// 	return err
+	// }
+	authID := c.NewAuthID(pkt)
 
 	protected := pktoken.CosignerClaims{
 		ID:          c.issuer,
