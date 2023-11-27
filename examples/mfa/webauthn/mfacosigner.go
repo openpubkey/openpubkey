@@ -57,7 +57,23 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	}, nil
 }
 
-func (c *MfaCosigner) NewAuthID(pkt *pktoken.PKToken, ruri string) string {
+func (c *MfaCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error) {
+
+	msg, err := pkt.VerifySignedMessage(sig)
+	if err != nil {
+		return "", err
+	}
+
+	var initMFAAuth *InitMFAAuth
+	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
+		fmt.Printf("error creating init auth message: %s", err)
+	}
+	authId := c.CreateAuthID(pkt, initMFAAuth.RedirectUri)
+
+	return authId, err
+}
+
+func (c *MfaCosigner) CreateAuthID(pkt *pktoken.PKToken, ruri string) string {
 	authIdInt := c.authIdIter.Add(1)
 	timeNow := time.Now().Unix()
 
@@ -105,7 +121,7 @@ func (c *MfaCosigner) CheckAuthcode(authcode []byte, sig []byte) ([]byte, error)
 		return nil, err
 	}
 
-	if err := c.Cosign(pkt); err != nil {
+	if err := c.Cosign(pkt, authId); err != nil {
 		fmt.Println("error cosigning:", err)
 		return nil, err
 
@@ -122,44 +138,13 @@ func (c *MfaCosigner) CheckAuthcode(authcode []byte, sig []byte) ([]byte, error)
 	return pktB64, nil
 }
 
-// func (c *MfaCosigner) InitAuth(v url.Values) error {
-// 	authId := c.NewAuthID()
-
-// 	pktB64 := []byte(v.Get("pkt"))
-// 	pktJson, err := util.Base64DecodeForJWT(pktB64)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	var pkt *pktoken.PKToken
-// 	if err := json.Unmarshal(pktJson, &pkt); err != nil {
-// 		return err
-// 	}
-
-// 	var claims struct {
-// 		Subject string `json:"sub"`
-// 	}
-// 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-// 		return err
-// 	}
-
-// 	if c.IsRegistered(claims.Subject) {
-
-// 	} else {
-
-// 	}
-// }
-
 func (c *MfaCosigner) IsRegistered(sub string) bool {
 	_, ok := c.subDeviceMap[sub]
 	return ok
 }
 
-func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken) error {
-	// if err := c.mfa.Authenticate(pkt); err != nil {
-	// 	return err
-	// }
-	authID := "abcde" //c.NewAuthID(pkt)
+func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken, authID string) error {
+	authState := c.authIdMap[authID]
 
 	protected := pktoken.CosignerClaims{
 		ID:          c.issuer,
@@ -169,7 +154,7 @@ func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken) error {
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
-		RedirectURI: "http://localhost:3003",
+		RedirectURI: authState.RedirectUri,
 	}
 
 	jsonBytes, err := json.Marshal(protected)

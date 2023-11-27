@@ -2,8 +2,8 @@ package webauthn
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -34,17 +34,29 @@ func TestInitAuth(t *testing.T) {
 	}
 
 	ruri := "https://example.com/mfaredirect"
-	authId := cos.NewAuthID(pkt, ruri)
-	fmt.Println(authId)
-
-	authcode, err := cos.NewAuthcode(authId)
+	msg := InitMFAAuth{
+		RedirectUri: ruri,
+		TimeSigned:  time.Now().Unix(),
+	}
+	msgJson, err := json.Marshal(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sig, err := pkt.NewSignedMessage(authcode, signer)
+	sig, err := pkt.NewSignedMessage(msgJson, signer)
+	authID, err := cos.InitAuth(pkt, sig)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	pktCosB64, err := cos.CheckAuthcode(authcode, sig)
+	authcode, err := cos.NewAuthcode(authID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
+
+	pktCosB64, err := cos.CheckAuthcode(authcode, authcodeSig)
 	if err != nil {
 		t.Fatal(err)
 	}

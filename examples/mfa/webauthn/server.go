@@ -1,7 +1,6 @@
 package webauthn
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -108,13 +107,11 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-
 	pktB64 := []byte(r.URL.Query().Get("pkt"))
 	pktJson, err := util.Base64DecodeForJWT(pktB64)
 	if err != nil {
 		return
 	}
-
 	var pkt *pktoken.PKToken
 	if err := json.Unmarshal(pktJson, &pkt); err != nil {
 		return
@@ -122,29 +119,23 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 	var claims struct {
 		Subject string `json:"sub"`
 	}
-	fmt.Println("wew", claims)
-
-	sig := []byte(r.URL.Query().Get("sig"))
-	// pktJson, err := util.Base64DecodeForJWT(pktB64)
-	// if err != nil {
-	// 	return
-	// }
-
-	_, err = pkt.VerifySignedMessage(sig)
+	err = json.Unmarshal(pkt.Payload, &claims)
 	if err != nil {
-		fmt.Println("error verifying sig:", err)
+		http.Error(w, "Error deserializing PK Token payload", http.StatusInternalServerError) // TODO: Decide what these errors should be
 		return
 	}
 
-	var initMFAAuth *InitMFAAuth
-	if err := json.Unmarshal(sig, &initMFAAuth); err != nil {
-		fmt.Printf("error creating init auth message: %s", err)
+	sig := []byte(r.URL.Query().Get("sig"))
+
+	authID, err := s.cosigner.InitAuth(pkt, sig)
+
+	if err != nil {
+		http.Error(w, "Error initiating authentication", http.StatusInternalServerError)
+		return
 	}
 
-	authId := s.cosigner.NewAuthID(pkt, initMFAAuth.RedirectUri)
-
 	if s.cosigner.IsRegistered(claims.Subject) {
-		regURI := fmt.Sprintf("/register/%s", authId)
+		regURI := fmt.Sprintf("/register/%s", authID)
 
 		response, _ := json.Marshal(map[string]string{
 			"redirect_uri": regURI,
@@ -153,7 +144,7 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 		w.Write(response)
 	} else {
-		loginUri := fmt.Sprintf("/login/%s", authId)
+		loginUri := fmt.Sprintf("/login/%s", authID)
 
 		response, _ := json.Marshal(map[string]string{
 			"redirect_uri": loginUri,
@@ -413,23 +404,11 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	authcode := []byte(r.URL.Query().Get("authcode"))
 	sig := []byte(r.URL.Query().Get("sig"))
 
-	if pkt, ok := s.authCodeMap[string(authcode)]; ok {
-
-		msg, err := pkt.VerifySignedMessage(sig)
-		if err != nil {
-			fmt.Println("error verifying sig:", err)
-			return
-		}
-		if !bytes.Equal(msg, authcode) {
-			fmt.Println("error message doesn't make authcode:", err)
-			return
-		}
-
-		if err := s.cosigner.Cosign(pkt); err != nil {
-			fmt.Println("error cosigning:", err)
-			return
-		}
-
+	if pkt, err := s.cosigner.CheckAuthcode(authcode, sig); err != nil {
+		fmt.Println("Signature Grant Failed:", err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	} else {
 		pktJson, err := json.Marshal(pkt)
 		if err != nil {
 			fmt.Println("error unmarshal:", err)
@@ -437,7 +416,6 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		}
 
 		pktB64 := util.Base64EncodeForJWT(pktJson)
-
 		response, _ := json.Marshal(map[string]string{
 			"pkt": string(pktB64),
 		})
@@ -445,6 +423,24 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 		w.Write(response)
 	}
+
+	// if pkt, ok := s.authCodeMap[string(authcode)]; ok {
+
+	// 	msg, err := pkt.VerifySignedMessage(sig)
+	// 	if err != nil {
+	// 		fmt.Println("error verifying sig:", err)
+	// 		return
+	// 	}
+	// 	if !bytes.Equal(msg, authcode) {
+	// 		fmt.Println("error message doesn't make authcode:", err)
+	// 		return
+	// 	}
+
+	// 	if err := s.cosigner.Cosign(pkt); err != nil {
+	// 		fmt.Println("error cosigning:", err)
+	// 		return
+	// 	}
+	// }
 
 }
 
