@@ -1,7 +1,6 @@
 package gq
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"io"
 	"math/big"
@@ -47,8 +46,6 @@ type signerVerifier struct {
 	vBytes int
 	// t is the signature length parameter
 	t int
-	// rng is a source of randomness used to blind sensitive operations
-	rng io.Reader
 }
 
 // NewSignerVerifier creates a SignerVerifier from the RSA public key of the trusted third-party which creates
@@ -59,7 +56,7 @@ func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerV
 	n, v, nBytes, vBytes, err := parsePublicKey(publicKey)
 	t := securityParameter / (vBytes * 8)
 
-	return &signerVerifier{n, v, nBytes, vBytes, t, rand.Reader}, err
+	return &signerVerifier{n, v, nBytes, vBytes, t}, err
 }
 
 func parsePublicKey(publicKey *rsa.PublicKey) (n *bigmod.Modulus, v *big.Int, nBytes int, vBytes int, err error) {

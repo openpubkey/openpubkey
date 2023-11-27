@@ -35,9 +35,8 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	// combine to form W
 	var W []byte
 	for i := 0; i < t; i++ {
-		W_i := natAsInt(bigmod.NewNat().Exp(r[i], v.Bytes(), n), n)
-		b := make([]byte, nBytes)
-		W = append(W, W_i.FillBytes(b)...)
+		W_i := bigmod.NewNat().Exp(r[i], v.Bytes(), n)
+		W = append(W, W_i.Bytes(n)...)
 	}
 
 	// Stage 3 - calculate question number R
@@ -63,8 +62,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	for i := 0; i < t; i++ {
 		S_i := bigmod.NewNat().Exp(Q, Rs[i].Bytes(n), n)
 		S_i.Mul(r[i], n)
-		b := make([]byte, nBytes)
-		S = append(S, natAsInt(S_i, n).FillBytes(b)...)
+		S = append(S, S_i.Bytes(n)...)
 	}
 
 	// proof is combination of R and S
@@ -118,38 +116,33 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 	var r *big.Int
 	var rConstant, xr *bigmod.Nat
 
-	if sv.rng != nil {
-		// If we have a source of randomness, apply RSA blinding to the ModInverse operation.
-		// Translates the technique formerly used in the Go Standard Library before they
-		// switched to bigmod in late 2022. Since bigmod does not yet support constant-time
-		// ModInverse, we perform the blinding so that the value of the private key is not
-		// detectable via side channel.
-		// Ref: https://github.com/golang/go/blob/5f60f844beb0581a19cb425a3338d79d322a7db2/src/crypto/rsa/rsa.go#L567-L596
-		//
-		// For a secret value x, the idea is to find m = 1/x mod n by calculating
-		// rm/r mod n ==> r/(xr) mod n, where r is a random value
+	// If we have a source of randomness, apply RSA blinding to the ModInverse operation.
+	// Translates the technique formerly used in the Go Standard Library before they
+	// switched to bigmod in late 2022. Since bigmod does not yet support constant-time
+	// ModInverse, we perform the blinding so that the value of the private key is not
+	// detectable via side channel.
+	// Ref: https://github.com/golang/go/blob/5f60f844beb0581a19cb425a3338d79d322a7db2/src/crypto/rsa/rsa.go#L567-L596
+	//
+	// For a secret value x, the idea is to find m = 1/x mod n by calculating
+	// rm/r mod n ==> r/(xr) mod n, where r is a random value
 
-		var err error
-		MaybeReadByte(sv.rng)
-
-		for {
-			// draw r
-			r, err = rand.Int(sv.rng, nInt)
-			if err != nil || r.Cmp(bigZero) == 0 {
-				return nil, err
-			}
-
-			// compute xr = x * r
-			xr, err = intAsNat(r, sv.n)
-			if err != nil {
-				continue
-			}
-			xr.Mul(x, sv.n)
-
-			// overwrite x with the blinded value
-			x = xr
-			break
+	for {
+		// draw r
+		r, err = rand.Int(rand.Reader, nInt)
+		if err != nil {
+			return nil, err
 		}
+
+		// compute xr = x * r
+		xr, err = intAsNat(r, sv.n)
+		if err != nil {
+			continue
+		}
+		xr.Mul(x, sv.n)
+
+		// overwrite x with the blinded value
+		x = xr
+		break
 	}
 
 	// calculate m/r mod n
@@ -159,14 +152,12 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 		return nil, err
 	}
 
-	if sv.rng != nil {
-		// remove the blinding by multiplying m/r by r
-		rConstant, err = intAsNat(r, sv.n)
-		if err != nil {
-			return nil, err
-		}
-		mConstant.Mul(rConstant, sv.n)
+	// remove the blinding by multiplying m/r by r
+	rConstant, err = intAsNat(r, sv.n)
+	if err != nil {
+		return nil, err
 	}
+	mConstant.Mul(rConstant, sv.n)
 
 	mFinal := natAsInt(mConstant, sv.n)
 
@@ -190,19 +181,14 @@ func randomNumbers(t int, nBytes int, n *bigmod.Modulus) ([]*bigmod.Nat, error) 
 	ys := make([]*bigmod.Nat, t)
 
 	for i := 0; i < t; i++ {
-		for {
-			// It's possible that the size-|n| random number we generated is
-			// larger than n. In this case, SetBytes will return an error.
-			// So we just try again until our number is smaller than n
-			bytes, err := randomBytes(rand.Reader, nBytes)
-			if err != nil {
-				return nil, err
-			}
+		bytes, err := randomBytes(rand.Reader, nBytes)
+		if err != nil {
+			return nil, err
+		}
 
-			ys[i], err = bigmod.NewNat().SetBytes(bytes, n)
-			if err == nil {
-				break
-			}
+		ys[i], err = bigmod.NewNat().SetOverflowingBytes(bytes, n)
+		if err != nil {
+			return nil, err
 		}
 	}
 
