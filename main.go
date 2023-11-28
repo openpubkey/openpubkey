@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"freessh/policy"
+	"freessh/sshcert"
 	"path/filepath"
 	"strings"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
@@ -73,7 +73,6 @@ func main() {
 			client := &client.OpkClient{
 				Op: &op,
 			}
-
 			certBytes, seckeySshPem, err := createSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
 			if err != nil {
 				fmt.Println(err)
@@ -155,7 +154,6 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 	if err != nil {
 		return nil, nil, err
 	}
-
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
