@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"freessh/policy"
 	"freessh/sshcert"
+	"log"
 	"path/filepath"
 	"strings"
 
@@ -39,6 +40,7 @@ func main() {
 	}
 	command := os.Args[1]
 
+	// Configure OIDC provider
 	op := providers.GoogleOp{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -53,7 +55,7 @@ func main() {
 	case "login":
 		{
 			if len(os.Args) != 2 {
-				fmt.Println("ERROR: login does not accept any arguments")
+				fmt.Println("ERROR login does not accept any arguments")
 				os.Exit(1)
 			}
 
@@ -88,10 +90,20 @@ func main() {
 			os.Exit(0)
 		}
 	case "verify":
+		// Setup logger
+		logPath := "/var/log/openpubkey.log"
+		logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
+		if err != nil {
+			fmt.Println("ERROR opening log file:", err)
+			os.Exit(1)
+		}
+		defer logFile.Close()
+		log.SetOutput(logFile)
+
 		// The "verify" command is designed to be used by sshd and specified as an AuthorizedKeysCommand
 		// ref: https://man.openbsd.org/sshd_config#AuthorizedKeysCommand
 		{
-			log(strings.Join(os.Args, " "))
+			log.Println(strings.Join(os.Args, " "))
 			policyEnforcer := policy.Enforcer{
 				PolicyFilePath: "/etc/opk/policy",
 			}
@@ -113,7 +125,7 @@ func main() {
 
 			authKey, err := authorizedKeysCommand(user, certB64, pubkeyType, policyEnforcer.CheckPolicy, &op)
 			if err != nil {
-				log(fmt.Sprint(err))
+				log.Println(err)
 				os.Exit(1)
 			} else {
 				fmt.Println(authKey)
@@ -121,7 +133,7 @@ func main() {
 			}
 		}
 	default:
-		fmt.Println("ERROR: Unrecognized command:", command)
+		fmt.Println("ERROR! Unrecognized command:", command)
 	}
 }
 
@@ -243,16 +255,4 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 func fileExists(fPath string) bool {
 	_, err := os.Open(fPath)
 	return !errors.Is(err, os.ErrNotExist)
-}
-
-func log(line string) {
-	f, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
-	if err != nil {
-		fmt.Println("Couldn't write to file")
-	} else {
-		defer f.Close()
-		if _, err = f.WriteString(line + "\n"); err != nil {
-			fmt.Println("Couldn't write to file")
-		}
-	}
 }
