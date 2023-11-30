@@ -9,8 +9,6 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-var bigZero = big.NewInt(0)
-
 // Sign creates a GQ1 signature over the given message with the given GQ1 private number.
 //
 // Comments throughout refer to stages as specified in the ISO/IEC 14888-2 standard.
