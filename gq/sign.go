@@ -24,7 +24,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 
 	// Stage 1 - select t numbers, each consisting of nBytes random bytes.
 	// In order to guarantee our operation is constant time, we deviate slightly
-	// from this instruction and directly select an integer less than n
+	// from the standard and directly select an integer less than n
 	r, err := randomNumbers(t, sv.n)
 	if err != nil {
 		return nil, err
