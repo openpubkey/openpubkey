@@ -134,6 +134,9 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 		// compute xr = x * r
 		xr, err = intAsNat(r, sv.n)
 		if err != nil {
+			// this error is non-fatal because it implies only that the random
+			// value could not be modded by n. This should be impossible given
+			// that r < n but we still need to catch the error case
 			continue
 		}
 		xr.Mul(x, sv.n)
@@ -176,15 +179,16 @@ func encodeProof(R, S []byte) []byte {
 }
 
 func randomNumbers(t int, nBytes int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
+	nInt := modAsInt(n)
 	ys := make([]*bigmod.Nat, t)
 
 	for i := 0; i < t; i++ {
-		bytes, err := randomBytes(rand.Reader, nBytes)
+		r, err := rand.Int(rand.Reader, nInt)
 		if err != nil {
 			return nil, err
 		}
 
-		ys[i], err = bigmod.NewNat().SetOverflowingBytes(bytes, n)
+		ys[i], err = intAsNat(r, n)
 		if err != nil {
 			return nil, err
 		}
