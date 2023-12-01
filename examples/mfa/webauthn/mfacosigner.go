@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -22,16 +24,17 @@ import (
 type AuthState struct {
 	Pkt         *pktoken.PKToken
 	RedirectUri string
+	Session     *webauthn.SessionData
 }
 
 type MfaCosigner struct {
-	issuer     string
-	keyID      string
-	alg        jwa.KeyAlgorithm
-	signer     crypto.Signer
-	authIdIter atomic.Uint64
-	hmacKey    []byte
-
+	issuer       string
+	keyID        string
+	alg          jwa.KeyAlgorithm
+	signer       crypto.Signer
+	authIdIter   atomic.Uint64
+	hmacKey      []byte
+	auth         *webauthn.WebAuthn
 	authIdMap    map[string]*AuthState
 	authCodeMap  map[string]string
 	subDeviceMap map[string]webauthn.User
@@ -44,6 +47,18 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 		return nil, err
 	}
 
+	// WebAuthn configuration
+	cfg := &webauthn.Config{
+		RPDisplayName: "OpenPubkey",
+		RPID:          "localhost",
+		RPOrigin:      "RP origin",
+	}
+
+	wauth, err := webauthn.New(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MfaCosigner{
 		issuer:       issuer,
 		keyID:        keyID,
@@ -51,6 +66,7 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 		signer:       signer,
 		authIdIter:   atomic.Uint64{},
 		hmacKey:      hmacKey,
+		auth:         wauth,
 		authIdMap:    make(map[string]*AuthState),
 		authCodeMap:  make(map[string]string),
 		subDeviceMap: make(map[string]webauthn.User),
@@ -192,4 +208,118 @@ func PktFromURL(v url.Values) (string, *pktoken.PKToken, error) {
 	}
 
 	return claims.Subject, pkt, nil
+}
+
+func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCreation, *webauthn.SessionData, error) {
+
+	authState := c.authIdMap[authID]
+	var claims struct {
+		Subject string `json:"sub"`
+		Email   string `json:"email"`
+	}
+	err := json.Unmarshal(authState.Pkt.Payload, &claims)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cred := &user{
+		id:          []byte(claims.Subject),
+		username:    claims.Email,
+		displayName: strings.Split(claims.Email, "@")[0],
+	}
+
+	creation, session, err := c.auth.BeginRegistration(cred)
+
+	authState.Session = session
+
+	return creation, session, err
+}
+
+func (c *MfaCosigner) FinishRegistration(authID string) error {
+
+	authState := c.authIdMap[authID]
+	var claims struct {
+		Subject string `json:"sub"`
+		Email   string `json:"email"`
+	}
+	err := json.Unmarshal(authState.Pkt.Payload, &claims)
+	if err != nil {
+		return err
+	}
+
+	cred := &user{
+		id:          []byte(claims.Subject),
+		username:    claims.Email,
+		displayName: strings.Split(claims.Email, "@")[0],
+	}
+
+	// credential, err := c.auth.FinishRegistration(cred, *authState.Session, r)
+	var parsedResponse *protocol.ParsedCredentialCreationData
+	credential, err := c.auth.CreateCredential(cred, *authState.Session, parsedResponse)
+	cred.AddCredential(*credential)
+
+	// TODO: Check if user already has a cred and reject so that an attacker can't just overwrite an existing cred
+	if _, ok := c.subDeviceMap[claims.Subject]; ok != false {
+		return fmt.Errorf("Already has a webauthn device registered for this user")
+	} else {
+		c.subDeviceMap[claims.Subject] = cred
+		return nil
+	}
+}
+
+func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, *webauthn.SessionData, error) {
+
+	authState := c.authIdMap[authID]
+	var claims struct {
+		Subject string `json:"sub"`
+		Email   string `json:"email"`
+	}
+	err := json.Unmarshal(authState.Pkt.Payload, &claims)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	creation, session, err := c.auth.BeginLogin(c.subDeviceMap[claims.Subject])
+	if err != nil {
+		return nil, nil, err
+	}
+	authState.Session = session
+	return creation, session, err
+}
+
+func (c *MfaCosigner) FinishLogin(authID string) ([]byte, error) {
+
+	authState := c.authIdMap[authID]
+	var claims struct {
+		Subject string `json:"sub"`
+		Email   string `json:"email"`
+	}
+	err := json.Unmarshal(authState.Pkt.Payload, &claims)
+	if err != nil {
+		return nil, err
+	}
+
+	cred := c.subDeviceMap[claims.Subject]
+
+	var parsedResponse *protocol.ParsedCredentialAssertionData
+	_, err = c.auth.ValidateLogin(cred, *authState.Session, parsedResponse)
+	// credential, err := c.auth.FinishLogin(c.subDeviceMap[claims.Subject], *authState.Session, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Why do we need to do this?
+	// cred.AddCredential(*credential)
+
+	// w.Write([]byte("MFA login successful!"))
+
+	authCode, err := c.NewAuthcode(authID)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO:
+	// mfaURI := fmt.Sprintf("http://localhost:3000/mfacallback?authcode=%s", authCode)
+
+	return authCode, nil
 }
