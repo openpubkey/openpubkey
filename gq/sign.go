@@ -141,8 +141,8 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 		xr.Mul(x, sv.n)
 
 		// check that xr has a multiplicative inverse mod n. It is exceedingly
-		// rare but technically possible, in which case we need to draw a new
-		// value for r
+		// rare but technically possible for it not to, in which case we need
+		// to draw a new value for r
 		xrInt := natAsInt(xr, sv.n)
 		inverse := new(big.Int).ModInverse(xrInt, nInt)
 		if inverse != nil {
