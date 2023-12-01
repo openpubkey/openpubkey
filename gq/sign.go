@@ -114,7 +114,7 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 	var r *big.Int
 	var rConstant, xr *bigmod.Nat
 
-	// If we have a source of randomness, apply RSA blinding to the ModInverse operation.
+	// Apply RSA blinding to the ModInverse operation.
 	// Translates the technique formerly used in the Go Standard Library before they
 	// switched to bigmod in late 2022. Since bigmod does not yet support constant-time
 	// ModInverse, we perform the blinding so that the value of the private key is not
