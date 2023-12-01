@@ -14,7 +14,7 @@ import (
 // Comments throughout refer to stages as specified in the ISO/IEC 14888-2 standard.
 func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	n, v, t := sv.n, sv.v, sv.t
-	nBytes, vBytes := sv.nBytes, sv.vBytes
+	vBytes := sv.vBytes
 
 	M := message
 	Q, err := bigmod.NewNat().SetBytes(private, n)
@@ -22,8 +22,10 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Stage 1 - select t numbers, each consisting of nBytes random bytes
-	r, err := randomNumbers(t, nBytes, sv.n)
+	// Stage 1 - select t numbers, each consisting of nBytes random bytes.
+	// In order to guarantee our operation is constant time, we deviate slightly
+	// from this instruction and directly select an integer less than n
+	r, err := randomNumbers(t, sv.n)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +174,7 @@ func encodeProof(R, S []byte) []byte {
 	return util.Base64EncodeForJWT(bin)
 }
 
-func randomNumbers(t int, nBytes int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
+func randomNumbers(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 	nInt := modAsInt(n)
 	ys := make([]*bigmod.Nat, t)
 
