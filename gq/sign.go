@@ -124,27 +124,21 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 	// For a secret value x, the idea is to find m = 1/x mod n by calculating
 	// rm/r mod n ==> r/(xr) mod n, where r is a random value
 
-	for {
-		// draw r
-		r, err = rand.Int(rand.Reader, nInt)
-		if err != nil {
-			return nil, err
-		}
-
-		// compute xr = x * r
-		xr, err = intAsNat(r, sv.n)
-		if err != nil {
-			// this error is non-fatal because it implies only that the random
-			// value could not be modded by n. This should be impossible given
-			// that r < n but we still need to catch the error case
-			continue
-		}
-		xr.Mul(x, sv.n)
-
-		// overwrite x with the blinded value
-		x = xr
-		break
+	// draw r
+	r, err = rand.Int(rand.Reader, nInt)
+	if err != nil {
+		return nil, err
 	}
+
+	// compute xr = x * r
+	xr, err = intAsNat(r, sv.n)
+	if err != nil {
+		return nil, err
+	}
+	xr.Mul(x, sv.n)
+
+	// overwrite x with the blinded value
+	x = xr
 
 	// calculate m/r mod n
 	m := natAsInt(x, sv.n).ModInverse(natAsInt(x, sv.n), nInt)
