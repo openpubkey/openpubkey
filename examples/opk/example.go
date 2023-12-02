@@ -132,8 +132,11 @@ func main() {
 			os.Exit(0)
 		}
 	case "mfa":
-
-		_, err := webauthn.New()
+		rpID := "localhost"
+		serverUri := "http://localhost:3003"
+		rpOrigin := "http://localhost:3003"
+		rpDisplayName := "OpenPubkey"
+		_, err := webauthn.New(serverUri, rpID, rpOrigin, rpDisplayName)
 		if err != nil {
 			fmt.Println("error starting mfa server: ", err)
 			return

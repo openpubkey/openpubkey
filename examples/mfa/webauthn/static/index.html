@@ -31,8 +31,8 @@
                 .replace(/=+$/, ''); // Remove padding
         }
 
-        async function register(pkt) {
-            let response = await fetch(`/register/begin?pkt=${pkt}`, {
+        async function register(authid) {
+            let response = await fetch(`/register/begin?authid=${authid}`, {
                 method: 'GET'
             });
 
@@ -55,12 +55,14 @@
                 }
             };
             
+
+            // TODO: Is this needed? Where is cred used? Is credentials.response.userHandle always false so we never hit this?
             if (credentials.response.userHandle) {
                 cred.response.userHandle = base64UrlEncode(credentials.response.userHandle);
             }
 
             // Send credentials back to server to save
-            let res = await fetch(`/register/finish?pkt=${pkt}`, {
+            let res = await fetch(`/register/finish?authid=${authid}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -75,8 +77,8 @@
             console.log("Registration complete!");
         }
 
-        async function login(pkt) {
-            let response = await fetch(`/login/begin?pkt=${pkt}`, {
+        async function login(authid) {
+            let response = await fetch(`/login/begin?authid=${authid}`, {
                 method: 'GET'
             });
 
@@ -93,7 +95,7 @@
             let assertion = await navigator.credentials.get(data);
 
             // Send credentials back to server to save
-            let res = await fetch(`/login/finish?pkt=${pkt}`, {
+            let res = await fetch(`/login/finish?authid=${authid}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -127,10 +129,10 @@
             
             const queryString = window.location.search;
             let searchParams = new URLSearchParams(queryString);
-            const pkt = searchParams.get('pkt')
-            console.log(pkt);
+            const authid = searchParams.get('authid')
+            console.log(authid);
 
-            const response = await fetch(`/check-registration?pkt=${pkt}`, {
+            const response = await fetch(`/check-registration?authid=${authid}`, {
                 method: 'GET',
             });
 
@@ -140,7 +142,7 @@
             if (!data.isRegistered) {
                 try {
                     statusDiv.textContent = "Registering user with WebAuthn...";
-                    await register(pkt);
+                    await register(authid);
                 } catch(error) {
                     statusDiv.textContent = `Error during registration: ${error}`;
                     await fetch('/done', {
@@ -155,7 +157,7 @@
 
             try {
                 statusDiv.textContent = "Authenticating user with WebAuthn...";
-                let response = await login(pkt);
+                let response = await login(authid);
             } catch(error) {
                 statusDiv.textContent = `Error during login: ${error}`;
                 await fetch('/done', {

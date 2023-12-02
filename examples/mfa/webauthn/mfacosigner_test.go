@@ -12,8 +12,8 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -28,9 +28,17 @@ func TestInitAuth(t *testing.T) {
 	}
 	kid := "test-kid"
 	cosignerURI := "https://example.com/mfacosigner"
-	RPID := "http://localhost"
+	rpID := "http://localhost"
+	rpOrigin := "http://localhost"
 
-	cos, err := NewCosigner(signer, alg, cosignerURI, kid, RPID)
+	// WebAuthn configuration
+	cfg := &webauthn.Config{
+		RPDisplayName: "OpenPubkey",
+		RPID:          rpID,
+		RPOrigin:      rpOrigin,
+	}
+
+	cos, err := NewCosigner(signer, alg, cosignerURI, kid, cfg)
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,18 +72,7 @@ func TestInitAuth(t *testing.T) {
 
 	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
 
-	pktCosB64, err := cos.CheckAuthcode(authcode, authcodeSig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pktCosJson, err := util.Base64DecodeForJWT(pktCosB64)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var pktCos pktoken.PKToken
-	err = json.Unmarshal(pktCosJson, &pktCos)
+	pktCos, err := cos.RedeemAuthcode(authcode, authcodeSig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +100,22 @@ func TestFullFlow(t *testing.T) {
 	cosSigner, err := util.GenKeyPair(alg)
 	kid := "test-kid"
 	cosignerURI := "https://example.com/mfacosigner"
-	RPID := "http://localhost"
-	cos, err := NewCosigner(cosSigner, alg, cosignerURI, kid, RPID)
+	rpID := "http://localhost"
+	RPOrigin := "http://localhost"
+
+	// WebAuthn configuration
+	cfg := &webauthn.Config{
+		RPDisplayName: "OpenPubkey",
+		RPID:          rpID,
+		RPOrigin:      RPOrigin,
+	}
+	cos, err := NewCosigner(cosSigner, alg, cosignerURI, kid, cfg)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// Create our MFA device
-	wauthnDevice, err := NewWebauthnDevice(RPID)
+	wauthnDevice, err := NewWebauthnDevice(rpID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -157,12 +162,11 @@ func TestFullFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	authcodeRet, ruriRet, err := cos.FinishLogin(authID, loginResp)
+	authcode, ruriRet, err := cos.FinishLogin(authID, loginResp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,23 +177,15 @@ func TestFullFlow(t *testing.T) {
 		t.Fatal("Expected ruri to not be nil")
 	}
 
-	authcodeSig, err := pkt.NewSignedMessage(authcodeRet, signer)
+	// Step 4. Sign the authcode
+	//  and exchange it with the Cosigner to get the PK Token cosigned
+	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
 
-	pktCosB64, err := cos.CheckAuthcode(authcodeRet, authcodeSig)
+	pktCos, err := cos.RedeemAuthcode(authcode, authcodeSig)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pktCosJson, err := util.Base64DecodeForJWT(pktCosB64)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var pktCos pktoken.PKToken
-	err = json.Unmarshal(pktCosJson, &pktCos)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if pktCos.Cos == nil {
 		t.Fatal("Expected pktCos to be cosigned")
 	}
@@ -201,6 +197,7 @@ type WebAuthnDevice struct {
 	PubkeyCbor []byte
 	RpID       string
 	RpIDHash   []byte
+	Userhandle []byte
 }
 
 func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
@@ -232,10 +229,13 @@ func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
 		PubkeyCbor: pubkeyCborBytes,
 		RpID:       rpID,
 		RpIDHash:   rpIDHash[:],
+		Userhandle: nil,
 	}, nil
 }
 
 func (wa *WebAuthnDevice) RegResp(createCreation *protocol.CredentialCreation) (*protocol.ParsedCredentialCreationData, error) {
+	wa.Userhandle = []byte(createCreation.Response.User.ID.(protocol.URLEncodedBase64))
+
 	return &protocol.ParsedCredentialCreationData{
 		ParsedPublicKeyCredential: protocol.ParsedPublicKeyCredential{
 			ParsedCredential: protocol.ParsedCredential{
@@ -280,7 +280,10 @@ func (wa *WebAuthnDevice) LoginResp(credAssert *protocol.CredentialAssertion) (*
 				ID:   "AI7D5q2P0LS-Fal9ZT7CHM2N5BLbUunF92T8b6iYC199bO2kagSuU05-5dZGqb1SP0A0lyTWng",
 				Type: "public-key",
 			},
-			RawID: []byte{5, 1, 1, 1, 1},
+			RawID: []byte{5, 1, 1, 1, 1}, // Required field:
+			// Checked by Webauthn RP to see if public key supplied is on the
+			// allowlist of public keys for this user:
+			// parsedResponse.RawID == session.AllowedCredentialIDs?
 			ClientExtensionResults: map[string]interface{}{
 				"appID": "example.com",
 			},
@@ -302,8 +305,18 @@ func (wa *WebAuthnDevice) LoginResp(credAssert *protocol.CredentialAssertion) (*
 					CredentialPublicKey: []byte{1, 1, 1, 1, 5},
 				},
 			},
-			Signature:  []byte{1, 1, 1, 1, 6},
-			UserHandle: []byte("1234567890"), // ID Token sub
+			Signature: []byte{1, 1, 1, 1, 6},
+			// UserHandle: []byte(credAssert.Response.UserVerification), // Required field:
+
+			UserHandle: wa.Userhandle, // Required field:
+			// Checked by Webauthn RP to distinguish between different
+			// users accounts sharing the same device with the same RP.
+			// userHandle == user.WebAuthnID()?
+			//
+			// Not all devices can store a user handle it is allowed to be null
+			// https://developer.mozilla.org/en-US/docs/Web/API/AuthenticatorAssertionResponse/userHandle
+			//
+			// In OpenPubkey MFA Cosigner RP we set this to the ID Token sub
 		},
 		Raw: protocol.CredentialAssertionResponse{
 			PublicKeyCredential: protocol.PublicKeyCredential{

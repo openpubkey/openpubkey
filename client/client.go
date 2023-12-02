@@ -86,11 +86,12 @@ func (o *OpkClient) OidcAuth(
 func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken,
 	redirCh chan string) (*pktoken.PKToken, error) {
 
+	mfaCosignerURI := "http://localhost:3003"
+
 	ch2 := make(chan []byte)
 	// This is where we get the mfa authcode
 	mfaAuthCodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
-		fmt.Printf("params: %s\n", params)
 		mfaAuthCode := params["authcode"][0]
 
 		fmt.Printf("Successfully Received Auth Code: %v\n", mfaAuthCode)
@@ -101,7 +102,7 @@ func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken,
 			os.Exit(1)
 		}
 
-		requestURL := fmt.Sprintf("http://localhost:3003/sign?authcode=%s&sig=%s", mfaAuthCode, sig)
+		requestURL := fmt.Sprintf("%s/sign?authcode=%s&sig2=%s", mfaCosignerURI, mfaAuthCode, sig)
 
 		res, err := http.Get(requestURL)
 		if err != nil {
@@ -139,15 +140,17 @@ func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken,
 	}
 	pktB63 := util.Base64EncodeForJWT(pktJson)
 
+	// TODO: This should be a shared struct between MFA client and server
 	type InitMFAAuth struct {
-		redirectUri string `json:"ruri"`
-		currentTime int64  `json:"time"`
+		RedirectUri string `json:"ruri"`
+		TimeSigned  int64  `json:"time"`
 	}
 
 	initAuthMsg := InitMFAAuth{
-		redirectUri: "http://localhost:3000/mfacallback",
-		currentTime: time.Now().Unix(),
+		RedirectUri: "http://localhost:3000/mfacallback",
+		TimeSigned:  time.Now().Unix(),
 	}
+
 	initAuthMsgJson, err := json.Marshal(initAuthMsg)
 	if err != nil {
 		fmt.Printf("error creating init auth message: %w", err)
@@ -159,12 +162,11 @@ func (o *OpkClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken,
 		os.Exit(1)
 	}
 
-	redirCh <- fmt.Sprintf("http://localhost:3003/?pkt=%s&sig1=%s", string(pktB63), string(sig1))
-
-	fmt.Printf("Redirecting: \n")
+	redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", mfaCosignerURI, string(pktB63), string(sig1))
 
 	select {
 	case pktCosJson := <-ch2:
+		fmt.Println(string(pktCosJson))
 		var pkt *pktoken.PKToken
 		if err := json.Unmarshal(pktCosJson, &pkt); err != nil {
 			fmt.Printf("client: could not read response body: %s\n", err)

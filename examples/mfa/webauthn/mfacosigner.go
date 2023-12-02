@@ -17,7 +17,6 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/util"
 )
 
 type UserKey struct {
@@ -39,18 +38,37 @@ type AuthState struct {
 
 func NewAuthState(pkt *pktoken.PKToken, ruri string) (*AuthState, error) {
 	var claims struct {
-		Issuer string   `json:"iss"`
-		Aud    []string `json:"aud"` //TODO: This is a broken pattern as typically audience is not a JSON list, but as an artifact of our mock ID Token it is.
-		Sub    string   `json:"sub"`
-		Email  string   `json:"email"`
+		Issuer string `json:"iss"`
+		Aud    any    `json:"aud"` //TODO: This is a broken pattern as typically audience is not a JSON list, but as an artifact of our mock ID Token it is.
+		Sub    string `json:"sub"`
+		Email  string `json:"email"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return nil, err
 	} else {
+		var audience string
+
+		// An audience can be a string or an array of strings.
+		//
+		// RFC-7519 JSON Web Token (JWT) says:
+		// "In the general case, the "aud" value is an array of case-
+		// sensitive strings, each containing a StringOrURI value.  In the
+		// special case when the JWT has one audience, the "aud" value MAY be a
+		// single case-sensitive string containing a StringOrURI value."
+		// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+		switch t := claims.Aud.(type) {
+		case string:
+			audience = t
+		case []string:
+			audience = strings.Join(t, ",")
+		default:
+			return nil, fmt.Errorf("failed to deserialize aud (audience) claim in ID Token")
+		}
+
 		return &AuthState{
 			Pkt:         pkt,
 			Issuer:      claims.Issuer,
-			Aud:         strings.Join(claims.Aud, ","),
+			Aud:         audience,
 			Sub:         claims.Sub,
 			Username:    claims.Email,
 			DisplayName: strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
@@ -84,18 +102,11 @@ type MfaCosigner struct {
 	users       map[UserKey]*user
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID, RPID string) (*MfaCosigner, error) {
+func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
 
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err
-	}
-
-	// WebAuthn configuration
-	cfg := &webauthn.Config{
-		RPDisplayName: "OpenPubkey",
-		RPID:          RPID,
-		RPOrigin:      RPID,
 	}
 
 	wauth, err := webauthn.New(cfg)
@@ -158,7 +169,7 @@ func (c *MfaCosigner) NewAuthcode(authID string) ([]byte, error) {
 	return []byte(authCode), nil
 }
 
-func (c *MfaCosigner) CheckAuthcode(authcode []byte, sig []byte) ([]byte, error) {
+func (c *MfaCosigner) RedeemAuthcode(authcode []byte, sig []byte) (*pktoken.PKToken, error) {
 	if authID, ok := c.authCodeMap[string(authcode)]; !ok {
 		return nil, fmt.Errorf("Invalid authcode")
 	} else {
@@ -174,23 +185,27 @@ func (c *MfaCosigner) CheckAuthcode(authcode []byte, sig []byte) ([]byte, error)
 			fmt.Println("error message doesn't make authcode:", err)
 			return nil, err
 		}
-
 		if err := c.Cosign(pkt, authID); err != nil {
 			fmt.Println("error cosigning:", err)
 			return nil, err
-
 		}
 
-		pktJson, err := json.Marshal(pkt)
-		if err != nil {
-			fmt.Println("error unmarshal:", err)
-			return nil, err
-		}
+		// pktJson, err := json.Marshal(pkt)
+		// if err != nil {
+		// 	fmt.Println("error unmarshal:", err)
+		// 	return nil, err
+		// }
 
-		pktB64 := util.Base64EncodeForJWT(pktJson)
+		// pktB64 := util.Base64EncodeForJWT(pktJson)
 
-		return pktB64, nil
+		return pkt, nil
 	}
+}
+
+func (c *MfaCosigner) CheckIsRegistered(authID string) bool {
+	authState := c.authIdMap[authID]
+	userKey := authState.UserKey()
+	return c.IsRegistered(userKey)
 }
 
 func (c *MfaCosigner) IsRegistered(userKey UserKey) bool {
