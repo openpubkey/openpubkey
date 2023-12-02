@@ -117,7 +117,10 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var claims struct {
-		Subject string `json:"sub"`
+		Issuer   string   `json:"iss"`
+		Audience []string `json:"aud"`
+		Subject  string   `json:"sub"`
+		Email    string   `json:"email"`
 	}
 	err = json.Unmarshal(pkt.Payload, &claims)
 	if err != nil {
@@ -134,7 +137,8 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.cosigner.IsRegistered(claims.Subject) {
+	userKey := UserKey{Issuer: claims.Issuer, Aud: strings.Join(claims.Audience, ","), Sub: claims.Subject}
+	if s.cosigner.IsRegistered(userKey) {
 		regURI := fmt.Sprintf("/register/%s", authID)
 
 		response, _ := json.Marshal(map[string]string{
@@ -478,5 +482,5 @@ func initCosigner() (*MfaCosigner, error) {
 
 	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
 
-	return NewCosigner(signer, alg, server.URI(), kid)
+	return NewCosigner(signer, alg, server.URI(), kid, "http://localhost")
 }

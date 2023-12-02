@@ -73,7 +73,7 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 	authID := c.NewAuthID(pkt)
 
 	protected := pktoken.CosignerClaims{
-		ID:          c.issuer,
+		Iss:         c.issuer,
 		KeyID:       c.keyID,
 		Algorithm:   c.alg.String(),
 		AuthID:      authID,

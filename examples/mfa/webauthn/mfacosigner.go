@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -21,26 +20,71 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+type UserKey struct {
+	Issuer string // ID Token issuer (iss)
+	Aud    string // ID Token audience (aud)
+	Sub    string // ID Token subject ID (sub)
+}
+
 type AuthState struct {
 	Pkt         *pktoken.PKToken
-	RedirectUri string
+	Issuer      string // ID Token issuer (iss)
+	Aud         string // ID Token audience (aud)
+	Sub         string // ID Token subject ID (sub)
+	Username    string // ID Token email or username
+	DisplayName string // ID Token display name (or username if none given)
+	RedirectURI string // Redirect URI
 	Session     *webauthn.SessionData
 }
 
-type MfaCosigner struct {
-	issuer       string
-	keyID        string
-	alg          jwa.KeyAlgorithm
-	signer       crypto.Signer
-	authIdIter   atomic.Uint64
-	hmacKey      []byte
-	auth         *webauthn.WebAuthn
-	authIdMap    map[string]*AuthState
-	authCodeMap  map[string]string
-	subDeviceMap map[string]webauthn.User
+func NewAuthState(pkt *pktoken.PKToken, ruri string) (*AuthState, error) {
+	var claims struct {
+		Issuer string   `json:"iss"`
+		Aud    []string `json:"aud"` //TODO: This is a broken pattern as typically audience is not a JSON list, but as an artifact of our mock ID Token it is.
+		Sub    string   `json:"sub"`
+		Email  string   `json:"email"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+		return nil, err
+	} else {
+		return &AuthState{
+			Pkt:         pkt,
+			Issuer:      claims.Issuer,
+			Aud:         strings.Join(claims.Aud, ","),
+			Sub:         claims.Sub,
+			Username:    claims.Email,
+			DisplayName: strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
+			RedirectURI: ruri,
+		}, nil
+	}
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*MfaCosigner, error) {
+func (as AuthState) UserKey() UserKey {
+	return UserKey{Issuer: as.Issuer, Aud: as.Aud, Sub: as.Sub}
+}
+
+func (as *AuthState) NewUser() *user {
+	return &user{
+		id:          []byte(as.Sub),
+		username:    as.Username,
+		displayName: as.DisplayName,
+	}
+}
+
+type MfaCosigner struct {
+	Iss         string
+	keyID       string
+	alg         jwa.KeyAlgorithm
+	signer      crypto.Signer
+	authIdIter  atomic.Uint64
+	hmacKey     []byte
+	webAuthn    *webauthn.WebAuthn
+	authIdMap   map[string]*AuthState
+	authCodeMap map[string]string
+	users       map[UserKey]*user
+}
+
+func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID, RPID string) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
 
 	if _, err := rand.Read(hmacKey); err != nil {
@@ -50,8 +94,8 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	// WebAuthn configuration
 	cfg := &webauthn.Config{
 		RPDisplayName: "OpenPubkey",
-		RPID:          "localhost",
-		RPOrigin:      "RP origin",
+		RPID:          RPID,
+		RPOrigin:      RPID,
 	}
 
 	wauth, err := webauthn.New(cfg)
@@ -60,33 +104,36 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	}
 
 	return &MfaCosigner{
-		issuer:       issuer,
-		keyID:        keyID,
-		alg:          alg,
-		signer:       signer,
-		authIdIter:   atomic.Uint64{},
-		hmacKey:      hmacKey,
-		auth:         wauth,
-		authIdMap:    make(map[string]*AuthState),
-		authCodeMap:  make(map[string]string),
-		subDeviceMap: make(map[string]webauthn.User),
+		Iss:         issuer,
+		keyID:       keyID,
+		alg:         alg,
+		signer:      signer,
+		authIdIter:  atomic.Uint64{},
+		hmacKey:     hmacKey,
+		webAuthn:    wauth,
+		authIdMap:   make(map[string]*AuthState),
+		authCodeMap: make(map[string]string),
+		users:       make(map[UserKey]*user),
 	}, nil
 }
 
 func (c *MfaCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error) {
-
 	msg, err := pkt.VerifySignedMessage(sig)
 	if err != nil {
 		return "", err
 	}
-
 	var initMFAAuth *InitMFAAuth
 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
 		fmt.Printf("error creating init auth message: %s", err)
+		return "", err
+	} else if authState, err := NewAuthState(pkt, initMFAAuth.RedirectUri); err != nil {
+		fmt.Printf("error creating init auth state: %s", err)
+		return "", err
+	} else {
+		authID := c.CreateAuthID(pkt, initMFAAuth.RedirectUri)
+		c.authIdMap[authID] = authState
+		return authID, nil
 	}
-	authId := c.CreateAuthID(pkt, initMFAAuth.RedirectUri)
-
-	return authId, err
 }
 
 func (c *MfaCosigner) CreateAuthID(pkt *pktoken.PKToken, ruri string) string {
@@ -96,66 +143,58 @@ func (c *MfaCosigner) CreateAuthID(pkt *pktoken.PKToken, ruri string) string {
 	iterAndTime := []byte{}
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(authIdInt))
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(timeNow))
-
 	mac := hmac.New(crypto.SHA3_256.New, c.hmacKey)
-	mac.Write(iterAndTime)
-	authId := hex.EncodeToString(mac.Sum(nil))
 
-	c.authIdMap[authId] = &AuthState{
-		Pkt:         pkt,
-		RedirectUri: ruri,
-	}
-	return authId
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func (c *MfaCosigner) NewAuthcode(authId string) ([]byte, error) {
+func (c *MfaCosigner) NewAuthcode(authID string) ([]byte, error) {
 	authCodeBytes := make([]byte, 32)
-
 	if _, err := rand.Read(authCodeBytes); err != nil {
 		return nil, err
 	}
-
 	authCode := hex.EncodeToString(authCodeBytes)
-	c.authCodeMap[authCode] = authId
-
+	c.authCodeMap[authCode] = authID
 	return []byte(authCode), nil
 }
 
 func (c *MfaCosigner) CheckAuthcode(authcode []byte, sig []byte) ([]byte, error) {
+	if authID, ok := c.authCodeMap[string(authcode)]; !ok {
+		return nil, fmt.Errorf("Invalid authcode")
+	} else {
+		authState := c.authIdMap[authID]
+		pkt := authState.Pkt
 
-	authId := c.authCodeMap[string(authcode)]
-	authState := c.authIdMap[authId]
-	pkt := authState.Pkt
+		msg, err := authState.Pkt.VerifySignedMessage(sig)
+		if err != nil {
+			fmt.Println("error verifying sig:", err)
+			return nil, err
+		}
+		if !bytes.Equal(msg, authcode) {
+			fmt.Println("error message doesn't make authcode:", err)
+			return nil, err
+		}
 
-	msg, err := authState.Pkt.VerifySignedMessage(sig)
-	if err != nil {
-		fmt.Println("error verifying sig:", err)
-		return nil, err
+		if err := c.Cosign(pkt, authID); err != nil {
+			fmt.Println("error cosigning:", err)
+			return nil, err
+
+		}
+
+		pktJson, err := json.Marshal(pkt)
+		if err != nil {
+			fmt.Println("error unmarshal:", err)
+			return nil, err
+		}
+
+		pktB64 := util.Base64EncodeForJWT(pktJson)
+
+		return pktB64, nil
 	}
-	if !bytes.Equal(msg, authcode) {
-		fmt.Println("error message doesn't make authcode:", err)
-		return nil, err
-	}
-
-	if err := c.Cosign(pkt, authId); err != nil {
-		fmt.Println("error cosigning:", err)
-		return nil, err
-
-	}
-
-	pktJson, err := json.Marshal(pkt)
-	if err != nil {
-		fmt.Println("error unmarshal:", err)
-		return nil, err
-	}
-
-	pktB64 := util.Base64EncodeForJWT(pktJson)
-
-	return pktB64, nil
 }
 
-func (c *MfaCosigner) IsRegistered(sub string) bool {
-	_, ok := c.subDeviceMap[sub]
+func (c *MfaCosigner) IsRegistered(userKey UserKey) bool {
+	_, ok := c.users[userKey]
 	return ok
 }
 
@@ -163,14 +202,14 @@ func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken, authID string) error {
 	authState := c.authIdMap[authID]
 
 	protected := pktoken.CosignerClaims{
-		ID:          c.issuer,
+		Iss:         c.Iss,
 		KeyID:       c.keyID,
 		Algorithm:   c.alg.String(),
 		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
-		RedirectURI: authState.RedirectUri,
+		RedirectURI: authState.RedirectURI,
 	}
 
 	jsonBytes, err := json.Marshal(protected)
@@ -187,139 +226,63 @@ func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken, authID string) error {
 	return pkt.Sign(pktoken.Cos, c.signer, c.alg, headers)
 }
 
-func PktFromURL(v url.Values) (string, *pktoken.PKToken, error) {
-
-	pktB64 := []byte(v.Get("pkt"))
-	pktJson, err := util.Base64DecodeForJWT(pktB64)
-	if err != nil {
-		return "", nil, err
-	}
-
-	var pkt *pktoken.PKToken
-	if err := json.Unmarshal(pktJson, &pkt); err != nil {
-		return "", nil, err
-	}
-
-	var claims struct {
-		Subject string `json:"sub"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return "", nil, err
-	}
-
-	return claims.Subject, pkt, nil
-}
-
-func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCreation, *webauthn.SessionData, error) {
-
+func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCreation, error) {
 	authState := c.authIdMap[authID]
-	var claims struct {
-		Subject string `json:"sub"`
-		Email   string `json:"email"`
-	}
-	err := json.Unmarshal(authState.Pkt.Payload, &claims)
-	if err != nil {
-		return nil, nil, err
-	}
+	userKey := authState.UserKey()
 
-	cred := &user{
-		id:          []byte(claims.Subject),
-		username:    claims.Email,
-		displayName: strings.Split(claims.Email, "@")[0],
+	if c.IsRegistered(userKey) {
+		return nil, fmt.Errorf("Already has a webauthn device registered for this user")
 	}
-
-	creation, session, err := c.auth.BeginRegistration(cred)
-
+	user := authState.NewUser()
+	credCreation, session, err := c.webAuthn.BeginRegistration(user)
 	authState.Session = session
-
-	return creation, session, err
+	return credCreation, err
 }
 
-func (c *MfaCosigner) FinishRegistration(authID string) error {
-
+func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol.ParsedCredentialCreationData) error {
 	authState := c.authIdMap[authID]
-	var claims struct {
-		Subject string `json:"sub"`
-		Email   string `json:"email"`
+	userKey := authState.UserKey()
+	if c.IsRegistered(userKey) {
+		return fmt.Errorf("Already has a webauthn device registered for this user")
 	}
-	err := json.Unmarshal(authState.Pkt.Payload, &claims)
+	user := authState.NewUser()
+	credential, err := c.webAuthn.CreateCredential(user, *authState.Session, parsedResponse)
 	if err != nil {
 		return err
 	}
-
-	cred := &user{
-		id:          []byte(claims.Subject),
-		username:    claims.Email,
-		displayName: strings.Split(claims.Email, "@")[0],
-	}
-
-	// credential, err := c.auth.FinishRegistration(cred, *authState.Session, r)
-	var parsedResponse *protocol.ParsedCredentialCreationData
-	credential, err := c.auth.CreateCredential(cred, *authState.Session, parsedResponse)
-	cred.AddCredential(*credential)
-
-	// TODO: Check if user already has a cred and reject so that an attacker can't just overwrite an existing cred
-	if _, ok := c.subDeviceMap[claims.Subject]; ok != false {
-		return fmt.Errorf("Already has a webauthn device registered for this user")
-	} else {
-		c.subDeviceMap[claims.Subject] = cred
-		return nil
-	}
+	user.AddCredential(*credential)
+	// TODO: Should use some mechanism to ensure that a registration session can't overwrite the result of another registration session for the same user if the user interleaved their registration sessions. It is a very unlikely possibility but it would be good to rule it out.
+	c.users[userKey] = user
+	return nil
 }
 
-func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, *webauthn.SessionData, error) {
-
+func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, error) {
 	authState := c.authIdMap[authID]
-	var claims struct {
-		Subject string `json:"sub"`
-		Email   string `json:"email"`
-	}
-	err := json.Unmarshal(authState.Pkt.Payload, &claims)
-	if err != nil {
-		return nil, nil, err
-	}
+	userKey := authState.UserKey()
 
-	creation, session, err := c.auth.BeginLogin(c.subDeviceMap[claims.Subject])
-	if err != nil {
-		return nil, nil, err
-	}
-	authState.Session = session
-	return creation, session, err
-}
-
-func (c *MfaCosigner) FinishLogin(authID string) ([]byte, error) {
-
-	authState := c.authIdMap[authID]
-	var claims struct {
-		Subject string `json:"sub"`
-		Email   string `json:"email"`
-	}
-	err := json.Unmarshal(authState.Pkt.Payload, &claims)
-	if err != nil {
+	if credAssertion, session, err := c.webAuthn.BeginLogin(c.users[userKey]); err != nil {
 		return nil, err
+	} else {
+		authState.Session = session
+		return credAssertion, err
 	}
 
-	cred := c.subDeviceMap[claims.Subject]
+}
 
-	var parsedResponse *protocol.ParsedCredentialAssertionData
-	_, err = c.auth.ValidateLogin(cred, *authState.Session, parsedResponse)
+func (c *MfaCosigner) FinishLogin(authID string, parsedResponse *protocol.ParsedCredentialAssertionData) ([]byte, []byte, error) {
+	authState := c.authIdMap[authID]
+	userKey := authState.UserKey()
+
+	_, err := c.webAuthn.ValidateLogin(c.users[userKey], *authState.Session, parsedResponse)
 	// credential, err := c.auth.FinishLogin(c.subDeviceMap[claims.Subject], *authState.Session, r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// TODO: Why do we need to do this?
-	// cred.AddCredential(*credential)
-
-	// w.Write([]byte("MFA login successful!"))
-
-	authCode, err := c.NewAuthcode(authID)
-	if err != nil {
-		return nil, err
+	if authcode, err := c.NewAuthcode(authID); err != nil {
+		return nil, nil, err
+	} else {
+		// authcodeRuri := authState.RedirectURI + "#" + string(authcode)
+		return authcode, []byte(authState.RedirectURI), nil
 	}
-
-	// TODO:
-	// mfaURI := fmt.Sprintf("http://localhost:3000/mfacallback?authcode=%s", authCode)
-
-	return authCode, nil
 }

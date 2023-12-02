@@ -15,7 +15,7 @@ import (
 )
 
 type CosignerClaims struct {
-	ID          string `json:"csid"`
+	Iss         string `json:"iss"`
 	KeyID       string `json:"kid"`
 	Algorithm   string `json:"alg"`
 	AuthID      string `json:"eid"`
@@ -33,7 +33,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 
 	// Check that all fields are present
 	var missing []string
-	if claims.ID == "" {
+	if claims.Iss == "" {
 		missing = append(missing, `csid`)
 	}
 	if claims.KeyID == "" {
@@ -96,7 +96,7 @@ func (p *PKToken) VerifyCosignerSignature() error {
 	}
 
 	// Grab the public keys from the JWKS endpoint
-	jwksUrl, err := url.ParseRequestURI(header.ID)
+	jwksUrl, err := url.ParseRequestURI(header.Iss)
 	if err != nil {
 		return err
 	}
