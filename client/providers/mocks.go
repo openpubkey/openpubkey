@@ -9,7 +9,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
-	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -55,31 +54,6 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 		return nil, err
 	}
 	return memguard.NewBufferFromBytes(signedToken), nil
-}
-
-func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
-
-	token := openid.New()
-
-	token.Set("nonce", cicHash)
-	token.Set("email", "arthur.aardvark@example.com")
-
-	// Required token payload values for OpenID
-	token.Set(jwt.IssuerKey, issuer)
-	token.Set(jwt.AudienceKey, audience)
-	token.Set(jwt.IssuedAtKey, time.Now().Unix())
-	token.Set(jwt.ExpirationKey, time.Now().Add(24*time.Hour).Unix())
-	token.Set(jwt.SubjectKey, "1234567890")
-
-	// Sign the token with the secret key
-	signedToken, err := jwt.Sign(token, jwt.WithKey(m.alg, m.signer))
-	if err != nil {
-		return nil, err
-	}
-	oidc := client.OidcDone{
-		Token: memguard.NewBufferFromBytes(signedToken),
-	}
-	return &oidc, nil
 }
 
 func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {

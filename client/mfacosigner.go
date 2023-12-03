@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
+	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -18,9 +18,7 @@ type MFACosignerClient struct {
 	CallbackPath string
 }
 
-type HttpSessionHook func(w http.ResponseWriter, r *http.Request)
-
-func (mfa *MFACosignerClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+func (mfa *MFACosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 	ch2 := make(chan []byte)
 	errCh := make(chan error)
 	// This is where we get the mfa authcode
@@ -73,25 +71,9 @@ func (mfa *MFACosignerClient) CosAuth(signer crypto.Signer, pkt *pktoken.PKToken
 	}
 	pktB63 := util.Base64EncodeForJWT(pktJson)
 
-	// TODO: This should be a shared struct between MFA client and server
-	type InitMFAAuth struct {
-		RedirectUri string `json:"ruri"`
-		TimeSigned  int64  `json:"time"`
-	}
-
-	initAuthMsg := InitMFAAuth{
-		RedirectUri: mfa.RedirectURI,
-		TimeSigned:  time.Now().Unix(),
-	}
-
-	initAuthMsgJson, err := json.Marshal(initAuthMsg)
+	sig1, err := cosigner.CreateInitAuthSig(mfa.RedirectURI, pkt, signer)
 	if err != nil {
-		return nil, fmt.Errorf("cosigner client hit error creating init auth message: %w\n", err)
-	}
-
-	sig1, err := pkt.NewSignedMessage([]byte(initAuthMsgJson), signer)
-	if err != nil {
-		return nil, fmt.Errorf("cosigner client hit error signing init auth message: %w\n", err)
+		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w\n", err)
 	}
 
 	redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", mfa.Issuer, string(pktB63), string(sig1))

@@ -22,11 +22,6 @@ type Server struct {
 	cosigner *MfaCosigner
 }
 
-type InitMFAAuth struct {
-	RedirectUri string `json:"ruri"`
-	TimeSigned  int64  `json:"time"`
-}
-
 var _ mfa.Authenticator = (*Server)(nil)
 
 func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {

@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -20,7 +21,6 @@ var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	RequestTokensCos(ctx context.Context, cicHash string, oidcEnder HttpSessionHook) (*OidcDone, error)
 	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
@@ -31,6 +31,7 @@ type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	HookHTTPSession(h HttpSessionHook)
 }
+type HttpSessionHook func(w http.ResponseWriter, r *http.Request)
 
 type OidcDone struct {
 	Token *memguard.LockedBuffer

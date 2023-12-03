@@ -5,15 +5,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -50,16 +49,7 @@ func TestInitAuth(t *testing.T) {
 	}
 
 	ruri := "https://example.com/mfaredirect"
-	msg := InitMFAAuth{
-		RedirectUri: ruri,
-		TimeSigned:  time.Now().Unix(),
-	}
-	msgJson, err := json.Marshal(msg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sig, err := pkt.NewSignedMessage(msgJson, signer)
+	sig, err := cosigner.CreateInitAuthSig(ruri, pkt, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
 		t.Fatal(err)
@@ -122,15 +112,7 @@ func TestFullFlow(t *testing.T) {
 
 	// Step 1: Init MFA Cosigner flow
 	ruri := "https://example.com/mfaredirect"
-	msg := InitMFAAuth{
-		RedirectUri: ruri,
-		TimeSigned:  time.Now().Unix(),
-	}
-	msgJson, err := json.Marshal(msg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sig, err := pkt.NewSignedMessage(msgJson, signer)
+	sig, err := cosigner.CreateInitAuthSig(ruri, pkt, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
 		t.Fatal(err)

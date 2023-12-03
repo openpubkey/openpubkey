@@ -162,10 +162,6 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	return jwt.Value, err
 }
 
-func (g *GithubOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
-	return nil, nil
-}
-
 func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
 	return client.ErrNonGQUnsupported
 }

@@ -82,7 +82,6 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		// MFA Cosigner Auth URI.
 		if g.httpSessionHook != nil {
 			g.httpSessionHook(w, r)
-			// defer g.server.Shutdown(ctx)
 		} else {
 			w.Write([]byte("You may now close this window"))
 		}
@@ -114,74 +113,6 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, err
 	case token := <-ch:
 		return memguard.NewBufferFromBytes(token), nil
-	}
-}
-
-func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
-
-	cookieHandler :=
-		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
-	options := []rp.Option{
-		rp.WithCookieHandler(cookieHandler),
-		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(
-				func(ctx context.Context) string { return cicHash })),
-	}
-	options = append(options, rp.WithPKCE(cookieHandler))
-
-	provider, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI,
-		g.Scopes, options...)
-	if err != nil {
-		return nil, fmt.Errorf("error creating provider: %w", err)
-	}
-
-	state := func() string {
-		return uuid.New().String()
-	}
-
-	ch := make(chan client.OidcDone)
-	chErr := make(chan error)
-
-	http.Handle("/login", rp.AuthURLHandler(state, provider, rp.WithURLParam("nonce", cicHash)))
-	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			chErr <- err
-			return
-		}
-
-		ch <- client.OidcDone{
-			Token: memguard.NewBufferFromBytes([]byte(tokens.IDToken)),
-		}
-		oidcEnder(w, r)
-	}
-	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
-
-	lis := fmt.Sprintf("localhost:%s", g.RedirURIPort)
-	g.server = &http.Server{
-		Addr: lis,
-	}
-
-	logrus.Infof("WWW listening on http://%s/", lis)
-	logrus.Info("press ctrl+c to stop")
-	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
-	util.OpenUrl(earl)
-
-	go func() {
-		err := g.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
-		}
-	}()
-
-	// defer g.server.Shutdown(ctx)
-
-	select {
-	case err := <-chErr:
-		return nil, err
-	case oidcDone := <-ch:
-		return &oidcDone, nil
 	}
 }
 
@@ -250,6 +181,16 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	return nil
 }
 
+// HookHTTPSession provides a means to hook the HTTP Server session resulting
+// from the OpenID Provider sending an authcode to the OIDC client by
+// redirecting the user's browser with the authcode supplied in the URI.
+// If this hook is set, it will be called after the receiving the authcode
+// but before send an HTTP response to the user. The code which sets this hook
+// can choose what HTTP response to server to the user.
+//
+// We use this so that we can redirect the user web browser window to
+// the MFA Cosigner URI after the user finishes the OIDC Auth flow. This
+// method is only available to browser based providers.
 func (g *GoogleOp) HookHTTPSession(h client.HttpSessionHook) {
 	g.httpSessionHook = h
 }

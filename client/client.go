@@ -37,7 +37,7 @@ func (o *OpkClient) CosAuth(
 		if err != nil {
 			return nil, err
 		}
-		return o.MfaCos.CosAuth(signer, pkt, redirCh)
+		return o.MfaCos.Auth(signer, pkt, redirCh)
 	} else {
 		return nil, fmt.Errorf("OP supplied does not support the MFA Cosigner")
 	}

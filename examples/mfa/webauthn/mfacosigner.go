@@ -16,6 +16,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
@@ -45,36 +46,39 @@ func NewAuthState(pkt *pktoken.PKToken, ruri string) (*AuthState, error) {
 	}
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return nil, err
-	} else {
-		var audience string
-
-		// An audience can be a string or an array of strings.
-		//
-		// RFC-7519 JSON Web Token (JWT) says:
-		// "In the general case, the "aud" value is an array of case-
-		// sensitive strings, each containing a StringOrURI value.  In the
-		// special case when the JWT has one audience, the "aud" value MAY be a
-		// single case-sensitive string containing a StringOrURI value."
-		// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
-		switch t := claims.Aud.(type) {
-		case string:
-			audience = t
-		case []string:
-			audience = strings.Join(t, ",")
-		default:
-			return nil, fmt.Errorf("failed to deserialize aud (audience) claim in ID Token")
-		}
-
-		return &AuthState{
-			Pkt:         pkt,
-			Issuer:      claims.Issuer,
-			Aud:         audience,
-			Sub:         claims.Sub,
-			Username:    claims.Email,
-			DisplayName: strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
-			RedirectURI: ruri,
-		}, nil
 	}
+	// An audience can be a string or an array of strings.
+	//
+	// RFC-7519 JSON Web Token (JWT) says:
+	// "In the general case, the "aud" value is an array of case-
+	// sensitive strings, each containing a StringOrURI value.  In the
+	// special case when the JWT has one audience, the "aud" value MAY be a
+	// single case-sensitive string containing a StringOrURI value."
+	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+	var audience string
+	switch t := claims.Aud.(type) {
+	case string:
+		audience = t
+	case []any:
+		audList := []string{}
+		for _, v := range t {
+			audList = append(audList, v.(string))
+		}
+		audience = strings.Join(audList, ",")
+	default:
+		return nil, fmt.Errorf("failed to deserialize aud (audience) claim in ID Token: %d", t)
+	}
+
+	return &AuthState{
+		Pkt:         pkt,
+		Issuer:      claims.Issuer,
+		Aud:         audience,
+		Sub:         claims.Sub,
+		Username:    claims.Email,
+		DisplayName: strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
+		RedirectURI: ruri,
+	}, nil
+
 }
 
 func (as AuthState) UserKey() UserKey {
@@ -133,7 +137,7 @@ func (c *MfaCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error)
 	if err != nil {
 		return "", err
 	}
-	var initMFAAuth *InitMFAAuth
+	var initMFAAuth cosigner.InitMFAAuth
 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
 		fmt.Printf("error creating init auth message: %s", err)
 		return "", err
@@ -189,15 +193,6 @@ func (c *MfaCosigner) RedeemAuthcode(authcode []byte, sig []byte) (*pktoken.PKTo
 			fmt.Println("error cosigning:", err)
 			return nil, err
 		}
-
-		// pktJson, err := json.Marshal(pkt)
-		// if err != nil {
-		// 	fmt.Println("error unmarshal:", err)
-		// 	return nil, err
-		// }
-
-		// pktB64 := util.Base64EncodeForJWT(pktJson)
-
 		return pkt, nil
 	}
 }
