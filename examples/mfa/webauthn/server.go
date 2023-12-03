@@ -214,7 +214,6 @@ func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
-
 	authID, err := GetAuthID(r)
 	if err != nil {
 		http.Error(w, "Error in authID", http.StatusInternalServerError)

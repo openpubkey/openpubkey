@@ -57,7 +57,7 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	return memguard.NewBufferFromBytes(signedToken), nil
 }
 
-func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.OidcEnder) (*client.OidcDone, error) {
+func (m *MockOpenIdProvider) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
 
 	token := openid.New()
 

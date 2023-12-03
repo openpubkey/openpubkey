@@ -28,14 +28,15 @@ var (
 )
 
 type GoogleOp struct {
-	ClientID     string
-	ClientSecret string
-	Issuer       string
-	Scopes       []string
-	RedirURIPort string
-	CallbackPath string
-	RedirectURI  string
-	server       *http.Server
+	ClientID        string
+	ClientSecret    string
+	Issuer          string
+	Scopes          []string
+	RedirURIPort    string
+	CallbackPath    string
+	RedirectURI     string
+	server          *http.Server
+	httpSessionHook client.HttpSessionHook
 }
 
 var _ client.OpenIdProvider = (*GoogleOp)(nil)
@@ -75,7 +76,16 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		}
 
 		ch <- []byte(tokens.IDToken)
-		w.Write([]byte("You may now close this window"))
+
+		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
+		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
+		// MFA Cosigner Auth URI.
+		if g.httpSessionHook != nil {
+			g.httpSessionHook(w, r)
+			// defer g.server.Shutdown(ctx)
+		} else {
+			w.Write([]byte("You may now close this window"))
+		}
 	}
 
 	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
@@ -97,7 +107,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		}
 	}()
 
-	defer g.server.Shutdown(ctx)
+	// defer g.server.Shutdown(ctx)
 
 	select {
 	case err := <-chErr:
@@ -107,7 +117,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 }
 
-func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.OidcEnder) (*client.OidcDone, error) {
+func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
 
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
@@ -144,7 +154,6 @@ func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnd
 		ch <- client.OidcDone{
 			Token: memguard.NewBufferFromBytes([]byte(tokens.IDToken)),
 		}
-
 		oidcEnder(w, r)
 	}
 	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
@@ -172,8 +181,6 @@ func (g *GoogleOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnd
 	case err := <-chErr:
 		return nil, err
 	case oidcDone := <-ch:
-		// w := oidcDone.WriteHttp
-		// w.Write([]byte("You may now close this window2"))
 		return &oidcDone, nil
 	}
 }
@@ -241,4 +248,8 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	}
 
 	return nil
+}
+
+func (g *GoogleOp) HookHTTPSession(h client.HttpSessionHook) {
+	g.httpSessionHook = h
 }

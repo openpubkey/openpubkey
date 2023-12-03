@@ -26,26 +26,15 @@ import (
 
 // Variables for building our google provider
 var (
-	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
+	clientID = "115045953232-9e3co450v3dagfh5q8pplip4otb5bgim.apps.googleusercontent.com"
 	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
 	issuer       = "https://accounts.google.com"
 	scopes       = []string{"openid profile email"}
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
 )
-
-// var (
-// 	clientID = "115045953232-9e3co450v3dagfh5q8pplip4otb5bgim.apps.googleusercontent.com"
-// 	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-// 	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
-// 	issuer       = "https://accounts.google.com"
-// 	scopes       = []string{"openid profile email"}
-// 	redirURIPort = "3000"
-// 	callbackPath = "/login-callback"
-// 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
-// )
 
 func main() {
 
@@ -59,11 +48,18 @@ func main() {
 		RedirectURI:  redirectURI,
 	}
 
+	mfaCosClient := &client.MFACosignerClient{
+		Issuer:       "http://localhost:3003",
+		RedirectURI:  "http://localhost:3000/mfacallback",
+		CallbackPath: "callback", //TODO: What is this and can I delete it
+	}
+
 	command := os.Args[1]
 	switch command {
 	case "login":
 		opk := &client.OpkClient{
-			Op: provider,
+			Op:     provider,
+			MfaCos: mfaCosClient,
 		}
 
 		clientKey, err := util.GenKeyPair(jwa.ES256)
@@ -72,7 +68,7 @@ func main() {
 			return
 		}
 
-		pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		pkt, err := opk.CosAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 		if err != nil {
 			fmt.Println("error generating key pair: ", err)
 			return

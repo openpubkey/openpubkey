@@ -162,7 +162,7 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	return jwt.Value, err
 }
 
-func (g *GithubOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.OidcEnder) (*client.OidcDone, error) {
+func (g *GithubOp) RequestTokensCos(ctx context.Context, cicHash string, oidcEnder client.HttpSessionHook) (*client.OidcDone, error) {
 	return nil, nil
 }
 
