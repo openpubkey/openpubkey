@@ -3,13 +3,16 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"fmt"
 	"net/http"
 
+	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/openpubkey/openpubkey/cosigner/cosclient"
+	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -70,15 +73,32 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error getting nonce: %w", err)
 	}
 
+	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
 	idToken, err := o.Op.RequestTokens(ctx, string(nonce))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
+	defer idToken.Destroy()
 
 	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
+	}
+
+	if signGQ {
+		opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("error getting OP public key: %w", err)
+		}
+		rsaPubKey := opKey.(*rsa.PublicKey)
+
+		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		gqToken, err := sv.SignJWT(idToken.Bytes())
+		if err != nil {
+			return nil, fmt.Errorf("error creating GQ signature: %w", err)
+		}
+		idToken = memguard.NewBufferFromBytes(gqToken)
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
