@@ -12,7 +12,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/cosigner"
+	"github.com/openpubkey/openpubkey/cosigner/cosclient"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -49,7 +49,16 @@ func TestInitAuth(t *testing.T) {
 	}
 
 	ruri := "https://example.com/mfaredirect"
-	sig, err := cosigner.CreateInitAuthSig(ruri, pkt, signer)
+
+	cosClient := cosclient.AuthCosignerClient{
+		Issuer:      "example.com",
+		RedirectURI: ruri,
+	}
+	initAuthMsgJson, err := cosClient.CreateInitAuthSig()
+	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +81,6 @@ func TestInitAuth(t *testing.T) {
 }
 
 func TestFullFlow(t *testing.T) {
-
 	// Step 0: Setup
 	// Create our PK Token and signer
 	alg := jwa.ES256
@@ -112,7 +120,13 @@ func TestFullFlow(t *testing.T) {
 
 	// Step 1: Init MFA Cosigner flow
 	ruri := "https://example.com/mfaredirect"
-	sig, err := cosigner.CreateInitAuthSig(ruri, pkt, signer)
+
+	cosClient := cosclient.AuthCosignerClient{
+		Issuer:      "example.com",
+		RedirectURI: ruri,
+	}
+	initAuthMsgJson, err := cosClient.CreateInitAuthSig()
+	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
 		t.Fatal(err)
@@ -162,6 +176,9 @@ func TestFullFlow(t *testing.T) {
 	// Step 4. Sign the authcode
 	//  and exchange it with the Cosigner to get the PK Token cosigned
 	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	pktCos, err := cos.RedeemAuthcode(authcode, authcodeSig)
 	if err != nil {
@@ -329,3 +346,40 @@ func (wa *WebAuthnDevice) SignLoginChallenge(loginRespData *protocol.ParsedCrede
 
 	return loginRespData, nil
 }
+
+// type InitMFAAuth struct {
+// 	RedirectUri string `json:"ruri"`
+// 	TimeSigned  int64  `json:"time"`
+// 	Nonce       string `json:"nonce"`
+// }
+
+// func ComputeNonce() (string, error) {
+// 	bits := 256
+// 	rBytes := make([]byte, bits/8)
+// 	_, err := rand.Read(rBytes)
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	rz := hex.EncodeToString(rBytes)
+// 	return rz, nil
+// }
+
+// func CreateInitAuthSig(ruri string, pkt *pktoken.PKToken, signer crypto.Signer) ([]byte, error) {
+// 	nonce, err := ComputeNonce()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	msg := InitMFAAuth{
+// 		RedirectUri: ruri,
+// 		TimeSigned:  time.Now().Unix(),
+// 		Nonce:       nonce,
+// 	}
+// 	msgJson, err := json.Marshal(msg)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return pkt.NewSignedMessage(msgJson, signer)
+// }

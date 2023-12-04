@@ -9,13 +9,14 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
+	"github.com/openpubkey/openpubkey/cosigner/cosclient"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
 type OpkClient struct {
 	Op     OpenIdProvider
-	MfaCos *MFACosignerClient
+	MfaCos *cosclient.AuthCosignerClient
 }
 
 func (o *OpkClient) CosAuth(

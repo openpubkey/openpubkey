@@ -10,7 +10,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/cosigner/mfa"
 	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -21,8 +20,6 @@ type Server struct {
 	doneChan chan error
 	cosigner *MfaCosigner
 }
-
-var _ mfa.Authenticator = (*Server)(nil)
 
 func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	server := &Server{
@@ -266,7 +263,6 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 		w.Write(response)
 	}
-
 }
 
 func initCosigner(cfg *webauthn.Config) (*MfaCosigner, error) {
@@ -284,6 +280,5 @@ func initCosigner(cfg *webauthn.Config) (*MfaCosigner, error) {
 	}
 
 	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
-
 	return NewCosigner(signer, alg, server.URI(), kid, cfg)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/cosigner/cosclient"
 	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -48,10 +49,15 @@ func main() {
 		RedirectURI:  redirectURI,
 	}
 
-	mfaCosClient := &client.MFACosignerClient{
-		Issuer:       "http://localhost:3003",
-		RedirectURI:  "http://localhost:3000/mfacallback",
-		CallbackPath: "callback", //TODO: What is this and can I delete it
+	// mfaCosClient := &client.MFACosignerClient{
+	// 	Issuer:       "http://localhost:3003",
+	// 	RedirectURI:  "http://localhost:3000/mfacallback",
+	// 	CallbackPath: "callback", //TODO: What is this and can I delete it
+	// }
+
+	cosClient := &cosclient.AuthCosignerClient{
+		Issuer:      "http://localhost:3003",
+		RedirectURI: "http://localhost:3000/mfacallback",
 	}
 
 	command := os.Args[1]
@@ -59,7 +65,7 @@ func main() {
 	case "login":
 		opk := &client.OpkClient{
 			Op:     provider,
-			MfaCos: mfaCosClient,
+			MfaCos: cosClient,
 		}
 
 		clientKey, err := util.GenKeyPair(jwa.ES256)
