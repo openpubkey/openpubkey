@@ -1,4 +1,4 @@
-package webauthn
+package mfacosigner
 
 import (
 	"bytes"
@@ -20,17 +20,6 @@ type UserKey struct {
 	Sub    string // ID Token subject ID (sub)
 }
 
-// type AuthState struct {
-// 	Pkt         *pktoken.PKToken
-// 	Issuer      string // ID Token issuer (iss)
-// 	Aud         string // ID Token audience (aud)
-// 	Sub         string // ID Token subject ID (sub)
-// 	Username    string // ID Token email or username
-// 	DisplayName string // ID Token display name (or username if none given)
-// 	RedirectURI string // Redirect URI
-// 	Session     *webauthn.SessionData
-// }
-
 func NewUser(as *cosigner.AuthState) *user {
 	return &user{
 		id:          []byte(as.Sub),
@@ -38,14 +27,6 @@ func NewUser(as *cosigner.AuthState) *user {
 		displayName: as.DisplayName,
 	}
 }
-
-// func (as *AuthState) NewUser() *user {
-// 	return &user{
-// 		id:          []byte(as.Sub),
-// 		username:    as.Username,
-// 		displayName: as.DisplayName,
-// 	}
-// }
 
 type MfaCosigner struct {
 	cosigner.AuthCosigner
@@ -85,47 +66,6 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	}, nil
 }
 
-// func (c *MfaCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error) {
-// 	msg, err := pkt.VerifySignedMessage(sig)
-// 	if err != nil {
-// 		return "", err
-// 	}
-// 	var initMFAAuth cosigner.InitMFAAuth
-// 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
-// 		fmt.Printf("error creating init auth message: %s", err)
-// 		return "", err
-// 	} else if authState, err := NewAuthState(pkt, initMFAAuth.RedirectUri); err != nil {
-// 		fmt.Printf("error creating init auth state: %s", err)
-// 		return "", err
-// 	} else {
-// 		authID := c.CreateAuthID(pkt, initMFAAuth.RedirectUri)
-// 		c.AuthIdMap[authID] = authState
-// 		return authID, nil
-// 	}
-// }
-
-// func (c *MfaCosigner) CreateAuthID(pkt *pktoken.PKToken, ruri string) string {
-// 	authIdInt := c.authIdIter.Add(1)
-// 	timeNow := time.Now().Unix()
-
-// 	iterAndTime := []byte{}
-// 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(authIdInt))
-// 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(timeNow))
-// 	mac := hmac.New(crypto.SHA3_256.New, c.hmacKey)
-
-// 	return hex.EncodeToString(mac.Sum(nil))
-// }
-
-// func (c *MfaCosigner) NewAuthcode(authID string) ([]byte, error) {
-// 	authCodeBytes := make([]byte, 32)
-// 	if _, err := rand.Read(authCodeBytes); err != nil {
-// 		return nil, err
-// 	}
-// 	authCode := hex.EncodeToString(authCodeBytes)
-// 	c.authCodeMap[authCode] = authID
-// 	return []byte(authCode), nil
-// }
-
 func (c *MfaCosigner) RedeemAuthcode(authcode []byte, sig []byte) (*pktoken.PKToken, error) {
 	if authID, ok := c.AuthCodeMap[string(authcode)]; !ok {
 		return nil, fmt.Errorf("Invalid authcode")
@@ -160,34 +100,6 @@ func (c *MfaCosigner) IsRegistered(userKey cosigner.UserKey) bool {
 	_, ok := c.users[userKey]
 	return ok
 }
-
-// func (c *MfaCosigner) Cosign(pkt *pktoken.PKToken, authID string) error {
-// 	authState := c.AuthIdMap[authID]
-
-// 	protected := pktoken.CosignerClaims{
-// 		Iss:         c.Iss,
-// 		KeyID:       c.keyID,
-// 		Algorithm:   c.alg.String(),
-// 		AuthID:      authID,
-// 		AuthTime:    time.Now().Unix(),
-// 		IssuedAt:    time.Now().Unix(),
-// 		Expiration:  time.Now().Add(time.Hour).Unix(),
-// 		RedirectURI: authState.RedirectURI,
-// 	}
-
-// 	jsonBytes, err := json.Marshal(protected)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	var headers map[string]any
-// 	if err := json.Unmarshal(jsonBytes, &headers); err != nil {
-// 		return err
-// 	}
-
-// 	// Now that our mfa has authenticated the user, we can add our signature
-// 	return pkt.Sign(pktoken.Cos, c.signer, c.alg, headers)
-// }
 
 func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCreation, error) {
 	authState := c.AuthStateMap[authID]

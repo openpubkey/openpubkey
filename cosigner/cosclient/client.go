@@ -15,6 +15,7 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+// TODO: Add message construction, message validation and deserialization helpers here. Break out POP auth into it's own thing.
 type AuthCosignerClient struct {
 	Issuer      string
 	RedirectURI string

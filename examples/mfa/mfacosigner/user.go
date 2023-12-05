@@ -1,4 +1,4 @@
-package webauthn
+package mfacosigner
 
 import (
 	"github.com/go-webauthn/webauthn/webauthn"

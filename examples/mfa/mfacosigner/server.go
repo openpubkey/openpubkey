@@ -1,4 +1,4 @@
-package webauthn
+package mfacosigner
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
+	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner/jwks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -41,7 +41,7 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	}
 	server.cosigner = cosigner
 
-	http.Handle("/", http.FileServer(http.Dir("../mfa/webauthn/static")))
+	http.Handle("/", http.FileServer(http.Dir("mfacosigner/static")))
 
 	http.HandleFunc("/mfa-auth-init", server.initAuth)
 
@@ -86,7 +86,6 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error initiating authentication", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println(authID)
 	mfapage := fmt.Sprintf("/?authid=%s", authID)
 
 	http.Redirect(w, r, mfapage, http.StatusFound)
