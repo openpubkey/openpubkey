@@ -16,6 +16,9 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+var vIso = new(big.Int).SetBytes([]byte(hexToBytes(nil, "010000000000000000000D")))
+var messageIso = []byte("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopqo")
+
 func TestProveVerify(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -51,47 +54,33 @@ func TestSignerISO(t *testing.T) {
 		useSha3 = true
 	}()
 
-	nRaw := hexToBytes(t, "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1")
-	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nRaw))
+	nBytes := hexToBytes(t, "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1")
+	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nBytes))
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	vHex := "010000000000000000000D"
-	vRaw := make([]byte, hex.DecodedLen(len(vHex)))
-	_, err = hex.Decode(vRaw, []byte(vHex))
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := new(big.Int).SetBytes([]byte(vRaw))
 
 	nLen := n.BitLen()
-	vLen := v.BitLen() - 1
+	vLen := vIso.BitLen() - 1
 	sv := signerVerifier{
 		n:      n,
-		v:      v,
+		v:      vIso,
 		t:      1,
 		nBytes: bytesForBits(nLen),
 		vBytes: bytesForBits(vLen),
 	}
 
-	qHex := "3BED38CEBB1219BC068774E0E2655CDEF67FE547BCF2D9FA9FE167B1E63B2F101A1483D38A8F24EDE365A3E44F4F10ADECEA7B30D042C14C162477B8184AE6CFAA78441B1FDFB0B223ABCD528B61F313D859FCF9C26FCAF9E4D9DA9BA83E9D2FDA041E8CCBF90056C31D654B546C1A7F6729A8DD8E68512F39E3B6F07959CE61"
-	Q := make([]byte, hex.DecodedLen(len(qHex)))
-	_, err = hex.Decode(Q, []byte(qHex))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	message := []byte("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopqo")
+	Q := hexToBytes(t, "3BED38CEBB1219BC068774E0E2655CDEF67FE547BCF2D9FA9FE167B1E63B2F101A1483D38A8F24EDE365A3E44F4F10ADECEA7B30D042C14C162477B8184AE6CFAA78441B1FDFB0B223ABCD528B61F313D859FCF9C26FCAF9E4D9DA9BA83E9D2FDA041E8CCBF90056C31D654B546C1A7F6729A8DD8E68512F39E3B6F07959CE61")
 
 	rn := randomNumbers
 	randomNumbers = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 		ys := make([]*bigmod.Nat, t)
 
-		rHex := "487CDB0041BEED0323FDD3DEC8542584FA0E6CB990FAD5878DB34E9BEDDC95B65D22790C108E218407ED7F7D686657BAB5A28EF81C2E24985B56E37D9934E195A38A835CC02CEE8EBA2F56C87663E332976F5A3720DACA120BCD3DF0AEF6FD78582EBFCEE6D05E06172A871EAB0E8F5FC22DDB600F541B87CF8E147358374406"
-		rRaw := make([]byte, hex.DecodedLen(len(rHex)))
-		hex.Decode(rRaw, []byte(rHex))
-		r, _ := bigmod.NewNat().SetBytes(rRaw, n)
+		rRaw := hexToBytes(nil, "487CDB0041BEED0323FDD3DEC8542584FA0E6CB990FAD5878DB34E9BEDDC95B65D22790C108E218407ED7F7D686657BAB5A28EF81C2E24985B56E37D9934E195A38A835CC02CEE8EBA2F56C87663E332976F5A3720DACA120BCD3DF0AEF6FD78582EBFCEE6D05E06172A871EAB0E8F5FC22DDB600F541B87CF8E147358374406")
+		r, err := bigmod.NewNat().SetBytes(rRaw, n)
+		if err != nil {
+			return nil, err
+		}
 
 		ys[0] = r
 		return ys, nil
@@ -101,7 +90,7 @@ func TestSignerISO(t *testing.T) {
 		randomNumbers = rn
 	}()
 
-	encodedSig, err := sv.Sign(Q, message)
+	encodedSig, err := sv.Sign(Q, messageIso)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,30 +136,17 @@ func TestVerifierISO(t *testing.T) {
 		useSha3 = true
 	}()
 
-	nHex := "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1"
-	nRaw := make([]byte, hex.DecodedLen(len(nHex)))
-	_, err := hex.Decode(nRaw, []byte(nHex))
-	if err != nil {
-		t.Fatal(err)
-	}
+	nRaw := hexToBytes(t, "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1")
 	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nRaw))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	vHex := "010000000000000000000D"
-	vRaw := make([]byte, hex.DecodedLen(len(vHex)))
-	_, err = hex.Decode(vRaw, []byte(vHex))
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := new(big.Int).SetBytes([]byte(vRaw))
-
 	nLen := n.BitLen()
-	vLen := v.BitLen() - 1
+	vLen := vIso.BitLen() - 1
 	sv := signerVerifier{
 		n:      n,
-		v:      v,
+		v:      vIso,
 		t:      1,
 		nBytes: bytesForBits(nLen),
 		vBytes: bytesForBits(vLen),
@@ -192,16 +168,12 @@ func TestVerifierISO(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	message := []byte("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopqo")
-
+	// TODO: need to replace this
 	encodePKCS1v15 = func(k int, data []byte) []byte {
-		gHex := "3E641A22D0D0747D4ACC71884D3DFF2B2ADFDC1703B5A74EFD8333AB8C4377BB2A9B48E707F73409ABFBCD2DED69F52B16A145CE062FE6BD712C1952110DFB2316C5F3F321922ED375A4DEB8C41FA79BCAD86B0EA0D8FF02C9D0D5911BFF1E87DBCF073F71F18C08EB944AE84883A1E13FB1DEA123B5B1EFEA2A92635BD5D88F"
-		Gbytes := make([]byte, hex.DecodedLen(len(gHex)))
-		hex.Decode(Gbytes, []byte(gHex))
-		return Gbytes
+		return hexToBytes(nil, "3E641A22D0D0747D4ACC71884D3DFF2B2ADFDC1703B5A74EFD8333AB8C4377BB2A9B48E707F73409ABFBCD2DED69F52B16A145CE062FE6BD712C1952110DFB2316C5F3F321922ED375A4DEB8C41FA79BCAD86B0EA0D8FF02C9D0D5911BFF1E87DBCF073F71F18C08EB944AE84883A1E13FB1DEA123B5B1EFEA2A92635BD5D88F")
 	}
 
-	ok := sv.Verify(encodedSig, id, message)
+	ok := sv.Verify(encodedSig, id, messageIso)
 
 	if !ok {
 		t.Fatal("signature verification failed")
@@ -331,6 +303,7 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 	return jwt, nil
 }
 
+// FIXME: not sure about passing t here...
 func hexToBytes(t *testing.T, hexStr string) []byte {
 	bytes := make([]byte, hex.DecodedLen(len(hexStr)))
 	_, err := hex.Decode(bytes, []byte(hexStr))

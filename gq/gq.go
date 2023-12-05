@@ -79,7 +79,7 @@ func bytesForBits(bits int) int {
 	return (bits + 7) / 8
 }
 
-// FIXME:
+// FIXME: should probably make this a var
 func hash(byteCount int, data ...[]byte) ([]byte, error) {
 	if useSha3 {
 		rng := sha3.NewShake256()
