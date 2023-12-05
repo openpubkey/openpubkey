@@ -25,13 +25,7 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 
 	// Stage 1 - create public number G
 	// currently this hardcoded to use PKCS#1 v1.5 padding as the format mechanism
-	// FIXME:
-	var paddedIdentity []byte
-	if useSha3 {
-		paddedIdentity = encodePKCS1v15(nBytes, identity)
-	} else {
-		paddedIdentity = encodePSS(nBytes, identity)
-	}
+	paddedIdentity := encodePKCS1v15(nBytes, identity)
 	G := new(big.Int).SetBytes(paddedIdentity)
 
 	// Stage 2 - parse signature numbers and recalculate test number W*
@@ -68,7 +62,7 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 
 	// Stage 3 - recalculate question number R*
 	// hash W* and M and take first t*vBytes bytes as R*
-	Rstar, err := gqHash(t*vBytes, Wstar, M)
+	Rstar, err := hash(t*vBytes, Wstar, M)
 	if err != nil {
 		// TODO: this can only happen if there's some error reading /dev/urandom or something
 		// so should we return the proper error?

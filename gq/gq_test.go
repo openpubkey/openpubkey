@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -46,7 +45,7 @@ func TestProveVerify(t *testing.T) {
 	}
 }
 
-func TestISO(t *testing.T) {
+func TestSignerISO(t *testing.T) {
 	useSha3 = false
 	defer func() {
 		useSha3 = true
@@ -90,6 +89,7 @@ func TestISO(t *testing.T) {
 
 	message := []byte("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopqo")
 
+	rn := randomNumbers
 	randomNumbers = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 		ys := make([]*bigmod.Nat, t)
 
@@ -102,6 +102,10 @@ func TestISO(t *testing.T) {
 		return ys, nil
 	}
 
+	defer func() {
+		randomNumbers = rn
+	}()
+
 	encodedSig, err := sv.Sign(Q, message)
 	if err != nil {
 		t.Fatal(err)
@@ -112,14 +116,14 @@ func TestISO(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// TODO: I don't really need to separately check R and S
+
 	rHex := "99394F1D15924C0374CF"
 	R := make([]byte, hex.DecodedLen(len(rHex)))
 	_, err = hex.Decode(R, []byte(rHex))
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fmt.Printf("hex.EncodeToString(sig): %v\n", hex.EncodeToString(sig))
 
 	for i := 0; i < len(R); i++ {
 		if R[i] != sig[i] {
@@ -139,6 +143,73 @@ func TestISO(t *testing.T) {
 		if S[j] != sig[i] {
 			t.Fatal("Signature does not match expected value")
 		}
+	}
+}
+
+func TestVerifierISO(t *testing.T) {
+	useSha3 = false
+	defer func() {
+		useSha3 = true
+	}()
+
+	nHex := "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1"
+	nRaw := make([]byte, hex.DecodedLen(len(nHex)))
+	_, err := hex.Decode(nRaw, []byte(nHex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nRaw))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vHex := "010000000000000000000D"
+	vRaw := make([]byte, hex.DecodedLen(len(vHex)))
+	_, err = hex.Decode(vRaw, []byte(vHex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := new(big.Int).SetBytes([]byte(vRaw))
+
+	nLen := n.BitLen()
+	vLen := v.BitLen() - 1
+	sv := signerVerifier{
+		n:      n,
+		v:      v,
+		t:      1,
+		nBytes: bytesForBits(nLen),
+		vBytes: bytesForBits(vLen),
+	}
+
+	sigHex := "99394F1D15924C0374CF80C7274CD9F232903A6423D9327156F69743EAEF03E1EFEDFDA8474C97F6570D9EF53C6CE2AE2BA68D01FFF9AA82068214BCD775B95CC297DDC38A63741AB3166B58275E0FB728D26DB18A2C3F14B621CF3863F8648B3149FE896348BE73D37E2F06E6E26C84C044984C09C658300B58EC2383E3B0A1F1390D62B772A69F37B5"
+	sig := make([]byte, hex.DecodedLen(len(sigHex)))
+	_, err = hex.Decode(sig, []byte(sigHex))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	encodedSig := util.Base64EncodeForJWT(sig)
+
+	idHex := "416C657820416D706C65"
+	id := make([]byte, hex.DecodedLen(len(idHex)))
+	_, err = hex.Decode(id, []byte(idHex))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := []byte("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopqo")
+
+	encodePKCS1v15 = func(k int, data []byte) []byte {
+		gHex := "3E641A22D0D0747D4ACC71884D3DFF2B2ADFDC1703B5A74EFD8333AB8C4377BB2A9B48E707F73409ABFBCD2DED69F52B16A145CE062FE6BD712C1952110DFB2316C5F3F321922ED375A4DEB8C41FA79BCAD86B0EA0D8FF02C9D0D5911BFF1E87DBCF073F71F18C08EB944AE84883A1E13FB1DEA123B5B1EFEA2A92635BD5D88F"
+		Gbytes := make([]byte, hex.DecodedLen(len(gHex)))
+		hex.Decode(Gbytes, []byte(gHex))
+		return Gbytes
+	}
+
+	ok := sv.Verify(encodedSig, id, message)
+
+	if !ok {
+		t.Fatal("signature verification failed")
 	}
 }
 

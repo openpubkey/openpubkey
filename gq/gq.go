@@ -80,7 +80,7 @@ func bytesForBits(bits int) int {
 }
 
 // FIXME:
-func gqHash(byteCount int, data ...[]byte) ([]byte, error) {
+func hash(byteCount int, data ...[]byte) ([]byte, error) {
 	if useSha3 {
 		rng := sha3.NewShake256()
 
@@ -89,12 +89,10 @@ func gqHash(byteCount int, data ...[]byte) ([]byte, error) {
 		}
 		return randomBytes(rng, byteCount)
 	} else {
-		//
 		rng := sha1.New()
 		for _, d := range data {
 			rng.Write(d)
 		}
-		//
 		return rng.Sum(nil)[:byteCount], nil
 	}
 
