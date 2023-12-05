@@ -51,12 +51,7 @@ func TestSignerISO(t *testing.T) {
 		useSha3 = true
 	}()
 
-	nHex := "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1"
-	nRaw := make([]byte, hex.DecodedLen(len(nHex)))
-	_, err := hex.Decode(nRaw, []byte(nHex))
-	if err != nil {
-		t.Fatal(err)
-	}
+	nRaw := hexToBytes(t, "D37B4534B4B788AE23E1E4719A395BBFF8A98EDBDCB3992306C513AAA95E9A335221998C20CD1344CA50C59193B84437FFC1E91E5EBEF9587615875102A7E83624DA4F72CAF28D1DF429652346D6F203E17C65288790F6F6D97835216B49F5932728A967D6D36561621FF38DFC185DFA5A160962E7C8E087CE90897B16EA4EA1")
 	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nRaw))
 	if err != nil {
 		t.Fatal(err)
@@ -334,4 +329,14 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 	}
 
 	return jwt, nil
+}
+
+func hexToBytes(t *testing.T, hexStr string) []byte {
+	bytes := make([]byte, hex.DecodedLen(len(hexStr)))
+	_, err := hex.Decode(bytes, []byte(hexStr))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return bytes
 }
