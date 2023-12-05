@@ -2,6 +2,7 @@ package gq
 
 import (
 	"crypto/rsa"
+	"crypto/sha1"
 	"io"
 	"math/big"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"golang.org/x/crypto/sha3"
 )
+
+var useSha3 = true
 
 // Signer allows for creating GQ1 signatures messages.
 type Signer interface {
@@ -76,13 +79,25 @@ func bytesForBits(bits int) int {
 	return (bits + 7) / 8
 }
 
-func hash(byteCount int, data ...[]byte) ([]byte, error) {
-	rng := sha3.NewShake256()
-	for _, d := range data {
-		rng.Write(d)
+// FIXME:
+func gqHash(byteCount int, data ...[]byte) ([]byte, error) {
+	if useSha3 {
+		rng := sha3.NewShake256()
+
+		for _, d := range data {
+			rng.Write(d)
+		}
+		return randomBytes(rng, byteCount)
+	} else {
+		//
+		rng := sha1.New()
+		for _, d := range data {
+			rng.Write(d)
+		}
+		//
+		return rng.Sum(nil)[:byteCount], nil
 	}
 
-	return randomBytes(rng, byteCount)
 }
 
 func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {

@@ -2,6 +2,8 @@ package gq
 
 import (
 	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"filippo.io/bigmod"
@@ -41,7 +43,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 
 	// Stage 3 - calculate question number R
 	// hash W and M and take first t*vBytes bytes as R
-	R, err := hash(t*vBytes, W, M)
+	R, err := gqHash(t*vBytes, W, M)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +181,15 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 func encodeProof(R, S []byte) []byte {
 	var bin []byte
 
+	fmt.Printf("hex.EncodeToString(R): %v\n", hex.EncodeToString(R))
+
 	bin = append(bin, R...)
 	bin = append(bin, S...)
 
 	return util.Base64EncodeForJWT(bin)
 }
 
-func randomNumbers(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
+var randomNumbers = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 	nInt := modAsInt(n)
 	ys := make([]*bigmod.Nat, t)
 
