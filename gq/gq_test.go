@@ -27,7 +27,11 @@ func TestProveVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gqToken, err := signerVerifier.SignJWT(idToken)
 	if err != nil {
 		t.Fatal(err)
@@ -61,8 +65,10 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("ID token signature should fail for modified token")
 	}
-
-	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
 	gqToken, err := signerVerifier.SignJWT(modifiedToken)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +93,10 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signerVerifier := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
 	gqToken, err := signerVerifier.SignJWT(idToken)
 	if err != nil {
 		t.Fatal(err)

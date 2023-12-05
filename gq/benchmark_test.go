@@ -27,8 +27,12 @@ func BenchmarkSigning(b *testing.B) {
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
 
+	var signerVerifier gq.SignerVerifier
 	for i := 0; i < b.N; i++ {
-		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err = gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		if err != nil {
+			b.Fatal(err)
+		}
 		_, err = signerVerifier.SignJWT(matrix[i].token)
 	}
 
@@ -47,7 +51,10 @@ func BenchmarkVerifying(b *testing.B) {
 	// Generate signatures using matrix
 	gqSignedTokens := [][]byte{}
 	for i := 0; i < b.N; i++ {
-		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		if err != nil {
+			b.Fatal(err)
+		}
 		sig, err := signerVerifier.SignJWT(matrix[i].token)
 		if err != nil {
 			b.Fatal(err)
@@ -61,7 +68,10 @@ func BenchmarkVerifying(b *testing.B) {
 
 	var ok bool
 	for i := 0; i < b.N; i++ {
-		signerVerifier := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		if err != nil {
+			b.Fatal(err)
+		}
 		ok = signerVerifier.VerifyJWT(gqSignedTokens[i])
 		if !ok {
 			b.Fatal(fmt.Errorf("Failed to verify signature!"))

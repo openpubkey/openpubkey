@@ -5,6 +5,7 @@ import (
 	"io"
 	"math/big"
 
+	"filippo.io/bigmod"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"golang.org/x/crypto/sha3"
 )
@@ -36,7 +37,7 @@ type SignerVerifier interface {
 
 type signerVerifier struct {
 	// n is the RSA public modulus (what Go's RSA lib calls N)
-	n *big.Int
+	n *bigmod.Modulus
 	// v is the RSA public exponent (what Go's RSA lib calls E)
 	v *big.Int
 	// nBytes is the length of n in bytes
@@ -51,15 +52,19 @@ type signerVerifier struct {
 // the GQ1 private numbers.
 //
 // The securityParameter parameter is the level of desired security in bits. 256 is recommended.
-func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) SignerVerifier {
-	n, v, nBytes, vBytes := parsePublicKey(publicKey)
+func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerVerifier, error) {
+	n, v, nBytes, vBytes, err := parsePublicKey(publicKey)
 	t := securityParameter / (vBytes * 8)
 
-	return &signerVerifier{n, v, nBytes, vBytes, t}
+	return &signerVerifier{n, v, nBytes, vBytes, t}, err
 }
 
-func parsePublicKey(publicKey *rsa.PublicKey) (n *big.Int, v *big.Int, nBytes int, vBytes int) {
-	n, v = publicKey.N, big.NewInt(int64(publicKey.E))
+func parsePublicKey(publicKey *rsa.PublicKey) (n *bigmod.Modulus, v *big.Int, nBytes int, vBytes int, err error) {
+	n, err = bigmod.NewModulusFromBig(publicKey.N)
+	if err != nil {
+		return
+	}
+	v = big.NewInt(int64(publicKey.E))
 	nLen := n.BitLen()
 	vLen := v.BitLen() - 1 // note the -1; GQ1 only ever uses the (length of v) - 1, so we can just do this here rather than throughout
 	nBytes = bytesForBits(nLen)

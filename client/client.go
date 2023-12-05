@@ -65,7 +65,10 @@ func (o *OpkClient) OidcAuth(
 		}
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
-		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		sv, err := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		if err != nil {
+			return nil, fmt.Errorf("error creating GQ signer: %w", err)
+		}
 		gqToken, err := sv.SignJWT(idToken.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)

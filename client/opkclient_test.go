@@ -62,7 +62,10 @@ func TestClient(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			sv := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
+			sv, err := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
+			if err != nil {
+				t.Fatal(err)
+			}
 			ok := sv.VerifyJWT(idt)
 			if !ok {
 				t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
