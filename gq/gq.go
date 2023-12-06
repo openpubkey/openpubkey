@@ -83,7 +83,6 @@ var hash = func(byteCount int, data ...[]byte) ([]byte, error) {
 		rng.Write(d)
 	}
 	return randomBytes(rng, byteCount)
-
 }
 
 func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
