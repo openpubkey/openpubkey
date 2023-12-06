@@ -83,7 +83,7 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	}
 
 	if kid != string(pktHash) {
-		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but recieved %s`, pktHash, kid)
+		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but received %s`, pktHash, kid)
 	}
 
 	_, err = jws.Verify(osm, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))

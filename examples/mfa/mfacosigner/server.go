@@ -20,8 +20,6 @@ type Server struct {
 func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	server := &Server{}
 
-	mux := http.NewServeMux()
-
 	// WebAuthn configuration
 	cfg := &webauthn.Config{
 		RPDisplayName: RPDisplayName,
@@ -48,6 +46,7 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 		return nil, err
 	}
 
+	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("mfacosigner/static")))
 	mux.HandleFunc("/mfa-auth-init", server.initAuth)
 	mux.HandleFunc("/check-registration", server.checkIfRegistered)
@@ -57,8 +56,8 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	mux.HandleFunc("/login/finish", server.finishLogin)
 	mux.HandleFunc("/sign", server.signPkt)
 
-	err = http.ListenAndServe(":3003", mux) //TODO: use URI sent in constructor
-	return nil, err
+	err = http.ListenAndServe(":3003", mux)
+	return server, err
 }
 
 func (s *Server) URI() string {
@@ -154,7 +153,6 @@ func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(201)
-	w.Write([]byte("MFA registration Successful! You may now close this window"))
 	fmt.Println("MFA registration complete")
 }
 
@@ -201,12 +199,10 @@ func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mfaURI := string(ruri) + "?authcode=" + string(authcode)
-
+	redirectURIl := fmt.Sprintf("%s?authcode=%s", ruri, authcode)
 	response, _ := json.Marshal(map[string]string{
-		"redirect_uri": mfaURI,
+		"redirect_uri": redirectURIl,
 	})
-
 	w.WriteHeader(201)
 	w.Write(response)
 }
@@ -214,7 +210,7 @@ func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
 func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		fmt.Println("error parsing authcode and sig:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -225,20 +221,7 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	} else {
-		// pktJson, err := json.Marshal(pkt)
-		// if err != nil {
-		// 	fmt.Println("error unmarshal:", err)
-		// 	return
-		// }
-
 		cosSigB64 := util.Base64EncodeForJWT(cosSig)
-		// response, _ := json.Marshal(map[string]string{
-		// 	"pkt": string(pktB64),
-		// })
-		// response, _ := json.Marshal(map[string]string{
-		// 	"pkt": string(pktB64),
-		// })
-
 		w.WriteHeader(201)
 		w.Write(cosSigB64)
 	}

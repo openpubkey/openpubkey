@@ -20,7 +20,7 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm) *Cosigner {
 	}
 }
 
-func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) { //TODO: Maybe change to type Any to provide flexibility
+func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) {
 	jsonBytes, err := json.Marshal(cosClaims)
 	if err != nil {
 		return nil, err

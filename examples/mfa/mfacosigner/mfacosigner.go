@@ -64,30 +64,6 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 	}, nil
 }
 
-// func (c *MfaCosigner) RedeemAuthcode(authcode []byte, sig []byte) (*pktoken.PKToken, error) {
-// 	if authID, ok := c.AuthCodeMap[string(authcode)]; !ok {
-// 		return nil, fmt.Errorf("Invalid authcode")
-// 	} else {
-// 		authState := c.AuthStateMap[authID]
-// 		pkt := authState.Pkt
-
-// 		msg, err := authState.Pkt.VerifySignedMessage(sig)
-// 		if err != nil {
-// 			fmt.Println("error verifying sig:", err)
-// 			return nil, err
-// 		}
-// 		if !bytes.Equal(msg, authcode) {
-// 			fmt.Println("error message doesn't make authcode:", err)
-// 			return nil, err
-// 		}
-// 		if err := c.IssueSignature(pkt, authID); err != nil {
-// 			fmt.Println("error cosigning:", err)
-// 			return nil, err
-// 		}
-// 		return pkt, nil
-// 	}
-// }
-
 func (c *MfaCosigner) CheckIsRegistered(authID string) bool {
 	authState := c.AuthStateMap[authID]
 	userKey := authState.UserKey()
@@ -151,19 +127,19 @@ func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, 
 
 }
 
-func (c *MfaCosigner) FinishLogin(authID string, parsedResponse *protocol.ParsedCredentialAssertionData) ([]byte, []byte, error) {
+func (c *MfaCosigner) FinishLogin(authID string, parsedResponse *protocol.ParsedCredentialAssertionData) (string, string, error) {
 	authState := c.AuthStateMap[authID]
 	session := c.sessionMap[authID]
 	userKey := authState.UserKey()
 
 	_, err := c.webAuthn.ValidateLogin(c.users[userKey], *session, parsedResponse)
 	if err != nil {
-		return nil, nil, err
+		return "", "", err
 	}
 
 	if authcode, err := c.NewAuthcode(authID); err != nil {
-		return nil, nil, err
+		return "", "", err
 	} else {
-		return authcode, []byte(authState.RedirectURI), nil
+		return authcode, authState.RedirectURI, nil
 	}
 }

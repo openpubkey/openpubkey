@@ -70,7 +70,7 @@ func TestInitAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
+	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), signer)
 
 	cosSig, err := cos.RedeemAuthcode(authcodeSig)
 	if err != nil {
@@ -171,13 +171,13 @@ func TestFullFlow(t *testing.T) {
 	if credAssert == nil {
 		t.Fatal("Expected cred creation to not be nil")
 	}
-	if ruriRet == nil {
-		t.Fatal("Expected ruri to not be nil")
+	if ruriRet != ruri {
+		t.Fatalf("expected ruri to be %s but was %s", ruri, ruriRet)
 	}
 
 	// Step 4. Sign the authcode
 	//  and exchange it with the Cosigner to get the PK Token cosigned
-	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
+	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), signer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,40 +349,3 @@ func (wa *WebAuthnDevice) SignLoginChallenge(loginRespData *protocol.ParsedCrede
 
 	return loginRespData, nil
 }
-
-// type InitMFAAuth struct {
-// 	RedirectUri string `json:"ruri"`
-// 	TimeSigned  int64  `json:"time"`
-// 	Nonce       string `json:"nonce"`
-// }
-
-// func ComputeNonce() (string, error) {
-// 	bits := 256
-// 	rBytes := make([]byte, bits/8)
-// 	_, err := rand.Read(rBytes)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	rz := hex.EncodeToString(rBytes)
-// 	return rz, nil
-// }
-
-// func CreateInitAuthSig(ruri string, pkt *pktoken.PKToken, signer crypto.Signer) ([]byte, error) {
-// 	nonce, err := ComputeNonce()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	msg := InitMFAAuth{
-// 		RedirectUri: ruri,
-// 		TimeSigned:  time.Now().Unix(),
-// 		Nonce:       nonce,
-// 	}
-// 	msgJson, err := json.Marshal(msg)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return pkt.NewSignedMessage(msgJson, signer)
-// }

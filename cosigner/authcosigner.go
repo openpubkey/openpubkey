@@ -30,7 +30,6 @@ type AuthCosigner struct {
 
 func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
 	hmacKey := make([]byte, 64)
-
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err
 	}
@@ -55,38 +54,44 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 	}
 	var initMFAAuth *msgs.InitMFAAuth
 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
-		fmt.Printf("error creating init auth message: %s", err)
-		return "", err
+		return "", fmt.Errorf("failed to parse InitMFAAuth message: %w", err)
+	} else if time.Since(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
+		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too old, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
+	} else if time.Until(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
+		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message to far in the future, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if authState, err := NewAuthState(pkt, initMFAAuth.RedirectUri, initMFAAuth.Nonce); err != nil {
-		fmt.Printf("error creating init auth state: %s", err)
+		return "", err
+	} else if authID, err := c.CreateAuthID(pkt); err != nil {
 		return "", err
 	} else {
-		authID := c.CreateAuthID(pkt, initMFAAuth.RedirectUri)
 		c.AuthStateMap[authID] = authState
 		return authID, nil
 	}
 }
 
-func (c *AuthCosigner) CreateAuthID(pkt *pktoken.PKToken, ruri string) string {
+func (c *AuthCosigner) CreateAuthID(pkt *pktoken.PKToken) (string, error) {
 	authIdInt := c.AuthIdIter.Add(1)
-	timeNow := time.Now().Unix()
-
 	iterAndTime := []byte{}
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(authIdInt))
-	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(timeNow))
+	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(time.Now().Unix()))
 	mac := hmac.New(crypto.SHA3_256.New, c.HmacKey)
-
-	return hex.EncodeToString(mac.Sum(nil))
+	if n, err := mac.Write(iterAndTime); err != nil {
+		return "", err
+	} else if n != 16 {
+		return "", fmt.Errorf("unexpected number of bytes read by HMAC, expected 16, got %d", n)
+	} else {
+		return hex.EncodeToString(mac.Sum(nil)), nil
+	}
 }
 
-func (c *AuthCosigner) NewAuthcode(authID string) ([]byte, error) {
+func (c *AuthCosigner) NewAuthcode(authID string) (string, error) {
 	authCodeBytes := make([]byte, 32)
 	if _, err := rand.Read(authCodeBytes); err != nil {
-		return nil, err
+		return "", err
 	}
 	authCode := hex.EncodeToString(authCodeBytes)
 	c.AuthCodeMap[authCode] = authID
-	return []byte(authCode), nil
+	return authCode, nil
 }
 
 func (c *AuthCosigner) RedeemAuthcode(sig []byte) ([]byte, error) {
@@ -148,7 +153,7 @@ func NewAuthState(pkt *pktoken.PKToken, ruri string, nonce string) (*AuthState, 
 		Email  string `json:"email"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal PK Token: %w", err)
 	}
 	// An audience can be a string or an array of strings.
 	//

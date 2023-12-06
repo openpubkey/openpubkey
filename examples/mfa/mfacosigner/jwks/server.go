@@ -2,6 +2,9 @@ package jwks
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"golang.org/x/crypto/sha3"
 )
 
 type Server struct {
@@ -16,8 +20,13 @@ type Server struct {
 	jwksBytes []byte
 }
 
+// A very simple JWKS server for our MFA Cosigner example code.
 func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, string, error) {
-	kid := "test-kid"
+	// Compute the kid (Key ID) as the SHA-3 of the public key
+	pubkey := signer.Public().(*ecdsa.PublicKey) // TODO: handle non-ecdsa signers
+	pubkeyBytes := elliptic.Marshal(pubkey, pubkey.X, pubkey.Y)
+	pubkeyHash := sha3.Sum256(pubkeyBytes)
+	kid := hex.EncodeToString(pubkeyHash[:])
 
 	// Generate our JWKS using our signing key
 	jwkKey, err := jwk.PublicKeyOf(signer)
@@ -49,11 +58,11 @@ func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, s
 	}
 
 	// Host our JWKS at a localhost url
-	http.HandleFunc("/.well-known/jwks.json", server.printJWKS)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/jwks.json", server.printJWKS)
 	go func() {
-		http.Serve(listener, nil)
+		http.Serve(listener, mux)
 	}()
-
 	return server, kid, nil
 }
 

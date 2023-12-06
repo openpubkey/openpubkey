@@ -1,7 +1,6 @@
 package cosclient
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
@@ -11,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -66,7 +66,6 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 			ch <- cosSig
 		}),
 	)
-
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w\n", err)
@@ -77,17 +76,19 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w\n", err)
 	}
-	// Trigger redirect of user's browser window to cosigner so that user can authenticate to cosigner
+
+	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
 	redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1))
 
 	select {
 	case cosSig := <-ch:
+		// To be safe we perform these checks before adding the cosSig to the pktoken
+		if err := c.ValidateCosPHeader(cosSig, nonce); err != nil {
+			return nil, err
+		}
 		pkt.AddSignature(cosSig, pktoken.Cos)
 		if err != nil {
 			return nil, fmt.Errorf("error in adding cosigner signature to PK Token: %w\n", err)
-		}
-		if err := c.ValidateCos(pkt, nonce); err != nil {
-			return nil, err
 		}
 		return pkt, nil
 	case err := <-errCh:
@@ -95,19 +96,29 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 	}
 }
 
-func (c *AuthCosignerClient) ValidateCos(pkt *pktoken.PKToken, nonce string) error {
-	if pheaders, err := pkt.Cos.ProtectedHeaders().AsMap(context.TODO()); err != nil {
-		return err
+func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, nonce string) error {
+	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
+		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
+	} else if len(cosSigParsed.Signatures()) != 1 {
+		return fmt.Errorf("the Cosigner signature does not have the correct number of signatures: %w", err)
 	} else {
-		if nonceRet, ok := pheaders["nonce"]; !ok {
-			return fmt.Errorf("Nonce not set in Cosigner signature")
-		} else {
-			//TODO: Check that nonce is what we set originally
-			if nonce != nonceRet {
-				return fmt.Errorf("Incorrect nonce set in Cosigner signature")
-			}
-			return nil
+		ph := cosSigParsed.Signatures()[0].ProtectedHeaders()
+		if nonceRet, ok := ph.Get("nonce"); !ok {
+			return fmt.Errorf("nonce not set in Cosigner signature protected header")
+		} else if nonce != nonceRet {
+			return fmt.Errorf("incorrect nonce set in Cosigner signature")
 		}
+		if ruriRet, ok := ph.Get("ruri"); !ok {
+			return fmt.Errorf("ruri (redirect URI) not set in Cosigner signature protected header")
+		} else if c.RedirectURI != ruriRet {
+			return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, expected %s", c.RedirectURI)
+		}
+		if issRet, ok := ph.Get("iss"); !ok {
+			return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
+		} else if c.Issuer != issRet {
+			return fmt.Errorf("unexpected iss (Cosigner Issuer) set in Cosigner signature, expected %s", c.Issuer)
+		}
+		return nil
 	}
 }
 
