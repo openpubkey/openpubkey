@@ -16,11 +16,13 @@ type Server struct {
 	jwksBytes []byte
 }
 
-func NewServer(signer crypto.Signer, alg jwa.SignatureAlgorithm, kid string) (*Server, error) {
+func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, string, error) {
+	kid := "test-kid"
+
 	// Generate our JWKS using our signing key
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	jwkKey.Set(jwk.AlgorithmKey, alg)
 	jwkKey.Set(jwk.KeyIDKey, kid)
@@ -32,13 +34,13 @@ func NewServer(signer crypto.Signer, alg jwa.SignatureAlgorithm, kid string) (*S
 	// Now convert our key set into the raw bytes for printing later
 	keySetBytes, _ := json.MarshalIndent(keySet, "", "  ")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Find an empty port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind to an available port: %w", err)
+		return nil, "", fmt.Errorf("failed to bind to an available port: %w", err)
 	}
 
 	server := &Server{
@@ -52,7 +54,7 @@ func NewServer(signer crypto.Signer, alg jwa.SignatureAlgorithm, kid string) (*S
 		http.Serve(listener, nil)
 	}()
 
-	return server, nil
+	return server, kid, nil
 }
 
 func (s *Server) URI() string {

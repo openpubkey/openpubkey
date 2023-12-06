@@ -53,7 +53,7 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 				Alg:    alg,
 				Signer: signer,
 			},
-			Iss:          issuer,
+			Issuer:       issuer,
 			KeyID:        keyID,
 			AuthIdIter:   atomic.Uint64{},
 			HmacKey:      hmacKey,
@@ -131,7 +131,11 @@ func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol
 		return err
 	}
 	user.AddCredential(*credential)
-	// TODO: Should use some mechanism to ensure that a registration session can't overwrite the result of another registration session for the same user if the user interleaved their registration sessions. It is a very unlikely possibility but it would be good to rule it out.
+
+	// TODO: Should use some mechanism to ensure that a registration session
+	// can't overwrite the result of another registration session for the same
+	// user if the user interleaved their registration sessions. It is a very
+	// unlikely possibility but it would be good to rule it out.
 	c.users[userKey] = user
 	return nil
 }

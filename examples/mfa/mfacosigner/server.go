@@ -2,9 +2,7 @@ package mfacosigner
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -16,16 +14,13 @@ import (
 )
 
 type Server struct {
-	uri      string
-	doneChan chan error
 	cosigner *MfaCosigner
 }
 
 func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
-	server := &Server{
-		doneChan: make(chan error),
-	}
-	server.uri = serverUri
+	server := &Server{}
+
+	mux := http.NewServeMux()
 
 	// WebAuthn configuration
 	cfg := &webauthn.Config{
@@ -34,35 +29,40 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 		RPOrigin:      rpOrigin,
 	}
 
-	cosigner, err := initCosigner(cfg)
+	// Generate the key pair for our cosigner
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	if err != nil {
+		return nil, err
+	}
+
+	jwksServer, kid, err := jwks.NewJwksServer(signer, alg)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("JWKS hosted at", jwksServer.URI()+"/.well-known/jwks.json")
+	server.cosigner, err = NewCosigner(signer, alg, serverUri, kid, cfg)
 	if err != nil {
 		fmt.Println("failed to initialize cosigner: ", err)
 		return nil, err
 	}
-	server.cosigner = cosigner
 
-	http.Handle("/", http.FileServer(http.Dir("mfacosigner/static")))
+	mux.Handle("/", http.FileServer(http.Dir("mfacosigner/static")))
+	mux.HandleFunc("/mfa-auth-init", server.initAuth)
+	mux.HandleFunc("/check-registration", server.checkIfRegistered)
+	mux.HandleFunc("/register/begin", server.beginRegistration)
+	mux.HandleFunc("/register/finish", server.finishRegistration)
+	mux.HandleFunc("/login/begin", server.beginLogin)
+	mux.HandleFunc("/login/finish", server.finishLogin)
+	mux.HandleFunc("/sign", server.signPkt)
 
-	http.HandleFunc("/mfa-auth-init", server.initAuth)
-
-	http.HandleFunc("/check-registration", server.checkIfRegistered)
-
-	http.HandleFunc("/register/begin", server.beginRegistration)
-	http.HandleFunc("/register/finish", server.finishRegistration)
-
-	http.HandleFunc("/login/begin", server.beginLogin)
-	http.HandleFunc("/login/finish", server.finishLogin)
-
-	http.HandleFunc("/sign", server.signPkt)
-
-	http.HandleFunc("/done", server.done)
-
-	err = http.ListenAndServe(":3003", nil)
+	err = http.ListenAndServe(":3003", mux) //TODO: use URI sent in constructor
 	return nil, err
 }
 
 func (s *Server) URI() string {
-	return s.uri
+	return s.cosigner.Issuer
 }
 
 func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
@@ -89,28 +89,6 @@ func (s *Server) initAuth(w http.ResponseWriter, r *http.Request) {
 	mfapage := fmt.Sprintf("/?authid=%s", authID)
 
 	http.Redirect(w, r, mfapage, http.StatusFound)
-}
-
-func (s *Server) done(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// Read the body of the request
-		body, err := io.ReadAll(r.Body)
-		defer r.Body.Close()
-		if err != nil {
-			http.Error(w, "Error reading request body", http.StatusInternalServerError)
-			return
-		}
-
-		// Convert the body to a string
-		bodyStr := string(body)
-
-		// Create an error from the body string
-		requestError := errors.New(bodyStr)
-
-		s.doneChan <- requestError
-	} else {
-		s.doneChan <- nil
-	}
 }
 
 func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
@@ -262,22 +240,4 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 		w.Write(response)
 	}
-}
-
-func initCosigner(cfg *webauthn.Config) (*MfaCosigner, error) {
-	// Generate the key pair for our cosigner
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		return nil, err
-	}
-
-	kid := "test-kid"
-	server, err := jwks.NewServer(signer, alg, kid)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
-	return NewCosigner(signer, alg, server.URI(), kid, cfg)
 }

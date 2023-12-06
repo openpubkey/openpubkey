@@ -23,6 +23,7 @@ type CosignerClaims struct {
 	IssuedAt    int64  `json:"iat"` // may differ from auth_time because of refresh
 	Expiration  int64  `json:"exp"`
 	RedirectURI string `json:"ruri"`
+	Nonce       string `json:"nonce"`
 }
 
 func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {

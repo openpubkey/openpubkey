@@ -20,7 +20,7 @@ import (
 
 type AuthCosigner struct {
 	Cosigner
-	Iss          string
+	Issuer       string
 	KeyID        string
 	AuthIdIter   atomic.Uint64
 	HmacKey      []byte
@@ -39,7 +39,7 @@ func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, k
 		Cosigner: Cosigner{
 			Alg:    alg,
 			Signer: signer},
-		Iss:          issuer,
+		Issuer:       issuer,
 		KeyID:        keyID,
 		AuthIdIter:   atomic.Uint64{},
 		HmacKey:      hmacKey,
@@ -117,7 +117,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) error
 	authState := c.AuthStateMap[authID]
 
 	protected := pktoken.CosignerClaims{
-		Iss:         c.Iss,
+		Iss:         c.Issuer,
 		KeyID:       c.KeyID,
 		Algorithm:   c.Alg.String(),
 		AuthID:      authID,
@@ -125,6 +125,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) error
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
 		RedirectURI: authState.RedirectURI,
+		Nonce:       authState.Nonce,
 	}
 
 	// Now that our mfa has authenticated the user, we can add our signature

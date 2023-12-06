@@ -1,6 +1,7 @@
 package cosclient
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
@@ -23,14 +24,16 @@ type AuthCosignerClient struct {
 
 func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 
-	ch2 := make(chan []byte)
+	ch := make(chan []byte)
 	errCh := make(chan error)
 	// This is where we get the mfa authcode
-	mfaAuthCodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mfaAuthcodeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params := r.URL.Query()
+		if _, ok := params["authcode"]; !ok {
+			errCh <- fmt.Errorf("Cosigner did not return an authcode in the URI")
+			return
+		}
 		mfaAuthCode := params["authcode"][0]
-
-		fmt.Printf("Successfully Received Auth Code: %v\n", mfaAuthCode)
 
 		sig, err := pkt.NewSignedMessage([]byte(mfaAuthCode), signer)
 		if err != nil {
@@ -56,13 +59,11 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 			return
 		}
 		pktCosB64 := []byte(jsonResp.PktB64)
-
 		pktCosJson, err := util.Base64DecodeForJWT(pktCosB64)
 		w.Write([]byte("You may now close this window"))
-
-		ch2 <- pktCosJson
+		ch <- pktCosJson
 	})
-	http.Handle("/mfacallback", mfaAuthCodeHandler)
+	http.Handle("/mfacallback", mfaAuthcodeHandler)
 
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
@@ -78,15 +79,35 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 	redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1))
 
 	select {
-	case pktCosJson := <-ch2:
+	case pktCosJson := <-ch:
 		fmt.Println(string(pktCosJson))
 		var pkt *pktoken.PKToken
 		if err := json.Unmarshal(pktCosJson, &pkt); err != nil {
 			return nil, fmt.Errorf("cosigner client could not read response body: %w\n", err)
 		}
+		if err := c.ValidateCos(pkt); err != nil {
+			return nil, err
+		}
+
 		return pkt, nil
 	case err := <-errCh:
 		return nil, err
+	}
+}
+
+func (c *AuthCosignerClient) ValidateCos(pkt *pktoken.PKToken) error {
+	if pheaders, err := pkt.Cos.ProtectedHeaders().AsMap(context.TODO()); err != nil {
+		return err
+	} else {
+		if nonce, ok := pheaders["nonce"]; !ok {
+			return fmt.Errorf("Nonce not set in Cosigner signature")
+		} else {
+			//TODO: Check that nonce is what we set originally
+			if nonce == "" {
+				return fmt.Errorf("Incorrect nonce not set in Cosigner signature")
+			}
+			return nil
+		}
 	}
 }
 
@@ -130,7 +151,6 @@ func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, error) {
 		return nil, err
 	}
 	return msgJson, nil
-	// return c.Pkt.NewSignedMessage(msgJson, c.Signer)
 }
 
 // func (c *AuthCosignerClient) CreateRedeemAuthcodeUri(authcode string) (string, error) {
