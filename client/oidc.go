@@ -48,7 +48,6 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	switch sigType {
 	case pktoken.Gq:
-		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := provider.PublicKey(ctx, idt)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
