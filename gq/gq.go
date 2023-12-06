@@ -78,10 +78,10 @@ func bytesForBits(bits int) int {
 
 var hash = func(byteCount int, data ...[]byte) ([]byte, error) {
 	rng := sha3.NewShake256()
-
 	for _, d := range data {
 		rng.Write(d)
 	}
+
 	return randomBytes(rng, byteCount)
 }
 
