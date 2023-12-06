@@ -13,6 +13,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/cosigner/cosclient"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -71,13 +72,14 @@ func TestInitAuth(t *testing.T) {
 
 	authcodeSig, err := pkt.NewSignedMessage(authcode, signer)
 
-	pktCos, err := cos.RedeemAuthcode(authcode, authcodeSig)
+	cosSig, err := cos.RedeemAuthcode(authcodeSig)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pktCos.Cos == nil {
+	if cosSig == nil {
 		t.Fatal("Expected pktCos to be cosigned")
 	}
+	pkt.AddSignature(cosSig, pktoken.Cos)
 }
 
 func TestFullFlow(t *testing.T) {
@@ -180,14 +182,15 @@ func TestFullFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pktCos, err := cos.RedeemAuthcode(authcode, authcodeSig)
+	cosSig, err := cos.RedeemAuthcode(authcodeSig)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if pktCos.Cos == nil {
+	if cosSig == nil {
 		t.Fatal("Expected pktCos to be cosigned")
 	}
+	pkt.AddSignature(cosSig, pktoken.Cos)
+
 }
 
 // For testing purposes we create a WebAuthn device to run the client part of the protocol

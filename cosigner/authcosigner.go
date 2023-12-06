@@ -1,7 +1,6 @@
 package cosigner
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -89,31 +89,27 @@ func (c *AuthCosigner) NewAuthcode(authID string) ([]byte, error) {
 	return []byte(authCode), nil
 }
 
-func (c *AuthCosigner) RedeemAuthcode(authcode []byte, sig []byte) (*pktoken.PKToken, error) {
-	if authID, ok := c.AuthCodeMap[string(authcode)]; !ok {
+func (c *AuthCosigner) RedeemAuthcode(sig []byte) ([]byte, error) {
+	msg, err := jws.Parse(sig)
+	if err != nil {
+		return nil, err
+	}
+	if authID, ok := c.AuthCodeMap[string(msg.Payload())]; !ok {
 		return nil, fmt.Errorf("Invalid authcode")
 	} else {
 		authState := c.AuthStateMap[authID]
 		pkt := authState.Pkt
 
-		msg, err := authState.Pkt.VerifySignedMessage(sig)
+		_, err := authState.Pkt.VerifySignedMessage(sig)
 		if err != nil {
 			fmt.Println("error verifying sig:", err)
 			return nil, err
 		}
-		if !bytes.Equal(msg, authcode) {
-			fmt.Println("error message doesn't make authcode:", err)
-			return nil, err
-		}
-		if err := c.IssueSignature(pkt, authID); err != nil {
-			fmt.Println("error cosigning:", err)
-			return nil, err
-		}
-		return pkt, nil
+		return c.IssueSignature(pkt, authID)
 	}
 }
 
-func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) error {
+func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) ([]byte, error) {
 	authState := c.AuthStateMap[authID]
 
 	protected := pktoken.CosignerClaims{

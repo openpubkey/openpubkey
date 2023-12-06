@@ -41,8 +41,11 @@ func TestSimpleCosigner(t *testing.T) {
 		RedirectURI: "none",
 	}
 
-	err = cos.Cosign(pkt, cosignerClaims)
+	cosToken, err := cos.Cosign(pkt, cosignerClaims)
 	if err != nil {
+		t.Error(err)
+	}
+	if cosToken == nil {
 		t.Error(err)
 	}
 }

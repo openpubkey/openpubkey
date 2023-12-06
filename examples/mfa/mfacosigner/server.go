@@ -218,26 +218,28 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authcode := []byte(r.URL.Query().Get("authcode"))
 	sig := []byte(r.URL.Query().Get("sig2"))
 
-	if pkt, err := s.cosigner.RedeemAuthcode(authcode, sig); err != nil {
+	if cosSig, err := s.cosigner.RedeemAuthcode(sig); err != nil {
 		fmt.Println("Signature Grant Failed:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	} else {
-		pktJson, err := json.Marshal(pkt)
-		if err != nil {
-			fmt.Println("error unmarshal:", err)
-			return
-		}
+		// pktJson, err := json.Marshal(pkt)
+		// if err != nil {
+		// 	fmt.Println("error unmarshal:", err)
+		// 	return
+		// }
 
-		pktB64 := util.Base64EncodeForJWT(pktJson)
-		response, _ := json.Marshal(map[string]string{
-			"pkt": string(pktB64),
-		})
+		cosSigB64 := util.Base64EncodeForJWT(cosSig)
+		// response, _ := json.Marshal(map[string]string{
+		// 	"pkt": string(pktB64),
+		// })
+		// response, _ := json.Marshal(map[string]string{
+		// 	"pkt": string(pktB64),
+		// })
 
 		w.WriteHeader(201)
-		w.Write(response)
+		w.Write(cosSigB64)
 	}
 }

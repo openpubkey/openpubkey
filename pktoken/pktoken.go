@@ -49,20 +49,19 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
-func (p *PKToken) Sign(
-	sigType SignatureType,
+// Signs PK Token and then returns only the payload, header and signature as a JWT
+func (p *PKToken) SignToken(
 	signer crypto.Signer,
 	alg jwa.KeyAlgorithm,
 	protected map[string]any,
-) error {
+) ([]byte, error) {
 	headers := jws.NewHeaders()
 	for key, val := range protected {
 		if err := headers.Set(key, val); err != nil {
-			return fmt.Errorf("malformatted headers: %w", err)
+			return nil, fmt.Errorf("malformatted headers: %w", err)
 		}
 	}
-
-	token, err := jws.Sign(
+	return jws.Sign(
 		p.Payload,
 		jws.WithKey(
 			alg,
@@ -70,10 +69,18 @@ func (p *PKToken) Sign(
 			jws.WithProtectedHeaders(headers),
 		),
 	)
+}
+
+func (p *PKToken) Sign(
+	sigType SignatureType,
+	signer crypto.Signer,
+	alg jwa.KeyAlgorithm,
+	protected map[string]any,
+) error {
+	token, err := p.SignToken(signer, alg, protected)
 	if err != nil {
 		return err
 	}
-
 	return p.AddSignature(token, sigType)
 }
 
