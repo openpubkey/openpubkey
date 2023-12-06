@@ -70,7 +70,7 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w\n", err)
 	}
 	pktB63 := util.Base64EncodeForJWT(pktJson)
-	initAuthMsgJson, err := c.CreateInitAuthSig()
+	initAuthMsgJson, nonce, err := c.CreateInitAuthSig()
 	sig1, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w\n", err)
@@ -85,7 +85,7 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 		if err := json.Unmarshal(pktCosJson, &pkt); err != nil {
 			return nil, fmt.Errorf("cosigner client could not read response body: %w\n", err)
 		}
-		if err := c.ValidateCos(pkt); err != nil {
+		if err := c.ValidateCos(pkt, nonce); err != nil {
 			return nil, err
 		}
 
@@ -95,16 +95,16 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 	}
 }
 
-func (c *AuthCosignerClient) ValidateCos(pkt *pktoken.PKToken) error {
+func (c *AuthCosignerClient) ValidateCos(pkt *pktoken.PKToken, nonce string) error {
 	if pheaders, err := pkt.Cos.ProtectedHeaders().AsMap(context.TODO()); err != nil {
 		return err
 	} else {
-		if nonce, ok := pheaders["nonce"]; !ok {
+		if nonceRet, ok := pheaders["nonce"]; !ok {
 			return fmt.Errorf("Nonce not set in Cosigner signature")
 		} else {
 			//TODO: Check that nonce is what we set originally
-			if nonce == "" {
-				return fmt.Errorf("Incorrect nonce not set in Cosigner signature")
+			if nonce != nonceRet {
+				return fmt.Errorf("Incorrect nonce set in Cosigner signature")
 			}
 			return nil
 		}
@@ -128,17 +128,17 @@ func (c *AuthCosignerClient) ValidateCos(pkt *pktoken.PKToken) error {
 // 	return fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1)), nil
 // }
 
-func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, error) {
+func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)
 	_, err := rand.Read(rBytes)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	nonce := hex.EncodeToString(rBytes)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	msg := msgs.InitMFAAuth{
@@ -148,9 +148,9 @@ func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, error) {
 	}
 	msgJson, err := json.Marshal(msg)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return msgJson, nil
+	return msgJson, nonce, nil
 }
 
 // func (c *AuthCosignerClient) CreateRedeemAuthcodeUri(authcode string) (string, error) {

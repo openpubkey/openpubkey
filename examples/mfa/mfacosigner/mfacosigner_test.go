@@ -54,7 +54,7 @@ func TestInitAuth(t *testing.T) {
 		Issuer:      "example.com",
 		RedirectURI: ruri,
 	}
-	initAuthMsgJson, err := cosClient.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestFullFlow(t *testing.T) {
 		Issuer:      "example.com",
 		RedirectURI: ruri,
 	}
-	initAuthMsgJson, err := cosClient.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
