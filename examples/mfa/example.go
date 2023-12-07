@@ -68,14 +68,12 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		err = client.PKTokenVerifer{
-			AllowedProviders: []client.OpenIdProvider{provider},
-			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
-		}.Verify(context.TODO(), pkt)
-		if err != nil {
+		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
 			fmt.Println("failed to verify PK token:", err)
-		} else {
-			fmt.Println("Verified PK token cosigner signature!")
+		}
+		// TODO: This is not secure because it does not check that issuer is the expected issuer
+		if err := pkt.VerifyCosignerSignature(); err != nil {
+			fmt.Println("failed to verify PK token cosigner signature:", err)
 		}
 
 		os.Exit(0)

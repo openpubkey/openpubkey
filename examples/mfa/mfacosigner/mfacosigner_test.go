@@ -48,8 +48,6 @@ func TestInitAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// ruri := "https://example.com/mfaredirect"
-
 	cosignerProvider := client.CosignerProvider{
 		Issuer:      "example.com",
 		RedirectURI: "https://example.com/mfaredirect",
@@ -195,20 +193,6 @@ func TestFullFlow(t *testing.T) {
 		t.Fatal("Expected pktCos to be cosigned")
 	}
 	pkt.AddSignature(cosSig, pktoken.Cos)
-
-	// TODO: Get verification test working
-
-	// op, err := providers.NewMockOpenIdProvider()
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// err = client.PKTokenVerifer{
-	// 	AllowedProviders: []client.OpenIdProvider{op},
-	// 	AllowedCosigners: []client.CosignerProvider{cosignerProvider},
-	// }.Verify(context.TODO(), pkt)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
 }
 
 // For testing purposes we create a WebAuthn device to run the client part of the protocol

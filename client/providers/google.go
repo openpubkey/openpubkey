@@ -181,10 +181,6 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	return nil
 }
 
-func (g *GoogleOp) GetIssuer() string {
-	return g.Issuer
-}
-
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
 // from the OpenID Provider sending an authcode to the OIDC client by
 // redirecting the user's browser with the authcode supplied in the URI.
