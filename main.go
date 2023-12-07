@@ -6,34 +6,25 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"freessh/commands"
+	"freessh/internal"
 	"freessh/policy"
 	"freessh/sshcert"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"os"
-
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
 )
 
-var (
-	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
-	clientSecret     = "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" // Google requires a ClientSecret even if this a public OIDC App
-	issuer           = "https://accounts.google.com"
-	scopes           = []string{"openid profile email"}
-	avilableURIPorts = []int{49172, 51252, 58243, 59360, 62109}
-	callbackPath     = "/login-callback"
-)
-
-// This code is currently intended as an example for how OpenPubkey can secure SSH access.
+// This code is currently intended as an example for how OpenPubkey can secure
+// SSH access.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
@@ -41,63 +32,24 @@ func main() {
 	}
 	command := os.Args[1]
 
-	var redirectURIPort int
-	var err error
-	if redirectURIPort, err = retrieveOpenPort(); err != nil {
-		fmt.Print(err)
-		os.Exit(1)
-	}
-
-	redirectURI := fmt.Sprintf("http://localhost:%v%v", redirectURIPort, callbackPath)
-
-	op := providers.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Issuer:       issuer,
-		Scopes:       scopes,
-		RedirURIPort: strconv.Itoa(redirectURIPort),
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-	}
+	// OIDC provider is hardcoded to Google for now
+	op := internal.GoogleOp
 
 	switch command {
 	case "login":
-		{
-			if len(os.Args) != 2 {
-				fmt.Println("ERROR login does not accept any arguments")
-				os.Exit(1)
-			}
-
-			// If principals is empty the server does not enforce any principal.
-			// The OPK verifier should use policy to make this decision.
-			principals := []string{}
-
-			gqFalse := false
-			alg := jwa.ES256
-
-			signer, err := util.GenKeyPair(alg)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			client := &client.OpkClient{
-				Op: &op,
-			}
-			certBytes, seckeySshPem, err := createSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			// Write ssh secret key and public key to filesystem
-			err = writeKeysToSSHDir(seckeySshPem, certBytes)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			os.Exit(0)
+		if len(os.Args) != 2 {
+			fmt.Println("ERROR login does not accept any arguments")
+			os.Exit(1)
 		}
+
+		// Execute login command
+		err := commands.Login(&op)
+		if err != nil {
+			fmt.Printf("login error: %v", err)
+			os.Exit(1)
+		}
+
+		os.Exit(0)
 	case "verify":
 		// Setup logger
 		logPath := "/var/log/openpubkey.log"
