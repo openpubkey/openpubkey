@@ -18,7 +18,41 @@ import (
 
 type OpkClient struct {
 	Op   OpenIdProvider
-	CosP CosignerProvider
+	CosP *CosignerProvider
+}
+
+func (o *OpkClient) Auth(
+	ctx context.Context,
+	signer crypto.Signer,
+	alg jwa.KeyAlgorithm,
+	extraClaims map[string]any,
+	signGQ bool,
+) (*pktoken.PKToken, error) {
+	// If no Cosigner set then do standard OIDC authentication
+	if o.CosP == nil {
+		return o.OidcAuth(ctx, signer, alg, extraClaims, signGQ)
+	}
+
+	// If Cosigner is set then check that will support doing Cosigner auth
+	if browserOp, ok := o.Op.(BrowserOpenIdProvider); ok {
+		redirCh := make(chan string)
+
+		browserOp.HookHTTPSession(func(w http.ResponseWriter, r *http.Request) {
+			redirectUri := <-redirCh
+			http.Redirect(w, r, redirectUri, http.StatusFound)
+		})
+
+		pkt, err := o.OidcAuth(ctx, signer, alg, extraClaims, signGQ) //TODO: could I get rid of the redirCh by passing pkt as a reference into httpSessionHook?
+		if err != nil {
+			return nil, err
+		}
+		cos := AuthCosignerClient{
+			CosignerProvider: *o.CosP,
+		}
+		return cos.RequestToken(signer, pkt, redirCh)
+	} else {
+		return nil, fmt.Errorf("OP supplied does not support the MFA Cosigner")
+	}
 }
 
 func (o *OpkClient) OidcAuth(
@@ -87,32 +121,4 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	return pkt, nil
-}
-
-func (o *OpkClient) CosAuth(
-	ctx context.Context,
-	signer crypto.Signer,
-	alg jwa.KeyAlgorithm,
-	extraClaims map[string]any,
-	signGQ bool,
-) (*pktoken.PKToken, error) {
-	if browserOp, ok := o.Op.(BrowserOpenIdProvider); ok {
-		redirCh := make(chan string)
-
-		browserOp.HookHTTPSession(func(w http.ResponseWriter, r *http.Request) {
-			redirectUri := <-redirCh
-			http.Redirect(w, r, redirectUri, http.StatusFound)
-		})
-
-		pkt, err := o.OidcAuth(ctx, signer, alg, extraClaims, signGQ) //TODO: could I get rid of the redirCh by passing pkt as a reference into httpSessionHook?
-		if err != nil {
-			return nil, err
-		}
-		cos := AuthCosignerClient{
-			CosignerProvider: o.CosP,
-		}
-		return cos.RequestToken(signer, pkt, redirCh)
-	} else {
-		return nil, fmt.Errorf("OP supplied does not support the MFA Cosigner")
-	}
 }

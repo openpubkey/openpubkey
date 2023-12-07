@@ -51,7 +51,7 @@ func main() {
 
 		opk := &client.OpkClient{
 			Op:   provider,
-			CosP: cosignerProvider,
+			CosP: &cosignerProvider,
 		}
 
 		clientKey, err := util.GenKeyPair(jwa.ES256)
@@ -60,7 +60,7 @@ func main() {
 			return
 		}
 
-		pkt, err := opk.CosAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		pkt, err := opk.Auth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 		if err != nil {
 			fmt.Println("error generating key pair: ", err)
 			return

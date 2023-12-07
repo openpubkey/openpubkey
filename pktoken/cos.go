@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -108,12 +107,7 @@ func (p *PKToken) VerifyCosignerSignature() error {
 
 	set, err := jwk.Fetch(context.Background(), jwksUrl.String())
 	if err != nil {
-		// TODO: THis is a lame hack to make the demo work without standing up an MFA Cosigner at a non-localhost address.
-		// If you see this in PR you are code reviewing immediately reject the PR. ~ERH
-		if strings.Contains(jwksUrl.String(), "http://localhost:") {
-			return nil
-		}
-		return err
+		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint")
 	}
 
 	key, ok := set.LookupKeyID(header.KeyID)
