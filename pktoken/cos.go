@@ -35,7 +35,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	// Check that all fields are present
 	var missing []string
 	if claims.Iss == "" {
-		missing = append(missing, `csid`)
+		missing = append(missing, `iss`)
 	}
 	if claims.KeyID == "" {
 		missing = append(missing, `kid`)
@@ -58,6 +58,9 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	if claims.RedirectURI == "" {
 		missing = append(missing, `ruri`)
 	}
+	if claims.Nonce == "" {
+		missing = append(missing, `nonce`)
+	}
 
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("cosigner protect header missing required headers: %v", missing)
@@ -66,7 +69,6 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	return &claims, nil
 }
 
-// TODO: This is not secure because it does not check that issuer is the expected issuer
 func (p *PKToken) VerifyCosignerSignature() error {
 	if p.Cos == nil {
 		return fmt.Errorf("no cosigner signature")

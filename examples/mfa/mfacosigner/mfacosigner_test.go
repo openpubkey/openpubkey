@@ -12,14 +12,13 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/cosigner/cosclient"
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestInitAuth(t *testing.T) {
-
 	// Generate the key pair for our cosigner
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
@@ -49,12 +48,16 @@ func TestInitAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ruri := "https://example.com/mfaredirect"
+	// ruri := "https://example.com/mfaredirect"
 
-	cosClient := cosclient.AuthCosignerClient{
+	cosignerProvider := client.CosignerProvider{
 		Issuer:      "example.com",
-		RedirectURI: ruri,
+		RedirectURI: "https://example.com/mfaredirect",
 	}
+	cosClient := client.AuthCosignerClient{
+		CosignerProvider: cosignerProvider,
+	}
+
 	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
@@ -99,7 +102,7 @@ func TestFullFlow(t *testing.T) {
 	// Create our MFA Cosigner
 	cosSigner, err := util.GenKeyPair(alg)
 	kid := "test-kid"
-	cosignerURI := "https://example.com/mfacosigner"
+	cosignerURI := "https://example.com"
 	rpID := "http://localhost"
 	RPOrigin := "http://localhost"
 
@@ -121,12 +124,14 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Step 1: Init MFA Cosigner flow
-	ruri := "https://example.com/mfaredirect"
-
-	cosClient := cosclient.AuthCosignerClient{
-		Issuer:      "example.com",
-		RedirectURI: ruri,
+	cosignerProvider := client.CosignerProvider{
+		Issuer:      "https://example.com",
+		RedirectURI: "https://example.com/mfaredirect",
 	}
+	cosClient := client.AuthCosignerClient{
+		CosignerProvider: cosignerProvider,
+	}
+
 	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
@@ -171,8 +176,8 @@ func TestFullFlow(t *testing.T) {
 	if credAssert == nil {
 		t.Fatal("Expected cred creation to not be nil")
 	}
-	if ruriRet != ruri {
-		t.Fatalf("expected ruri to be %s but was %s", ruri, ruriRet)
+	if ruriRet != cosignerProvider.RedirectURI {
+		t.Fatalf("expected ruri to be %s but was %s", cosignerProvider.RedirectURI, ruriRet)
 	}
 
 	// Step 4. Sign the authcode
@@ -191,6 +196,19 @@ func TestFullFlow(t *testing.T) {
 	}
 	pkt.AddSignature(cosSig, pktoken.Cos)
 
+	// TODO: Get verification test working
+
+	// op, err := providers.NewMockOpenIdProvider()
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// err = client.PKTokenVerifer{
+	// 	AllowedProviders: []client.OpenIdProvider{op},
+	// 	AllowedCosigners: []client.CosignerProvider{cosignerProvider},
+	// }.Verify(context.TODO(), pkt)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 }
 
 // For testing purposes we create a WebAuthn device to run the client part of the protocol

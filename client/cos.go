@@ -1,4 +1,4 @@
-package cosclient
+package client
 
 import (
 	"crypto"
@@ -16,13 +16,20 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-// TODO: Add message construction, message validation and deserialization helpers here. Break out POP auth into it's own thing.
-type AuthCosignerClient struct {
+type CosignerProvider struct {
 	Issuer      string
 	RedirectURI string
 }
 
-func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+func (p *CosignerProvider) GetIssuer() string {
+	return p.Issuer
+}
+
+type AuthCosignerClient struct {
+	CosignerProvider
+}
+
+func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 	ch := make(chan []byte)
 	errCh := make(chan error)
 
@@ -96,7 +103,7 @@ func (c *AuthCosignerClient) Auth(signer crypto.Signer, pkt *pktoken.PKToken, re
 	}
 }
 
-func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, nonce string) error {
+func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce string) error {
 	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
 		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
 	} else if len(cosSigParsed.Signatures()) != 1 {
@@ -105,7 +112,7 @@ func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, nonce string) err
 		ph := cosSigParsed.Signatures()[0].ProtectedHeaders()
 		if nonceRet, ok := ph.Get("nonce"); !ok {
 			return fmt.Errorf("nonce not set in Cosigner signature protected header")
-		} else if nonce != nonceRet {
+		} else if expectedNonce != nonceRet {
 			return fmt.Errorf("incorrect nonce set in Cosigner signature")
 		}
 		if ruriRet, ok := ph.Get("ruri"); !ok {

@@ -8,7 +8,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/cosigner/cosclient"
 	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -24,65 +23,6 @@ var (
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
 )
 
-// func main() {
-// 	clientKey, err := util.GenKeyPair(jwa.ES256)
-// 	if err != nil {
-// 		fmt.Println("error generating key pair:", err)
-// 		return
-// 	}
-
-// 	provider := &providers.GoogleOp{
-// 		ClientID:     clientID,
-// 		ClientSecret: clientSecret,
-// 		Issuer:       issuer,
-// 		Scopes:       scopes,
-// 		RedirURIPort: redirURIPort,
-// 		CallbackPath: callbackPath,
-// 		RedirectURI:  redirectURI,
-// 	}
-
-// 	command := os.Args[1]
-// 	switch command {
-// 	case "login":
-// 		opk := &client.OpkClient{
-// 			Op: provider,
-// 		}
-
-// 		pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
-// 		if err != nil {
-// 			fmt.Println("error generating key pair: ", err)
-// 			return
-// 		}
-// 		fmt.Println("New PK token generated")
-
-// 		// Verify our pktoken including the cosigner signature
-// 		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
-// 			fmt.Println("failed to verify PK token:", err)
-// 		}
-
-// 		pktJson, err := json.Marshal(pkt)
-// 		if err != nil {
-// 			fmt.Println("error serializing pktJson: ", err)
-// 			return
-// 		}
-// 		fmt.Println(string(pktJson))
-
-// 	case "mfa":
-// 		rpID := "localhost"
-// 		serverUri := "http://localhost:3003"
-// 		rpOrigin := "http://localhost:3003"
-// 		rpDisplayName := "OpenPubkey"
-// 		_, err := webauthn.New(serverUri, rpID, rpOrigin, rpDisplayName)
-// 		if err != nil {
-// 			fmt.Println("error starting mfa server: ", err)
-// 			return
-// 		}
-
-// 	default:
-// 		fmt.Println("Unrecognized command:", command)
-// 	}
-// }
-
 func main() {
 
 	provider := &providers.GoogleOp{
@@ -95,10 +35,11 @@ func main() {
 		RedirectURI:  redirectURI,
 	}
 
-	cosClient := &cosclient.AuthCosignerClient{
+	cosignerProvider := client.CosignerProvider{
 		Issuer:      "http://localhost:3003",
 		RedirectURI: "http://localhost:3000/mfacallback",
 	}
+
 	if len(os.Args) < 2 {
 		fmt.Printf("Example MFA Cosigner: command choices are: login, mfa")
 		return
@@ -107,9 +48,10 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "login":
+
 		opk := &client.OpkClient{
-			Op:     provider,
-			MfaCos: cosClient,
+			Op:   provider,
+			CosP: cosignerProvider,
 		}
 
 		clientKey, err := util.GenKeyPair(jwa.ES256)
@@ -126,12 +68,12 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		// TODO: Use this to test cosigner signature issuer allow list
-		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
+		err = client.PKTokenVerifer{
+			AllowedProviders: []client.OpenIdProvider{provider},
+			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
+		}.Verify(context.TODO(), pkt)
+		if err != nil {
 			fmt.Println("failed to verify PK token:", err)
-		}
-		if err := pkt.VerifyCosignerSignature(); err != nil {
-			fmt.Println("failed to verify PK token cosigner signature:", err)
 		} else {
 			fmt.Println("Verified PK token cosigner signature!")
 		}
