@@ -38,9 +38,9 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("JWKS hosted at", jwksServer.URI()+"/.well-known/jwks.json")
-	server.cosigner, err = NewCosigner(signer, alg, serverUri, kid, cfg)
+	issuer := jwksServer.URI()
+	fmt.Println("JWKS hosted at", issuer+"/.well-known/jwks.json")
+	server.cosigner, err = NewCosigner(signer, alg, issuer, kid, cfg)
 	if err != nil {
 		fmt.Println("failed to initialize cosigner: ", err)
 		return nil, err

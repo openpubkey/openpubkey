@@ -62,7 +62,7 @@ func main() {
 
 		pkt, err := opk.Auth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 		if err != nil {
-			fmt.Println("error generating key pair: ", err)
+			fmt.Println(err)
 			return
 		}
 		fmt.Println("New PK token generated")
@@ -92,5 +92,4 @@ func main() {
 		fmt.Println("Unrecognized command:", command)
 		fmt.Printf("Example MFA Cosigner: command choices are: login, mfa")
 	}
-
 }
