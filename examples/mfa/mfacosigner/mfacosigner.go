@@ -97,7 +97,7 @@ func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol
 
 	userKey := authState.UserKey()
 	if c.IsRegistered(userKey) {
-		return fmt.Errorf("Already has a webauthn device registered for this user")
+		return fmt.Errorf("already has a webauthn device registered for this user")
 	}
 	user := NewUser(authState)
 	credential, err := c.webAuthn.CreateCredential(user, *session, parsedResponse)
@@ -118,7 +118,9 @@ func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, 
 	authState := c.AuthStateMap[authID]
 	userKey := authState.UserKey()
 
-	if credAssertion, session, err := c.webAuthn.BeginLogin(c.users[userKey]); err != nil {
+	if user, ok := c.users[userKey]; !ok {
+		return nil, fmt.Errorf("user does not exist for userkey given %s", userKey)
+	} else if credAssertion, session, err := c.webAuthn.BeginLogin(user); err != nil {
 		return nil, err
 	} else {
 		c.sessionMap[authID] = session

@@ -19,8 +19,9 @@ import (
 )
 
 type CosignerProvider struct {
-	Issuer      string
-	RedirectURI string
+	Issuer          string
+	RedirectURI     string
+	RedirectURIPort string
 }
 
 func (p *CosignerProvider) GetIssuer() string {
@@ -77,7 +78,7 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 	)
 
 	// TODO: Supply the listen port via the CosignerProvider object
-	lis := fmt.Sprintf("localhost:%s", "3004")
+	lis := fmt.Sprintf("localhost:%s", c.RedirectURIPort)
 	server := &http.Server{
 		Addr: lis,
 	}
@@ -139,12 +140,11 @@ func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce str
 		} else if c.RedirectURI != ruriRet {
 			return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, expected %s", c.RedirectURI)
 		}
-		// TODO: Add this check back in when we have working Issuer allow lists
-		// if issRet, ok := ph.Get("iss"); !ok {
-		// 	return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
-		// } else if c.Issuer != issRet {
-		// 	return fmt.Errorf("unexpected iss (Cosigner Issuer) set in Cosigner signature, expected %s", c.Issuer)
-		// }
+		if issRet, ok := ph.Get("iss"); !ok {
+			return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
+		} else if c.Issuer != issRet {
+			return fmt.Errorf("unexpected iss (Cosigner Issuer) set in Cosigner signature, expected %s", c.Issuer)
+		}
 		return nil
 	}
 }
