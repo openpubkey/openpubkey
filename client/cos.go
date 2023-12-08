@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
@@ -14,6 +15,7 @@ import (
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/sirupsen/logrus"
 )
 
 type CosignerProvider struct {
@@ -73,6 +75,23 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 			ch <- cosSig
 		}),
 	)
+
+	// TODO: Supply the listen port via the CosignerProvider object
+	lis := fmt.Sprintf("localhost:%s", "3004")
+	server := &http.Server{
+		Addr: lis,
+	}
+
+	logrus.Infof("listening on http://%s/", lis)
+	logrus.Info("press ctrl+c to stop")
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Error(err)
+		}
+	}()
+	defer server.Shutdown(context.TODO())
+
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w\n", err)

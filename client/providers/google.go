@@ -81,6 +81,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		// MFA Cosigner Auth URI.
 		if g.httpSessionHook != nil {
 			g.httpSessionHook(w, r)
+			defer g.server.Shutdown(ctx)
 		} else {
 			w.Write([]byte("You may now close this window"))
 		}
@@ -111,6 +112,9 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 	select {
 	case err := <-chErr:
+		if g.httpSessionHook != nil {
+			defer g.server.Shutdown(ctx)
+		}
 		return nil, err
 	case token := <-ch:
 		return memguard.NewBufferFromBytes(token), nil

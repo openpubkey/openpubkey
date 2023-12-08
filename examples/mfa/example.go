@@ -37,7 +37,7 @@ func main() {
 
 	cosignerProvider := client.CosignerProvider{
 		Issuer:      "http://localhost:3003",
-		RedirectURI: "http://localhost:3000/mfacallback",
+		RedirectURI: "http://localhost:3004/mfacallback",
 	}
 
 	if len(os.Args) < 2 {
