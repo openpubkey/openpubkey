@@ -106,9 +106,9 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 	// If httpSessionHook is not defined shutdown the server when done,
 	// otherwise keep it open for the httpSessionHook
-	// if g.httpSessionHook == nil {
-	// 	defer g.server.Shutdown(ctx)
-	// }
+	if g.httpSessionHook == nil {
+		defer g.server.Shutdown(ctx)
+	}
 	select {
 	case err := <-chErr:
 		return nil, err
