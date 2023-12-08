@@ -66,7 +66,13 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	ch := make(chan []byte)
 	chErr := make(chan error)
 
-	http.Handle("/login", rp.AuthURLHandler(state, provider, rp.WithURLParam("nonce", cicHash)))
+	http.Handle("/login", rp.AuthURLHandler(state, provider,
+		rp.WithURLParam("nonce", cicHash),
+		// Select account requires that the user click the account they want to use.
+		// Results in better UX than just automatically dropping them into their
+		// only signed in account.
+		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+		rp.WithPromptURLParam("select_account")))
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
