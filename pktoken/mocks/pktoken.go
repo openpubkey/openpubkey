@@ -21,10 +21,16 @@ func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm
 	if err != nil {
 		return nil, err
 	}
-	jwkKey.Set(jwk.AlgorithmKey, alg)
+	err = jwkKey.Set(jwk.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
 
 	if email != "" {
-		jwkKey.Set("email", email)
+		err = jwkKey.Set("email", email)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
