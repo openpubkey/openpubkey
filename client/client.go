@@ -42,7 +42,7 @@ func (o *OpkClient) Auth(
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 		})
 
-		pkt, err := o.OidcAuth(ctx, signer, alg, extraClaims, signGQ) //TODO: could I get rid of the redirCh by passing pkt as a reference into httpSessionHook?
+		pkt, err := o.OidcAuth(ctx, signer, alg, extraClaims, signGQ)
 		if err != nil {
 			return nil, err
 		}

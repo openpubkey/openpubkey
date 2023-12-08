@@ -80,6 +80,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 			chErr <- err
 			return
 		}
+
 		ch <- []byte(tokens.IDToken)
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
@@ -104,6 +105,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	logrus.Info("press ctrl+c to stop")
 	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
 	util.OpenUrl(earl)
+
 	go func() {
 		err := g.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {

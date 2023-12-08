@@ -33,27 +33,27 @@ type BrowserOpenIdProvider interface {
 }
 type HttpSessionHook func(w http.ResponseWriter, r *http.Request)
 
-type OidcDone struct {
-	Token *memguard.LockedBuffer
-}
-
 func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return err
 	}
+
 	commitment, err := cic.Hash()
 	if err != nil {
 		return err
 	}
+
 	idt, err := pkt.Compact(pkt.Op)
 	if err != nil {
 		return fmt.Errorf("")
 	}
+
 	sigType, ok := pkt.ProviderSignatureType()
 	if !ok {
 		return fmt.Errorf("provider signature type missing")
 	}
+
 	switch sigType {
 	case pktoken.Gq:
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
@@ -61,11 +61,13 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
+
 		rsaPubKey := pubKey.(*rsa.PublicKey)
 		err = pkt.VerifyGQSig(rsaPubKey, GQSecurityParameter)
 		if err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
+
 		err = provider.VerifyCICHash(ctx, idt, string(commitment))
 		if err != nil {
 			return fmt.Errorf("failed to verify CIC hash: %w", err)
@@ -79,6 +81,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 			return fmt.Errorf("failed to verify signature from OIDC provider: %w", err)
 		}
 	}
+
 	err = pkt.VerifyCicSig()
 	if err != nil {
 		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
