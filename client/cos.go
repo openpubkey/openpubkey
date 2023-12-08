@@ -28,11 +28,7 @@ func (p *CosignerProvider) GetIssuer() string {
 	return p.Issuer
 }
 
-type AuthCosignerClient struct {
-	CosignerProvider
-}
-
-func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 	ch := make(chan []byte)
 	errCh := make(chan error)
 
@@ -77,7 +73,6 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 		}),
 	)
 
-	// TODO: Supply the listen port via the CosignerProvider object
 	lis := fmt.Sprintf("localhost:%s", c.RedirectURIPort)
 	server := &http.Server{
 		Addr: lis,
@@ -123,7 +118,7 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 	}
 }
 
-func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce string) error {
+func (c *CosignerProvider) ValidateCosPHeader(cosSig []byte, expectedNonce string) error {
 	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
 		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
 	} else if len(cosSigParsed.Signatures()) != 1 {
@@ -149,7 +144,7 @@ func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce str
 	}
 }
 
-func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, string, error) {
+func (c *CosignerProvider) CreateInitAuthSig() ([]byte, string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)
 	_, err := rand.Read(rBytes)

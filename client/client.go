@@ -46,10 +46,10 @@ func (o *OpkClient) Auth(
 		if err != nil {
 			return nil, err
 		}
-		cos := AuthCosignerClient{
-			CosignerProvider: *o.CosP,
-		}
-		return cos.RequestToken(signer, pkt, redirCh)
+		// cos := AuthCosignerClient{
+		// 	CosignerProvider: *o.CosP,
+		// }
+		return o.CosP.RequestToken(signer, pkt, redirCh)
 	} else {
 		return nil, fmt.Errorf("OP supplied does not support the MFA Cosigner")
 	}

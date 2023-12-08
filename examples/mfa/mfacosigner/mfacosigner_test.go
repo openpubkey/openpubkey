@@ -18,71 +18,6 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-func TestInitAuth(t *testing.T) {
-	// Generate the key pair for our cosigner
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Error(err)
-	}
-	kid := "test-kid"
-	cosignerURI := "https://example.com/mfacosigner"
-	rpID := "http://localhost"
-	rpOrigin := "http://localhost"
-
-	// WebAuthn configuration
-	cfg := &webauthn.Config{
-		RPDisplayName: "OpenPubkey",
-		RPID:          rpID,
-		RPOrigin:      rpOrigin,
-	}
-
-	cos, err := NewCosigner(signer, alg, cosignerURI, kid, cfg)
-	if err != nil {
-		t.Error(err)
-	}
-
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(signer, alg, email)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cosignerProvider := client.CosignerProvider{
-		Issuer:      "example.com",
-		RedirectURI: "https://example.com/mfaredirect",
-	}
-	cosClient := client.AuthCosignerClient{
-		CosignerProvider: cosignerProvider,
-	}
-
-	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
-	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
-	if err != nil {
-		t.Fatal(err)
-	}
-	authID, err := cos.InitAuth(pkt, sig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	authcode, err := cos.NewAuthcode(authID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), signer)
-
-	cosSig, err := cos.RedeemAuthcode(authcodeSig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cosSig == nil {
-		t.Fatal("Expected pktCos to be cosigned")
-	}
-	pkt.AddSignature(cosSig, pktoken.Cos)
-}
-
 func TestFullFlow(t *testing.T) {
 	// Step 0: Setup
 	// Create our PK Token and signer
@@ -122,15 +57,13 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Step 1: Init MFA Cosigner flow
-	cosignerProvider := client.CosignerProvider{
-		Issuer:      "https://example.com",
+
+	cosP := client.CosignerProvider{
+		Issuer:      "example.com",
 		RedirectURI: "https://example.com/mfaredirect",
 	}
-	cosClient := client.AuthCosignerClient{
-		CosignerProvider: cosignerProvider,
-	}
 
-	initAuthMsgJson, _, err := cosClient.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosP.CreateInitAuthSig()
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
@@ -174,8 +107,8 @@ func TestFullFlow(t *testing.T) {
 	if credAssert == nil {
 		t.Fatal("Expected cred creation to not be nil")
 	}
-	if ruriRet != cosignerProvider.RedirectURI {
-		t.Fatalf("expected ruri to be %s but was %s", cosignerProvider.RedirectURI, ruriRet)
+	if ruriRet != cosP.RedirectURI {
+		t.Fatalf("expected ruri to be %s but was %s", cosP.RedirectURI, ruriRet)
 	}
 
 	// Step 4. Sign the authcode
