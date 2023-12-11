@@ -271,14 +271,13 @@ func log(line string) {
 
 // Retrieve an open port
 func retrieveOpenPort() (port int, err error) {
-	redirectURIPort := 0
 	for index, port := range avilableURIPorts {
 		fmt.Printf(strconv.Itoa(index), port)
 		available, err := checkPortIsAvailable(port)
 		if err != nil {
 			fmt.Printf("Port %v is not available.", port)
 		} else if available {
-			return redirectURIPort, nil
+			return port, nil
 		}
 	}
 
