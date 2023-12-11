@@ -83,13 +83,13 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 
 	client := &client.OpkClient{
 		Op: &providers.GoogleOp{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Issuer:       issuer,
-			Scopes:       scopes,
-			RedirURIPort: redirURIPort,
-			CallbackPath: callbackPath,
-			RedirectURI:  redirectURI,
+			ClientID:        clientID,
+			ClientSecret:    clientSecret,
+			Issuer:          issuer,
+			Scopes:          scopes,
+			RedirectURIPort: redirURIPort,
+			CallbackPath:    callbackPath,
+			RedirectURI:     redirectURI,
 		},
 	}
 
