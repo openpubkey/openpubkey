@@ -73,7 +73,7 @@ func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCrea
 	userKey := authState.UserKey()
 
 	if c.IsRegistered(userKey) {
-		return nil, fmt.Errorf("Already has a webauthn device registered for this user")
+		return nil, fmt.Errorf("already has a webauthn device registered for this user")
 	}
 	user := NewUser(authState)
 	credCreation, session, err := c.webAuthn.BeginRegistration(user)

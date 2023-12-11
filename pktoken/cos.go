@@ -109,7 +109,7 @@ func (p *PKToken) VerifyCosignerSignature() error {
 
 	key, ok := set.LookupKeyID(header.KeyID)
 	if !ok {
-		return fmt.Errorf("missing key id (kid")
+		return fmt.Errorf("missing key id (kid)")
 	}
 
 	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))
