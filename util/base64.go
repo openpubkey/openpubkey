@@ -5,19 +5,19 @@ import (
 )
 
 func Base64Encode(decoded []byte) []byte {
-	return base64Encode(decoded, base64.StdEncoding)
+	return base64Encode(decoded, base64.StdEncoding.Strict())
 }
 
 func Base64Decode(encoded []byte) ([]byte, error) {
-	return base64Decode(encoded, base64.StdEncoding)
+	return base64Decode(encoded, base64.StdEncoding.Strict())
 }
 
 func Base64EncodeForJWT(decoded []byte) []byte {
-	return base64Encode(decoded, base64.RawURLEncoding)
+	return base64Encode(decoded, base64.RawURLEncoding.Strict())
 }
 
 func Base64DecodeForJWT(encoded []byte) ([]byte, error) {
-	return base64Decode(encoded, base64.RawURLEncoding)
+	return base64Decode(encoded, base64.RawURLEncoding.Strict())
 }
 
 func base64Encode(decoded []byte, encoding *base64.Encoding) []byte {

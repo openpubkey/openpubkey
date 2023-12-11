@@ -3,7 +3,6 @@ package pktoken
 import (
 	"bytes"
 	"crypto"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -49,7 +48,7 @@ func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
 	if err != nil {
 		return fmt.Errorf("failed to calculate thumbprint: %w", err)
 	}
-	return p.Op.PublicHeaders().Set("jkt", base64.RawURLEncoding.Strict().EncodeToString(thumbprint))
+	return p.Op.PublicHeaders().Set("jkt", util.Base64EncodeForJWT(thumbprint))
 }
 
 func New(idToken []byte, cicToken []byte, isGQ bool) (*PKToken, error) {

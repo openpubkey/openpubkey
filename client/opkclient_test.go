@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -51,6 +50,11 @@ func TestClient(t *testing.T) {
 		if !ok {
 			t.Fatal(fmt.Errorf("missing jkt header"))
 		}
+		var jktstr string
+		if data, ok := jkt.([]uint8); ok {
+			jktstr = string(data)
+		}
+
 		pubkey, err := op.PublicKey(context.Background(), nil)
 		if err != nil {
 			t.Fatal(err)
@@ -63,8 +67,8 @@ func TestClient(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		thumbprintStr := base64.RawURLEncoding.Strict().EncodeToString(thumbprint)
-		if jkt != thumbprintStr {
+		thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
+		if jktstr != thumbprintStr {
 			t.Fatal(fmt.Errorf("jkt header %s does not match op thumbprint %s", jkt, thumbprintStr))
 		}
 		sigType, ok := pkt.ProviderSignatureType()

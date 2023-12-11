@@ -2,6 +2,7 @@ package pktoken_test
 
 import (
 	"crypto"
+	_ "embed"
 	"encoding/json"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -69,4 +71,24 @@ func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	}
 
 	require.JSONEq(t, string(pktJson), string(newPktJson))
+}
+
+//go:embed test_jwk.json
+var test_jwk []byte
+
+// based on https://www.rfc-editor.org/rfc/rfc7638.html
+func TestThumprintCalculation(t *testing.T) {
+	fromRfc := "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
+	pub, err := jwk.ParseKey(test_jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thumb, err := pub.Thumbprint(crypto.SHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thumbEnc := util.Base64EncodeForJWT(thumb)
+	if string(thumbEnc) != fromRfc {
+		t.Fatalf("thumbprint %s did not match expected value %s", thumbEnc, fromRfc)
+	}
 }
