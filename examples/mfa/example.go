@@ -26,13 +26,13 @@ var (
 func main() {
 
 	provider := &providers.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Issuer:       issuer,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
+		ClientID:        clientID,
+		ClientSecret:    clientSecret,
+		Issuer:          issuer,
+		Scopes:          scopes,
+		RedirectURIPort: redirURIPort,
+		CallbackPath:    callbackPath, //TODO: We don't actually need this field since we also send the RedirectURI. Remove this later.
+		RedirectURI:     redirectURI,
 	}
 
 	cosignerProvider := client.CosignerProvider{
@@ -73,6 +73,7 @@ func main() {
 			fmt.Println("failed to verify PK token:", err)
 		}
 		// TODO: This is not secure because it does not check that issuer is the expected issuer
+		// This will be addressed in https://github.com/openpubkey/openpubkey/pull/72
 		if err := pkt.VerifyCosignerSignature(); err != nil {
 			fmt.Println("failed to verify PK token cosigner signature:", err)
 		}
@@ -83,7 +84,7 @@ func main() {
 		serverUri := "http://localhost:3003"
 		rpOrigin := "http://localhost:3003"
 		rpDisplayName := "OpenPubkey"
-		_, err := mfacosigner.New(serverUri, rpID, rpOrigin, rpDisplayName)
+		_, err := mfacosigner.NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, rpDisplayName)
 		if err != nil {
 			fmt.Println("error starting mfa server: ", err)
 			return

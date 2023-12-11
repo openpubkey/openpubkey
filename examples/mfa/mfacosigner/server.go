@@ -18,7 +18,7 @@ type Server struct {
 	jwksUri  string
 }
 
-func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
+func NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	server := &Server{}
 
 	// WebAuthn configuration
@@ -44,9 +44,8 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	issuer := rpOrigin
 
 	fmt.Println("JWKS hosted at", server.jwksUri)
-	server.cosigner, err = NewCosigner(signer, alg, issuer, kid, cfg)
+	server.cosigner, err = New(signer, alg, issuer, kid, cfg)
 	if err != nil {
-		fmt.Println("failed to initialize cosigner: ", err)
 		return nil, err
 	}
 
@@ -129,7 +128,6 @@ func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
 
 	optionsJson, err := json.Marshal(options)
 	if err != nil {
-		fmt.Printf("Failed to marshal options: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -169,14 +167,12 @@ func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := s.cosigner.BeginLogin(authID)
 	if err != nil {
-		fmt.Println("Failed to begin webauthn login:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	optionsJson, err := json.Marshal(options)
 	if err != nil {
-		fmt.Println("Failed to marshal options:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -222,7 +218,6 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	sig := []byte(r.URL.Query().Get("sig2"))
 
 	if cosSig, err := s.cosigner.RedeemAuthcode(sig); err != nil {
-		fmt.Println("Signature Grant Failed:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	} else {

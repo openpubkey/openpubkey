@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -27,13 +26,13 @@ func NewUser(as *cosigner.AuthState) *user {
 }
 
 type MfaCosigner struct {
-	cosigner.AuthCosigner
+	*cosigner.AuthCosigner
 	webAuthn   *webauthn.WebAuthn
 	sessionMap map[string]*webauthn.SessionData
 	users      map[cosigner.UserKey]*user
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
 
 	if _, err := rand.Read(hmacKey); err != nil {
@@ -45,22 +44,16 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 		return nil, err
 	}
 
+	authCos, err := cosigner.New(signer, alg, issuer, keyID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MfaCosigner{
-		AuthCosigner: cosigner.AuthCosigner{
-			Cosigner: cosigner.Cosigner{
-				Alg:    alg,
-				Signer: signer,
-			},
-			Issuer:       issuer,
-			KeyID:        keyID,
-			AuthIdIter:   atomic.Uint64{},
-			HmacKey:      hmacKey,
-			AuthStateMap: make(map[string]*cosigner.AuthState), //index by AuthID
-			AuthCodeMap:  make(map[string]string),
-		},
-		webAuthn:   wauth,
-		sessionMap: make(map[string]*webauthn.SessionData),
-		users:      make(map[cosigner.UserKey]*user),
+		AuthCosigner: authCos,
+		webAuthn:     wauth,
+		sessionMap:   make(map[string]*webauthn.SessionData),
+		users:        make(map[cosigner.UserKey]*user),
 	}, nil
 }
 

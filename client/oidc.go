@@ -63,6 +63,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		}
 
 		rsaPubKey := pubKey.(*rsa.PublicKey)
+
 		err = pkt.VerifyGQSig(rsaPubKey, GQSecurityParameter)
 		if err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)

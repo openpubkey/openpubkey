@@ -19,29 +19,29 @@ import (
 )
 
 type AuthCosigner struct {
-	Cosigner
+	BasicCosigner
 	Issuer       string
 	KeyID        string
-	AuthIdIter   atomic.Uint64
-	HmacKey      []byte
+	authIdIter   atomic.Uint64
+	hmacKey      []byte
 	AuthStateMap map[string]*AuthState
 	AuthCodeMap  map[string]string
 }
 
-func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
 	hmacKey := make([]byte, 64)
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err
 	}
 
 	return &AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    alg,
-			Signer: signer},
+		BasicCosigner: BasicCosigner{
+			alg:    alg,
+			signer: signer},
 		Issuer:       issuer,
 		KeyID:        keyID,
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
+		authIdIter:   atomic.Uint64{},
+		hmacKey:      hmacKey,
 		AuthStateMap: make(map[string]*AuthState),
 		AuthCodeMap:  make(map[string]string),
 	}, nil
@@ -58,7 +58,7 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 	} else if time.Since(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
 		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too old, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if time.Until(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
-		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message to far in the future, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
+		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too far in the future, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if authState, err := NewAuthState(pkt, initMFAAuth.RedirectUri, initMFAAuth.Nonce); err != nil {
 		return "", err
 	} else if authID, err := c.CreateAuthID(uint64(time.Now().Unix())); err != nil {
@@ -70,11 +70,11 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 }
 
 func (c *AuthCosigner) CreateAuthID(timeNow uint64) (string, error) {
-	authIdInt := c.AuthIdIter.Add(1)
+	authIdInt := c.authIdIter.Add(1)
 	iterAndTime := []byte{}
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(authIdInt))
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, timeNow)
-	mac := hmac.New(crypto.SHA3_256.New, c.HmacKey)
+	mac := hmac.New(crypto.SHA3_256.New, c.hmacKey)
 	if n, err := mac.Write(iterAndTime); err != nil {
 		return "", err
 	} else if n != 16 {
@@ -140,7 +140,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) ([]by
 	protected := pktoken.CosignerClaims{
 		Iss:         c.Issuer,
 		KeyID:       c.KeyID,
-		Algorithm:   c.Alg.String(),
+		Algorithm:   c.alg.String(),
 		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),

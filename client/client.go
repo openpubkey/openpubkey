@@ -31,14 +31,15 @@ func (o *OpkClient) OidcAndCosAuth(
 	extraClaims map[string]any,
 	signGQ bool,
 ) (*pktoken.PKToken, error) {
-	// If no Cosigner set then do standard OIDC authentication
-
+	// If no Cosigner is set then do standard OIDC authentication
 	if o.CosP == nil {
 		return o.OidcAuth(ctx, signer, alg, extraClaims, signGQ)
 	}
 
-	// If Cosigner is set then check that will support doing Cosigner auth
-	if browserOp, ok := o.Op.(BrowserOpenIdProvider); ok {
+	// If a Cosigner is set then check that will support doing Cosigner auth
+	if browserOp, ok := o.Op.(BrowserOpenIdProvider); !ok {
+		return nil, fmt.Errorf("OP supplied does not have support for MFA Cosigner")
+	} else {
 		redirCh := make(chan string)
 
 		browserOp.HookHTTPSession(func(w http.ResponseWriter, r *http.Request) {
@@ -51,8 +52,6 @@ func (o *OpkClient) OidcAndCosAuth(
 			return nil, err
 		}
 		return o.CosP.RequestToken(signer, pkt, redirCh)
-	} else {
-		return nil, fmt.Errorf("OP supplied does not support the MFA Cosigner")
 	}
 }
 

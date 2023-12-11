@@ -32,7 +32,7 @@ type GoogleOp struct {
 	ClientSecret    string
 	Issuer          string
 	Scopes          []string
-	RedirURIPort    string
+	RedirectURIPort string
 	CallbackPath    string
 	RedirectURI     string
 	server          *http.Server
@@ -96,14 +96,14 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
 
-	lis := fmt.Sprintf("localhost:%s", g.RedirURIPort)
+	lis := fmt.Sprintf("localhost:%s", g.RedirectURIPort)
 	g.server = &http.Server{
 		Addr: lis,
 	}
 
 	logrus.Infof("listening on http://%s/", lis)
 	logrus.Info("press ctrl+c to stop")
-	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
+	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirectURIPort)
 	util.OpenUrl(earl)
 
 	go func() {

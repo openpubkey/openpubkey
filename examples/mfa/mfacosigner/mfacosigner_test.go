@@ -28,6 +28,9 @@ func TestFullFlow(t *testing.T) {
 
 	// Create our MFA Cosigner
 	cosSigner, err := util.GenKeyPair(alg)
+	if err != nil {
+		t.Error(err)
+	}
 	kid := "test-kid"
 	cosignerURI := "https://example.com"
 	rpID := "http://localhost"
@@ -39,7 +42,7 @@ func TestFullFlow(t *testing.T) {
 		RPID:          rpID,
 		RPOrigin:      RPOrigin,
 	}
-	cos, err := NewCosigner(cosSigner, alg, cosignerURI, kid, cfg)
+	cos, err := New(cosSigner, alg, cosignerURI, kid, cfg)
 	if err != nil {
 		t.Error(err)
 	}
@@ -50,8 +53,7 @@ func TestFullFlow(t *testing.T) {
 		t.Error(err)
 	}
 
-	// Step 1: Init MFA Cosigner flow
-
+	// Init MFA Cosigner flow
 	cosP := client.CosignerProvider{
 		Issuer:      "example.com",
 		RedirectURI: "https://example.com/mfaredirect",
@@ -64,7 +66,7 @@ func TestFullFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Step 2: Register MFA device
+	// Register MFA device
 	createCreation, err := cos.BeginRegistration(authID)
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +83,7 @@ func TestFullFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Step 3: Login MFA device
+	// Login MFA device
 	credAssert, err := cos.BeginLogin(authID)
 	if err != nil {
 		t.Fatal(err)
@@ -105,8 +107,8 @@ func TestFullFlow(t *testing.T) {
 		t.Fatalf("expected ruri to be %s but was %s", cosP.RedirectURI, ruriRet)
 	}
 
-	// Step 4. Sign the authcode
-	//  and exchange it with the Cosigner to get the PK Token cosigned
+	// Sign the authcode
+	// and exchange it with the Cosigner to get the PK Token cosigned
 	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), signer)
 	if err != nil {
 		t.Fatal(err)

@@ -105,7 +105,7 @@ func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKTok
 	select {
 	case cosSig := <-ch:
 		// To be safe we perform these checks before adding the cosSig to the pktoken
-		if err := c.ValidateCosPHeader(cosSig, nonce); err != nil {
+		if err := c.ValidateCos(cosSig, nonce); err != nil {
 			return nil, err
 		}
 		pkt.AddSignature(cosSig, pktoken.Cos)
@@ -118,7 +118,7 @@ func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKTok
 	}
 }
 
-func (c *CosignerProvider) ValidateCosPHeader(cosSig []byte, expectedNonce string) error {
+func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string) error {
 	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
 		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
 	} else if len(cosSigParsed.Signatures()) != 1 {

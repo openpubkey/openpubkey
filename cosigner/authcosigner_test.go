@@ -22,14 +22,14 @@ func TestAuthIDs(t *testing.T) {
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: cosSigner,
+		BasicCosigner: BasicCosigner{
+			alg:    cosAlg,
+			signer: cosSigner,
 		},
 		Issuer:       "https://example.com",
 		KeyID:        "kid1234",
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
+		authIdIter:   atomic.Uint64{},
+		hmacKey:      hmacKey,
 		AuthStateMap: make(map[string]*AuthState),
 		AuthCodeMap:  make(map[string]string),
 	}
@@ -52,25 +52,7 @@ func TestAuthIDs(t *testing.T) {
 }
 
 func TestInitAuth(t *testing.T) {
-	cosAlg := jwa.ES256
-	cosSigner, err := util.GenKeyPair(cosAlg)
-	if err != nil {
-		t.Error(err)
-	}
-	hmacKey := []byte{0x1, 0x2, 0x3}
-
-	cos := AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: cosSigner,
-		},
-		Issuer:       "https://example.com",
-		KeyID:        "kid1234",
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
-		AuthStateMap: make(map[string]*AuthState),
-		AuthCodeMap:  make(map[string]string),
-	}
+	cos := CreateAuthCosigner(t)
 
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
@@ -102,25 +84,7 @@ func TestInitAuth(t *testing.T) {
 }
 
 func TestRedeemAuthcode(t *testing.T) {
-	cosAlg := jwa.ES256
-	cosSigner, err := util.GenKeyPair(cosAlg)
-	if err != nil {
-		t.Error(err)
-	}
-	hmacKey := []byte{0x1, 0x2, 0x3}
-
-	cos := AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: cosSigner,
-		},
-		Issuer:       "https://example.com",
-		KeyID:        "kid1234",
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
-		AuthStateMap: make(map[string]*AuthState),
-		AuthCodeMap:  make(map[string]string),
-	}
+	cos := CreateAuthCosigner(t)
 
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
@@ -185,7 +149,22 @@ func TestRedeemAuthcode(t *testing.T) {
 				t.Fatalf("test %d: expected not nil, got: %v", i+1, cosSig)
 			}
 		}
+	}
+}
 
+func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	pkt, err := mocks.GenerateMockPKToken(signer, alg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cos := CreateAuthCosigner(t)
+
+	cosP := client.CosignerProvider{
+		Issuer:      "example.com",
+		RedirectURI: "https://example.com/mfaredirect",
 	}
 
 	// reuse the same authcode twice, it should fail
@@ -222,14 +201,14 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: cosSigner,
+		BasicCosigner: BasicCosigner{
+			alg:    cosAlg,
+			signer: cosSigner,
 		},
 		Issuer:       "https://example.com",
 		KeyID:        "kid1234",
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
+		authIdIter:   atomic.Uint64{},
+		hmacKey:      hmacKey,
 		AuthStateMap: make(map[string]*AuthState),
 		AuthCodeMap:  make(map[string]string),
 	}
@@ -244,4 +223,26 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	authcode, err := cos.NewAuthcode(authID)
 	require.ErrorContains(t, err, "no such authID")
 	require.Empty(t, authcode)
+}
+
+func CreateAuthCosigner(t *testing.T) *AuthCosigner {
+	cosAlg := jwa.ES256
+	signer, err := util.GenKeyPair(cosAlg)
+	if err != nil {
+		t.Error(err)
+	}
+	hmacKey := []byte{0x1, 0x2, 0x3}
+
+	return &AuthCosigner{
+		BasicCosigner: BasicCosigner{
+			alg:    cosAlg,
+			signer: signer,
+		},
+		Issuer:       "https://example.com",
+		KeyID:        "kid1234",
+		authIdIter:   atomic.Uint64{},
+		hmacKey:      hmacKey,
+		AuthStateMap: make(map[string]*AuthState),
+		AuthCodeMap:  make(map[string]string),
+	}
 }
