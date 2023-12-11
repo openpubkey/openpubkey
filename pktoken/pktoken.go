@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -34,6 +35,20 @@ type PKToken struct {
 	Op      *Signature // Provider Signature
 	Cic     *Signature // Client Signature
 	Cos     *Signature // Cosigner Signature
+}
+
+// kid isn't always present, and is only guaranteed to be unique within a given key set,
+// so we can use the thumbprint of the key instead to identify it at verification time
+func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
+	public, err := jwk.FromRaw(opKey)
+	if err != nil {
+		return fmt.Errorf("failed to create JWK from public key: %w", err)
+	}
+	thumbprint, err := public.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("failed to calculate thumbprint: %w", err)
+	}
+	return p.Op.PublicHeaders().Set("jkt", util.Base64EncodeForJWT(thumbprint))
 }
 
 func New(idToken []byte, cicToken []byte, isGQ bool) (*PKToken, error) {
