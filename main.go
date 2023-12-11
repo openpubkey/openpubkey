@@ -17,14 +17,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// This code is currently intended as an example for how OpenPubkey can secure SSH access.
 var (
-	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
-	clientSecret     = "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" // Google requires a ClientSecret even if this a public OIDC App
-	issuer           = "https://accounts.google.com"
-	scopes           = []string{"openid profile email"}
 	avilableURIPorts = []int{49172, 51252, 58243, 59360, 62109}
-	callbackPath     = "/login-callback"
 )
 
 // This code is currently intended as an example for how OpenPubkey can secure SSH access.
@@ -38,12 +32,14 @@ func main() {
 	var redirectURIPort int
 	var err error
 	if redirectURIPort, err = retrieveOpenPort(); err != nil {
-		log(fmt.Sprint(err))
+		fmt.Print(err)
 		os.Exit(1)
 	}
 
 	// OIDC provider is hardcoded to Google for now
 	op := internal.GoogleOp
+	op.RedirURIPort = fmt.Sprint(redirectURIPort)
+	op.RedirectURI = fmt.Sprintf("http://localhost:%v%v", op.RedirURIPort, op.CallbackPath)
 
 	switch command {
 	case "login":
