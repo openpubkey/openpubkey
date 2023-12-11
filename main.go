@@ -38,6 +38,7 @@ func main() {
 
 	// OIDC provider is hardcoded to Google for now
 	op := internal.GoogleOp
+
 	op.RedirURIPort = fmt.Sprint(redirectURIPort)
 	op.RedirectURI = fmt.Sprintf("http://localhost:%v%v", op.RedirURIPort, op.CallbackPath)
 
