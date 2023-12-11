@@ -40,21 +40,11 @@ func main() {
 	}
 	command := os.Args[1]
 
-	redirectURIPort := 0
-	for index, port := range avilableURIPorts {
-		fmt.Printf(strconv.Itoa(index), port)
-		available, err := checkPortIsAvailable(port)
-		if err != nil {
-			fmt.Printf("Port %v is not available.", port)
-		} else if available {
-			redirectURIPort = port
-			break
-		}
-	}
-
-	// If none of our preconfigured ports are available, then let the user know and exit
-	if redirectURIPort == 0 {
-		fmt.Printf("Log in listener could not bind to any of the default ports. Please make sure atleast one of the ports is open/whitelisted.")
+	var redirectURIPort int
+	var err error
+	if redirectURIPort, err = retrieveOpenPort(); err != nil {
+		log(fmt.Sprint(err))
+		os.Exit(1)
 	}
 
 	redirectURI := fmt.Sprintf("http://localhost:%v%v", redirectURIPort, callbackPath)
@@ -279,12 +269,28 @@ func log(line string) {
 	}
 }
 
+// Retrieve an open port
+func retrieveOpenPort() (port int, err error) {
+	redirectURIPort := 0
+	for index, port := range avilableURIPorts {
+		fmt.Printf(strconv.Itoa(index), port)
+		available, err := checkPortIsAvailable(port)
+		if err != nil {
+			fmt.Printf("Port %v is not available.", port)
+		} else if available {
+			return redirectURIPort, nil
+		}
+	}
+
+	return 0, fmt.Errorf("failed to retrieve open port: callback listener could not bind to any of the default ports")
+}
+
 // Reference -> https://gist.github.com/montanaflynn/b59c058ce2adc18f31d6
 // Check if a port is available
 func checkPortIsAvailable(port int) (status bool, err error) {
 
 	// Concatenate a colon and the port
-	host := ":" + strconv.Itoa(port)
+	host := fmt.Sprintf(":%d", port)
 
 	// Try to create a server with the port
 	server, err := net.Listen("tcp", host)
