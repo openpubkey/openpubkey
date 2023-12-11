@@ -104,12 +104,12 @@ func (p *PKToken) VerifyCosignerSignature() error {
 	}
 	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
 	if err != nil {
-		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint")
+		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
 	}
 
 	key, ok := set.LookupKeyID(header.KeyID)
 	if !ok {
-		return fmt.Errorf("missing key id")
+		return fmt.Errorf("missing key id (kid")
 	}
 
 	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))

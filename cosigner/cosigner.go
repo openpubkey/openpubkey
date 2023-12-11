@@ -8,12 +8,12 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type BasicCosigner struct {
+type Cosigner struct {
 	alg    jwa.KeyAlgorithm
 	signer crypto.Signer
 }
 
-func (c *BasicCosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) {
+func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) {
 	jsonBytes, err := json.Marshal(cosClaims)
 	if err != nil {
 		return nil, err

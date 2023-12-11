@@ -18,7 +18,7 @@ func TestSimpleCosigner(t *testing.T) {
 		t.Error(err)
 	}
 
-	cos := &BasicCosigner{
+	cos := &Cosigner{
 		alg:    alg,
 		signer: signer,
 	}

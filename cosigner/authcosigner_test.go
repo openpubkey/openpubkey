@@ -22,7 +22,7 @@ func TestAuthIDs(t *testing.T) {
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
-		BasicCosigner: BasicCosigner{
+		Cosigner: Cosigner{
 			alg:    cosAlg,
 			signer: cosSigner,
 		},
@@ -201,7 +201,7 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
-		BasicCosigner: BasicCosigner{
+		Cosigner: Cosigner{
 			alg:    cosAlg,
 			signer: cosSigner,
 		},
@@ -234,7 +234,7 @@ func CreateAuthCosigner(t *testing.T) *AuthCosigner {
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	return &AuthCosigner{
-		BasicCosigner: BasicCosigner{
+		Cosigner: Cosigner{
 			alg:    cosAlg,
 			signer: signer,
 		},

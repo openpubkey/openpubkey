@@ -19,7 +19,7 @@ import (
 )
 
 type AuthCosigner struct {
-	BasicCosigner
+	Cosigner
 	Issuer       string
 	KeyID        string
 	authIdIter   atomic.Uint64
@@ -35,7 +35,7 @@ func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string)
 	}
 
 	return &AuthCosigner{
-		BasicCosigner: BasicCosigner{
+		Cosigner: Cosigner{
 			alg:    alg,
 			signer: signer},
 		Issuer:       issuer,
