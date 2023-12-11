@@ -61,7 +61,7 @@ func main() {
 			return
 		}
 
-		pkt, err := opk.Auth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		pkt, err := opk.OidcAndCosAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 		if err != nil {
 			fmt.Println(err)
 			return
