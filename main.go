@@ -7,17 +7,21 @@ import (
 	"freessh/policy"
 	"freessh/sshcert"
 	"log"
-	"strings"
-
+	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/crypto/ssh"
 )
 
-// This code is currently intended as an example for how OpenPubkey can secure
-// SSH access.
+var (
+	avilableURIPorts = []int{49172, 51252, 58243, 59360, 62109}
+)
+
+// This code is currently intended as an example for how OpenPubkey can secure SSH access.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, ver")
@@ -25,8 +29,18 @@ func main() {
 	}
 	command := os.Args[1]
 
+	var redirectURIPort int
+	var err error
+	if redirectURIPort, err = retrieveOpenPort(); err != nil {
+		fmt.Print(err)
+		os.Exit(1)
+	}
+
 	// OIDC provider is hardcoded to Google for now
 	op := internal.GoogleOp
+
+	op.RedirURIPort = fmt.Sprint(redirectURIPort)
+	op.RedirectURI = fmt.Sprintf("http://localhost:%v%v", op.RedirURIPort, op.CallbackPath)
 
 	switch command {
 	case "login":
@@ -113,4 +127,43 @@ func authorizedKeysCommand(
 		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
 		return "cert-authority " + string(pubkeyBytes), nil
 	}
+}
+
+// Retrieve an open port
+func retrieveOpenPort() (port int, err error) {
+	for index, port := range avilableURIPorts {
+		fmt.Printf(strconv.Itoa(index), port)
+		available, err := checkPortIsAvailable(port)
+		if err != nil {
+			fmt.Printf("Port %v is not available.", port)
+		} else if available {
+			return port, nil
+		}
+	}
+
+	return 0, fmt.Errorf("failed to retrieve open port: callback listener could not bind to any of the default ports")
+}
+
+// Reference -> https://gist.github.com/montanaflynn/b59c058ce2adc18f31d6
+// Check if a port is available
+func checkPortIsAvailable(port int) (status bool, err error) {
+
+	// Concatenate a colon and the port
+	host := fmt.Sprintf(":%d", port)
+
+	// Try to create a server with the port
+	server, err := net.Listen("tcp", host)
+
+	// if it fails then the port is likely taken
+	if err != nil {
+		return false, err
+	}
+
+	// close the server
+	server.Close()
+
+	// we successfully used and closed the port
+	// so it's now available to be used again
+	return true, nil
+
 }
