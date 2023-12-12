@@ -2,6 +2,7 @@ package cosigner
 
 import (
 	"crypto"
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -65,11 +66,12 @@ func TestInitAuth(t *testing.T) {
 	}
 
 	cosP := client.CosignerProvider{
-		Issuer:      "example.com",
-		RedirectURI: "https://example.com/mfaredirect",
+		Issuer:       "example.com",
+		CallbackPath: "/mfaredirect",
 	}
+	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
-	initAuthMsgJson, _, err := cosP.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID1, err := cos.InitAuth(pkt, sig)
 	if err != nil {
@@ -97,9 +99,10 @@ func TestRedeemAuthcode(t *testing.T) {
 	}
 
 	cosP := client.CosignerProvider{
-		Issuer:      "example.com",
-		RedirectURI: "https://example.com/mfaredirect",
+		Issuer:       "example.com",
+		CallbackPath: "/mfaredirect",
 	}
+	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
 	diffSigner, err := util.GenKeyPair(alg)
 	if err != nil {
@@ -123,7 +126,7 @@ func TestRedeemAuthcode(t *testing.T) {
 	}
 
 	for i, tc := range tests {
-		initAuthMsgJson, _, err := cosP.CreateInitAuthSig()
+		initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 		sig, err := tc.pkt.NewSignedMessage(initAuthMsgJson, tc.signer)
 		authID, err := cos.InitAuth(tc.pkt, sig)
 		if !tc.wantError && err != nil {
@@ -163,12 +166,13 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	cos := CreateAuthCosigner(t)
 
 	cosP := client.CosignerProvider{
-		Issuer:      "example.com",
-		RedirectURI: "https://example.com/mfaredirect",
+		Issuer:       "example.com",
+		CallbackPath: "/mfaredirect",
 	}
+	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
 	// reuse the same authcode twice, it should fail
-	initAuthMsgJson, _, err := cosP.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	require.Empty(t, err)

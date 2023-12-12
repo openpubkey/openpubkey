@@ -1,6 +1,7 @@
 package mfacosigner
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -55,11 +56,12 @@ func TestFullFlow(t *testing.T) {
 
 	// Init MFA Cosigner flow
 	cosP := client.CosignerProvider{
-		Issuer:      "example.com",
-		RedirectURI: "https://example.com/mfaredirect",
+		Issuer:       "example.com",
+		CallbackPath: "/mfaredirect",
 	}
+	redirectURI := fmt.Sprintf("%s%s", "http://localhost:5555", cosP.CallbackPath)
 
-	initAuthMsgJson, _, err := cosP.CreateInitAuthSig()
+	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID, err := cos.InitAuth(pkt, sig)
 	if err != nil {
@@ -103,8 +105,8 @@ func TestFullFlow(t *testing.T) {
 	if credAssert == nil {
 		t.Fatal("Expected cred creation to not be nil")
 	}
-	if ruriRet != cosP.RedirectURI {
-		t.Fatalf("expected ruri to be %s but was %s", cosP.RedirectURI, ruriRet)
+	if ruriRet != redirectURI {
+		t.Fatalf("expected ruri to be %s but was %s", redirectURI, ruriRet)
 	}
 
 	// Sign the authcode
