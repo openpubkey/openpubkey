@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -19,9 +20,8 @@ import (
 )
 
 type CosignerProvider struct {
-	Issuer          string
-	RedirectURI     string
-	RedirectURIPort string
+	Issuer      string
+	RedirectURI string
 }
 
 func (p *CosignerProvider) GetIssuer() string {
@@ -29,11 +29,31 @@ func (p *CosignerProvider) GetIssuer() string {
 }
 
 func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+	redirectURI, err := url.Parse(c.RedirectURI)
+	if err != nil {
+		return nil, fmt.Errorf("the RedirectURI provided (%s) could not be parsed : %w\n", c.RedirectURI, err)
+	}
+
+	mfaCallback := redirectURI.Path // typically defined as "/mfacallback"
+	server := &http.Server{
+		Addr: redirectURI.Host,
+	}
+
+	logrus.Infof("listening on http://%s/", redirectURI.Host)
+	logrus.Info("press ctrl+c to stop")
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Error(err)
+		}
+	}()
+	defer server.Shutdown(context.TODO())
+
 	ch := make(chan []byte)
 	errCh := make(chan error)
 
 	// This is where we get the authcode from the Cosigner
-	http.Handle("/mfacallback",
+	http.Handle(mfaCallback,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 			// Get authcode from Cosigner via Cosigner redirecting user's browser window
@@ -72,21 +92,6 @@ func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKTok
 			ch <- cosSig
 		}),
 	)
-
-	lis := fmt.Sprintf("localhost:%s", c.RedirectURIPort)
-	server := &http.Server{
-		Addr: lis,
-	}
-
-	logrus.Infof("listening on http://%s/", lis)
-	logrus.Info("press ctrl+c to stop")
-	go func() {
-		err := server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
-		}
-	}()
-	defer server.Shutdown(context.TODO())
 
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
