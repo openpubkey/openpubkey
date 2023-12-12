@@ -26,13 +26,13 @@ var (
 func main() {
 
 	provider := &providers.GoogleOp{
-		ClientID:        clientID,
-		ClientSecret:    clientSecret,
-		Issuer:          issuer,
-		Scopes:          scopes,
-		RedirectURIPort: redirURIPort,
-		CallbackPath:    callbackPath, //TODO: We don't actually need this field since we also send the RedirectURI. Remove this later.
-		RedirectURI:     redirectURI,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Issuer:       issuer,
+		Scopes:       scopes,
+		RedirURIPort: redirURIPort,
+		CallbackPath: callbackPath,
+		RedirectURI:  redirectURI,
 	}
 
 	cosignerProvider := client.CosignerProvider{

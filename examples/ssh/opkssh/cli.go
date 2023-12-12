@@ -41,13 +41,13 @@ func main() {
 	command := os.Args[1]
 
 	op := providers.GoogleOp{
-		ClientID:        clientID,
-		ClientSecret:    clientSecret,
-		Issuer:          issuer,
-		Scopes:          scopes,
-		RedirectURIPort: redirURIPort,
-		CallbackPath:    callbackPath,
-		RedirectURI:     redirectURI,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Issuer:       issuer,
+		Scopes:       scopes,
+		RedirURIPort: redirURIPort,
+		CallbackPath: callbackPath,
+		RedirectURI:  redirectURI,
 	}
 
 	switch command {
