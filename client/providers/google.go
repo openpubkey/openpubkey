@@ -3,8 +3,6 @@ package providers
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -12,11 +10,9 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -121,41 +117,7 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 }
 
 func (g *GoogleOp) PublicKey(ctx context.Context, headersEnc []byte) (crypto.PublicKey, error) {
-	headersJSON, err := util.Base64DecodeForJWT(headersEnc)
-	if err != nil {
-		return nil, err
-	}
-
-	headers := make(map[string]any)
-	err = json.Unmarshal(headersJSON, &headers)
-	if err != nil {
-		return nil, err
-	}
-
-	kid := headers["kid"].(string)
-
-	discConf, err := oidcclient.Discover(g.Issuer, http.DefaultClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
+	return client.DiscoverPublicKey(ctx, headersEnc, g.Issuer)
 }
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
