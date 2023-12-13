@@ -6,14 +6,17 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 const GQSecurityParameter = 256
@@ -67,7 +70,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
+	PublicKey(ctx context.Context, headers []byte) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
@@ -139,6 +142,47 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	}
 
 	return nil
+}
+
+func DiscoverPublicKey(ctx context.Context, headersEnc []byte, issuer string) (crypto.PublicKey, error) {
+	headersJSON, err := util.Base64DecodeForJWT(headersEnc)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: better to unmarshal to map[string]any and check for existence and type of kid?
+	type headersWithKID struct {
+		KID string `json:"kid"`
+	}
+
+	headers := new(headersWithKID)
+	err = json.Unmarshal(headersJSON, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+	}
+
+	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+
+	key, ok := jwks.LookupKeyID(headers.KID)
+	if !ok {
+		return nil, fmt.Errorf("key %q isn't in JWKS", headers.KID)
+	}
+
+	pubKey := new(rsa.PublicKey)
+	err = key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return pubKey, err
 }
 
 func ExtractClaim(idt []byte, claimName string) (string, error) {
