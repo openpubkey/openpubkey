@@ -1,7 +1,6 @@
 package gq
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -13,7 +12,7 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-func TestProveVerify(t *testing.T) {
+func TestSignVerifyJWT(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +127,7 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	newToken := bytes.Join([][]byte{headers, util.Base64EncodeForJWT(modifiedPayload), signature}, []byte{'.'})
+	newToken := util.JoinJWTSegments(headers, util.Base64EncodeForJWT(modifiedPayload), signature)
 	return newToken, nil
 }
 

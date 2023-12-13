@@ -85,8 +85,7 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 		return false
 	}
 
-	signingPayload := append([]byte(origHeaders), []byte(".")...)
-	signingPayload = append(signingPayload, payload...)
+	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
 	return sv.Verify(signature, signingPayload, signingPayload)
 }
