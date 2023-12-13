@@ -9,7 +9,6 @@ import (
 	"freessh/sshcert"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
@@ -71,6 +70,8 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 		return nil, nil, err
 	}
 	certBytes := ssh.MarshalAuthorizedKey(sshCert)
+	// Remove newline character that MarshalAuthorizedKey() adds
+	certBytes = certBytes[:len(certBytes)-1]
 
 	seckeySsh, err := ssh.MarshalPrivateKey(signer, "openpubkey cert")
 	if err != nil {
@@ -110,14 +111,14 @@ func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 				fmt.Println("Failed to read:", pubkeyPath)
 				continue
 			}
-			sshPubkeySplit := strings.Split(string(sshPubkey), " ")
-			if len(sshPubkeySplit) != 3 {
+			_, comment, _, _, err := ssh.ParseAuthorizedKey(sshPubkey)
+			if err != nil {
 				fmt.Println("Failed to parse:", pubkeyPath)
 				continue
 			}
 
 			// If the key comment is "openpubkey" then we generated it
-			if strings.Contains(sshPubkeySplit[2], ("openpubkey")) {
+			if comment == "openpubkey" {
 				return writeKeys(seckeyPath, pubkeyPath, seckeySshPem, certBytes)
 			}
 		}
