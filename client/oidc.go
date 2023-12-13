@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -87,19 +88,17 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		return fmt.Errorf("")
 	}
 
-	sigType, ok := pkt.ProviderSignatureType()
+	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
 		return fmt.Errorf("provider signature type missing")
 	}
 
-	switch sigType {
-	case pktoken.Gq:
+	switch alg {
+	case gq.GQ256:
 		origHeaders, err := gq.OriginalJWTHeaders(idt)
 		if err != nil {
 			return err
 		}
-
-		fmt.Println(string(origHeaders))
 
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := provider.PublicKey(ctx, origHeaders)
@@ -118,7 +117,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		if err != nil {
 			return fmt.Errorf("failed to verify CIC hash: %w", err)
 		}
-	case pktoken.Oidc:
+	case jwa.RS256:
 		err = provider.VerifyNonGQSig(ctx, idt, string(commitment))
 		if err != nil {
 			if err == ErrNonGQUnsupported {

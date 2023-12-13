@@ -136,8 +136,14 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 	alg := jwa.RS256 // RSASSA-PKCS-v1.5 using SHA-256
 
 	oidcHeader := jws.NewHeaders()
-	oidcHeader.Set("alg", alg.String())
-	oidcHeader.Set("typ", "JWT")
+	err := oidcHeader.Set(jws.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
+	err = oidcHeader.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
 
 	oidcPayload := map[string]any{
 		"sub": "1",
