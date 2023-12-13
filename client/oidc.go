@@ -150,15 +150,20 @@ func DiscoverPublicKey(ctx context.Context, headersEnc []byte, issuer string) (c
 		return nil, err
 	}
 
-	// TODO: better to unmarshal to map[string]any and check for existence and type of kid?
-	type headersWithKID struct {
-		KID string `json:"kid"`
-	}
-
-	headers := new(headersWithKID)
-	err = json.Unmarshal(headersJSON, headers)
+	headersMap := make(map[string]any)
+	err = json.Unmarshal(headersJSON, &headersMap)
 	if err != nil {
 		return nil, err
+	}
+
+	kidRaw, ok := headersMap["kid"]
+	if !ok {
+		return nil, fmt.Errorf("missing kid claim")
+	}
+
+	kid, ok := kidRaw.(string)
+	if !ok {
+		return nil, fmt.Errorf("expected kid claim to be a string, got %T", kidRaw)
 	}
 
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
@@ -171,9 +176,9 @@ func DiscoverPublicKey(ctx context.Context, headersEnc []byte, issuer string) (c
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
 
-	key, ok := jwks.LookupKeyID(headers.KID)
+	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
-		return nil, fmt.Errorf("key %q isn't in JWKS", headers.KID)
+		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
 	}
 
 	pubKey := new(rsa.PublicKey)

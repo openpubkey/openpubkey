@@ -114,7 +114,7 @@ func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
 	headers := token.Signatures()[0].ProtectedHeaders()
 
 	if headers.Algorithm() != GQ256 {
-		return nil, fmt.Errorf("TODO")
+		return nil, fmt.Errorf("expected GQ256 alg, got %s", headers.Algorithm())
 	}
 
 	origHeaders := []byte(headers.KeyID())
