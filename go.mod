@@ -3,7 +3,7 @@ module github.com/openpubkey/openpubkey
 go 1.20
 
 require (
-	filippo.io/bigmod v0.0.2
+	filippo.io/bigmod v0.0.3
 	github.com/awnumar/memguard v0.22.3
 	github.com/go-webauthn/webauthn v0.8.6
 	github.com/google/uuid v1.4.0
