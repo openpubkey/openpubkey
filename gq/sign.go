@@ -77,8 +77,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	signingPayload := append(origHeaders, []byte(".")...)
-	signingPayload = append(signingPayload, payload...)
+	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
 	headers := jws.NewHeaders()
 	err = headers.Set(jws.AlgorithmKey, GQ256)
@@ -122,10 +121,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	}
 
 	// Now make a new GQ-signed token
-	gqToken := append(headersEnc, '.')
-	gqToken = append(gqToken, payload...)
-	gqToken = append(gqToken, '.')
-	gqToken = append(gqToken, gqSig...)
+	gqToken := util.JoinJWTSegments(headersEnc, payload, gqSig)
 
 	return gqToken, nil
 }
