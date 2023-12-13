@@ -28,7 +28,7 @@ func (p *CosignerProvider) GetIssuer() string {
 	return p.Issuer
 }
 
-func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 	// Find an unused port
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -53,7 +53,7 @@ func (c *CosignerProvider) RequestToken(signer crypto.Signer, pkt *pktoken.PKTok
 			logrus.Error(err)
 		}
 	}()
-	defer server.Shutdown(context.TODO())
+	defer server.Shutdown(ctx)
 
 	ch := make(chan []byte)
 	errCh := make(chan error)

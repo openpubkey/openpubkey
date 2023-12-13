@@ -51,7 +51,7 @@ func (o *OpkClient) OidcAndCosAuth(
 		if err != nil {
 			return nil, err
 		}
-		return o.CosP.RequestToken(signer, pkt, redirCh)
+		return o.CosP.RequestToken(ctx, signer, pkt, redirCh)
 	}
 }
 
