@@ -3,7 +3,6 @@ package gq
 import (
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"math/big"
 
 	"filippo.io/bigmod"
@@ -81,10 +80,19 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	signingPayload := append(origHeaders, []byte(".")...)
 	signingPayload = append(signingPayload, payload...)
 
-	headers := make(map[string]any)
-	headers["alg"] = "GQ256"
-	headers["typ"] = "JWT"
-	headers["orig"] = string(origHeaders)
+	headers := jws.NewHeaders()
+	err = headers.Set(jws.AlgorithmKey, GQ256)
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.KeyIDKey, string(origHeaders))
+	if err != nil {
+		return nil, err
+	}
 
 	headersJSON, err := json.Marshal(headers)
 	if err != nil {
@@ -118,8 +126,6 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	gqToken = append(gqToken, payload...)
 	gqToken = append(gqToken, '.')
 	gqToken = append(gqToken, gqSig...)
-
-	fmt.Println(string(gqToken))
 
 	return gqToken, nil
 }
