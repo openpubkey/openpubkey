@@ -26,10 +26,14 @@ sudo mv ~/freessh /etc/opk
 sudo chown root /etc/opk/freessh
 sudo chmod 700 /etc/opk/freessh 
 ```
-5. Create our policy on the server
+5. Create our policy on the server at /etc/opk/policy.yml. If you do not have root access,
+create a new policy.yml file in at ~/policy.yml and use that instead. You
+will also need to have a freessh binary available to use in the same directory.
 ```bash
-echo "${YOUR_EMAIL} ${USER}" | sudo tee /etc/opk/policy
-sudo chmod 600 /etc/opk/policy
+sudo touch /etc/opk/policy.yml
+sudo chown root /etc/opk/policy.yml
+sudo chmod 600 /etc/opk/policy.yml
+sudo /etc/opk/freessh add {EMAIL} {USER}
 ```
 6. Add the folowing lines to the sshd file `/etc/ssh/sshd_config`
 ```bash

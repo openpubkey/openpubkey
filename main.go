@@ -2,19 +2,21 @@ package main
 
 import (
 	"fmt"
-	"freessh/commands"
-	"freessh/internal"
-	"freessh/policy"
-	"freessh/sshcert"
 	"log"
 	"net"
 	"os"
+	"os/user"
 	"strconv"
 	"strings"
 
+	"github.com/bastionzero/freessh/commands"
+	"github.com/bastionzero/freessh/internal"
+	"github.com/bastionzero/freessh/policy"
+	"github.com/bastionzero/freessh/sshcert"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -40,7 +42,7 @@ func main() {
 	op := internal.GoogleOp
 
 	op.RedirURIPort = fmt.Sprint(redirectURIPort)
-	op.RedirectURI = fmt.Sprintf("http://localhost:%v%v", op.RedirURIPort, op.CallbackPath)
+	op.RedirectURI = fmt.Sprintf("http://localhost:%s%s", op.RedirURIPort, op.CallbackPath)
 
 	switch command {
 	case "login":
@@ -52,7 +54,7 @@ func main() {
 		// Execute login command
 		err := commands.Login(&op)
 		if err != nil {
-			fmt.Printf("login error: %v", err)
+			fmt.Printf("login error: %s", err)
 			os.Exit(1)
 		}
 
@@ -72,9 +74,6 @@ func main() {
 		// ref: https://man.openbsd.org/sshd_config#AuthorizedKeysCommand
 		{
 			log.Println(strings.Join(os.Args, " "))
-			policyEnforcer := policy.Enforcer{
-				PolicyFilePath: "/etc/opk/policy",
-			}
 
 			// These arguments are sent by sshd and dictated by the pattern as defined in the sshd config
 			// Example line in sshd config:
@@ -87,17 +86,105 @@ func main() {
 				fmt.Println("Invalid number of arguments for verify, expected: `<User (TOKEN u)> <Key type (TOKEN t)> <Cert (TOKEN k)>`")
 				os.Exit(1)
 			}
-			user := os.Args[2]
+			userArg := os.Args[2]
 			certB64 := os.Args[3]
 			pubkeyType := os.Args[4]
 
-			authKey, err := authorizedKeysCommand(user, certB64, pubkeyType, policyEnforcer.CheckPolicy, &op)
+			usr, err := user.Lookup(userArg)
+			if err != nil {
+				fmt.Printf("failed to find home directory for the principal: %s\n", userArg)
+				os.Exit(1)
+			}
+
+			// if user is non root, the filepath will be ~/policy.yml
+			// otherwise, it will default to /etc/opk/policy.yml
+			_, policyFilePath, err := policy.GetPolicy(userArg, usr.HomeDir)
+
+			policyEnforcer := policy.Enforcer{
+				PolicyFilePath: policyFilePath,
+			}
+
+			authKey, err := authorizedKeysCommand(userArg, certB64, pubkeyType, policyEnforcer.CheckPolicy, &op)
 			if err != nil {
 				log.Println(err)
 				os.Exit(1)
 			} else {
 				fmt.Println(authKey)
 				os.Exit(0)
+			}
+		}
+	case "add":
+		// The "add" command is designed to be used by the client configuration
+		// script to inject user entries into the policy file
+		{
+			// Example line to add a user:
+			// 		./freessh add %e %p
+			//
+			//  %e The email of the user to be added to the policy file.
+			//	%p The desired principal being assumed on the target (aka requested principal).
+			if len(os.Args) != 4 {
+				fmt.Println("Invalid number of arguments for verify, expected: `<Email (TOKEN e)> <Principal (TOKEN p)>`")
+				os.Exit(1)
+			}
+			inputEmail := os.Args[2]
+			inputPrincipal := os.Args[3]
+
+			usr, err := user.Lookup(inputPrincipal)
+			if err != nil {
+				fmt.Printf("failed to find home directory for the principal: %s\n", inputPrincipal)
+				os.Exit(1)
+			}
+
+			policyData, policyFilePath, err := policy.GetPolicy(inputPrincipal, usr.HomeDir)
+			if err != nil {
+				fmt.Printf("failed to get policy: %s\n", err)
+				os.Exit(1)
+			}
+
+			users := policy.Users{}
+			if err := yaml.Unmarshal([]byte(policyData), &users); err != nil {
+				fmt.Printf("error unmarshalling policy file data: %s\n", err)
+				os.Exit(1)
+			}
+
+			var userExists = false
+			if len(users.Users) != 0 {
+				// search to see if the current user already has an entry in the policy file
+				for _, user := range users.Users {
+					if user.Email == inputEmail {
+						var principalExists = false
+						for _, principal := range user.Principals {
+							// if the principal already exists for this user, then skip
+							if principal == inputPrincipal {
+								fmt.Printf("User with email %s already has access under the principal %s, skipping...\n", inputEmail, inputPrincipal)
+								principalExists = true
+							}
+						}
+
+						if !principalExists {
+							user.Principals = append(user.Principals, inputPrincipal)
+							fmt.Printf("Successfully added user with email %s with principal %s to the policy file\n", inputEmail, inputPrincipal)
+						}
+						userExists = true
+					}
+				}
+			}
+
+			if len(users.Users) == 0 || !userExists {
+				// if the policy file is empty, then create a new entry
+				newUser := policy.User{
+					Email:      inputEmail,
+					Principals: []string{inputPrincipal},
+				}
+				// add the new user to the list of users in the policy
+				users.Users = append(users.Users, newUser)
+			}
+
+			marshaledData, _ := yaml.Marshal(&users)
+			if err := os.WriteFile(policyFilePath, marshaledData, 0); err != nil {
+				fmt.Println("error writing to policy file:", err)
+			} else {
+				fmt.Println("Successfully added new policy to ", policyFilePath)
 			}
 		}
 	default:
@@ -135,7 +222,7 @@ func retrieveOpenPort() (port int, err error) {
 		fmt.Printf(strconv.Itoa(index), port)
 		available, err := checkPortIsAvailable(port)
 		if err != nil {
-			fmt.Printf("Port %v is not available.", port)
+			fmt.Printf("Port %d is not available.", port)
 		} else if available {
 			return port, nil
 		}

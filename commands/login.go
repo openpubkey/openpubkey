@@ -6,10 +6,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"freessh/sshcert"
 	"os"
 	"path/filepath"
 
+	"github.com/bastionzero/freessh/sshcert"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"

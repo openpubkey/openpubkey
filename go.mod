@@ -1,4 +1,4 @@
-module freessh
+module github.com/bastionzero/freessh
 
 go 1.20
 
@@ -7,6 +7,7 @@ require (
 	github.com/openpubkey/openpubkey v0.2.1
 	golang.org/x/crypto v0.15.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
