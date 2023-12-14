@@ -24,6 +24,7 @@ var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
+	Issuer() string
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
 	PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error

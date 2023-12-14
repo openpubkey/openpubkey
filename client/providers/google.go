@@ -23,10 +23,11 @@ var (
 	key = []byte("NotASecureKey123")
 )
 
+const googleIssuer = "https://accounts.google.com"
+
 type GoogleOp struct {
 	ClientID     string
 	ClientSecret string
-	Issuer       string
 	Scopes       []string
 	RedirURIPort string
 	CallbackPath string
@@ -48,7 +49,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	options = append(options, rp.WithPKCE(cookieHandler))
 
 	provider, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI,
+		g.Issuer(), g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -116,8 +117,12 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
+func (g *GoogleOp) Issuer() string {
+	return googleIssuer
+}
+
 func (g *GoogleOp) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headers, g.Issuer)
+	return client.DiscoverPublicKey(ctx, headers, googleIssuer)
 }
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
@@ -126,7 +131,7 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	}
 
 	googleRP, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
+		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
 		options...)
 
 	if err != nil {

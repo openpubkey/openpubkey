@@ -80,6 +80,10 @@ func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
+func (g *GithubOp) Issuer() string {
+	return githubIssuer
+}
+
 func (g *GithubOp) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
 	return client.DiscoverPublicKey(ctx, headers, githubIssuer)
 }
