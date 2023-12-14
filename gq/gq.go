@@ -76,7 +76,7 @@ func bytesForBits(bits int) int {
 	return (bits + 7) / 8
 }
 
-func hash(byteCount int, data ...[]byte) ([]byte, error) {
+var hash = func(byteCount int, data ...[]byte) ([]byte, error) {
 	rng := sha3.NewShake256()
 	for _, d := range data {
 		rng.Write(d)

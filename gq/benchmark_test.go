@@ -1,12 +1,10 @@
-package gq_test
+package gq
 
 import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
 	"testing"
-
-	"github.com/openpubkey/openpubkey/gq"
 )
 
 var result error
@@ -27,9 +25,9 @@ func BenchmarkSigning(b *testing.B) {
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
 
-	var signerVerifier gq.SignerVerifier
+	var signerVerifier SignerVerifier
 	for i := 0; i < b.N; i++ {
-		signerVerifier, err = gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err = NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -51,7 +49,7 @@ func BenchmarkVerifying(b *testing.B) {
 	// Generate signatures using matrix
 	gqSignedTokens := [][]byte{}
 	for i := 0; i < b.N; i++ {
-		signerVerifier, err := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -68,7 +66,7 @@ func BenchmarkVerifying(b *testing.B) {
 
 	var ok bool
 	for i := 0; i < b.N; i++ {
-		signerVerifier, err := gq.NewSignerVerifier(matrix[i].rsaPublicKey, 256)
+		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		if err != nil {
 			b.Fatal(err)
 		}

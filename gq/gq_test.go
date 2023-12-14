@@ -1,4 +1,4 @@
-package gq_test
+package gq
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -27,7 +26,7 @@ func TestProveVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +64,7 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("ID token signature should fail for modified token")
 	}
-	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +92,7 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signerVerifier, err := gq.NewSignerVerifier(oidcPubKey, 256)
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
 	if err != nil {
 		t.Fatal(err)
 	}

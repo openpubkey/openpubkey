@@ -185,7 +185,7 @@ func encodeProof(R, S []byte) []byte {
 	return util.Base64EncodeForJWT(bin)
 }
 
-func randomNumbers(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
+var randomNumbers = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 	nInt := modAsInt(n)
 	ys := make([]*bigmod.Nat, t)
 
