@@ -70,7 +70,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	PublicKey(ctx context.Context, headers []byte) (crypto.PublicKey, error)
+	PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
@@ -103,8 +103,13 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 			return err
 		}
 
+		origHeaderClaims, err := parseJWTSegment(origHeaders)
+		if err != nil {
+			return err
+		}
+
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-		pubKey, err := provider.PublicKey(ctx, origHeaders)
+		pubKey, err := provider.PublicKey(ctx, origHeaderClaims)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
@@ -144,19 +149,8 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	return nil
 }
 
-func DiscoverPublicKey(ctx context.Context, headersEnc []byte, issuer string) (crypto.PublicKey, error) {
-	headersJSON, err := util.Base64DecodeForJWT(headersEnc)
-	if err != nil {
-		return nil, err
-	}
-
-	headersMap := make(map[string]any)
-	err = json.Unmarshal(headersJSON, &headersMap)
-	if err != nil {
-		return nil, err
-	}
-
-	kidRaw, ok := headersMap["kid"]
+func DiscoverPublicKey(ctx context.Context, headers map[string]any, issuer string) (crypto.PublicKey, error) {
+	kidRaw, ok := headers["kid"]
 	if !ok {
 		return nil, fmt.Errorf("missing kid claim")
 	}
@@ -196,15 +190,9 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 		return "", fmt.Errorf("failed to split/decode JWT: %w", err)
 	}
 
-	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+	payload, err := parseJWTSegment(payloadB64)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode payload")
-	}
-
-	var payload map[string]any
-	err = json.Unmarshal(payloadJSON, &payload)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal payload")
+		return "", err
 	}
 
 	claim, ok := payload[claimName]
@@ -218,4 +206,19 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	}
 
 	return claimStr, nil
+}
+
+func parseJWTSegment(segment []byte) (map[string]any, error) {
+	segmentJSON, err := util.Base64DecodeForJWT(segment)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding segment: %w", err)
+	}
+
+	claims := make(map[string]any)
+	err = json.Unmarshal(segmentJSON, &claims)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing segment: %w", err)
+	}
+
+	return claims, nil
 }

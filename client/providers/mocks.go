@@ -56,7 +56,7 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	return memguard.NewBufferFromBytes(signedToken), nil
 }
 
-func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
+func (m *MockOpenIdProvider) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
 	return m.signer.Public(), nil
 }
 

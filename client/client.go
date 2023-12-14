@@ -62,10 +62,16 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	headers, _, _, err := jws.SplitCompact(idToken.Bytes())
+	headersB64, _, _, err := jws.SplitCompact(idToken.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("error getting original headers: %w", err)
 	}
+
+	headers, err := parseJWTSegment(headersB64)
+	if err != nil {
+		return nil, err
+	}
+
 	opKey, err := o.Op.PublicKey(ctx, headers)
 	if err != nil {
 		return nil, fmt.Errorf("error getting OP public key: %w", err)
