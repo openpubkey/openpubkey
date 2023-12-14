@@ -29,8 +29,6 @@ var svISO signerVerifier
 
 // Test our signer using the values specified in ISO/IEC 14888-2:2008
 func TestSignerISO(t *testing.T) {
-	initializeISOValues(t)
-
 	// The test vector specifies that h(W||M) use SHA-1
 	h := hash
 	hash = sha1Hash
@@ -62,8 +60,6 @@ func TestSignerISO(t *testing.T) {
 
 // Test our verifier using the values specified in ISO/IEC 14888-2:2008
 func TestVerifierISO(t *testing.T) {
-	initializeISOValues(t)
-
 	// The test vector specifies that h(W||M) use SHA-1
 	h := hash
 	hash = sha1Hash
@@ -87,37 +83,43 @@ func TestVerifierISO(t *testing.T) {
 	}
 }
 
-func initializeISOValues(t *testing.T) {
+func init() {
 	vBytes, err := hex.DecodeString(vHex)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	v := new(big.Int).SetBytes(vBytes)
 
 	nBytes, err := hex.DecodeString(nHex)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nBytes))
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
-	svISO = signerVerifier{n, v, 128, 10, 1}
+	svISO = signerVerifier{
+		n:      n,
+		v:      v,
+		nBytes: 128,
+		vBytes: 10,
+		t:      1,
+	}
 
 	sigISO, err = hex.DecodeString(sigHex)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
 	qISO, err = hex.DecodeString(qHex)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
 	idISO, err = hex.DecodeString(idHex)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 
@@ -127,7 +129,7 @@ var pssEncodedId = func(k int, data []byte) []byte {
 }
 
 var hardcodedRandomISO = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
-	ys := make([]*bigmod.Nat, t)
+	ys := make([]*bigmod.Nat, 1)
 
 	rRaw, err := hex.DecodeString(rHex)
 	if err != nil {
