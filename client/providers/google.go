@@ -116,8 +116,8 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, headersEnc []byte) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headersEnc, g.Issuer)
+func (g *GoogleOp) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
+	return client.DiscoverPublicKey(ctx, headers, g.Issuer)
 }
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {

@@ -89,7 +89,7 @@ func TestClient(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				opPubKey, err := op.PublicKey(context.Background(), idt)
+				opPubKey, err := op.PublicKey(context.Background(), nil)
 				if err != nil {
 					t.Fatal(err)
 				}
