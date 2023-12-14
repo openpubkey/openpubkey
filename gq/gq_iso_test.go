@@ -88,13 +88,13 @@ func TestVerifierISO(t *testing.T) {
 }
 
 func initializeISOValues(t *testing.T) {
-	vBytes, err := hexToBytes(vHex)
+	vBytes, err := hex.DecodeString(vHex)
 	if err != nil {
 		t.Fatal(err)
 	}
 	v := new(big.Int).SetBytes(vBytes)
 
-	nBytes, err := hexToBytes(nHex)
+	nBytes, err := hex.DecodeString(nHex)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,31 +105,31 @@ func initializeISOValues(t *testing.T) {
 
 	svISO = signerVerifier{n, v, 128, 10, 1}
 
-	sigISO, err = hexToBytes(sigHex)
+	sigISO, err = hex.DecodeString(sigHex)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	qISO, err = hexToBytes(qHex)
+	qISO, err = hex.DecodeString(qHex)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	idISO, err = hexToBytes(idHex)
+	idISO, err = hex.DecodeString(idHex)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 var pssEncodedId = func(k int, data []byte) []byte {
-	em, _ := hexToBytes(gHex)
+	em, _ := hex.DecodeString(gHex)
 	return em
 }
 
 var hardcodedRandomISO = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 	ys := make([]*bigmod.Nat, t)
 
-	rRaw, err := hexToBytes(rHex)
+	rRaw, err := hex.DecodeString(rHex)
 	if err != nil {
 		return nil, err
 	}
@@ -149,14 +149,4 @@ var sha1Hash = func(byteCount int, data ...[]byte) ([]byte, error) {
 		hash.Write(d)
 	}
 	return hash.Sum(nil)[:byteCount], nil
-}
-
-func hexToBytes(hexStr string) ([]byte, error) {
-	bytes := make([]byte, hex.DecodedLen(len(hexStr)))
-	_, err := hex.Decode(bytes, []byte(hexStr))
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
 }
