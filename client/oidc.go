@@ -89,7 +89,16 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	idt, err := pkt.Compact(pkt.Op)
 	if err != nil {
-		return fmt.Errorf("")
+		return err
+	}
+
+	issuer, err := ExtractClaim(idt, "iss")
+	if err != nil {
+		return err
+	}
+
+	if issuer != provider.Issuer() {
+		return fmt.Errorf("expected token to have issuer %s, got %s", provider.Issuer(), issuer)
 	}
 
 	alg, ok := pkt.ProviderAlgorithm()
