@@ -207,17 +207,20 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		}
 
 		protected := signature.ProtectedHeaders()
-		typeHeader, ok := protected.Get(jws.TypeKey)
-		if !ok {
-			// TODO: default to OIDC?
-			return fmt.Errorf("missing typ header")
-		}
-		sigTypeStr, ok := typeHeader.(string)
-		if !ok {
-			return fmt.Errorf(`provided "%s" is of wrong type, expected string`, jws.TypeKey)
-		}
+		var sigType SignatureType
 
-		sigType := SignatureType(sigTypeStr)
+		typeHeader, ok := protected.Get(jws.TypeKey)
+		if ok {
+			sigTypeStr, ok := typeHeader.(string)
+			if !ok {
+				return fmt.Errorf(`provided "%s" is of wrong type, expected string`, jws.TypeKey)
+			}
+
+			sigType = SignatureType(sigTypeStr)
+		} else {
+			// missing typ claim, assuming this is from the OIDC provider
+			sigType = OIDC
+		}
 
 		switch sigType {
 		case OIDC:
