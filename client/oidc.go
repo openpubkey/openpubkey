@@ -108,6 +108,20 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 			return err
 		}
 
+		algClaim, ok := origHeaderClaims["alg"]
+		if !ok {
+			return fmt.Errorf("missing alg claim")
+		}
+
+		alg, ok := algClaim.(string)
+		if !ok {
+			return fmt.Errorf("expected alg claim to contain a SignatureAlgorithm, got %T", algClaim)
+		}
+
+		if jwa.SignatureAlgorithm(alg) != jwa.RS256 {
+			return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
+		}
+
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
 		pubKey, err := provider.PublicKey(ctx, origHeaderClaims)
 		if err != nil {
