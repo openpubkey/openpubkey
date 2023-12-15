@@ -103,7 +103,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
-		return fmt.Errorf("provider signature type missing")
+		return fmt.Errorf("provider algorithm type missing")
 	}
 
 	switch alg {
