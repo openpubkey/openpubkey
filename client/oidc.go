@@ -71,7 +71,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 type OpenIdProvider interface {
 	Issuer() string
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error)
+	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
@@ -108,32 +108,24 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	switch alg {
 	case gq.GQ256:
-		origHeaders, err := gq.OriginalJWTHeaders(idt)
+		origHeadersB64, err := gq.OriginalJWTHeaders(idt)
 		if err != nil {
 			return err
 		}
 
-		origHeaderClaims, err := parseJWTSegment(origHeaders)
+		origHeaders := jws.NewHeaders()
+		err = parseJWTSegment(origHeadersB64, &origHeaders)
 		if err != nil {
 			return err
 		}
 
-		algClaim, ok := origHeaderClaims["alg"]
-		if !ok {
-			return fmt.Errorf("missing alg claim")
-		}
-
-		alg, ok := algClaim.(string)
-		if !ok {
-			return fmt.Errorf("expected alg claim to contain a SignatureAlgorithm, got %T", algClaim)
-		}
-
-		if jwa.SignatureAlgorithm(alg) != jwa.RS256 {
+		alg := origHeaders.Algorithm()
+		if alg != jwa.RS256 {
 			return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
 		}
 
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-		pubKey, err := provider.PublicKey(ctx, origHeaderClaims)
+		pubKey, err := provider.PublicKey(ctx, origHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
@@ -173,17 +165,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	return nil
 }
 
-func DiscoverPublicKey(ctx context.Context, headers map[string]any, issuer string) (crypto.PublicKey, error) {
-	kidRaw, ok := headers["kid"]
-	if !ok {
-		return nil, fmt.Errorf("missing kid claim")
-	}
-
-	kid, ok := kidRaw.(string)
-	if !ok {
-		return nil, fmt.Errorf("expected kid claim to be a string, got %T", kidRaw)
-	}
-
+func DiscoverPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
@@ -194,6 +176,7 @@ func DiscoverPublicKey(ctx context.Context, headers map[string]any, issuer strin
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
 
+	kid := headers.KeyID()
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
 		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
@@ -218,7 +201,8 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 		return "", fmt.Errorf("failed to split/decode JWT: %w", err)
 	}
 
-	payload, err := parseJWTSegment(payloadB64)
+	payload := make(map[string]any)
+	err = parseJWTSegment(payloadB64, &payload)
 	if err != nil {
 		return "", err
 	}
@@ -236,17 +220,16 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	return claimStr, nil
 }
 
-func parseJWTSegment(segment []byte) (map[string]any, error) {
+func parseJWTSegment(segment []byte, v any) error {
 	segmentJSON, err := util.Base64DecodeForJWT(segment)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding segment: %w", err)
+		return fmt.Errorf("error decoding segment: %w", err)
 	}
 
-	claims := make(map[string]any)
-	err = json.Unmarshal(segmentJSON, &claims)
+	err = json.Unmarshal(segmentJSON, v)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing segment: %w", err)
+		return fmt.Errorf("error parsing segment: %w", err)
 	}
 
-	return claims, nil
+	return nil
 }

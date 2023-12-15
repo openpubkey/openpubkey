@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 )
 
@@ -84,7 +85,7 @@ func (g *GithubOp) Issuer() string {
 	return githubIssuer
 }
 
-func (g *GithubOp) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
+func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	return client.DiscoverPublicKey(ctx, headers, githubIssuer)
 }
 

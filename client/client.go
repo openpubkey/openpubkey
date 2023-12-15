@@ -67,7 +67,8 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error getting original headers: %w", err)
 	}
 
-	headers, err := parseJWTSegment(headersB64)
+	headers := jws.NewHeaders()
+	err = parseJWTSegment(headersB64, &headers)
 	if err != nil {
 		return nil, err
 	}

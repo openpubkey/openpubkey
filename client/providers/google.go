@@ -10,6 +10,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
@@ -121,7 +122,7 @@ func (g *GoogleOp) Issuer() string {
 	return googleIssuer
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, headers map[string]any) (crypto.PublicKey, error) {
+func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	return client.DiscoverPublicKey(ctx, headers, googleIssuer)
 }
 
