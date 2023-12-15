@@ -130,7 +130,10 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		rsaPubKey := pubKey.(*rsa.PublicKey)
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("expected public key to be a *rsa.PublicKey, got %T", pubKey)
+		}
 
 		err = pkt.VerifyGQSig(rsaPubKey, GQSecurityParameter)
 		if err != nil {
