@@ -199,6 +199,10 @@ func DiscoverPublicKey(ctx context.Context, headers map[string]any, issuer strin
 		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
 	}
 
+	if key.Algorithm() != jwa.RS256 {
+		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
+	}
+
 	pubKey := new(rsa.PublicKey)
 	err = key.Raw(pubKey)
 	if err != nil {
