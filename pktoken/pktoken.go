@@ -2,6 +2,7 @@ package pktoken
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
@@ -15,15 +16,12 @@ import (
 	_ "golang.org/x/crypto/sha3"
 )
 
-const sigTypeHeader = "sig_type"
-
 type SignatureType string
 
 const (
-	Oidc SignatureType = "oidc"
-	Gq   SignatureType = "oidc_gq"
-	Cic  SignatureType = "cic"
-	Cos  SignatureType = "cos"
+	OIDC SignatureType = "JWT"
+	CIC  SignatureType = "CIC"
+	COS  SignatureType = "COS"
 )
 
 type Signature = jws.Signature
@@ -48,22 +46,26 @@ func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
 	if err != nil {
 		return fmt.Errorf("failed to calculate thumbprint: %w", err)
 	}
-	return p.Op.PublicHeaders().Set("jkt", util.Base64EncodeForJWT(thumbprint))
+	headers := p.Op.PublicHeaders()
+	if headers == nil {
+		headers = jws.NewHeaders()
+	}
+	err = headers.Set("jkt", util.Base64EncodeForJWT(thumbprint))
+	if err != nil {
+		return fmt.Errorf("failed to set jkt claim: %w", err)
+	}
+	p.Op.SetPublicHeaders(headers)
+	return nil
 }
 
-func New(idToken []byte, cicToken []byte, isGQ bool) (*PKToken, error) {
+func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	pkt := &PKToken{}
 
-	sigType := Oidc
-	if isGQ {
-		sigType = Gq
-	}
-
-	if err := pkt.AddSignature(idToken, sigType); err != nil {
+	if err := pkt.AddSignature(idToken, OIDC); err != nil {
 		return nil, err
 	}
 
-	if err := pkt.AddSignature(cicToken, Cic); err != nil {
+	if err := pkt.AddSignature(cicToken, CIC); err != nil {
 		return nil, err
 	}
 
@@ -112,18 +114,22 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 		return fmt.Errorf("payload in the GQ token (%s) does not match the existing payload in the PK Token (%s)", p.Payload, message.Payload())
 	}
 
-	public := jws.NewHeaders()
-	if err := public.Set(sigTypeHeader, string(sigType)); err != nil {
-		return err
+	signature := message.Signatures()[0]
+
+	if sigType == CIC || sigType == COS {
+		protected := signature.ProtectedHeaders()
+		if err := protected.Set(jws.TypeKey, string(sigType)); err != nil {
+			return err
+		}
+		signature = signature.SetProtectedHeaders(protected)
 	}
-	signature := message.Signatures()[0].SetPublicHeaders(public)
 
 	switch sigType {
-	case Oidc, Gq:
+	case OIDC:
 		p.Op = signature
-	case Cic:
+	case CIC:
 		p.Cic = signature
-	case Cos:
+	case COS:
 		p.Cos = signature
 	default:
 		return fmt.Errorf("unrecognized signature type: %s", string(sigType))
@@ -131,13 +137,13 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	return nil
 }
 
-func (p *PKToken) ProviderSignatureType() (SignatureType, bool) {
-	sigType, ok := p.Op.PublicHeaders().Get(sigTypeHeader)
+func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
+	alg, ok := p.Op.ProtectedHeaders().Get(jws.AlgorithmKey)
 	if !ok {
-		return "", ok
+		return "", false
 	}
 
-	return SignatureType(sigType.(string)), true
+	return alg.(jwa.SignatureAlgorithm), true
 }
 
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
@@ -192,31 +198,42 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 	cicCount := 0
 	cosCount := 0
 	for _, signature := range parsed.Signatures() {
-		sigHeader, ok := signature.PublicHeaders().Get(sigTypeHeader)
-		if !ok {
-			return fmt.Errorf(`pk token signature is missing required "%s" header as public header`, sigTypeHeader)
+		// for some reason the unmarshaled signatures have empty non-nil
+		// public headers. set them to nil instead.
+		public := signature.PublicHeaders()
+		pubMap, _ := public.AsMap(context.Background())
+		if len(pubMap) == 0 {
+			signature.SetPublicHeaders(nil)
 		}
 
-		sigHeaderString, ok := sigHeader.(string)
-		if !ok {
-			return fmt.Errorf(`provided "%s" is of wrong type, expected string`, sigTypeHeader)
+		protected := signature.ProtectedHeaders()
+		var sigType SignatureType
+
+		typeHeader, ok := protected.Get(jws.TypeKey)
+		if ok {
+			sigTypeStr, ok := typeHeader.(string)
+			if !ok {
+				return fmt.Errorf(`provided "%s" is of wrong type, expected string`, jws.TypeKey)
+			}
+
+			sigType = SignatureType(sigTypeStr)
+		} else {
+			// missing typ claim, assuming this is from the OIDC provider
+			sigType = OIDC
 		}
 
-		switch SignatureType(sigHeaderString) {
-		case Oidc:
+		switch sigType {
+		case OIDC:
 			opCount += 1
 			p.Op = signature
-		case Gq:
-			opCount += 1
-			p.Op = signature
-		case Cic:
+		case CIC:
 			cicCount += 1
 			p.Cic = signature
-		case Cos:
+		case COS:
 			cosCount += 1
 			p.Cos = signature
 		default:
-			return fmt.Errorf("unrecognized signature types: %s", sigHeaderString)
+			return fmt.Errorf("unrecognized signature type: %s", sigType)
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -61,13 +62,23 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
+	headersB64, _, _, err := jws.SplitCompact(idToken.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("error getting original headers: %w", err)
+	}
+
+	headers := jws.NewHeaders()
+	err = parseJWTSegment(headersB64, &headers)
+	if err != nil {
+		return nil, err
+	}
+
+	opKey, err := o.Op.PublicKey(ctx, headers)
 	if err != nil {
 		return nil, fmt.Errorf("error getting OP public key: %w", err)
 	}
 
 	if signGQ {
-
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
 		sv, err := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
@@ -82,7 +93,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken, signGQ)
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}

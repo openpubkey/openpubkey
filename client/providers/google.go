@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"fmt"
 	"net/http"
 
@@ -11,12 +10,10 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
 
@@ -27,10 +24,11 @@ var (
 	key = []byte("NotASecureKey123")
 )
 
+const googleIssuer = "https://accounts.google.com"
+
 type GoogleOp struct {
 	ClientID     string
 	ClientSecret string
-	Issuer       string
 	Scopes       []string
 	RedirURIPort string
 	CallbackPath string
@@ -52,7 +50,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	options = append(options, rp.WithPKCE(cookieHandler))
 
 	provider, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI,
+		g.Issuer(), g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -120,35 +118,12 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
-	j, err := jws.Parse(idt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWS: %w", err)
-	}
-	kid := j.Signatures()[0].ProtectedHeaders().KeyID()
+func (g *GoogleOp) Issuer() string {
+	return googleIssuer
+}
 
-	discConf, err := oidcclient.Discover(g.Issuer, http.DefaultClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key isn't in JWKS")
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
+func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+	return client.DiscoverPublicKey(ctx, headers, googleIssuer)
 }
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
@@ -157,7 +132,7 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 	}
 
 	googleRP, err := rp.NewRelyingPartyOIDC(
-		g.Issuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
+		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
 		options...)
 
 	if err != nil {
