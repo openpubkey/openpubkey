@@ -1,4 +1,4 @@
-module github.com/bastionzero/freessh
+module github.com/bastionzero/opk-ssh
 
 go 1.20
 

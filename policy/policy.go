@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/openpubkey/openpubkey/pktoken"

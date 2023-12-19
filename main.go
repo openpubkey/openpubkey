@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bastionzero/freessh/commands"
-	"github.com/bastionzero/freessh/internal"
-	"github.com/bastionzero/freessh/policy"
-	"github.com/bastionzero/freessh/sshcert"
+	"github.com/bastionzero/opk-ssh/commands"
+	"github.com/bastionzero/opk-ssh/internal"
+	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/bastionzero/opk-ssh/sshcert"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/crypto/ssh"
@@ -77,7 +77,7 @@ func main() {
 
 			// These arguments are sent by sshd and dictated by the pattern as defined in the sshd config
 			// Example line in sshd config:
-			// 		AuthorizedKeysCommand /etc/opk/freessh verify %u %k %t
+			// 		AuthorizedKeysCommand /etc/opk/opk-ssh verify %u %k %t
 			//
 			//	%u The desired user being assumed on the target (aka requested principal).
 			//	%k The base64-encoded public key for authentication.
@@ -118,7 +118,7 @@ func main() {
 		// script to inject user entries into the policy file
 		{
 			// Example line to add a user:
-			// 		./freessh add %e %p
+			// 		./opk-ssh add %e %p
 			//
 			//  %e The email of the user to be added to the policy file.
 			//	%p The desired principal being assumed on the target (aka requested principal).

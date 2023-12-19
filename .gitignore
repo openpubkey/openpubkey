@@ -1,5 +1,5 @@
 # For policy files that exist while testing
 policy.yml
-# For local freessh binary builds
 freessh
+opk-ssh
 *DS_Store
