@@ -1,5 +1,4 @@
 # For policy files that exist while testing
 policy.yml
-freessh
 opk-ssh
 *DS_Store

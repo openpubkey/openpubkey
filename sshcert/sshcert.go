@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"time"
 
-	// "github.com/openpubkey/openpubkey/parties"
-
+	"github.com/bastionzero/opk-ssh/provider"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
@@ -103,13 +103,13 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(op client.OpenIdProvider) (*pktoken.PKToken, error) {
+func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, op *provider.GoogleProvider) (*pktoken.PKToken, error) {
 	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	err = client.VerifyPKToken(context.Background(), pkt, op)
+	err = verifyPKToken(ctx, op, pkt)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +131,71 @@ func (s *SshCertSmuggler) VerifySshPktCert(op client.OpenIdProvider) (*pktoken.P
 	} else {
 		return nil, fmt.Errorf("public key 'upk' in PK Token does not match public key in certificate")
 	}
+}
+
+func verifyPKToken(ctx context.Context, op *provider.GoogleProvider, pkt *pktoken.PKToken) error {
+	ctxWithTimeout, _ := context.WithTimeout(ctx, 30*time.Second)
+	provider, err := oidc.NewProvider(ctxWithTimeout, op.Issuer)
+	if err != nil {
+		return err
+	}
+
+	idt, err := pkt.Compact(pkt.Op)
+	if err != nil {
+		return err
+	}
+
+	// Verify ID token
+	verifier := provider.Verifier(&oidc.Config{
+		ClientID:        op.ClientID,
+		SkipExpiryCheck: true,
+	})
+	idToken, err := verifier.Verify(ctx, string(idt))
+	if err != nil {
+		return err
+	}
+
+	// If the id token is expired, verify against the refreshed id token
+	if time.Now().After(idToken.Expiry) {
+		token, ok := pkt.Op.PublicHeaders().Get("refreshed_id_token")
+		if !ok {
+			return fmt.Errorf("ID token is expired and no refresh token found")
+		}
+
+		verifier := provider.Verifier(&oidc.Config{ClientID: op.ClientID})
+		if _, err = verifier.Verify(ctx, string(token.(string))); err != nil {
+			return err
+		}
+	}
+
+	err = pkt.VerifyCicSig()
+	if err != nil {
+		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+	}
+
+	// Check our nonce matches expected
+	var claims struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		return err
+	}
+
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
+	}
+
+	commitment, err := cic.Hash()
+	if err != nil {
+		return err
+	}
+
+	if string(commitment) != claims.Nonce {
+		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", claims.Nonce, string(commitment))
+	}
+
+	return nil
 }
 
 func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {
