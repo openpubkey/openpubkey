@@ -20,13 +20,14 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/sirupsen/logrus"
 
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 // TODO: make requiredAudience a configuration option
 var (
-	requiredAudience = "also_me"
+	requiredAudience = providers.MockAudience
 )
 
 type Ca struct {

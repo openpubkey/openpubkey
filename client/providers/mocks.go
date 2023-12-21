@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	issuer   = "me"
-	audience = "also_me"
+	MockIssuer   = "me"
+	MockAudience = "also_me"
 )
 
 type MockOpenIdProvider struct {
@@ -42,8 +42,8 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	token.Set("email", "arthur.aardvark@example.com")
 
 	// Required token payload values for OpenID
-	token.Set(jwt.IssuerKey, issuer)
-	token.Set(jwt.AudienceKey, audience)
+	token.Set(jwt.IssuerKey, MockIssuer)
+	token.Set(jwt.AudienceKey, MockAudience)
 	token.Set(jwt.IssuedAtKey, time.Now().Unix())
 	token.Set(jwt.ExpirationKey, time.Now().Add(24*time.Hour).Unix())
 	token.Set(jwt.SubjectKey, "1234567890")
