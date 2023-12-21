@@ -67,3 +67,7 @@ func (m *MockOpenIdProvider) VerifyCICHash(ctx context.Context, idt []byte, expe
 func (m *MockOpenIdProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
 	return nil
 }
+
+func (m *MockOpenIdProvider) GetIssuer() string {
+	return issuer
+}
