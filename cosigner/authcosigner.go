@@ -22,13 +22,13 @@ type AuthCosigner struct {
 	Cosigner
 	Issuer       string
 	KeyID        string
-	AuthIdIter   atomic.Uint64
-	HmacKey      []byte
+	authIdIter   atomic.Uint64
+	hmacKey      []byte
 	AuthStateMap map[string]*AuthState
 	AuthCodeMap  map[string]string
 }
 
-func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
 	hmacKey := make([]byte, 64)
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err
@@ -36,12 +36,12 @@ func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, k
 
 	return &AuthCosigner{
 		Cosigner: Cosigner{
-			Alg:    alg,
-			Signer: signer},
+			alg:    alg,
+			signer: signer},
 		Issuer:       issuer,
 		KeyID:        keyID,
-		AuthIdIter:   atomic.Uint64{},
-		HmacKey:      hmacKey,
+		authIdIter:   atomic.Uint64{},
+		hmacKey:      hmacKey,
 		AuthStateMap: make(map[string]*AuthState),
 		AuthCodeMap:  make(map[string]string),
 	}, nil
@@ -50,7 +50,7 @@ func NewAuthCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, k
 func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error) {
 	msg, err := pkt.VerifySignedMessage(sig)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse sig: %w", err)
 	}
 	var initMFAAuth *msgs.InitMFAAuth
 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
@@ -58,10 +58,10 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 	} else if time.Since(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
 		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too old, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if time.Until(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
-		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message to far in the future, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
+		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too far in the future, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if authState, err := NewAuthState(pkt, initMFAAuth.RedirectUri, initMFAAuth.Nonce); err != nil {
 		return "", err
-	} else if authID, err := c.CreateAuthID(pkt); err != nil {
+	} else if authID, err := c.CreateAuthID(uint64(time.Now().Unix())); err != nil {
 		return "", err
 	} else {
 		c.AuthStateMap[authID] = authState
@@ -69,12 +69,12 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 	}
 }
 
-func (c *AuthCosigner) CreateAuthID(pkt *pktoken.PKToken) (string, error) {
-	authIdInt := c.AuthIdIter.Add(1)
+func (c *AuthCosigner) CreateAuthID(timeNow uint64) (string, error) {
+	authIdInt := c.authIdIter.Add(1)
 	iterAndTime := []byte{}
 	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(authIdInt))
-	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, uint64(time.Now().Unix()))
-	mac := hmac.New(crypto.SHA3_256.New, c.HmacKey)
+	iterAndTime = binary.LittleEndian.AppendUint64(iterAndTime, timeNow)
+	mac := hmac.New(crypto.SHA3_256.New, c.hmacKey)
 	if n, err := mac.Write(iterAndTime); err != nil {
 		return "", err
 	} else if n != 16 {
@@ -85,30 +85,50 @@ func (c *AuthCosigner) CreateAuthID(pkt *pktoken.PKToken) (string, error) {
 }
 
 func (c *AuthCosigner) NewAuthcode(authID string) (string, error) {
-	authCodeBytes := make([]byte, 32)
-	if _, err := rand.Read(authCodeBytes); err != nil {
-		return "", err
+	if authState, ok := c.AuthStateMap[authID]; !ok {
+		return "", fmt.Errorf("no such authID")
+	} else {
+		authCodeBytes := make([]byte, 32)
+		if _, err := rand.Read(authCodeBytes); err != nil {
+			return "", err
+		}
+		authCode := hex.EncodeToString(authCodeBytes)
+		c.AuthCodeMap[authCode] = authID
+		if authState.AuthcodeIssued == true {
+			return "", fmt.Errorf("authcode already issued")
+		}
+
+		authState.AuthcodeIssued = true
+		return authCode, nil
 	}
-	authCode := hex.EncodeToString(authCodeBytes)
-	c.AuthCodeMap[authCode] = authID
-	return authCode, nil
+
 }
 
 func (c *AuthCosigner) RedeemAuthcode(sig []byte) ([]byte, error) {
 	msg, err := jws.Parse(sig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse sig: %s", err)
 	}
-	if authID, ok := c.AuthCodeMap[string(msg.Payload())]; !ok {
-		return nil, fmt.Errorf("Invalid authcode")
+	authcode := string(msg.Payload())
+	if authID, ok := c.AuthCodeMap[authcode]; !ok {
+		return nil, fmt.Errorf("invalid authcode")
 	} else {
 		authState := c.AuthStateMap[authID]
-		pkt := authState.Pkt
 
-		_, err := authState.Pkt.VerifySignedMessage(sig)
+		if authState.AuthcodeRedeemed == true {
+			return nil, fmt.Errorf("authcode has already been redeemed")
+		}
+		authState.AuthcodeRedeemed = true
+
+		if authState.AuthcodeIssued == false {
+			// This should never happen
+			return nil, fmt.Errorf("no authcode issued for this authID")
+		}
+
+		pkt := authState.Pkt
+		_, err := pkt.VerifySignedMessage(sig)
 		if err != nil {
-			fmt.Println("error verifying sig:", err)
-			return nil, err
+			return nil, fmt.Errorf("error verifying sig: %w", err)
 		}
 		return c.IssueSignature(pkt, authID)
 	}
@@ -120,7 +140,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) ([]by
 	protected := pktoken.CosignerClaims{
 		Iss:         c.Issuer,
 		KeyID:       c.KeyID,
-		Algorithm:   c.Alg.String(),
+		Algorithm:   c.alg.String(),
 		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
@@ -134,15 +154,16 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) ([]by
 }
 
 type AuthState struct {
-	Pkt         *pktoken.PKToken
-	Issuer      string // ID Token issuer (iss)
-	Aud         string // ID Token audience (aud)
-	Sub         string // ID Token subject ID (sub)
-	Username    string // ID Token email or username
-	DisplayName string // ID Token display name (or username if none given)
-	RedirectURI string // Redirect URI
-	Nonce       string // Nonce supplied by user
-	SigIssued   bool   // Was the pkt cosigned
+	Pkt              *pktoken.PKToken
+	Issuer           string // ID Token issuer (iss)
+	Aud              string // ID Token audience (aud)
+	Sub              string // ID Token subject ID (sub)
+	Username         string // ID Token email or username
+	DisplayName      string // ID Token display name (or username if none given)
+	RedirectURI      string // Redirect URI
+	Nonce            string // Nonce supplied by user
+	AuthcodeIssued   bool   // Has an authcode been issued for this auth session
+	AuthcodeRedeemed bool   // Was the pkt cosigned
 }
 
 func NewAuthState(pkt *pktoken.PKToken, ruri string, nonce string) (*AuthState, error) {
@@ -178,15 +199,16 @@ func NewAuthState(pkt *pktoken.PKToken, ruri string, nonce string) (*AuthState, 
 	}
 
 	return &AuthState{
-		Pkt:         pkt,
-		Issuer:      claims.Issuer,
-		Aud:         audience,
-		Sub:         claims.Sub,
-		Username:    claims.Email,
-		DisplayName: strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
-		RedirectURI: ruri,
-		Nonce:       nonce,
-		SigIssued:   false,
+		Pkt:              pkt,
+		Issuer:           claims.Issuer,
+		Aud:              audience,
+		Sub:              claims.Sub,
+		Username:         claims.Email,
+		DisplayName:      strings.Split(claims.Email, "@")[0], //TODO: Use full name from ID Token
+		RedirectURI:      ruri,
+		Nonce:            nonce,
+		AuthcodeRedeemed: false,
+		AuthcodeIssued:   false,
 	}, nil
 
 }

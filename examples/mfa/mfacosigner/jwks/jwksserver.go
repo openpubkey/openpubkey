@@ -15,13 +15,13 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-type Server struct {
+type JwksServer struct {
 	uri       string
 	jwksBytes []byte
 }
 
 // A very simple JWKS server for our MFA Cosigner example code.
-func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, string, error) {
+func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*JwksServer, string, error) {
 	// Compute the kid (Key ID) as the SHA-3 of the public key
 	pubkey := signer.Public().(*ecdsa.PublicKey) // TODO: handle non-ecdsa signers
 	pubkeyBytes := elliptic.Marshal(pubkey, pubkey.X, pubkey.Y)
@@ -52,7 +52,7 @@ func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, s
 		return nil, "", fmt.Errorf("failed to bind to an available port: %w", err)
 	}
 
-	server := &Server{
+	server := &JwksServer{
 		uri:       fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port),
 		jwksBytes: keySetBytes,
 	}
@@ -66,11 +66,11 @@ func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*Server, s
 	return server, kid, nil
 }
 
-func (s *Server) URI() string {
+func (s *JwksServer) URI() string {
 	return s.uri
 }
 
-func (s *Server) printJWKS(w http.ResponseWriter, r *http.Request) {
+func (s *JwksServer) printJWKS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(s.jwksBytes)
 }

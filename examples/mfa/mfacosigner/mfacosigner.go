@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -27,13 +26,13 @@ func NewUser(as *cosigner.AuthState) *user {
 }
 
 type MfaCosigner struct {
-	cosigner.AuthCosigner
+	*cosigner.AuthCosigner
 	webAuthn   *webauthn.WebAuthn
 	sessionMap map[string]*webauthn.SessionData
 	users      map[cosigner.UserKey]*user
 }
 
-func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
 
 	if _, err := rand.Read(hmacKey); err != nil {
@@ -45,22 +44,16 @@ func NewCosigner(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID
 		return nil, err
 	}
 
+	authCos, err := cosigner.New(signer, alg, issuer, keyID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MfaCosigner{
-		AuthCosigner: cosigner.AuthCosigner{
-			Cosigner: cosigner.Cosigner{
-				Alg:    alg,
-				Signer: signer,
-			},
-			Issuer:       issuer,
-			KeyID:        keyID,
-			AuthIdIter:   atomic.Uint64{},
-			HmacKey:      hmacKey,
-			AuthStateMap: make(map[string]*cosigner.AuthState), //index by AuthID
-			AuthCodeMap:  make(map[string]string),
-		},
-		webAuthn:   wauth,
-		sessionMap: make(map[string]*webauthn.SessionData),
-		users:      make(map[cosigner.UserKey]*user),
+		AuthCosigner: authCos,
+		webAuthn:     wauth,
+		sessionMap:   make(map[string]*webauthn.SessionData),
+		users:        make(map[cosigner.UserKey]*user),
 	}, nil
 }
 
@@ -80,7 +73,7 @@ func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCrea
 	userKey := authState.UserKey()
 
 	if c.IsRegistered(userKey) {
-		return nil, fmt.Errorf("Already has a webauthn device registered for this user")
+		return nil, fmt.Errorf("already has a webauthn device registered for this user")
 	}
 	user := NewUser(authState)
 	credCreation, session, err := c.webAuthn.BeginRegistration(user)
@@ -97,7 +90,7 @@ func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol
 
 	userKey := authState.UserKey()
 	if c.IsRegistered(userKey) {
-		return fmt.Errorf("Already has a webauthn device registered for this user")
+		return fmt.Errorf("already has a webauthn device registered for this user")
 	}
 	user := NewUser(authState)
 	credential, err := c.webAuthn.CreateCredential(user, *session, parsedResponse)
@@ -118,7 +111,9 @@ func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, 
 	authState := c.AuthStateMap[authID]
 	userKey := authState.UserKey()
 
-	if credAssertion, session, err := c.webAuthn.BeginLogin(c.users[userKey]); err != nil {
+	if user, ok := c.users[userKey]; !ok {
+		return nil, fmt.Errorf("user does not exist for userkey given %s", userKey)
+	} else if credAssertion, session, err := c.webAuthn.BeginLogin(user); err != nil {
 		return nil, err
 	} else {
 		c.sessionMap[authID] = session

@@ -15,9 +15,10 @@ import (
 
 type Server struct {
 	cosigner *MfaCosigner
+	jwksUri  string
 }
 
-func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
+func NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	server := &Server{}
 
 	// WebAuthn configuration
@@ -38,11 +39,13 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	jwksHost := jwksServer.URI()
+	server.jwksUri = fmt.Sprintf("%s/.well-known/jwks.json", jwksHost)
+	issuer := rpOrigin
 
-	fmt.Println("JWKS hosted at", jwksServer.URI()+"/.well-known/jwks.json")
-	server.cosigner, err = NewCosigner(signer, alg, serverUri, kid, cfg)
+	fmt.Println("JWKS hosted at", server.jwksUri)
+	server.cosigner, err = New(signer, alg, issuer, kid, cfg)
 	if err != nil {
-		fmt.Println("failed to initialize cosigner: ", err)
 		return nil, err
 	}
 
@@ -55,6 +58,7 @@ func New(serverUri, rpID, rpOrigin, RPDisplayName string) (*Server, error) {
 	mux.HandleFunc("/login/begin", server.beginLogin)
 	mux.HandleFunc("/login/finish", server.finishLogin)
 	mux.HandleFunc("/sign", server.signPkt)
+	mux.HandleFunc("/.well-known/openid-configuration", server.wellKnownConf)
 
 	err = http.ListenAndServe(":3003", mux)
 	return server, err
@@ -102,7 +106,7 @@ func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
 		"isRegistered": registered,
 	})
 
-	w.WriteHeader(201)
+	w.WriteHeader(200)
 	w.Write(response)
 }
 
@@ -124,7 +128,6 @@ func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
 
 	optionsJson, err := json.Marshal(options)
 	if err != nil {
-		fmt.Printf("Failed to marshal options: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -164,14 +167,12 @@ func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := s.cosigner.BeginLogin(authID)
 	if err != nil {
-		fmt.Println("Failed to begin webauthn login:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	optionsJson, err := json.Marshal(options)
 	if err != nil {
-		fmt.Println("Failed to marshal options:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -217,7 +218,6 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	sig := []byte(r.URL.Query().Get("sig2"))
 
 	if cosSig, err := s.cosigner.RedeemAuthcode(sig); err != nil {
-		fmt.Println("Signature Grant Failed:", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	} else {
@@ -225,4 +225,24 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(201)
 		w.Write(cosSigB64)
 	}
+}
+
+func (s *Server) wellKnownConf(w http.ResponseWriter, r *http.Request) {
+	type WellKnown struct {
+		Issuer  string `json:"issuer"`
+		JwksUri string `json:"jwks_uri"`
+	}
+
+	wk := WellKnown{
+		Issuer:  s.cosigner.Issuer,
+		JwksUri: s.jwksUri,
+	}
+
+	wkJson, err := json.Marshal(wk)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(200)
+	w.Write(wkJson)
 }

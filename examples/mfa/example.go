@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	clientID = "115045953232-9e3co450v3dagfh5q8pplip4otb5bgim.apps.googleusercontent.com"
+	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
 	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
 	issuer       = "https://accounts.google.com"
 	scopes       = []string{"openid profile email"}
 	redirURIPort = "3000"
@@ -36,8 +36,8 @@ func main() {
 	}
 
 	cosignerProvider := client.CosignerProvider{
-		Issuer:      "http://localhost:3003",
-		RedirectURI: "http://localhost:3000/mfacallback",
+		Issuer:       "http://localhost:3003",
+		CallbackPath: "/mfacallback",
 	}
 
 	if len(os.Args) < 2 {
@@ -51,7 +51,7 @@ func main() {
 
 		opk := &client.OpkClient{
 			Op:   provider,
-			CosP: cosignerProvider,
+			CosP: &cosignerProvider,
 		}
 
 		clientKey, err := util.GenKeyPair(jwa.ES256)
@@ -60,22 +60,21 @@ func main() {
 			return
 		}
 
-		pkt, err := opk.CosAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		pkt, err := opk.OidcAndCosAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
 		if err != nil {
-			fmt.Println("error generating key pair: ", err)
+			fmt.Println(err)
 			return
 		}
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		err = client.PKTokenVerifer{
-			AllowedProviders: []client.OpenIdProvider{provider},
-			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
-		}.Verify(context.TODO(), pkt)
-		if err != nil {
+		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
 			fmt.Println("failed to verify PK token:", err)
-		} else {
-			fmt.Println("Verified PK token cosigner signature!")
+		}
+		// TODO: This is not secure because it does not check that issuer is the expected issuer
+		// This will be addressed in https://github.com/openpubkey/openpubkey/pull/72
+		if err := pkt.VerifyCosignerSignature(); err != nil {
+			fmt.Println("failed to verify PK token cosigner signature:", err)
 		}
 
 		os.Exit(0)
@@ -84,7 +83,7 @@ func main() {
 		serverUri := "http://localhost:3003"
 		rpOrigin := "http://localhost:3003"
 		rpDisplayName := "OpenPubkey"
-		_, err := mfacosigner.New(serverUri, rpID, rpOrigin, rpDisplayName)
+		_, err := mfacosigner.NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, rpDisplayName)
 		if err != nil {
 			fmt.Println("error starting mfa server: ", err)
 			return
@@ -94,5 +93,4 @@ func main() {
 		fmt.Println("Unrecognized command:", command)
 		fmt.Printf("Example MFA Cosigner: command choices are: login, mfa")
 	}
-
 }

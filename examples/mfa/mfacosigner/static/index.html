@@ -67,8 +67,6 @@
             if (!res.ok) {
                 throw new Error(`HTTP error! status: ${res.status}`);
             }
-
-            console.log("Registration complete!");
         }
 
         async function login(authid) {
@@ -113,23 +111,18 @@
 
             let authcodeData = await res.json();
             window.location.replace(authcodeData.redirect_uri);
-
-            console.log("Login complete!");
         }
 
         document.addEventListener('DOMContentLoaded', async (event) => {
             const statusDiv = document.getElementById('status');
             
-            
             const queryString = window.location.search;
             let searchParams = new URLSearchParams(queryString);
             const authid = searchParams.get('authid')
-            console.log(authid);
-
+            
             const response = await fetch(`/check-registration?authid=${authid}`, {
                 method: 'GET',
             });
-
 
             let data = await response.json();
 
@@ -139,38 +132,18 @@
                     await register(authid);
                 } catch(error) {
                     statusDiv.textContent = `Error during registration: ${error}`;
-                    await fetch('/done', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: `Error during registration: ${error}`
-                    });
+                    return
                 }
             }
 
             try {
                 statusDiv.textContent = "Authenticating user with WebAuthn...";
                 let response = await login(authid);
+                statusDiv.textContent = "MFA authentication complete!";
             } catch(error) {
                 statusDiv.textContent = `Error during login: ${error}`;
-                await fetch('/done', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: `Error during login: ${error}`
-                });
+                return
             }
-
-
-
-            statusDiv.textContent = "MFA authentication complete!";
-            await fetch('/done', {
-                method: 'GET',
-            });
-
-  
         })
     </script>
 </body>

@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -14,27 +16,50 @@ import (
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/sirupsen/logrus"
 )
 
 type CosignerProvider struct {
-	Issuer      string
-	RedirectURI string
+	Issuer       string
+	CallbackPath string
 }
 
 func (p *CosignerProvider) GetIssuer() string {
 	return p.Issuer
 }
 
-type AuthCosignerClient struct {
-	CosignerProvider
-}
+func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+	// Find an unused port
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to bind to an available port: %w", err)
+	}
 
-func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
+	port := listener.Addr().(*net.TCPAddr).Port
+	host := fmt.Sprintf("localhost:%d", port)
+	redirectURI := fmt.Sprintf("http://%s%s", host, c.CallbackPath)
+
+	mux := http.NewServeMux()
+	server := &http.Server{
+		Addr:    host,
+		Handler: mux,
+	}
+
+	logrus.Infof("listening on http://%s/", host)
+	logrus.Info("press ctrl+c to stop")
+	go func() {
+		err := server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Error(err)
+		}
+	}()
+	defer server.Shutdown(ctx)
+
 	ch := make(chan []byte)
 	errCh := make(chan error)
 
 	// This is where we get the authcode from the Cosigner
-	http.Handle("/mfacallback",
+	mux.Handle(c.CallbackPath,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 			// Get authcode from Cosigner via Cosigner redirecting user's browser window
@@ -73,12 +98,13 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 			ch <- cosSig
 		}),
 	)
+
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w\n", err)
 	}
 	pktB63 := util.Base64EncodeForJWT(pktJson)
-	initAuthMsgJson, nonce, err := c.CreateInitAuthSig()
+	initAuthMsgJson, nonce, err := c.CreateInitAuthSig(redirectURI)
 	sig1, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w\n", err)
@@ -90,7 +116,7 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 	select {
 	case cosSig := <-ch:
 		// To be safe we perform these checks before adding the cosSig to the pktoken
-		if err := c.ValidateCosPHeader(cosSig, nonce); err != nil {
+		if err := c.ValidateCos(cosSig, nonce, redirectURI); err != nil {
 			return nil, err
 		}
 		pkt.AddSignature(cosSig, pktoken.Cos)
@@ -103,7 +129,7 @@ func (c *AuthCosignerClient) RequestToken(signer crypto.Signer, pkt *pktoken.PKT
 	}
 }
 
-func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce string) error {
+func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expectedRedirectURI string) error {
 	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
 		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
 	} else if len(cosSigParsed.Signatures()) != 1 {
@@ -117,8 +143,8 @@ func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce str
 		}
 		if ruriRet, ok := ph.Get("ruri"); !ok {
 			return fmt.Errorf("ruri (redirect URI) not set in Cosigner signature protected header")
-		} else if c.RedirectURI != ruriRet {
-			return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, expected %s", c.RedirectURI)
+		} else if expectedRedirectURI != ruriRet {
+			return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, got %s expected %s", ruriRet, expectedRedirectURI)
 		}
 		if issRet, ok := ph.Get("iss"); !ok {
 			return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
@@ -129,7 +155,7 @@ func (c *AuthCosignerClient) ValidateCosPHeader(cosSig []byte, expectedNonce str
 	}
 }
 
-func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, string, error) {
+func (c *CosignerProvider) CreateInitAuthSig(redirectURI string) ([]byte, string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)
 	_, err := rand.Read(rBytes)
@@ -143,7 +169,7 @@ func (c *AuthCosignerClient) CreateInitAuthSig() ([]byte, string, error) {
 	}
 
 	msg := msgs.InitMFAAuth{
-		RedirectUri: c.RedirectURI,
+		RedirectUri: redirectURI,
 		TimeSigned:  time.Now().Unix(),
 		Nonce:       nonce,
 	}

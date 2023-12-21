@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
+	"net/http"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type CosignerClaims struct {
@@ -98,27 +98,18 @@ func (p *PKToken) VerifyCosignerSignature() error {
 		return fmt.Errorf("cosigner signature expired")
 	}
 
-	// Grab the public keys from the JWKS endpoint
-	jwksUrl, err := url.ParseRequestURI(header.Iss)
+	discConf, err := oidcclient.Discover(header.Iss, http.DefaultClient)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
-	jwksUrl.Path = `/.well-known/jwks.json`
-	// TODO: verify scheme matches some expected value
-
-	set, err := jwk.Fetch(context.Background(), jwksUrl.String())
+	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
 	if err != nil {
-		// TODO: THis is a lame hack to make the demo work without standing up an MFA Cosigner at a non-localhost address.
-		// If you see this in PR you are code reviewing immediately reject the PR. ~ERH
-		if strings.Contains(jwksUrl.String(), "http://localhost:") {
-			return nil
-		}
-		return err
+		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
 	}
 
 	key, ok := set.LookupKeyID(header.KeyID)
 	if !ok {
-		return fmt.Errorf("missing key id")
+		return fmt.Errorf("missing key id (kid)")
 	}
 
 	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))

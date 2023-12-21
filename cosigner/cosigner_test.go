@@ -19,8 +19,8 @@ func TestSimpleCosigner(t *testing.T) {
 	}
 
 	cos := &Cosigner{
-		Alg:    alg,
-		Signer: signer,
+		alg:    alg,
+		signer: signer,
 	}
 
 	email := "arthur.aardvark@example.com"
@@ -33,12 +33,13 @@ func TestSimpleCosigner(t *testing.T) {
 	cosignerClaims := pktoken.CosignerClaims{
 		Iss:         "example.com",
 		KeyID:       "none",
-		Algorithm:   cos.Alg.String(),
+		Algorithm:   cos.alg.String(),
 		AuthID:      "none",
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),
 		Expiration:  time.Now().Add(time.Hour).Unix(),
 		RedirectURI: "none",
+		Nonce:       "test-nonce",
 	}
 
 	cosToken, err := cos.Cosign(pkt, cosignerClaims)
