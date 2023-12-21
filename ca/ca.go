@@ -26,7 +26,7 @@ import (
 
 // TODO: make requiredAudience a configuration option
 var (
-	requiredAudience = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
+	requiredAudience = "also_me"
 )
 
 type Ca struct {
@@ -151,7 +151,7 @@ func (a *Ca) Serv() {
 
 func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 	var pkt *pktoken.PKToken
-	if err := json.Unmarshal(pktCom, pkt); err != nil {
+	if err := json.Unmarshal(pktCom, &pkt); err != nil {
 		return nil, err
 	}
 
@@ -160,16 +160,16 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 	}
 
 	var payload struct {
-		Issuer   string `json:"iss"`
-		Audience string `json:"aud"`
-		Email    string `json:"email"`
+		Issuer   string   `json:"iss"`
+		Audience []string `json:"aud"`
+		Email    string   `json:"email"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
 		return nil, err
 	}
 
-	if payload.Audience != requiredAudience {
-		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience)
+	if payload.Audience[0] != requiredAudience {
+		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience[0])
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)

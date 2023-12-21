@@ -1,13 +1,11 @@
-package cert
+package ca
 
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -18,8 +16,19 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-func TestCertCreation(t *testing.T) {
-	caBytes, caPkSk, err := GenCAKeyPair()
+func TestCACertCreation(t *testing.T) {
+	// create a temporary directory
+	tempDir, err := os.MkdirTemp("", "TestCACertCreation")
+	if err != nil {
+		t.Fatalf("Error creating temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	ca := Ca{
+		cfgPath: tempDir,
+	}
+
+	err = ca.KeyGen(tempDir, string(jwa.ES256))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,8 +49,7 @@ func TestCertCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	requiredAudience := "also_me"
-	pemSubCert, err := PktTox509(pktJson, caBytes, caPkSk, requiredAudience)
+	pemSubCert, err := ca.PktTox509(pktJson, ca.CaCertBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,19 +78,30 @@ func TestCertCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Test writing and reading our certificate to and from disk
-	certPath := path.Join(os.TempDir(), "cert.pem")
-	err = util.WriteCertFile(certPath, cc.Raw)
+	// Test reading our certificate from disk
+	testCa := Ca{
+		cfgPath: tempDir,
+	}
+	err = testCa.Load(string(jwa.ES256))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	readCert, err := util.ReadCertFile(certPath)
-	if err != nil {
-		t.Fatal(err)
+	if string(ca.CaCertBytes) != string(testCa.CaCertBytes) {
+		t.Fatal("failed reading CA cert bytes from disk")
 	}
 
-	if string(cc.Raw) != string(readCert.Raw) {
-		t.Fatal(fmt.Errorf("did not read in same certificate as we wrote to file"))
+	ecPub, err := x509.MarshalPKIXPublicKey(ca.pksk.Public())
+	if err != nil {
+		t.Fatal("error marshalling public key")
 	}
+	testEcPub, err := x509.MarshalPKIXPublicKey(testCa.pksk.Public())
+	if err != nil {
+		t.Fatal("error marshalling test public key")
+	}
+
+	if string(ecPub) != string(testEcPub) {
+		t.Fatal("failed reading pksk from disk")
+	}
+
 }
