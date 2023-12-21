@@ -20,14 +20,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/sirupsen/logrus"
 
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-)
-
-// TODO: make requiredAudience a configuration option
-var (
-	requiredAudience = providers.MockAudience
 )
 
 type Ca struct {
@@ -35,6 +29,7 @@ type Ca struct {
 	Alg         jwa.KeyAlgorithm
 	CaCertBytes []byte
 	cfgPath     string
+	reqAud      string
 }
 
 func (a *Ca) KeyGen(cfgPath string, alg string) error {
@@ -169,7 +164,7 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if payload.Audience[0] != requiredAudience {
+	if payload.Audience[0] != a.reqAud {
 		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience[0])
 	}
 

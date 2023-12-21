@@ -11,6 +11,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -26,6 +27,7 @@ func TestCACertCreation(t *testing.T) {
 
 	ca := Ca{
 		cfgPath: tempDir,
+		reqAud:  providers.MockAudience,
 	}
 
 	err = ca.KeyGen(tempDir, string(jwa.ES256))
