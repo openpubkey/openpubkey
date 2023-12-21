@@ -17,7 +17,7 @@ func TestCreateX509Cert(t *testing.T) {
 	// generate pktoken
 	signer, err := util.GenKeyPair(jwa.ES256)
 	if err != nil {
-		t.Fatal("error generating key pair")
+		t.Fatal(err)
 	}
 	provider, err := providers.NewMockOpenIdProvider()
 	if err != nil {
@@ -26,24 +26,24 @@ func TestCreateX509Cert(t *testing.T) {
 	opkClient := client.OpkClient{Op: provider}
 	pkToken, err := opkClient.OidcAuth(context.Background(), signer, jwa.ES256, map[string]any{}, true)
 	if err != nil {
-		t.Fatal("error getting PK token")
+		t.Fatal(err)
 	}
 
 	// create x509 cert from pk token
 	cert, err := CreateX509Cert(pkToken, signer)
 	if err != nil {
-		t.Fatal("error creating x509 cert")
+		t.Fatal(err)
 	}
 	p, _ := pem.Decode(cert)
 	result, err := x509.ParseCertificate(p.Bytes)
 	if err != nil {
-		t.Fatal("error parsing x509 cert")
+		t.Fatal(err)
 	}
 
 	// test cert SubjectKeyId field contains PK token
 	pkTokenJSON, err := json.Marshal(pkToken)
 	if err != nil {
-		t.Fatal("error marshalling PK token to JSON")
+		t.Fatal(err)
 	}
 	if string(result.SubjectKeyId) != string(pkTokenJSON) {
 		t.Fatal("certificate subject key id does not match PK token")
@@ -52,7 +52,7 @@ func TestCreateX509Cert(t *testing.T) {
 	// test cert RawSubjectPublicKeyInfo field contains ephemeral public key
 	ecPub, err := x509.MarshalPKIXPublicKey(signer.Public())
 	if err != nil {
-		t.Fatal("error marshalling public key")
+		t.Fatal(err)
 	}
 	if string(result.RawSubjectPublicKeyInfo) != string(ecPub) {
 		t.Fatal("certificate raw subject public key info does not match ephemeral public key")
@@ -63,7 +63,7 @@ func TestCreateX509Cert(t *testing.T) {
 		Subject string `json:"sub"`
 	}
 	if err := json.Unmarshal(pkToken.Payload, &payload); err != nil {
-		t.Fatal("error unmarshalling pk token")
+		t.Fatal(err)
 	}
 	if result.Subject.CommonName != payload.Subject {
 		t.Fatal("cert common name does not equal pk token sub claim")

@@ -20,7 +20,7 @@ func TestCACertCreation(t *testing.T) {
 	// create a temporary directory
 	tempDir, err := os.MkdirTemp("", "TestCACertCreation")
 	if err != nil {
-		t.Fatalf("Error creating temporary directory: %v", err)
+		t.Fatal(err)
 	}
 	defer os.RemoveAll(tempDir)
 
@@ -93,11 +93,11 @@ func TestCACertCreation(t *testing.T) {
 
 	ecPub, err := x509.MarshalPKIXPublicKey(ca.pksk.Public())
 	if err != nil {
-		t.Fatal("error marshalling public key")
+		t.Fatal(err)
 	}
 	testEcPub, err := x509.MarshalPKIXPublicKey(testCa.pksk.Public())
 	if err != nil {
-		t.Fatal("error marshalling test public key")
+		t.Fatal(err)
 	}
 
 	if string(ecPub) != string(testEcPub) {
