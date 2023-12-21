@@ -150,8 +150,8 @@ func (a *Ca) Serv() {
 }
 
 func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
-	var pkt *pktoken.PKToken
-	if err := json.Unmarshal(pktCom, &pkt); err != nil {
+	pkt := new(pktoken.PKToken)
+	if err := json.Unmarshal(pktCom, pkt); err != nil {
 		return nil, err
 	}
 
