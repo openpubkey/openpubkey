@@ -211,3 +211,7 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 func (g *GoogleOp) HookHTTPSession(h client.HttpSessionHook) {
 	g.httpSessionHook = h
 }
+
+func (g *GoogleOp) GetIssuer() string {
+	return g.Issuer
+}

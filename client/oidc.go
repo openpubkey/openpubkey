@@ -24,6 +24,7 @@ type OpenIdProvider interface {
 	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
+	GetIssuer() string
 }
 
 // Interface for interacting with the OP (OpenID Provider)
@@ -34,6 +35,38 @@ type BrowserOpenIdProvider interface {
 type HttpSessionHook func(w http.ResponseWriter, r *http.Request)
 
 func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
+	return PKTokenVerifer{
+		AllowedProviders: []OpenIdProvider{provider},
+	}.Verify(ctx, pkt)
+}
+
+type PKTokenVerifer struct {
+	AllowedProviders []OpenIdProvider
+	AllowedCosigners []CosignerProvider
+}
+
+func (v PKTokenVerifer) Verify(ctx context.Context, pkt *pktoken.PKToken) error {
+	// If no providers (OPs) are set in the allowlist verify will always fail.
+	if len(v.AllowedProviders) == 0 {
+		return fmt.Errorf("no allowed providers (allowed OPs) set, you must set at least one provider")
+	}
+
+	var pktOp struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &pktOp); err != nil {
+		return err
+	}
+	var provider OpenIdProvider
+	for _, allowedOp := range v.AllowedProviders {
+		if allowedOp.GetIssuer() == pktOp.Issuer {
+			provider = allowedOp
+			break
+		}
+	}
+	if provider == nil {
+		return fmt.Errorf("the OP issuer (%s) in the PK Token is not an allowed issuer", pktOp.Issuer)
+	}
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return err
@@ -88,9 +121,30 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
 	}
 
-	if pkt.Cos != nil {
-		if err := pkt.VerifyCosignerSignature(); err != nil {
-			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
+	// If no cosigner is set, then we don't require a cosigner.
+	if len(v.AllowedCosigners) != 0 {
+		if pkt.Cos == nil {
+			return fmt.Errorf("cosigner required but no cosigner signature (COS) set in PK Token")
+		}
+
+		var cos *CosignerProvider
+		if cosIss, ok := pkt.Cos.ProtectedHeaders().Get("iss"); !ok {
+			return fmt.Errorf("no COS issuer set in the PK Token")
+		} else {
+			for _, allowedCos := range v.AllowedCosigners {
+				if allowedCos.GetIssuer() == cosIss {
+					cos = &allowedCos
+					break
+				}
+			}
+			if cos == nil {
+				return fmt.Errorf("the COS issuer (%s) in the PK Token is not an list of allowed issuers", cosIss)
+			}
+		}
+		if pkt.Cos != nil {
+			if err := pkt.VerifyCosignerSignature(); err != nil {
+				return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
+			}
 		}
 	}
 
