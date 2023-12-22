@@ -20,6 +20,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/sirupsen/logrus"
 
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -155,17 +156,13 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	var payload struct {
-		Issuer   string   `json:"iss"`
-		Audience []string `json:"aud"`
-		Email    string   `json:"email"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
+	payload := new(client.OidcClaims)
+	if err := json.Unmarshal(pkt.Payload, payload); err != nil {
 		return nil, err
 	}
 
-	if payload.Audience[0] != a.reqAud {
-		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience[0])
+	if payload.Audience != a.reqAud {
+		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience)
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)

@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -16,6 +17,56 @@ import (
 const GQSecurityParameter = 256
 
 var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
+
+type OidcClaims struct {
+	Issuer     string `json:"iss"`
+	Subject    string `json:"sub"`
+	Audience   string `json:"-"`
+	Expiration int64  `json:"exp"`
+	IssuedAt   int64  `json:"iat"`
+	Email      string `json:"email,omitempty"`
+	Nonce      string `json:"nonce,omitempty"`
+	Username   string `json:"preferred_username,omitempty"`
+	FirstName  string `json:"given_name,omitempty"`
+	LastName   string `json:"family_name,omitempty"`
+}
+
+// Implement UnmarshalJSON for custom handling during JSON unmarshaling
+func (id *OidcClaims) UnmarshalJSON(data []byte) error {
+	type Alias OidcClaims
+	aux := &struct {
+		Audience any `json:"aud"`
+		*Alias
+	}{
+		Alias: (*Alias)(id),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// unmarshal audience claim seperately to account for []string, https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+	var temp struct {
+		Audience any `json:"aud"`
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+	switch t := temp.Audience.(type) {
+	case string:
+		id.Audience = t
+	case []any:
+		audList := []string{}
+		for _, v := range t {
+			audList = append(audList, v.(string))
+		}
+		id.Audience = strings.Join(audList, ",")
+	default:
+		id.Audience = ""
+	}
+
+	return nil
+}
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
