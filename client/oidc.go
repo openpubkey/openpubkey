@@ -33,6 +33,7 @@ type OidcClaims struct {
 
 // Implement UnmarshalJSON for custom handling during JSON unmarshaling
 func (id *OidcClaims) UnmarshalJSON(data []byte) error {
+	// unmarshal audience claim seperately to account for []string, https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 	type Alias OidcClaims
 	aux := &struct {
 		Audience any `json:"aud"`
@@ -45,14 +46,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// unmarshal audience claim seperately to account for []string, https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
-	var temp struct {
-		Audience any `json:"aud"`
-	}
-	if err := json.Unmarshal(data, &temp); err != nil {
-		return err
-	}
-	switch t := temp.Audience.(type) {
+	switch t := aux.Audience.(type) {
 	case string:
 		id.Audience = t
 	case []any:
