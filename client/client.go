@@ -21,10 +21,9 @@ type OpkClient struct {
 	CosP *CosignerProvider
 }
 
-// OidcAndCosAuth will attempt to authenticate to both
-// the OpenID Provider and then the Cosigner.
+// Auth will attempt to authenticate to both the OpenID Provider and then the Cosigner.
 // If no Cosigner supplied it will default to OidcAuth
-func (o *OpkClient) OidcAndCosAuth(
+func (o *OpkClient) Auth(
 	ctx context.Context,
 	signer crypto.Signer,
 	alg jwa.KeyAlgorithm,

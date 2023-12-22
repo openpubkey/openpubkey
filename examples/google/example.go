@@ -93,7 +93,7 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 		},
 	}
 
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	pkt, err := client.Auth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
 	if err != nil {
 		return err
 	}

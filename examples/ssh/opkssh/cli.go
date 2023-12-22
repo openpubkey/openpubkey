@@ -150,7 +150,7 @@ func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 }
 
 func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
-	pkt, err := client.OidcAuth(cxt, signer, alg, map[string]any{}, gqFlag)
+	pkt, err := client.Auth(cxt, signer, alg, map[string]any{}, gqFlag)
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
