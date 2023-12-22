@@ -66,17 +66,16 @@ func main() {
 			return
 		}
 		fmt.Println("New PK token generated")
+		verifier := client.PKTokenVerifer{
+			AllowedProviders: []client.OpenIdProvider{provider},
+			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
+		}
 
 		// Verify our pktoken including the cosigner signature
-		if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
+		if err := verifier.Verify(context.TODO(), pkt); err != nil {
 			fmt.Println("failed to verify PK token:", err)
+			os.Exit(1)
 		}
-		// TODO: This is not secure because it does not check that issuer is the expected issuer
-		// This will be addressed in https://github.com/openpubkey/openpubkey/pull/72
-		if err := pkt.VerifyCosignerSignature(); err != nil {
-			fmt.Println("failed to verify PK token cosigner signature:", err)
-		}
-
 		os.Exit(0)
 	case "mfa":
 		rpID := "localhost"
