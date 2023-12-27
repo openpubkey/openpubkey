@@ -25,9 +25,14 @@ func TestCACertCreation(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
+	provider, err := providers.NewMockOpenIdProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ca := Ca{
-		cfgPath: tempDir,
-		reqAud:  providers.MockAudience,
+		cfgPath:  tempDir,
+		provider: provider,
 	}
 
 	err = ca.KeyGen(tempDir, string(jwa.ES256))
