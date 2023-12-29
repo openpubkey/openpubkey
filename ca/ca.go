@@ -2,6 +2,7 @@ package ca
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -20,13 +21,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/sirupsen/logrus"
 
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-)
-
-// TODO: make requiredAudience a configuration option
-var (
-	requiredAudience = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
 )
 
 type Ca struct {
@@ -34,6 +31,7 @@ type Ca struct {
 	Alg         jwa.KeyAlgorithm
 	CaCertBytes []byte
 	cfgPath     string
+	provider    client.OpenIdProvider
 }
 
 func (a *Ca) KeyGen(cfgPath string, alg string) error {
@@ -150,7 +148,7 @@ func (a *Ca) Serv() {
 }
 
 func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
-	var pkt *pktoken.PKToken
+	pkt := new(pktoken.PKToken)
 	if err := json.Unmarshal(pktCom, pkt); err != nil {
 		return nil, err
 	}
@@ -159,17 +157,14 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	var payload struct {
-		Issuer   string `json:"iss"`
-		Audience string `json:"aud"`
-		Email    string `json:"email"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &payload); err != nil {
+	payload := new(client.OidcClaims)
+	if err := json.Unmarshal(pkt.Payload, payload); err != nil {
 		return nil, err
 	}
 
-	if payload.Audience != requiredAudience {
-		return nil, fmt.Errorf("audience 'aud' claim in PK Token did not match audience required by CA, it was %s instead", payload.Audience)
+	err := client.VerifyPKToken(context.Background(), pkt, a.provider)
+	if err != nil {
+		return nil, fmt.Errorf("error PK token is not valid: %w", err)
 	}
 
 	caTemplate, err := x509.ParseCertificate(caBytes)
