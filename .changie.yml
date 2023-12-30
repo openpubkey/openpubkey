@@ -1,0 +1,30 @@
+changesDir: .changes
+unreleasedDir: unreleased
+changelogPath: CHANGELOG.md
+versionExt: md
+versionFormat: '## {{.Version}} ({{.Time.Format "January 02, 2006"}})'
+kindFormat: '{{.Kind}}:'
+changeFormat: |
+  {{- $issues := splitList "," .Custom.Issues }}
+  * {{.Body}} ({{- range $i, $issue := $issues }} {{- $trimed := trim $issue }}{{- if $i}}, {{- end}}[#{{$trimed}}](https://github.com/bastionzero/terraform-provider-bastionzero/issues/{{$trimed}})
+  {{- end}}).
+custom:
+  - key: Issues
+    label: Comma separated list of issue(s)/PR number(s)
+    type: string
+    minLength: 1
+kinds:
+  - label: BREAKING CHANGES
+    auto: major
+  - label: FEATURES
+    auto: minor
+  - label: ENHANCEMENTS
+    auto: minor
+  - label: NOTES
+    auto: patch
+  - label: BUG FIXES
+    auto: patch
+newlines:
+  afterKind: 1
+  beforeKind: 1
+  endOfVersion: 2
