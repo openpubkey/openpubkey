@@ -109,22 +109,27 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w", err)
 	}
 
+	select {
 	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
-	redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1))
+	case redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1)):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 
 	select {
-	case cosSig := <-ch:
+	case cosSig := <-ch: // Received cosigner signature
 		// To be safe we perform these checks before adding the cosSig to the pktoken
 		if err := c.ValidateCos(cosSig, nonce, redirectURI); err != nil {
 			return nil, err
 		}
-		pkt.AddSignature(cosSig, pktoken.Cos)
-		if err != nil {
+		if err := pkt.AddSignature(cosSig, pktoken.Cos); err != nil {
 			return nil, fmt.Errorf("error in adding cosigner signature to PK Token: %w", err)
 		}
 		return pkt, nil
 	case err := <-errCh:
 		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
