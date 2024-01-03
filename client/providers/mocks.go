@@ -69,5 +69,5 @@ func (m *MockOpenIdProvider) VerifyNonGQSig(ctx context.Context, idt []byte, exp
 }
 
 func (m *MockOpenIdProvider) GetIssuer() string {
-	return issuer
+	return MockIssuer
 }
