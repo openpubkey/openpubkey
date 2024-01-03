@@ -1,6 +1,6 @@
 # opk-ssh
 OpenPubKey SSH
-![opk-ssh](https://github.com/bastionzero/opk-ssh/assets/10800317/88409a18-acce-475f-99fd-f3224a7deef1)
+
 For more documentation see: https://github.com/openpubkey/openpubkey/pull/43
 
 # How to Test
