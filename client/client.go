@@ -66,7 +66,10 @@ func (o *OpkClient) OidcAuth(
 	if err != nil {
 		return nil, err
 	}
-	jwkKey.Set(jwk.AlgorithmKey, alg)
+	err = jwkKey.Set(jwk.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Use provided public key to generate client instance claims
 	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
@@ -93,14 +96,19 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
+	opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("error getting OP public key: %w", err)
+	}
+
 	if signGQ {
-		opKey, err := o.Op.PublicKey(ctx, idToken.Bytes())
-		if err != nil {
-			return nil, fmt.Errorf("error getting OP public key: %w", err)
-		}
+
 		rsaPubKey := opKey.(*rsa.PublicKey)
 
-		sv := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		sv, err := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		if err != nil {
+			return nil, fmt.Errorf("error creating GQ signer: %w", err)
+		}
 		gqToken, err := sv.SignJWT(idToken.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
@@ -109,7 +117,7 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	pkt, err := pktoken.New(idToken.Bytes(), cicToken, signGQ)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
@@ -119,5 +127,9 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
+	err = pkt.AddJKTHeader(opKey)
+	if err != nil {
+		return nil, fmt.Errorf("error adding JKT header: %w", err)
+	}
 	return pkt, nil
 }

@@ -12,7 +12,7 @@ import (
 //
 // Comments throughout refer to stages as specified in the ISO/IEC 14888-2 standard.
 func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) bool {
-	n, v, t := sv.n, sv.v, sv.t
+	n, v, t := modAsInt(sv.n), sv.v, sv.t
 	nBytes, vBytes := sv.nBytes, sv.vBytes
 
 	M := message
