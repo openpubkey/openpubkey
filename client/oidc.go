@@ -101,6 +101,15 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 	if err := json.Unmarshal(pkt.Payload, &pktOp); err != nil {
 		return err
 	}
+
+	//TODO: This function does not handle multiple providers with the same
+	// issuer and different audiences. This does not handle the case where the
+	// same provider (OP) is specified twice in an allowlist with different
+	// audiences. Instead it will match on the first provider with the correct
+	// issuer and then verify using that provider. If that provider has the
+	// wrong audience it will throw an error even if there was a provider in
+	// the allowlist that had both the correct audience and the correct issuer.
+	// See https://github.com/openpubkey/openpubkey/issues/84
 	var provider OpenIdProvider
 	for _, allowedOp := range v.AllowedProviders {
 		if allowedOp.GetIssuer() == pktOp.Issuer {
