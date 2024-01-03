@@ -39,26 +39,11 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	host := fmt.Sprintf("localhost:%d", port)
 	redirectURI := fmt.Sprintf("http://%s%s", host, c.CallbackPath)
 
-	mux := http.NewServeMux()
-	server := &http.Server{
-		Addr:    host,
-		Handler: mux,
-	}
-
-	logrus.Infof("listening on http://%s/", host)
-	logrus.Info("press ctrl+c to stop")
-	go func() {
-		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
-		}
-	}()
-	defer server.Shutdown(ctx)
-
 	ch := make(chan []byte)
 	errCh := make(chan error)
 
 	// This is where we get the authcode from the Cosigner
+	mux := http.NewServeMux()
 	mux.Handle(c.CallbackPath,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -98,6 +83,20 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 			ch <- cosSig
 		}),
 	)
+
+	server := &http.Server{
+		Addr:    host,
+		Handler: mux,
+	}
+	logrus.Infof("listening on http://%s/", host)
+	logrus.Info("press ctrl+c to stop")
+	go func() {
+		err := server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Error(err)
+		}
+	}()
+	defer server.Shutdown(ctx)
 
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
