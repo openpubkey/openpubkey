@@ -101,13 +101,13 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {
-		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w\n", err)
+		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w", err)
 	}
 	pktB63 := util.Base64EncodeForJWT(pktJson)
 	initAuthMsgJson, nonce, err := c.CreateInitAuthSig(redirectURI)
 	sig1, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
-		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w\n", err)
+		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w", err)
 	}
 
 	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
@@ -121,7 +121,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		}
 		pkt.AddSignature(cosSig, pktoken.Cos)
 		if err != nil {
-			return nil, fmt.Errorf("error in adding cosigner signature to PK Token: %w\n", err)
+			return nil, fmt.Errorf("error in adding cosigner signature to PK Token: %w", err)
 		}
 		return pkt, nil
 	case err := <-errCh:

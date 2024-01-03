@@ -75,22 +75,21 @@ type OpenIdProvider interface {
 // Interface for interacting with the OP (OpenID Provider)
 type BrowserOpenIdProvider interface {
 	OpenIdProvider
-	HookHTTPSession(h HttpSessionHook)
+	HookHTTPSession(h http.HandlerFunc)
 }
-type HttpSessionHook func(w http.ResponseWriter, r *http.Request)
 
 func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
-	return PKTokenVerifer{
+	return PKTokenVerifier{
 		AllowedProviders: []OpenIdProvider{provider},
 	}.Verify(ctx, pkt)
 }
 
-type PKTokenVerifer struct {
+type PKTokenVerifier struct {
 	AllowedProviders []OpenIdProvider
 	AllowedCosigners []CosignerProvider
 }
 
-func (v PKTokenVerifer) Verify(ctx context.Context, pkt *pktoken.PKToken) error {
+func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error {
 	// If no providers (OPs) are set in the allowlist verify will always fail.
 	if len(v.AllowedProviders) == 0 {
 		return fmt.Errorf("no allowed providers (allowed OPs) set, you must set at least one provider")
@@ -179,16 +178,14 @@ func (v PKTokenVerifer) Verify(ctx context.Context, pkt *pktoken.PKToken) error 
 			for _, allowedCos := range v.AllowedCosigners {
 				if allowedCos.GetIssuer() == cosIss {
 					cos = &allowedCos
-					break
+					break // Matching cosigner found on allowlist
 				}
 			}
+			// if cos is nil, the PK Token's cosigner is not on the allowlist
 			if cos == nil {
 				return fmt.Errorf("the COS issuer (%s) in the PK Token is not an list of allowed issuers", cosIss)
-			}
-		}
-		if pkt.Cos != nil {
-			if err := pkt.VerifyCosignerSignature(); err != nil {
-				return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
+			} else if err := pkt.VerifyCosignerSignature(); err != nil {
+				return fmt.Errorf("error verifying cosigner signature on PK Token: %w", err)
 			}
 		}
 	}

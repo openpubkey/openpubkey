@@ -36,7 +36,7 @@ type GoogleOp struct {
 	CallbackPath    string
 	RedirectURI     string
 	server          *http.Server
-	httpSessionHook client.HttpSessionHook
+	httpSessionHook http.HandlerFunc
 }
 
 var _ client.OpenIdProvider = (*GoogleOp)(nil)
@@ -208,7 +208,7 @@ func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce
 // We use this so that we can redirect the user web browser window to
 // the MFA Cosigner URI after the user finishes the OIDC Auth flow. This
 // method is only available to browser based providers.
-func (g *GoogleOp) HookHTTPSession(h client.HttpSessionHook) {
+func (g *GoogleOp) HookHTTPSession(h http.HandlerFunc) {
 	g.httpSessionHook = h
 }
 

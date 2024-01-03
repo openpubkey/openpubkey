@@ -68,7 +68,7 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		verifier := client.PKTokenVerifer{
+		verifier := client.PKTokenVerifier{
 			AllowedProviders: []client.OpenIdProvider{provider},
 			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
 		}
