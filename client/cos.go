@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -61,7 +62,12 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 				errCh <- err
 				return
 			}
-			res, err := http.Get(fmt.Sprintf("%s/sign?sig2=%s", c.Issuer, sig2))
+			authcodeSigUri, err := c.AuthcodeURI(sig2)
+			if err != nil {
+				errCh <- fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
+				return
+			}
+			res, err := http.Get(authcodeSigUri)
 			if err != nil {
 				errCh <- fmt.Errorf("error requesting MFA cosigner signature: %w", err)
 				return
@@ -102,16 +108,22 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error serializing PK Token: %w", err)
 	}
-	pktB63 := util.Base64EncodeForJWT(pktJson)
+
 	initAuthMsgJson, nonce, err := c.CreateInitAuthSig(redirectURI)
 	sig1, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w", err)
 	}
 
+	redirUri, err := c.InitAuthURI(pktJson, sig1)
+	if err != nil {
+		return nil, fmt.Errorf("cosigner client hit error when building init auth URI: %w", err)
+	}
+
 	select {
 	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
-	case redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1)):
+	// case redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1)):
+	case redirCh <- redirUri:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -131,6 +143,37 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+func (c *CosignerProvider) InitAuthURI(pktJson []byte, sig1 []byte) (string, error) {
+	pktB63 := util.Base64EncodeForJWT(pktJson)
+	if uri, err := url.Parse(c.Issuer); err != nil {
+		return "", err
+	} else {
+		uri := uri.JoinPath("mfa-auth-init")
+		v := uri.Query()
+		v.Add("pkt", string(pktB63))
+		v.Add("sig1", string(sig1))
+		uri.RawQuery = v.Encode()
+
+		// URI Should be: https://<issuer>/mfa-auth-init?pkt=<pktJsonB64>&sig1=<sig1>
+		return uri.String(), nil
+	}
+}
+
+func (c *CosignerProvider) AuthcodeURI(sig2 []byte) (string, error) {
+	if uri, err := url.Parse(c.Issuer); err != nil {
+		return "", err
+	} else {
+		uri := uri.JoinPath("sign")
+		v := uri.Query()
+		v.Add("sig2", string(sig2))
+		uri.RawQuery = v.Encode()
+
+		// URI Should be: https://<issuer>/sign?&sig2=<sig2>
+		return uri.String(), nil
+	}
+
 }
 
 func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expectedRedirectURI string) error {
