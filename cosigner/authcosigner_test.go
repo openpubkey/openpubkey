@@ -24,8 +24,8 @@ func TestAuthIDs(t *testing.T) {
 
 	cos := AuthCosigner{
 		Cosigner: Cosigner{
-			alg:    cosAlg,
-			signer: cosSigner,
+			Alg:    cosAlg,
+			Signer: cosSigner,
 		},
 		Issuer:       "https://example.com",
 		KeyID:        "kid1234",
@@ -206,8 +206,8 @@ func TestNewAuthcodeFailure(t *testing.T) {
 
 	cos := AuthCosigner{
 		Cosigner: Cosigner{
-			alg:    cosAlg,
-			signer: cosSigner,
+			Alg:    cosAlg,
+			Signer: cosSigner,
 		},
 		Issuer:       "https://example.com",
 		KeyID:        "kid1234",
@@ -239,8 +239,8 @@ func CreateAuthCosigner(t *testing.T) *AuthCosigner {
 
 	return &AuthCosigner{
 		Cosigner: Cosigner{
-			alg:    cosAlg,
-			signer: signer,
+			Alg:    cosAlg,
+			Signer: signer,
 		},
 		Issuer:       "https://example.com",
 		KeyID:        "kid1234",

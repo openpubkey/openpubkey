@@ -36,8 +36,8 @@ func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string)
 
 	return &AuthCosigner{
 		Cosigner: Cosigner{
-			alg:    alg,
-			signer: signer},
+			Alg:    alg,
+			Signer: signer},
 		Issuer:       issuer,
 		KeyID:        keyID,
 		authIdIter:   atomic.Uint64{},
@@ -140,7 +140,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authID string) ([]by
 	protected := pktoken.CosignerClaims{
 		Iss:         c.Issuer,
 		KeyID:       c.KeyID,
-		Algorithm:   c.alg.String(),
+		Algorithm:   c.Alg.String(),
 		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),

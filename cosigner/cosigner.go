@@ -9,8 +9,8 @@ import (
 )
 
 type Cosigner struct {
-	alg    jwa.KeyAlgorithm
-	signer crypto.Signer
+	Alg    jwa.KeyAlgorithm
+	Signer crypto.Signer
 }
 
 func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) {
@@ -22,5 +22,5 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims
 	if err := json.Unmarshal(jsonBytes, &headers); err != nil {
 		return nil, err
 	}
-	return pkt.SignToken(c.signer, c.alg, headers)
+	return pkt.SignToken(c.Signer, c.Alg, headers)
 }
