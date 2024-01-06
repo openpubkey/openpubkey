@@ -40,8 +40,8 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	host := fmt.Sprintf("localhost:%d", port)
 	redirectURI := fmt.Sprintf("http://%s%s", host, c.CallbackPath)
 
-	ch := make(chan []byte)
-	errCh := make(chan error)
+	ch := make(chan []byte, 1)
+	errCh := make(chan error, 1)
 
 	// This is where we get the authcode from the Cosigner
 	mux := http.NewServeMux()
@@ -62,7 +62,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 				errCh <- err
 				return
 			}
-			authcodeSigUri, err := c.AuthcodeURI(sig2)
+			authcodeSigUri, err := c.authcodeURI(sig2)
 			if err != nil {
 				errCh <- fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
 				return
@@ -115,7 +115,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w", err)
 	}
 
-	redirUri, err := c.InitAuthURI(pktJson, sig1)
+	redirUri, err := c.initAuthURI(pktJson, sig1)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error when building init auth URI: %w", err)
 	}
@@ -145,7 +145,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	}
 }
 
-func (c *CosignerProvider) InitAuthURI(pktJson []byte, sig1 []byte) (string, error) {
+func (c *CosignerProvider) initAuthURI(pktJson []byte, sig1 []byte) (string, error) {
 	pktB63 := util.Base64EncodeForJWT(pktJson)
 	if uri, err := url.Parse(c.Issuer); err != nil {
 		return "", err
@@ -161,7 +161,7 @@ func (c *CosignerProvider) InitAuthURI(pktJson []byte, sig1 []byte) (string, err
 	}
 }
 
-func (c *CosignerProvider) AuthcodeURI(sig2 []byte) (string, error) {
+func (c *CosignerProvider) authcodeURI(sig2 []byte) (string, error) {
 	if uri, err := url.Parse(c.Issuer); err != nil {
 		return "", err
 	} else {

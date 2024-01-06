@@ -39,7 +39,7 @@ func (o *OpkClient) Auth(
 	if browserOp, ok := o.Op.(BrowserOpenIdProvider); !ok {
 		return nil, fmt.Errorf("OP supplied does not have support for MFA Cosigner")
 	} else {
-		redirCh := make(chan string)
+		redirCh := make(chan string, 1)
 
 		browserOp.HookHTTPSession(func(w http.ResponseWriter, r *http.Request) {
 			redirectUri := <-redirCh
