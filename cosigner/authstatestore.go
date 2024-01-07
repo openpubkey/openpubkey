@@ -20,6 +20,9 @@ type AuthStateStore interface {
 	RedeemAuthcode(authcode string) (AuthState, string, error)
 }
 
+// This is intended for testing purposes. The locking strategy used is not
+// particularly efficient. Anyone building a Cosigner should use the interface
+// above to replace this in-memory store with a database.
 type AuthStateInMemoryStore struct {
 	AuthIDIssuer     *AuthIDIssuer
 	AuthStateMap     map[string]*AuthState

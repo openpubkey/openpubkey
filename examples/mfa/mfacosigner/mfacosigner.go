@@ -25,6 +25,7 @@ func NewUser(as *cosigner.AuthState) *user {
 	}
 }
 
+// This is intended as an example. Both sessionMap and users are not concurrency safe.
 type MfaCosigner struct {
 	*cosigner.AuthCosigner
 	webAuthn   *webauthn.WebAuthn
