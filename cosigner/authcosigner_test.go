@@ -164,16 +164,10 @@ func CreateAuthCosigner(t *testing.T) *AuthCosigner {
 	cosAlg := jwa.ES256
 	signer, err := util.GenKeyPair(cosAlg)
 	require.NoError(t, err, "failed to generate key pair")
+	issuer := "https://example.com"
+	KeyID := "kid1234"
 
-	hmacKey := []byte{0x1, 0x2, 0x3}
-
-	return &AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: signer,
-		},
-		Issuer:         "https://example.com",
-		KeyID:          "kid1234",
-		AuthStateStore: NewAuthStateInMemoryStore(hmacKey),
-	}
+	authCosigner, err := New(signer, cosAlg, issuer, KeyID)
+	require.NoError(t, err, "failed to create auth cosigner")
+	return authCosigner
 }
