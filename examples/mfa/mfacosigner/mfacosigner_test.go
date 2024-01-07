@@ -49,7 +49,7 @@ func TestFullFlow(t *testing.T) {
 
 	// Init MFA Cosigner flow
 	cosP := client.CosignerProvider{
-		Issuer:       "example.com",
+		Issuer:       "https://example.com",
 		CallbackPath: "/mfaredirect",
 	}
 	redirectURI := fmt.Sprintf("%s%s", "http://localhost:5555", cosP.CallbackPath)

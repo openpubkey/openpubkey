@@ -24,7 +24,7 @@ func TestInitAuth(t *testing.T) {
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
-		Issuer:       "example.com",
+		Issuer:       "https://example.com",
 		CallbackPath: "/mfaredirect",
 	}
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
@@ -52,7 +52,7 @@ func TestRedeemAuthcode(t *testing.T) {
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
-		Issuer:       "example.com",
+		Issuer:       "https://example.com",
 		CallbackPath: "/mfaredirect",
 	}
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
@@ -64,9 +64,8 @@ func TestRedeemAuthcode(t *testing.T) {
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	tests := []struct {
-		pkt    *pktoken.PKToken
-		signer crypto.Signer
-
+		pkt       *pktoken.PKToken
+		signer    crypto.Signer
 		wantError bool
 	}{
 		{pkt: pkt, signer: signer, wantError: false},
@@ -106,7 +105,7 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	cos := CreateAuthCosigner(t)
 
 	cosP := client.CosignerProvider{
-		Issuer:       "example.com",
+		Issuer:       "https://example.com",
 		CallbackPath: "/mfaredirect",
 	}
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)

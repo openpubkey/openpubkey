@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -205,17 +206,17 @@ func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expe
 func (c *CosignerProvider) CreateInitAuthSig(redirectURI string) ([]byte, string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)
-	_, err := rand.Read(rBytes)
-	if err != nil {
+	if _, err := rand.Read(rBytes); err != nil {
 		return nil, "", err
+	}
+	if !strings.HasSuffix(redirectURI, c.CallbackPath) {
+		return nil, "", fmt.Errorf("redirectURI (%s) does not end in expected callbackPath (%s)", redirectURI, c.CallbackPath)
 	}
 
 	nonce := hex.EncodeToString(rBytes)
-	if err != nil {
-		return nil, "", err
-	}
 
 	msg := msgs.InitMFAAuth{
+		Issuer:      c.Issuer,
 		RedirectUri: redirectURI,
 		TimeSigned:  time.Now().Unix(),
 		Nonce:       nonce,

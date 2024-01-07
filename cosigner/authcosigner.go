@@ -44,6 +44,8 @@ func (c *AuthCosigner) InitAuth(pkt *pktoken.PKToken, sig []byte) (string, error
 	var initMFAAuth *msgs.InitMFAAuth
 	if err := json.Unmarshal(msg, &initMFAAuth); err != nil {
 		return "", fmt.Errorf("failed to parse InitMFAAuth message: %w", err)
+	} else if initMFAAuth.Issuer != c.Issuer {
+		return "", fmt.Errorf("signed message is for wrong cosigner, got issuer=(%s), expected issuer=(%s)", initMFAAuth.Issuer, c.Issuer)
 	} else if time.Since(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
 		return "", fmt.Errorf("timestamp (%d) in InitMFAAuth message too old, current time is (%d)", initMFAAuth.TimeSigned, time.Now().Unix())
 	} else if time.Until(time.Unix(initMFAAuth.TimeSigned, 0)).Minutes() > 2 {
