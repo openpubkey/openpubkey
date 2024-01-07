@@ -17,9 +17,8 @@ import (
 func TestAuthIDs(t *testing.T) {
 	cosAlg := jwa.ES256
 	cosSigner, err := util.GenKeyPair(cosAlg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
@@ -38,14 +37,10 @@ func TestAuthIDs(t *testing.T) {
 	// Test if we get the same value if we supply exact the same time
 	unixTime := uint64(5)
 	authID1, err := cos.CreateAuthID(unixTime)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to create auth ID")
 
 	authID2, err := cos.CreateAuthID(unixTime)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to create auth ID")
 	require.NotEqualValues(t, authID1, authID2)
 
 	require.Equal(t, "644117927902f52d3949804c7ce417509d9437eb1240a9bf75725c9f61d5b424", authID1)
@@ -57,13 +52,10 @@ func TestInitAuth(t *testing.T) {
 
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	pkt, err := mocks.GenerateMockPKToken(signer, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
 		Issuer:       "example.com",
@@ -74,9 +66,7 @@ func TestInitAuth(t *testing.T) {
 	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID1, err := cos.InitAuth(pkt, sig)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to initiate auth")
 	require.NotEmpty(t, authID1)
 
 	emptySig := []byte{}
@@ -90,13 +80,10 @@ func TestRedeemAuthcode(t *testing.T) {
 
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	pkt, err := mocks.GenerateMockPKToken(signer, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
 		Issuer:       "example.com",
@@ -105,13 +92,10 @@ func TestRedeemAuthcode(t *testing.T) {
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
 	diffSigner, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	diffPkt, err := mocks.GenerateMockPKToken(diffSigner, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to generate mock PK Token")
 
 	tests := []struct {
 		pkt    *pktoken.PKToken
@@ -129,28 +113,20 @@ func TestRedeemAuthcode(t *testing.T) {
 		initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
 		sig, err := tc.pkt.NewSignedMessage(initAuthMsgJson, tc.signer)
 		authID, err := cos.InitAuth(tc.pkt, sig)
-		if !tc.wantError && err != nil {
-			t.Fatalf("test %d: expected: nil, got: %v", i+1, err)
+		if !tc.wantError {
+			require.NoError(t, err, "test %d: expected: nil, got: %v", i+1, err)
 		}
 		authcode, err := cos.NewAuthcode(authID)
 
 		acSig, err := tc.pkt.NewSignedMessage([]byte(authcode), tc.signer)
-		if err != nil {
-			t.Fatalf("test %d: expected: nil, got: %v", i+1, err)
-		}
+		require.NoError(t, err, "test %d: expected: nil, got: %v", i+1, err)
 
 		cosSig, err := cos.RedeemAuthcode(acSig)
 		if tc.wantError {
-			if err == nil {
-				t.Fatalf("test %d: expected error, got: %v", i+1, err)
-			}
+			require.Error(t, err, "test %d: expected error, got: %v", i+1, err)
 		} else {
-			if err != nil {
-				t.Fatalf("test %d: expected: nil, got: %v", i+1, err)
-			}
-			if cosSig == nil {
-				t.Fatalf("test %d: expected not nil, got: %v", i+1, cosSig)
-			}
+			require.NoError(t, err, "test %d: expected: nil, got: %v", i+1, err)
+			require.NotNil(t, cosSig, "test %d: expected not nil, got: %v", i+1, cosSig)
 		}
 	}
 }
@@ -159,9 +135,7 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	pkt, err := mocks.GenerateMockPKToken(signer, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cos := CreateAuthCosigner(t)
 
@@ -199,9 +173,8 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 func TestNewAuthcodeFailure(t *testing.T) {
 	cosAlg := jwa.ES256
 	cosSigner, err := util.GenKeyPair(cosAlg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	cos := AuthCosigner{
@@ -220,9 +193,7 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	// Ensure failure if AuthID not recorded by cosigner
 	unixTime := uint64(5)
 	authID, err := cos.CreateAuthID(unixTime)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to create auth ID")
 
 	authcode, err := cos.NewAuthcode(authID)
 	require.ErrorContains(t, err, "no such authID")
@@ -232,9 +203,8 @@ func TestNewAuthcodeFailure(t *testing.T) {
 func CreateAuthCosigner(t *testing.T) *AuthCosigner {
 	cosAlg := jwa.ES256
 	signer, err := util.GenKeyPair(cosAlg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
+
 	hmacKey := []byte{0x1, 0x2, 0x3}
 
 	return &AuthCosigner{

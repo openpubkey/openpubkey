@@ -8,6 +8,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSimpleCosigner(t *testing.T) {
@@ -25,10 +26,7 @@ func TestSimpleCosigner(t *testing.T) {
 
 	email := "arthur.aardvark@example.com"
 	pkt, err := mocks.GenerateMockPKTokenWithEmail(signer, alg, email)
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
 
 	cosignerClaims := pktoken.CosignerClaims{
 		Iss:         "example.com",
@@ -43,10 +41,6 @@ func TestSimpleCosigner(t *testing.T) {
 	}
 
 	cosToken, err := cos.Cosign(pkt, cosignerClaims)
-	if err != nil {
-		t.Error(err)
-	}
-	if cosToken == nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed cosign PK Token")
+	require.NotNil(t, cosToken, "cosign signature is nil")
 }
