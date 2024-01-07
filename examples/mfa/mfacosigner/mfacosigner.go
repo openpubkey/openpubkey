@@ -58,7 +58,7 @@ func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string,
 }
 
 func (c *MfaCosigner) CheckIsRegistered(authID string) bool {
-	authState := c.AuthStateMap[authID]
+	authState, _ := c.AuthStateStore.LookupAuthState(authID)
 	userKey := authState.UserKey()
 	return c.IsRegistered(userKey)
 }
@@ -69,13 +69,13 @@ func (c *MfaCosigner) IsRegistered(userKey cosigner.UserKey) bool {
 }
 
 func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCreation, error) {
-	authState := c.AuthStateMap[authID]
+	authState, _ := c.AuthStateStore.LookupAuthState(authID)
 	userKey := authState.UserKey()
 
 	if c.IsRegistered(userKey) {
 		return nil, fmt.Errorf("already has a webauthn device registered for this user")
 	}
-	user := NewUser(authState)
+	user := NewUser(&authState)
 	credCreation, session, err := c.webAuthn.BeginRegistration(user)
 	if err != nil {
 		return nil, err
@@ -85,14 +85,14 @@ func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCrea
 }
 
 func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol.ParsedCredentialCreationData) error {
-	authState := c.AuthStateMap[authID]
+	authState, _ := c.AuthStateStore.LookupAuthState(authID)
 	session := c.sessionMap[authID]
 
 	userKey := authState.UserKey()
 	if c.IsRegistered(userKey) {
 		return fmt.Errorf("already has a webauthn device registered for this user")
 	}
-	user := NewUser(authState)
+	user := NewUser(&authState)
 	credential, err := c.webAuthn.CreateCredential(user, *session, parsedResponse)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol
 }
 
 func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, error) {
-	authState := c.AuthStateMap[authID]
+	authState, _ := c.AuthStateStore.LookupAuthState(authID)
 	userKey := authState.UserKey()
 
 	if user, ok := c.users[userKey]; !ok {
@@ -123,7 +123,7 @@ func (c *MfaCosigner) BeginLogin(authID string) (*protocol.CredentialAssertion, 
 }
 
 func (c *MfaCosigner) FinishLogin(authID string, parsedResponse *protocol.ParsedCredentialAssertionData) (string, string, error) {
-	authState := c.AuthStateMap[authID]
+	authState, _ := c.AuthStateStore.LookupAuthState(authID)
 	session := c.sessionMap[authID]
 	userKey := authState.UserKey()
 

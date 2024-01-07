@@ -3,7 +3,6 @@ package cosigner
 import (
 	"crypto"
 	"fmt"
-	"sync/atomic"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -13,39 +12,6 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
-
-func TestAuthIDs(t *testing.T) {
-	cosAlg := jwa.ES256
-	cosSigner, err := util.GenKeyPair(cosAlg)
-	require.NoError(t, err, "failed to generate key pair")
-
-	hmacKey := []byte{0x1, 0x2, 0x3}
-
-	cos := AuthCosigner{
-		Cosigner: Cosigner{
-			Alg:    cosAlg,
-			Signer: cosSigner,
-		},
-		Issuer:       "https://example.com",
-		KeyID:        "kid1234",
-		authIdIter:   atomic.Uint64{},
-		hmacKey:      hmacKey,
-		AuthStateMap: make(map[string]*AuthState),
-		AuthCodeMap:  make(map[string]string),
-	}
-
-	// Test if we get the same value if we supply exact the same time
-	unixTime := uint64(5)
-	authID1, err := cos.CreateAuthID(unixTime)
-	require.NoError(t, err, "failed to create auth ID")
-
-	authID2, err := cos.CreateAuthID(unixTime)
-	require.NoError(t, err, "failed to create auth ID")
-	require.NotEqualValues(t, authID1, authID2)
-
-	require.Equal(t, "644117927902f52d3949804c7ce417509d9437eb1240a9bf75725c9f61d5b424", authID1)
-	require.Equal(t, "f7d16adcef9f7d0e72139f0edae98db64c2db1f0cb8b59468d4766e91126f4eb", authID2)
-}
 
 func TestInitAuth(t *testing.T) {
 	cos := CreateAuthCosigner(t)
@@ -71,7 +37,7 @@ func TestInitAuth(t *testing.T) {
 
 	emptySig := []byte{}
 	authID2, err := cos.InitAuth(pkt, emptySig)
-	require.ErrorContains(t, err, "failed to parse sig")
+	require.ErrorContains(t, err, "failed to verify sig: invalid byte sequence")
 	require.Empty(t, authID2)
 }
 
@@ -182,18 +148,13 @@ func TestNewAuthcodeFailure(t *testing.T) {
 			Alg:    cosAlg,
 			Signer: cosSigner,
 		},
-		Issuer:       "https://example.com",
-		KeyID:        "kid1234",
-		authIdIter:   atomic.Uint64{},
-		hmacKey:      hmacKey,
-		AuthStateMap: make(map[string]*AuthState),
-		AuthCodeMap:  make(map[string]string),
+		Issuer:         "https://example.com",
+		KeyID:          "kid1234",
+		AuthStateStore: NewAuthStateInMemoryStore(hmacKey),
 	}
 
 	// Ensure failure if AuthID not recorded by cosigner
-	unixTime := uint64(5)
-	authID, err := cos.CreateAuthID(unixTime)
-	require.NoError(t, err, "failed to create auth ID")
+	authID := "123456789ABCEF123456789ABCEF123456789ABCEF123456789ABCEF"
 
 	authcode, err := cos.NewAuthcode(authID)
 	require.ErrorContains(t, err, "no such authID")
@@ -212,11 +173,8 @@ func CreateAuthCosigner(t *testing.T) *AuthCosigner {
 			Alg:    cosAlg,
 			Signer: signer,
 		},
-		Issuer:       "https://example.com",
-		KeyID:        "kid1234",
-		authIdIter:   atomic.Uint64{},
-		hmacKey:      hmacKey,
-		AuthStateMap: make(map[string]*AuthState),
-		AuthCodeMap:  make(map[string]string),
+		Issuer:         "https://example.com",
+		KeyID:          "kid1234",
+		AuthStateStore: NewAuthStateInMemoryStore(hmacKey),
 	}
 }
