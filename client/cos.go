@@ -57,6 +57,10 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	host := fmt.Sprintf("localhost:%d", port)
 	redirectURI := fmt.Sprintf("http://%s%s", host, c.CallbackPath)
 
+	// We set the buffer size to one and then in the CallbackPath handler we
+	// ensure only said either 0 or 1 message to a channel before returning.
+	// This prevents blocking inside CallbackPath handler when it attempts to
+	// write to the channel.
 	ch := make(chan []byte, 1)
 	errCh := make(chan error, 1)
 
@@ -139,7 +143,6 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 
 	select {
 	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
-	// case redirCh <- fmt.Sprintf("%s/mfa-auth-init?pkt=%s&sig1=%s", c.Issuer, string(pktB63), string(sig1)):
 	case redirCh <- redirUri:
 	case <-ctx.Done():
 		return nil, ctx.Err()
