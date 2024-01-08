@@ -29,11 +29,11 @@ import (
 )
 
 type AuthStateStore interface {
-	CreateNewAuthSession(pkt *pktoken.PKToken, ruri string, nonce string) (string, error)
-	LookupAuthState(authID string) (AuthState, bool)
+	CreateNewAuthSession(pkt *pktoken.PKToken, ruri string, nonce string) (authID string, err error)
+	LookupAuthState(authID string) (*AuthState, bool)
 	UpdateAuthState(authID string, authState AuthState) error
-	CreateAuthcode(authID string) (string, error)
-	RedeemAuthcode(authcode string) (AuthState, string, error)
+	CreateAuthcode(authID string) (authcode string, err error)
+	RedeemAuthcode(authcode string) (authState AuthState, authID string, err error)
 }
 
 // This is intended for testing purposes. The locking strategy used is not
@@ -57,11 +57,12 @@ func NewAuthStateInMemoryStore(hmacKey []byte) *AuthStateInMemoryStore {
 	}
 }
 
-func (s *AuthStateInMemoryStore) LookupAuthState(authID string) (AuthState, bool) {
+// Writes to the AuthState are not concurrency safe, do not write
+func (s *AuthStateInMemoryStore) LookupAuthState(authID string) (*AuthState, bool) {
 	s.AuthStateMapLock.RLock()
 	as, ok := s.AuthStateMap[authID]
 	s.AuthStateMapLock.RUnlock()
-	return *as, ok // Pass by value to prevent writes to the original
+	return as, ok // Pass by value to prevent writes to the original
 }
 
 func (s *AuthStateInMemoryStore) UpdateAuthState(authID string, authState AuthState) error {

@@ -92,7 +92,7 @@ func (c *MfaCosigner) BeginRegistration(authID string) (*protocol.CredentialCrea
 	if c.IsRegistered(userKey) {
 		return nil, fmt.Errorf("already has a webauthn device registered for this user")
 	}
-	user := NewUser(&authState)
+	user := NewUser(authState)
 	credCreation, session, err := c.webAuthn.BeginRegistration(user)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (c *MfaCosigner) FinishRegistration(authID string, parsedResponse *protocol
 	if c.IsRegistered(userKey) {
 		return fmt.Errorf("already has a webauthn device registered for this user")
 	}
-	user := NewUser(&authState)
+	user := NewUser(authState)
 	credential, err := c.webAuthn.CreateCredential(user, *session, parsedResponse)
 	if err != nil {
 		return err

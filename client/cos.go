@@ -60,7 +60,9 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	// We set the buffer size to one and then in the CallbackPath handler we
 	// ensure only said either 0 or 1 message to a channel before returning.
 	// This prevents blocking inside CallbackPath handler when it attempts to
-	// write to the channel.
+	// write to the channel. If the callbackPath handler is called twice by the
+	// user's web browser the second call will block on a channel until the cxt
+	// is marked as done.
 	ch := make(chan []byte, 1)
 	errCh := make(chan error, 1)
 
@@ -68,46 +70,57 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	mux := http.NewServeMux()
 	mux.Handle(c.CallbackPath,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cosSig, err := func() ([]byte, error) {
+				// Get authcode from Cosigner via Cosigner redirecting user's browser window
+				params := r.URL.Query()
+				if _, ok := params["authcode"]; !ok {
+					return nil, fmt.Errorf("Cosigner did not return an authcode in the URI")
+				}
+				authcode := params["authcode"][0] // This is the authcode issued by the cosigner not the OP
 
-			// Get authcode from Cosigner via Cosigner redirecting user's browser window
-			params := r.URL.Query()
-			if _, ok := params["authcode"]; !ok {
-				errCh <- fmt.Errorf("Cosigner did not return an authcode in the URI")
-				return
-			}
-			authcode := params["authcode"][0] // This is the authcode issued by the cosigner not the OP
+				// Sign authcode from cosigner under PK Token and send signed authcode to Cosigner
+				sig2, err := pkt.NewSignedMessage([]byte(authcode), signer)
+				if err != nil {
+					return nil, fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
+				}
+				authcodeSigUri, err := c.authcodeURI(sig2)
+				if err != nil {
+					return nil, fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
+				}
+				res, err := http.Get(authcodeSigUri)
+				if err != nil {
+					return nil, fmt.Errorf("error requesting MFA cosigner signature: %w", err)
+				}
 
-			// Sign authcode from cosigner under PK Token and send signed authcode to Cosigner
-			sig2, err := pkt.NewSignedMessage([]byte(authcode), signer)
+				// Receive response from Cosigner that has cosigner signature on PK Token
+				resBody, err := io.ReadAll(res.Body)
+				if err != nil {
+					return nil, fmt.Errorf("error reading MFA cosigner signature response: %w", err)
+				}
+				cosSig, err := util.Base64DecodeForJWT(resBody)
+				if err != nil {
+					return nil, fmt.Errorf("error reading MFA cosigner signature response: %w", err)
+				}
+				// Success
+				return cosSig, nil
+			}()
+
 			if err != nil {
-				errCh <- err
-				return
-			}
-			authcodeSigUri, err := c.authcodeURI(sig2)
-			if err != nil {
-				errCh <- fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
-				return
-			}
-			res, err := http.Get(authcodeSigUri)
-			if err != nil {
-				errCh <- fmt.Errorf("error requesting MFA cosigner signature: %w", err)
-				return
+				w.Write([]byte(err.Error())) //Write the error message to the user
+				select {
+				case errCh <- err:
+				case <-ctx.Done():
+					return
+				}
+			} else {
+				w.Write([]byte("You may now close this window"))
+				select {
+				case ch <- cosSig:
+				case <-ctx.Done():
+					return
+				}
 			}
 
-			// Receive response from Cosigner that has cosigner signature on PK Token
-			resBody, err := io.ReadAll(res.Body)
-			if err != nil {
-				errCh <- fmt.Errorf("error reading MFA cosigner signature response: %w", err)
-				return
-			}
-			cosSig, err := util.Base64DecodeForJWT(resBody)
-			if err != nil {
-				errCh <- fmt.Errorf("error reading MFA cosigner signature response: %w", err)
-				return
-			}
-			// Success
-			w.Write([]byte("You may now close this window"))
-			ch <- cosSig
 		}),
 	)
 

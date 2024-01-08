@@ -79,8 +79,8 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return uuid.New().String()
 	}
 
-	ch := make(chan []byte)
-	chErr := make(chan error)
+	ch := make(chan []byte, 1)
+	chErr := make(chan error, 1)
 
 	http.Handle("/login", rp.AuthURLHandler(state, provider,
 		rp.WithURLParam("nonce", cicHash),
