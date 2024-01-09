@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/user"
 	"path"
 	"strings"
 
@@ -30,10 +31,31 @@ type Enforcer struct {
 }
 
 func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	policies, err := p.readPolicyFile()
+	// read the root policy file
+	rootPolicies, err := readPolicyFile("/etc/opk/policy.yml")
+
 	if err != nil {
-		return fmt.Errorf("error reading policy file: %w", err)
+		return fmt.Errorf("error reading root policy file: %w", err)
 	}
+
+	usr, err := user.Lookup(principalDesired)
+	if err != nil {
+		return fmt.Errorf("failed to find the unix user with name: %v. error: %w", principalDesired, err)
+	}
+
+	// read the home directory policy file
+	homeDirPolicies, homeDirErr := readPolicyFile(fmt.Sprintf("%v/.opk/policy.yml", usr.HomeDir))
+
+	// if the home directory doesn't exist then only consider the root policy file
+	if homeDirErr != nil && !errors.Is(homeDirErr, os.ErrNotExist) {
+		return fmt.Errorf("failed reading home directory policy file at ~/.opk/policy.yml: %w", homeDirErr)
+	}
+
+	// check if the home directory policy only contains the current user's username
+	if err := checkHomeDirPoliciesValidity(homeDirPolicies, principalDesired); err != nil {
+		return fmt.Errorf("home directory policy file is invalid: %w", err)
+	}
+
 	var claims struct {
 		Email string `json:"email"`
 	}
@@ -41,20 +63,19 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 		return fmt.Errorf("error unmarshalling pk token payload: %w", err)
 	}
 
-	for _, policy := range policies {
+	// append the two list of policies and check
+	for _, policy := range append(rootPolicies, homeDirPolicies...) {
 		// check each entry to see if the user in the claims is included
 		if string(claims.Email) == policy.Email {
 			// if they are, then check if the desired principal is allowed
 			if slices.Contains(policy.Principals, principalDesired) {
 				// access granted
 				return nil
-			} else {
-				return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", claims.Email, principalDesired, p.PolicyFilePath)
 			}
 		}
 	}
 
-	return fmt.Errorf("no policy included for user with email %s, check policy config in %s", claims.Email, p.PolicyFilePath)
+	return fmt.Errorf("no policy to allow %s to assume %s, check policy config at /etc/opk/policy.yml or ~/.opk/policy.yml", claims.Email, principalDesired)
 }
 
 func GetPolicy(inputPrincipal string, homeDirectory string) ([]byte, string, error) {
@@ -89,10 +110,10 @@ func GetPolicy(inputPrincipal string, homeDirectory string) ([]byte, string, err
 	return policy, policyFilePath, nil
 }
 
-func (p *Enforcer) readPolicyFile() ([]User, error) {
-	info, err := os.Stat(p.PolicyFilePath)
+func readPolicyFile(policyFilePath string) ([]User, error) {
+	info, err := os.Stat(policyFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to describe the file at path: %w", err)
 	}
 	mode := info.Mode()
 
@@ -101,7 +122,7 @@ func (p *Enforcer) readPolicyFile() ([]User, error) {
 		return nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
 	}
 
-	content, err := os.ReadFile(p.PolicyFilePath)
+	content, err := os.ReadFile(policyFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -112,4 +133,13 @@ func (p *Enforcer) readPolicyFile() ([]User, error) {
 	}
 
 	return users.Users, nil
+}
+
+func checkHomeDirPoliciesValidity(policies []User, principalDesired string) error {
+	for _, policy := range policies {
+		if len(policy.Principals) != 1 || policy.Principals[0] != principalDesired {
+			return fmt.Errorf("principals used in the home directory policy file are invalid")
+		}
+	}
+	return nil
 }
