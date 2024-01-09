@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package pktoken
 
 import (
@@ -70,20 +86,19 @@ func New(idToken []byte, cicToken []byte, isGQ bool) (*PKToken, error) {
 	return pkt, nil
 }
 
-func (p *PKToken) Sign(
-	sigType SignatureType,
+// Signs PK Token and then returns only the payload, header and signature as a JWT
+func (p *PKToken) SignToken(
 	signer crypto.Signer,
 	alg jwa.KeyAlgorithm,
 	protected map[string]any,
-) error {
+) ([]byte, error) {
 	headers := jws.NewHeaders()
 	for key, val := range protected {
 		if err := headers.Set(key, val); err != nil {
-			return fmt.Errorf("malformatted headers: %w", err)
+			return nil, fmt.Errorf("malformatted headers: %w", err)
 		}
 	}
-
-	token, err := jws.Sign(
+	return jws.Sign(
 		p.Payload,
 		jws.WithKey(
 			alg,
@@ -91,10 +106,18 @@ func (p *PKToken) Sign(
 			jws.WithProtectedHeaders(headers),
 		),
 	)
+}
+
+func (p *PKToken) Sign(
+	sigType SignatureType,
+	signer crypto.Signer,
+	alg jwa.KeyAlgorithm,
+	protected map[string]any,
+) error {
+	token, err := p.SignToken(signer, alg, protected)
 	if err != nil {
 		return err
 	}
-
 	return p.AddSignature(token, sigType)
 }
 
