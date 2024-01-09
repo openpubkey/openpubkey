@@ -209,7 +209,7 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 			// if cos is nil, the PK Token's cosigner is not on the allowlist
 			if cos == nil {
 				return fmt.Errorf("the COS issuer (%s) in the PK Token is not an list of allowed issuers", cosIss)
-			} else if err := pkt.VerifyCosignerSignature(); err != nil {
+			} else if err := pkt.VerifyCosSig(); err != nil {
 				return fmt.Errorf("error verifying cosigner signature on PK Token: %w", err)
 			}
 		}

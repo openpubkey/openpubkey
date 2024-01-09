@@ -85,7 +85,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	return &claims, nil
 }
 
-func (p *PKToken) VerifyCosignerSignature() error {
+func (p *PKToken) VerifyCosSig() error {
 	if p.Cos == nil {
 		return fmt.Errorf("no cosigner signature")
 	}
