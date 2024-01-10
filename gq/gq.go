@@ -2,13 +2,21 @@ package gq
 
 import (
 	"crypto/rsa"
+	"fmt"
 	"io"
 	"math/big"
 
 	"filippo.io/bigmod"
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"golang.org/x/crypto/sha3"
 )
+
+var GQ256 = jwa.SignatureAlgorithm("GQ256")
+
+func init() {
+	jwa.RegisterSignatureAlgorithm(GQ256)
+}
 
 // Signer allows for creating GQ1 signatures messages.
 type Signer interface {
@@ -96,16 +104,19 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	return bytes, nil
 }
 
-func parseJWT(jwt []byte) ([]byte, []byte, error) {
-	headers, payload, signature, err := jws.SplitCompact(jwt)
+func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
+	token, err := jws.Parse(jwt)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Signatures are over header and payload in the base64 url-encoded byte
-	// form of `header + '.' + payload`
-	signingPayload := append(headers, []byte(".")...)
-	signingPayload = append(signingPayload, payload...)
+	// a JWT is guaranteed to have exactly one signature
+	headers := token.Signatures()[0].ProtectedHeaders()
 
-	return signingPayload, signature, nil
+	if headers.Algorithm() != GQ256 {
+		return nil, fmt.Errorf("expected GQ256 alg, got %s", headers.Algorithm())
+	}
+
+	origHeaders := []byte(headers.KeyID())
+	return origHeaders, nil
 }

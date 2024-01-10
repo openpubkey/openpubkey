@@ -167,7 +167,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		if err := c.ValidateCos(cosSig, nonce, redirectURI); err != nil {
 			return nil, err
 		}
-		if err := pkt.AddSignature(cosSig, pktoken.Cos); err != nil {
+		if err := pkt.AddSignature(cosSig, pktoken.COS); err != nil {
 			return nil, fmt.Errorf("error in adding cosigner signature to PK Token: %w", err)
 		}
 		return pkt, nil

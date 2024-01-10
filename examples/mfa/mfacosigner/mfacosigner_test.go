@@ -107,5 +107,5 @@ func TestFullFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cosSig, "expected pktCos to be cosigned")
 
-	pkt.AddSignature(cosSig, pktoken.Cos)
+	pkt.AddSignature(cosSig, pktoken.COS)
 }

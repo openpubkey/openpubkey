@@ -29,7 +29,7 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	}
 
 	// Make sure no claims are using our reserved values
-	for _, reserved := range []string{"alg", "upk", "rz"} {
+	for _, reserved := range []string{"alg", "upk", "rz", "typ"} {
 		if _, ok := claims[reserved]; ok {
 			return nil, fmt.Errorf("use of reserved header name, %s, in additional headers", reserved)
 		}
@@ -41,6 +41,7 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	}
 
 	// Assign required values
+	claims["typ"] = "CIC"
 	claims["alg"] = publicKey.Algorithm().String()
 	claims["upk"] = publicKey
 	claims["rz"] = rand

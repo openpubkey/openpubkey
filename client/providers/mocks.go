@@ -23,6 +23,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/lestrrat-go/jwx/v2/jwt/openid"
 	"github.com/openpubkey/openpubkey/util"
@@ -72,7 +73,11 @@ func (m *MockOpenIdProvider) RequestTokens(ctx context.Context, cicHash string) 
 	return memguard.NewBufferFromBytes(signedToken), nil
 }
 
-func (m *MockOpenIdProvider) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
+func (m *MockOpenIdProvider) Issuer() string {
+	return MockIssuer
+}
+
+func (m *MockOpenIdProvider) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	return m.signer.Public(), nil
 }
 
@@ -82,8 +87,4 @@ func (m *MockOpenIdProvider) VerifyCICHash(ctx context.Context, idt []byte, expe
 
 func (m *MockOpenIdProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
 	return nil
-}
-
-func (m *MockOpenIdProvider) GetIssuer() string {
-	return MockIssuer
 }

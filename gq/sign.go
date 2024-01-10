@@ -2,10 +2,12 @@ package gq
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"math/big"
 
 	"filippo.io/bigmod"
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -70,10 +72,33 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 }
 
 func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
-	signingPayload, signature, err := parseJWT(jwt)
+	origHeaders, payload, signature, err := jws.SplitCompact(jwt)
 	if err != nil {
 		return nil, err
 	}
+
+	signingPayload := util.JoinJWTSegments(origHeaders, payload)
+
+	headers := jws.NewHeaders()
+	err = headers.Set(jws.AlgorithmKey, GQ256)
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.KeyIDKey, string(origHeaders))
+	if err != nil {
+		return nil, err
+	}
+
+	headersJSON, err := json.Marshal(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	headersEnc := util.Base64EncodeForJWT(headersJSON)
 
 	// When jwt is parsed it's split into base64-encoded bytes, but
 	// we need the raw signature to calculate mod inverse
@@ -96,8 +121,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	}
 
 	// Now make a new GQ-signed token
-	gqToken := append(signingPayload, '.')
-	gqToken = append(gqToken, gqSig...)
+	gqToken := util.JoinJWTSegments(headersEnc, payload, gqSig)
 
 	return gqToken, nil
 }
