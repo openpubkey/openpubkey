@@ -8,25 +8,25 @@ We represent this binding as a PK Token. This token proves control of the OIDC i
 
 OpenPubkey does not add any new trusted parties beyond what is required for OpenID Connect. It is fully compatible with existing OpenID Providers (Google, Azure/Microsoft, Okta, OneLogin, Keycloak) without any changes to the OpenID Provider.
 
-OpenPubkey can be used to enable a myriad of applications. For example, companies building on OpenPubkey include:
+For example, companies building on OpenPubkey include:
 
 * [Docker, Inc](https://www.docker.com/) is building a public container registry [with OpenPubkey used to sign Docker Official Images](https://www.docker.com/blog/signing-docker-official-images-using-openpubkey/).
 
 * [BastionZero](https://www.bastionzero.com/) uses OpenPubkey to provide secure remote access to infrastructure.
 
-OpenPubkey is a Linux Foundation project open-sourced under the Apache 2.0 license. This project presently provides an OpenPubkey client and verifier for creating and verifying PK Tokens from Google’s OP (for users) and GitHub’s OP (for workloads).
+OpenPubkey is a Linux Foundation project. It is open source and licensed under the Apache 2.0 license. This project presently provides an OpenPubkey client and verifier for creating and verifying PK Tokens from Google’s OP (for users) and GitHub’s OP (for workloads).
 
 ## How Does OpenPubkey Work?
 
-### OpenPubkey and User Identities
-
 OpenPubkey supports both workload identities and user identities. Let's look at how this works for users and then show how to extend OpenPubkey to workloads.
+
+### OpenPubkey and User Identities
 
 In OpenID Connect (OIDC) users authenticate to an OP (OpenID Provider), and the OP grants the user an ID Token. These ID Tokens are signed by the OP and contain claims made by the OP about the user such as the user's email address. Important to OpenPubkey is the `nonce` claim in the ID Token.
 
 The `nonce` claim in the ID Token is a random value sent to the OP by the user's client during authentication with the OP. OpenPubkey follows the OpenID Connect authentication protocol with the OP, but it transmits a `nonce` value set to the cryptographic hash of both the user's public key and a random value so that the `nonce` is still cryptographically random, but any party that speaks OpenPubkey can check that ID Token contains the user's public key. From the perspective of the OP, the `nonce` looks just like a random value.
 
-Let's look at an example where a user, Alice, leverages OpenPubkey to get her OpenID Provider, `google.com`, to bind her OIDC identity, `alice@acme.co`, to her public key `alice-pubkey`. To do this, Alice starts her OpenPubkey client.
+Let's look at an example where a user, Alice, leverages OpenPubkey to get her OpenID Provider, `google.com`, to bind her OIDC identity, `alice@acme.co`, to her public key `alice-pubkey`. To do this, Alice invokes her OpenPubkey client.
 
 1. Alice's OpenPubkey client generates a fresh key pair for Alice, (`alice-pubkey`, `alice-signkey`), and a random value `rz`. The client then computes the `nonce=crypto.SHA3_256(upk=alice-pubkey, alg=ES256, rz=crypto.Rand())`. The value `alg` is set to the algorithm of Alice's key pair.
 2. Alice's OpenPubkey client then initiates OIDC authentication flow with the OP, `google.com`, and sends the `nonce` to the OP.
