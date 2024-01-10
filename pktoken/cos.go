@@ -40,6 +40,7 @@ type CosignerClaims struct {
 	Expiration  int64  `json:"exp"`
 	RedirectURI string `json:"ruri"`
 	Nonce       string `json:"nonce"`
+	Typ         string `json:"typ"`
 }
 
 func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
@@ -128,6 +129,11 @@ func (p *PKToken) VerifyCosSig() error {
 		return fmt.Errorf("missing key id (kid)")
 	}
 
-	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(header.Algorithm), key))
+	if header.Algorithm != key.Algorithm().String() {
+		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", key.KeyID(), key.Algorithm(), header.Algorithm)
+	}
+
+	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
+
 	return err
 }

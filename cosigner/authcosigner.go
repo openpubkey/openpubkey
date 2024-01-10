@@ -109,6 +109,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authState AuthState,
 		Expiration:  time.Now().Add(time.Hour).Unix(),
 		RedirectURI: authState.RedirectURI,
 		Nonce:       authState.Nonce,
+		Typ:         string(pktoken.COS),
 	}
 
 	// Now that our mfa has authenticated the user, we can add our signature
