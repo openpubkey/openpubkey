@@ -61,5 +61,5 @@ func (c *Cosigner) Cosign(pkt *pktoken.PKToken) error {
 	}
 
 	// Now that our mfa has authenticated the user, we can add our signature
-	return pkt.Sign(pktoken.Cos, c.signer, c.alg, headers)
+	return pkt.Sign(pktoken.COS, c.signer, c.alg, headers)
 }

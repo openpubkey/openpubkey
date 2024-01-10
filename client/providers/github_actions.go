@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,11 +11,8 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -85,43 +81,12 @@ func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 	return nil
 }
 
-func (g *GithubOp) PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error) {
-	j, err := jws.Parse(idt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWS: %w", err)
-	}
-	headers := j.Signatures()[0].ProtectedHeaders()
-	alg, kid := headers.Algorithm(), headers.KeyID()
-	if alg != jwa.RS256 {
-		return nil, fmt.Errorf("expected RS256 alg claim, got %s", alg)
-	}
+func (g *GithubOp) Issuer() string {
+	return githubIssuer
+}
 
-	discConf, err := oidcclient.Discover(githubIssuer, http.DefaultClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
-	}
-	keyAlg := key.Algorithm()
-	if keyAlg != jwa.RS256 {
-		return nil, fmt.Errorf("expected RS256 key, got %s", keyAlg)
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
+func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+	return client.DiscoverPublicKey(ctx, headers, githubIssuer)
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

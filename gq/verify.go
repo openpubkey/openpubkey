@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -74,10 +75,17 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 }
 
 func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
-	signingPayload, signature, err := parseJWT(jwt)
+	origHeaders, err := OriginalJWTHeaders(jwt)
 	if err != nil {
 		return false
 	}
+
+	_, payload, signature, err := jws.SplitCompact(jwt)
+	if err != nil {
+		return false
+	}
+
+	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
 	return sv.Verify(signature, signingPayload, signingPayload)
 }

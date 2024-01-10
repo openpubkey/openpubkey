@@ -6,12 +6,17 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 const GQSecurityParameter = 256
@@ -64,8 +69,9 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
+	Issuer() string
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	PublicKey(ctx context.Context, idt []byte) (crypto.PublicKey, error)
+	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
 	VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error
 	VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error
 }
@@ -83,23 +89,51 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 
 	idt, err := pkt.Compact(pkt.Op)
 	if err != nil {
-		return fmt.Errorf("")
+		return err
 	}
 
-	sigType, ok := pkt.ProviderSignatureType()
+	issuer, err := ExtractClaim(idt, "iss")
+	if err != nil {
+		return err
+	}
+
+	if issuer != provider.Issuer() {
+		return fmt.Errorf("expected token to have issuer %s, got %s", provider.Issuer(), issuer)
+	}
+
+	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
-		return fmt.Errorf("provider signature type missing")
+		return fmt.Errorf("provider algorithm type missing")
 	}
 
-	switch sigType {
-	case pktoken.Gq:
+	switch alg {
+	case gq.GQ256:
+		origHeadersB64, err := gq.OriginalJWTHeaders(idt)
+		if err != nil {
+			return err
+		}
+
+		origHeaders := jws.NewHeaders()
+		err = parseJWTSegment(origHeadersB64, &origHeaders)
+		if err != nil {
+			return err
+		}
+
+		alg := origHeaders.Algorithm()
+		if alg != jwa.RS256 {
+			return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
+		}
+
 		// TODO: this needs to get the public key from a log of historic public keys based on the iat time in the token
-		pubKey, err := provider.PublicKey(ctx, idt)
+		pubKey, err := provider.PublicKey(ctx, origHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		rsaPubKey := pubKey.(*rsa.PublicKey)
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("expected public key to be a *rsa.PublicKey, got %T", pubKey)
+		}
 
 		err = pkt.VerifyGQSig(rsaPubKey, GQSecurityParameter)
 		if err != nil {
@@ -110,7 +144,7 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 		if err != nil {
 			return fmt.Errorf("failed to verify CIC hash: %w", err)
 		}
-	case pktoken.Oidc:
+	case jwa.RS256:
 		err = provider.VerifyNonGQSig(ctx, idt, string(commitment))
 		if err != nil {
 			if err == ErrNonGQUnsupported {
@@ -134,21 +168,46 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	return nil
 }
 
+func DiscoverPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
+	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+	}
+
+	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+
+	kid := headers.KeyID()
+	key, ok := jwks.LookupKeyID(kid)
+	if !ok {
+		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
+	}
+
+	if key.Algorithm() != jwa.RS256 {
+		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
+	}
+
+	pubKey := new(rsa.PublicKey)
+	err = key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return pubKey, err
+}
+
 func ExtractClaim(idt []byte, claimName string) (string, error) {
 	_, payloadB64, _, err := jws.SplitCompact(idt)
 	if err != nil {
 		return "", fmt.Errorf("failed to split/decode JWT: %w", err)
 	}
 
-	payloadJSON, err := util.Base64DecodeForJWT(payloadB64)
+	payload := make(map[string]any)
+	err = parseJWTSegment(payloadB64, &payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode payload")
-	}
-
-	var payload map[string]any
-	err = json.Unmarshal(payloadJSON, &payload)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal payload")
+		return "", err
 	}
 
 	claim, ok := payload[claimName]
@@ -162,4 +221,18 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	}
 
 	return claimStr, nil
+}
+
+func parseJWTSegment(segment []byte, v any) error {
+	segmentJSON, err := util.Base64DecodeForJWT(segment)
+	if err != nil {
+		return fmt.Errorf("error decoding segment: %w", err)
+	}
+
+	err = json.Unmarshal(segmentJSON, v)
+	if err != nil {
+		return fmt.Errorf("error parsing segment: %w", err)
+	}
+
+	return nil
 }
