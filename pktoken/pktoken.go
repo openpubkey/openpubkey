@@ -141,7 +141,11 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 
 	if sigType == CIC || sigType == COS {
 		protected := signature.ProtectedHeaders()
-		if sigTypeFound, ok := protected.Get(jws.TypeKey); !ok || sigTypeFound.(string) != string(sigType) {
+		if sigTypeFound, ok := protected.Get(jws.TypeKey); !ok {
+			return fmt.Errorf("required 'typ' claim not found in protected")
+		} else if sigTypeFoundStr, ok := sigTypeFound.(string); !ok {
+			return fmt.Errorf("'typ' claim in protected must be a string but was a %T", sigTypeFound)
+		} else if sigTypeFoundStr != string(sigType) {
 			return fmt.Errorf("incorrect 'typ' claim in protected, expected (%s), got (%s)", sigType, sigTypeFound)
 		}
 	}

@@ -19,6 +19,7 @@ package mfacosigner
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -107,5 +108,81 @@ func TestFullFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cosSig, "expected pktCos to be cosigned")
 
-	pkt.AddSignature(cosSig, pktoken.COS)
+	err = pkt.AddSignature(cosSig, pktoken.COS)
+	require.NoError(t, err)
+}
+
+func TestBadCosSigTyp(t *testing.T) {
+	// This a regression test for a bug where we overwrote the cosigner
+	// signature typ claim rather than checked the claim.
+
+	// TODO: This test should eventually be moved into pktoken tests
+	// and cover all possible typ claims and outcomes.
+
+	// Create our PK Token and signer
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
+
+	email := "arthur.aardvark@example.com"
+	pkt, err := mocks.GenerateMockPKTokenWithEmail(signer, alg, email)
+	require.NoError(t, err)
+
+	// Create our MFA Cosigner
+	cosSigner, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
+
+	// WebAuthn configuration
+	cfg := &webauthn.Config{
+		RPDisplayName: "OpenPubkey",
+		RPID:          "http://example.com",
+		RPOrigin:      "http://example.com",
+	}
+
+	kid := "test-kid"
+	cosignerURI := "https://example.com"
+	cos, err := New(cosSigner, alg, cosignerURI, kid, cfg)
+	require.NoError(t, err)
+
+	tests := []struct {
+		typ           string
+		wantError     bool
+		errorContains string
+	}{
+		{typ: string(pktoken.COS), wantError: false, errorContains: ""},
+		{typ: "", wantError: true, errorContains: "incorrect 'typ' claim in protected, expected (COS)"},
+		{typ: string(pktoken.CIC), wantError: true, errorContains: "incorrect 'typ' claim in protected, expected (COS)"},
+		{typ: "JWT", wantError: true, errorContains: "incorrect 'typ' claim in protected, expected (COS)"},
+		{typ: "abcd", wantError: true, errorContains: "incorrect 'typ' claim in protected, expected (COS)"},
+	}
+
+	for i, tc := range tests {
+
+		protected := pktoken.CosignerClaims{
+			Iss:         "https://example.com",
+			KeyID:       kid,
+			Algorithm:   string(alg),
+			AuthID:      "test-auth-id",
+			AuthTime:    time.Now().Unix(),
+			IssuedAt:    time.Now().Unix(),
+			Expiration:  time.Now().Add(time.Hour).Unix(),
+			RedirectURI: "http://localhost:5555/mfaredirect",
+			Nonce:       "23EE",
+			Typ:         tc.typ,
+		}
+
+		// Change the signatures typ claim
+		cosSig, err := cos.Cosign(pkt, protected)
+		require.NoError(t, err)
+
+		err = pkt.AddSignature(cosSig, pktoken.COS)
+
+		if tc.wantError {
+			require.ErrorContains(t, err, "incorrect 'typ' claim in protected, expected (COS)",
+				"test %d for typ %s", i+1, tc.typ, err)
+		} else {
+			require.NoError(t, err, "test %d for typ %s: expected: nil, got: %v", i+1, tc.typ, err)
+		}
+	}
+
 }
