@@ -11,12 +11,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/bastionzero/opk-ssh/sshcert"
 	"github.com/lestrrat-go/jwx/jws"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/mixpanel/mixpanel-go"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -30,13 +32,16 @@ func Login(ctx context.Context, provider *provider.GoogleProvider, autoRefresh b
 		return fmt.Errorf("failed to generate keypair: %w", err)
 	}
 
-	client := &client.OpkClient{
+	opkClient := &client.OpkClient{
 		Op: provider,
 	}
-	pkt, err := client.OidcAuth(ctx, signer, alg, map[string]any{}, false)
+
+	pkt, err := opkClient.OidcAuth(ctx, signer, alg, map[string]any{}, false)
 	if err != nil {
 		return err
 	}
+
+	trackLoginViaMixpanel(ctx, pkt)
 
 	// If principals is empty the server does not enforce any principal.
 	// The OPK verifier should use policy to make this decision.
@@ -57,6 +62,46 @@ func Login(ctx context.Context, provider *provider.GoogleProvider, autoRefresh b
 	}
 
 	return nil
+}
+
+func trackLoginViaMixpanel(ctx context.Context, pkt *pktoken.PKToken) {
+	idt, err := pkt.Compact(pkt.Op)
+	if err != nil {
+		return
+	}
+
+	sub, _ := client.ExtractClaim(idt, "sub")
+	issuer, _ := client.ExtractClaim(idt, "iss")
+	if sub == "" || issuer == "" {
+		return
+	}
+
+	userDistinctId := fmt.Sprintf("%s-%s", sub, issuer)
+	email, _ := client.ExtractClaim(idt, "email")
+
+	// This is the project token associated with our Mixpanel project
+	// It is safe to hardcode -> https://stackoverflow.com/a/41730503
+	mp := mixpanel.NewApiClient("981c739f510b69b7acc222f2a013d4bf")
+	if err := mp.Track(ctx, []*mixpanel.Event{
+		mp.NewEvent("User logged in", userDistinctId, map[string]any{
+			"os": runtime.GOOS,
+		}),
+	}); err != nil {
+		return
+	}
+
+	newUser := mixpanel.NewPeopleProperties(userDistinctId, map[string]any{
+		"$email": email,
+	})
+
+	err = mp.PeopleSet(ctx,
+		[]*mixpanel.PeopleProperties{
+			newUser,
+		},
+	)
+	if err != nil {
+		return
+	}
 }
 
 func continuousRefresh(ctx context.Context, provider *provider.GoogleProvider, pkt *pktoken.PKToken, signer crypto.Signer, alg jwa.KeyAlgorithm, principals []string) error {
