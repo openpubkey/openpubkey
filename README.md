@@ -8,9 +8,9 @@ We represent this binding as a PK Token. This token proves control of the OIDC i
 
 OpenPubkey does not add any new trusted parties beyond what is required for OpenID Connect. It is fully compatible with existing OpenID Providers (Google, Azure/Microsoft, Okta, OneLogin, Keycloak) without any changes to the OpenID Provider.
 
-For example, companies building on OpenPubkey include:
+Companies building on OpenPubkey include:
 
-* [Docker, Inc](https://www.docker.com/) is building a public container registry [with OpenPubkey used to sign Docker Official Images](https://www.docker.com/blog/signing-docker-official-images-using-openpubkey/).
+* [Docker, Inc](https://www.docker.com/) is building a public container registry where [OpenPubkey is used to sign Docker Official Images](https://www.docker.com/blog/signing-docker-official-images-using-openpubkey/).
 
 * [BastionZero](https://www.bastionzero.com/) uses OpenPubkey to provide secure remote access to infrastructure.
 
@@ -35,19 +35,19 @@ Let's look at an example where a user, Alice, leverages OpenPubkey to get her Op
 
 The ID Token is a JSON Web Signature (JWS) and follows the structure shown below:
 
-```JSON
+```
 payload: {
   "iss": "https://accounts.google.com",
   "aud": "878305696756-6maur39hl2psmk23imilg8af815ih9oi.apps.googleusercontent.com",
   "sub": "123456789010",
   "email": "alice@acme.co",
-  "nonce": crypto.SHA3_256(upk=alice-pubkey, alg=ES256, rz=crypto.Rand()),
+  "nonce": 'crypto.SHA3_256(upk=alice-pubkey, alg=ES256, rz=crypto.Rand())',
   "name": "Alice Example",
   ...
 } 
 signatures: [
   {"protected": { "alg": "RS256", "kid": "1234...", "typ": "JWT"},
-  "signature": SIGN(google-signkey, (payload, signatures[0].protected))
+  "signature": SIGN(google-signkey, (payload, signatures[0].protected))`
   },
 ]
 ```
@@ -61,22 +61,22 @@ Alice simply sets the values she committed to in the `nonce` as a JWS protected 
 
 Notice the additional signature entry in the PK Token example below (as compared to the ID Token example above):
 
-```JSON
-payload: {
+```
+"payload": {
   "iss": "https://accounts.google.com",
   "aud": "878305696756-6maur39hl2psmk23imilg8af815ih9oi.apps.googleusercontent.com",
   "sub": "123456789010",
   "email": "alice@acme.co",
-  "nonce": crypto.SHA3_256(upk=alice-pubkey, alg=ES256, rz=crypto.Rand()),
+  "nonce": <crypto.SHA3_256(upk=alice-pubkey, alg=ES256, rz=crypto.Rand())>,
   "name": "Alice Example",
   ...
 }
-signatures: [
+"signatures": [
   {"protected": { "alg": "RS256", "kid": "1234...", "typ": "JWT"},
-  "signature": SIGN(google-signkey, (payload, signatures[0].protected))
+  "signature": <SIGN(google-signkey, (payload, signatures[0].protected))>
   },
   {"protected": {"upk": alice-pubkey, "alg": "EC256", "rz": <rz>},
-  "signature": SIGN(alice-signkey, (payload, signatures[1].protected))
+  "signature": <SIGN(alice-signkey, (payload, signatures[1].protected))>
   },
 ]
 ```
