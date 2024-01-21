@@ -18,7 +18,7 @@ package providers
 
 import (
 	"context"
-	"crypto"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -148,13 +148,20 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 }
 
 func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	cicHash, err := client.ExtractClaim(idt, "nonce")
+	msg, err := jws.Parse(idt)
 	if err != nil {
 		return err
 	}
 
-	if cicHash != expectedCICHash {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
+	var claims struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := json.Unmarshal(msg.Payload(), &claims); err != nil {
+		return err
+	}
+
+	if claims.Nonce != expectedCICHash {
+		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", claims.Nonce, expectedCICHash)
 	}
 
 	return nil
@@ -162,10 +169,6 @@ func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 
 func (g *GoogleOp) Issuer() string {
 	return googleIssuer
-}
-
-func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headers, googleIssuer)
 }
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {

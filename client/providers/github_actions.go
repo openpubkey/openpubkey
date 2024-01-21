@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,13 +68,20 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 }
 
 func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	cicHash, err := client.ExtractClaim(idt, "aud")
+	msg, err := jws.Parse(idt)
 	if err != nil {
 		return err
 	}
 
-	if cicHash != expectedCICHash {
-		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
+	var claims struct {
+		Audience string `json:"aud"`
+	}
+	if err := json.Unmarshal(msg.Payload(), &claims); err != nil {
+		return err
+	}
+
+	if claims.Audience != expectedCICHash {
+		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", claims.Audience, expectedCICHash)
 	}
 
 	return nil
@@ -83,10 +89,6 @@ func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHas
 
 func (g *GithubOp) Issuer() string {
 	return githubIssuer
-}
-
-func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headers, githubIssuer)
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

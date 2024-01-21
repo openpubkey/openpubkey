@@ -20,12 +20,15 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 
 	"github.com/openpubkey/openpubkey/util"
 
@@ -170,6 +173,46 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 	}
 
 	return alg.(jwa.SignatureAlgorithm), true
+}
+
+func (p *PKToken) ProviderPublicKey(ctx context.Context) (*rsa.PublicKey, error) {
+	var claims struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return nil, fmt.Errorf("malformatted PK token claims: %w", err)
+	}
+
+	return DiscoverPublicKey(ctx, p.Op.ProtectedHeaders().KeyID(), claims.Issuer)
+}
+
+func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (*rsa.PublicKey, error) {
+	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+	}
+
+	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+
+	key, ok := jwks.LookupKeyID(kid)
+	if !ok {
+		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
+	}
+
+	if key.Algorithm() != jwa.RS256 {
+		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
+	}
+
+	pubKey := new(rsa.PublicKey)
+	err = key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return pubKey, err
 }
 
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {

@@ -94,7 +94,7 @@ func TestClient(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				sv, err := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
+				sv, err := gq.New256SignerVerifier(opPubKey.(*rsa.PublicKey))
 				if err != nil {
 					t.Fatal(err)
 				}

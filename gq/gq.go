@@ -14,6 +14,8 @@ import (
 
 var GQ256 = jwa.SignatureAlgorithm("GQ256")
 
+const GQ256SecurityParameter = 256
+
 func init() {
 	jwa.RegisterSignatureAlgorithm(GQ256)
 }
@@ -54,6 +56,11 @@ type signerVerifier struct {
 	vBytes int
 	// t is the signature length parameter
 	t int
+}
+
+// Creates a new SignerVerifier specifically for GQ256, meaning the security parameter is 256.
+func New256SignerVerifier(publicKey *rsa.PublicKey) (SignerVerifier, error) {
+	return NewSignerVerifier(publicKey, GQ256SecurityParameter)
 }
 
 // NewSignerVerifier creates a SignerVerifier from the RSA public key of the trusted third-party which creates
