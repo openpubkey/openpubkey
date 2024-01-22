@@ -18,11 +18,8 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
-
-var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
 type OidcClaims struct {
 	Issuer     string `json:"iss"`
