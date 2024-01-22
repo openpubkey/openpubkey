@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	clientID = "3249310342-hkmqe7rncgqruetb0ibddoob5esl1jje.apps.googleusercontent.com"
+	// The clientSecret was intentionally checked in. It holds no power and is used for development. Do not report as a security issue
+	clientSecret = "uZIaSqmTjhJH0MWPOByoj0Es" // Google requires a ClientSecret even if this a public OIDC App
 	scopes       = []string{"openid profile email"}
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
