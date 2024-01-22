@@ -36,6 +36,8 @@ import (
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
+	// Returns the payload claim name where the cicHash was stored from RequestTokens
+	CommitmentClaim() string
 }
 
 type BrowserOpenIdProvider interface {
@@ -169,7 +171,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	err = pkt.Verify(ctx)
+	err = pkt.Verify(ctx, o.Op.CommitmentClaim())
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}

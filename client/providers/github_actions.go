@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 )
 
@@ -67,28 +66,12 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	msg, err := jws.Parse(idt)
-	if err != nil {
-		return err
-	}
-
-	var claims struct {
-		Audience string `json:"aud"`
-	}
-	if err := json.Unmarshal(msg.Payload(), &claims); err != nil {
-		return err
-	}
-
-	if claims.Audience != expectedCICHash {
-		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", claims.Audience, expectedCICHash)
-	}
-
-	return nil
-}
-
 func (g *GithubOp) Issuer() string {
 	return githubIssuer
+}
+
+func (g *GithubOp) CommitmentClaim() string {
+	return "aud"
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
@@ -127,8 +110,4 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	memguard.WipeBytes(rawBody)
 
 	return jwt.Value, err
-}
-
-func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
-	return client.ErrNonGQUnsupported
 }

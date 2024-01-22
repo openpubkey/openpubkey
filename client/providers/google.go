@@ -18,7 +18,6 @@ package providers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -26,7 +25,6 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
@@ -147,49 +145,12 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 }
 
-func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	msg, err := jws.Parse(idt)
-	if err != nil {
-		return err
-	}
-
-	var claims struct {
-		Nonce string `json:"nonce"`
-	}
-	if err := json.Unmarshal(msg.Payload(), &claims); err != nil {
-		return err
-	}
-
-	if claims.Nonce != expectedCICHash {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", claims.Nonce, expectedCICHash)
-	}
-
-	return nil
+func (g *GoogleOp) CommitmentClaim() string {
+	return "nonce"
 }
 
 func (g *GoogleOp) Issuer() string {
 	return googleIssuer
-}
-
-func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
-	options := []rp.Option{
-		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
-	}
-
-	googleRP, err := rp.NewRelyingPartyOIDC(
-		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
-		options...)
-
-	if err != nil {
-		return fmt.Errorf("failed to create RP to verify token: %w", err)
-	}
-
-	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(idt), googleRP.IDTokenVerifier())
-	if err != nil {
-		return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
-	}
-
-	return nil
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

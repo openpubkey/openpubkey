@@ -162,7 +162,7 @@ func (a *Ca) PktTox509(pktCom []byte, caBytes []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	err := pkt.Verify(context.Background())
+	err := pkt.Verify(context.Background(), a.provider.CommitmentClaim())
 	if err != nil {
 		return nil, fmt.Errorf("error PK token is not valid: %w", err)
 	}

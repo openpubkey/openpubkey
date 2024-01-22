@@ -7,9 +7,10 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type Option func(pkt *pktoken.PKToken) error
-
 var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
+var _ Option = GQOnly
+
+type Option func(*pktoken.PKToken) error
 
 func GQOnly(pkt *pktoken.PKToken) error {
 	alg, ok := pkt.ProviderAlgorithm()

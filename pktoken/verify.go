@@ -12,18 +12,21 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-func (p *PKToken) Verify(ctx context.Context) error {
+func (p *PKToken) Verify(ctx context.Context, commitmentClaim string) error {
 	alg, ok := p.ProviderAlgorithm()
 	if !ok {
 		return fmt.Errorf("provider algorithm type missing")
 	}
 
-	var claims struct {
-		Issuer string `json:"iss"`
-	}
+	var claims map[string]string
 	if err := json.Unmarshal(p.Payload, &claims); err != nil {
 		return err
 	}
+	issuer, ok := claims["iss"]
+	if !ok {
+		return fmt.Errorf("missing issuer claim in payload")
+	}
+
 	switch alg {
 	case gq.GQ256:
 		origHeaders, err := p.OriginalTokenHeaders()
@@ -36,7 +39,7 @@ func (p *PKToken) Verify(ctx context.Context) error {
 			return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
 		}
 
-		pubKey, err := DiscoverPublicKey(ctx, origHeaders.KeyID(), claims.Issuer)
+		pubKey, err := DiscoverPublicKey(ctx, origHeaders.KeyID(), issuer)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
@@ -71,6 +74,26 @@ func (p *PKToken) Verify(ctx context.Context) error {
 		if err := p.VerifyCosignerSignature(); err != nil {
 			return fmt.Errorf("error verify cosigner signature on PK Token: %w", err)
 		}
+	}
+
+	// Verify commitment is equal to hash of client instance claims (CIC)
+	cic, err := p.GetCicValues()
+	if err != nil {
+		return err
+	}
+
+	expectedCommitment, err := cic.Hash()
+	if err != nil {
+		return err
+	}
+
+	commitment, ok := claims[commitmentClaim]
+	if !ok {
+		return fmt.Errorf("missing commitment claim %s", commitmentClaim)
+	}
+
+	if commitment != string(expectedCommitment) {
+		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", commitment, string(expectedCommitment))
 	}
 
 	return nil
