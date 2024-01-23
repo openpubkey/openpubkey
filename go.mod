@@ -7,7 +7,7 @@ require (
 	github.com/awnumar/memguard v0.22.3
 	github.com/go-webauthn/webauthn v0.8.6
 	github.com/google/uuid v1.4.0
-	github.com/lestrrat-go/jwx/v2 v2.0.16
+	github.com/lestrrat-go/jwx/v2 v2.0.18
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.8.4
 	github.com/zitadel/oidc/v2 v2.11.0
