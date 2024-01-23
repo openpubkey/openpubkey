@@ -233,7 +233,7 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 			return fmt.Errorf("no COS issuer set in the PK Token")
 		} else {
 			for _, allowedCos := range v.AllowedCosigners {
-				if allowedCos.GetIssuer() == cosIss {
+				if allowedCos.Issuer == cosIss {
 					cos = &allowedCos
 					break // Matching cosigner found on allowlist
 				}

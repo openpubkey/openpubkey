@@ -42,10 +42,6 @@ type CosignerProvider struct {
 	CallbackPath string
 }
 
-func (p *CosignerProvider) GetIssuer() string {
-	return p.Issuer
-}
-
 func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
 	// Find an unused port
 	listener, err := net.Listen("tcp", ":0")
