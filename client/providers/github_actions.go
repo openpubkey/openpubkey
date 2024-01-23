@@ -146,7 +146,3 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
 	return client.ErrNonGQUnsupported
 }
-
-func (g *GithubOp) GetIssuer() string {
-	return githubIssuer
-}
