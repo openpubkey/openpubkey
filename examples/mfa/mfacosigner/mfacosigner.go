@@ -25,6 +25,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/cosigner"
+	"github.com/openpubkey/openpubkey/cosigner/mocks"
 )
 
 type UserKey struct {
@@ -51,7 +52,6 @@ type MfaCosigner struct {
 
 func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
-
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string,
 		return nil, err
 	}
 
-	authCos, err := cosigner.New(signer, alg, issuer, keyID)
+	authCos, err := cosigner.New(signer, alg, issuer, keyID, mocks.NewAuthStateInMemoryStore(hmacKey))
 	if err != nil {
 		return nil, err
 	}

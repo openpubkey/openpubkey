@@ -18,7 +18,6 @@ package cosigner
 
 import (
 	"crypto"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -36,19 +35,14 @@ type AuthCosigner struct {
 	AuthStateStore AuthStateStore
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string) (*AuthCosigner, error) {
-	hmacKey := make([]byte, 64)
-	if _, err := rand.Read(hmacKey); err != nil {
-		return nil, err
-	}
-
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) {
 	return &AuthCosigner{
 		Cosigner: Cosigner{
 			Alg:    alg,
 			Signer: signer},
 		Issuer:         issuer,
 		KeyID:          keyID,
-		AuthStateStore: NewAuthStateInMemoryStore(hmacKey),
+		AuthStateStore: store,
 	}, nil
 }
 

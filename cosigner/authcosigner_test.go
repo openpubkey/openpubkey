@@ -14,15 +14,18 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cosigner
+package cosigner_test
 
 import (
 	"crypto"
+	"crypto/rand"
 	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/cosigner"
+	cosmock "github.com/openpubkey/openpubkey/cosigner/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -157,15 +160,15 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	require.NoError(t, err, "failed to generate key pair")
 
 	hmacKey := []byte{0x1, 0x2, 0x3}
-
-	cos := AuthCosigner{
-		Cosigner: Cosigner{
+	store := cosmock.NewAuthStateInMemoryStore(hmacKey)
+	cos := cosigner.AuthCosigner{
+		Cosigner: cosigner.Cosigner{
 			Alg:    cosAlg,
 			Signer: cosSigner,
 		},
 		Issuer:         "https://example.com",
 		KeyID:          "kid1234",
-		AuthStateStore: NewAuthStateInMemoryStore(hmacKey),
+		AuthStateStore: store,
 	}
 
 	// Ensure failure if AuthID not recorded by cosigner
@@ -176,14 +179,19 @@ func TestNewAuthcodeFailure(t *testing.T) {
 	require.Empty(t, authcode)
 }
 
-func CreateAuthCosigner(t *testing.T) *AuthCosigner {
+func CreateAuthCosigner(t *testing.T) *cosigner.AuthCosigner {
 	cosAlg := jwa.ES256
 	signer, err := util.GenKeyPair(cosAlg)
 	require.NoError(t, err, "failed to generate key pair")
 	issuer := "https://example.com"
-	KeyID := "kid1234"
+	keyID := "kid1234"
 
-	authCosigner, err := New(signer, cosAlg, issuer, KeyID)
+	hmacKey := make([]byte, 64)
+	_, err = rand.Read(hmacKey)
+	require.NoError(t, err, "failed to create auth cosigner")
+	store := cosmock.NewAuthStateInMemoryStore(hmacKey)
+
+	authCosigner, err := cosigner.New(signer, cosAlg, issuer, keyID, store)
 	require.NoError(t, err, "failed to create auth cosigner")
 	return authCosigner
 }
