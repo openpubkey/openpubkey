@@ -209,29 +209,43 @@ func (c *CosignerProvider) authcodeURI(sig2 []byte) (string, error) {
 }
 
 func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expectedRedirectURI string) error {
-	if cosSigParsed, err := jws.Parse(cosSig); err != nil {
+	cosSigParsed, err := jws.Parse(cosSig)
+	if err != nil {
 		return fmt.Errorf("failed to parse Cosigner signature: %w", err)
-	} else if len(cosSigParsed.Signatures()) != 1 {
-		return fmt.Errorf("the Cosigner signature does not have the correct number of signatures: %w", err)
-	} else {
-		ph := cosSigParsed.Signatures()[0].ProtectedHeaders()
-		if nonceRet, ok := ph.Get("nonce"); !ok {
-			return fmt.Errorf("nonce not set in Cosigner signature protected header")
-		} else if expectedNonce != nonceRet {
-			return fmt.Errorf("incorrect nonce set in Cosigner signature")
-		}
-		if ruriRet, ok := ph.Get("ruri"); !ok {
-			return fmt.Errorf("ruri (redirect URI) not set in Cosigner signature protected header")
-		} else if expectedRedirectURI != ruriRet {
-			return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, got %s expected %s", ruriRet, expectedRedirectURI)
-		}
-		if issRet, ok := ph.Get("iss"); !ok {
-			return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
-		} else if c.Issuer != issRet {
-			return fmt.Errorf("unexpected iss (Cosigner Issuer) set in Cosigner signature, expected %s", c.Issuer)
-		}
-		return nil
 	}
+
+	if len(cosSigParsed.Signatures()) != 1 {
+		return fmt.Errorf("the Cosigner signature does not have the correct number of signatures: %w", err)
+	}
+
+	ph := cosSigParsed.Signatures()[0].ProtectedHeaders()
+	nonceRet, ok := ph.Get("nonce")
+	if !ok {
+		return fmt.Errorf("nonce not set in Cosigner signature protected header")
+	}
+
+	if expectedNonce != nonceRet {
+		return fmt.Errorf("incorrect nonce set in Cosigner signature")
+	}
+
+	ruriRet, ok := ph.Get("ruri")
+	if !ok {
+		return fmt.Errorf("ruri (redirect URI) not set in Cosigner signature protected header")
+	}
+
+	if expectedRedirectURI != ruriRet {
+		return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, got %s expected %s", ruriRet, expectedRedirectURI)
+	}
+
+	issRet, ok := ph.Get("iss")
+	if !ok {
+		return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
+	}
+
+	if c.Issuer != issRet {
+		return fmt.Errorf("unexpected iss (Cosigner Issuer) set in Cosigner signature, expected %s", c.Issuer)
+	}
+	return nil
 }
 
 func (c *CosignerProvider) CreateInitAuthSig(redirectURI string) ([]byte, string, error) {
