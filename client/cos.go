@@ -59,7 +59,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	// write to the channel. If the callbackPath handler is called twice by the
 	// user's web browser the second call will block on a channel until the cxt
 	// is marked as done.
-	ch := make(chan []byte, 1)
+	sigCh := make(chan []byte, 1)
 	errCh := make(chan error, 1)
 
 	// This is where we get the authcode from the Cosigner
@@ -111,7 +111,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 			} else {
 				w.Write([]byte("You may now close this window"))
 				select {
-				case ch <- cosSig:
+				case sigCh <- cosSig:
 				case <-ctx.Done():
 					return
 				}
@@ -140,6 +140,9 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	}
 
 	initAuthMsgJson, nonce, err := c.CreateInitAuthSig(redirectURI)
+	if err != nil {
+		return nil, fmt.Errorf("hit error creating init auth signed message: %w", err)
+	}
 	sig1, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	if err != nil {
 		return nil, fmt.Errorf("cosigner client hit error init auth signed message: %w", err)
@@ -158,7 +161,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	}
 
 	select {
-	case cosSig := <-ch: // Received cosigner signature
+	case cosSig := <-sigCh: // Received cosigner signature
 		// To be safe we perform these checks before adding the cosSig to the pktoken
 		if err := c.ValidateCos(cosSig, nonce, redirectURI); err != nil {
 			return nil, err
