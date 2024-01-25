@@ -28,12 +28,6 @@ import (
 	"github.com/openpubkey/openpubkey/cosigner/mocks"
 )
 
-type UserKey struct {
-	Issuer string // ID Token issuer (iss)
-	Aud    string // ID Token audience (aud)
-	Sub    string // ID Token subject ID (sub)
-}
-
 func NewUser(as *cosigner.AuthState) *user {
 	return &user{
 		id:          []byte(as.Sub),
