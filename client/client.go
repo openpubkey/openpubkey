@@ -38,8 +38,13 @@ type OpkClient struct {
 	CosP *CosignerProvider
 }
 
-// Auth will attempt to authenticate to both the OpenID Provider and then the Cosigner.
-// If no Cosigner supplied it will default to OidcAuth
+// Auth returns a PK Token by running the OpenPubkey protocol. It will first
+// authenticate to the configured OpenID Provider (OP) and receive an ID Token.
+// Using this ID Token it will generate a PK Token. If a Cosigner has been
+// configured it will also attempt to get the PK Token cosigned.
+//
+// signGQ specifies if the OPs signature on the ID Token should be replaced
+// with a GQ signature.
 func (o *OpkClient) Auth(
 	ctx context.Context,
 	signer crypto.Signer,
@@ -71,6 +76,7 @@ func (o *OpkClient) Auth(
 	}
 }
 
+// OidcAuth exists only for backwards compatibility. Use Auth instead.
 func (o *OpkClient) OidcAuth(
 	ctx context.Context,
 	signer crypto.Signer,
