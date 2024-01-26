@@ -1,24 +1,37 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/cosigner/mfa"
-	"github.com/openpubkey/openpubkey/examples/mfa/jwks"
-	"github.com/openpubkey/openpubkey/examples/mfa/webauthn"
+	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner"
 	"github.com/openpubkey/openpubkey/util"
 )
 
-// Variables for building our google provider
 var (
-	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	clientID = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
+	// The clientSecret was intentionally checked in. It holds no power and is used for development. Do not report as a security issue
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
 	scopes       = []string{"openid profile email"}
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
@@ -26,11 +39,6 @@ var (
 )
 
 func main() {
-	clientKey, err := util.GenKeyPair(jwa.ES256)
-	if err != nil {
-		fmt.Println("error generating key pair:", err)
-		return
-	}
 
 	provider := &providers.GoogleOp{
 		ClientID:     clientID,
@@ -41,62 +49,66 @@ func main() {
 		RedirectURI:  redirectURI,
 	}
 
-	opk := &client.OpkClient{
-		Op: provider,
+	cosignerProvider := client.CosignerProvider{
+		Issuer:       "http://localhost:3003",
+		CallbackPath: "/mfacallback",
 	}
 
-	pkt, err := opk.OidcAuth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
-	if err != nil {
-		fmt.Println("error generating key pair: ", err)
+	if len(os.Args) < 2 {
+		fmt.Printf("Example MFA Cosigner: command choices are: login, mfa")
 		return
 	}
 
-	fmt.Println("New PK token generated")
+	command := os.Args[1]
+	switch command {
+	case "login":
 
-	cosigner, err := initCosigner()
-	if err != nil {
-		fmt.Println("failed to initialize cosigner: ", err)
-		return
+		opk := &client.OpkClient{
+			Op:   provider,
+			CosP: &cosignerProvider,
+		}
+
+		clientKey, err := util.GenKeyPair(jwa.ES256)
+		if err != nil {
+			fmt.Println("error generating key pair:", err)
+			return
+		}
+
+		pkt, err := opk.Auth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("New PK token generated")
+
+		// Verify our pktoken including the cosigner signature
+		verifier := client.PKTokenVerifier{
+			AllowedProviders: []client.OpenIdProvider{provider},
+			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
+		}
+
+		// Verify our pktoken including the cosigner signature
+		if err := verifier.Verify(context.TODO(), pkt); err != nil {
+			fmt.Println("Failed to verify PK token:", err)
+			os.Exit(1)
+		} else {
+			fmt.Println("PK token verified successfully!")
+		}
+
+		os.Exit(0)
+	case "mfa":
+		rpID := "localhost"
+		serverUri := "http://localhost:3003"
+		rpOrigin := "http://localhost:3003"
+		rpDisplayName := "OpenPubkey"
+		_, err := mfacosigner.NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, rpDisplayName)
+		if err != nil {
+			fmt.Println("error starting mfa server: ", err)
+			return
+		}
+
+	default:
+		fmt.Println("Unrecognized command:", command)
+		fmt.Printf("Example MFA Cosigner: command choices are: login, mfa")
 	}
-
-	if err := cosigner.Cosign(pkt); err != nil {
-		fmt.Println("error cosigning:", err)
-		return
-	}
-
-	fmt.Println("PK token cosigned")
-
-	// Verify our pktoken including the cosigner signature
-	if err := client.VerifyPKToken(context.TODO(), pkt, provider); err != nil {
-		fmt.Println("failed to verify PK token:", err)
-	}
-
-	fmt.Println("PK token verified!")
-
-	pktJson, _ := json.MarshalIndent(pkt, "", "  ")
-	fmt.Println(string(pktJson))
-}
-
-func initCosigner() (*mfa.Cosigner, error) {
-	authenticator, err := webauthn.New()
-	if err != nil {
-		return nil, err
-	}
-
-	// Generate the key pair for our cosigner
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		return nil, err
-	}
-
-	kid := "test-kid"
-	server, err := jwks.NewServer(signer, alg, kid)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("JWKS hosted at", server.URI()+"/.well-known/jwks.json")
-
-	return mfa.NewCosigner(signer, alg, server.URI(), kid, authenticator)
 }

@@ -1,3 +1,21 @@
+<!--
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,8 +49,8 @@
                 .replace(/=+$/, ''); // Remove padding
         }
 
-        async function register() {
-            let response = await fetch('/register/begin', {
+        async function register(authid) {
+            let response = await fetch(`/register/begin?authid=${authid}`, {
                 method: 'GET'
             });
 
@@ -54,13 +72,9 @@
                     attestationObject: base64UrlEncode(credentials.response.attestationObject)
                 }
             };
-            
-            if (credentials.response.userHandle) {
-                cred.response.userHandle = base64UrlEncode(credentials.response.userHandle);
-            }
 
             // Send credentials back to server to save
-            let res = await fetch('/register/finish', {
+            let res = await fetch(`/register/finish?authid=${authid}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -71,12 +85,10 @@
             if (!res.ok) {
                 throw new Error(`HTTP error! status: ${res.status}`);
             }
-
-            console.log("Registration complete!");
         }
 
-        async function login() {
-            let response = await fetch('/login/begin', {
+        async function login(authid) {
+            let response = await fetch(`/login/begin?authid=${authid}`, {
                 method: 'GET'
             });
 
@@ -93,7 +105,7 @@
             let assertion = await navigator.credentials.get(data);
 
             // Send credentials back to server to save
-            let res = await fetch('/login/finish', {
+            let res = await fetch(`/login/finish?authid=${authid}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -115,52 +127,41 @@
                 throw new Error(`HTTP error! status: ${res.status}`);
             }
 
-            console.log("Login complete!");
+            let authcodeData = await res.json();
+            window.location.replace(authcodeData.redirect_uri);
         }
 
         document.addEventListener('DOMContentLoaded', async (event) => {
             const statusDiv = document.getElementById('status');
-
-            const response = await fetch('/check-registration', {
+            
+            const queryString = window.location.search;
+            let searchParams = new URLSearchParams(queryString);
+            const authid = searchParams.get('authid')
+            
+            const response = await fetch(`/check-registration?authid=${authid}`, {
                 method: 'GET',
             });
 
-            let data = response.json();
+            let data = await response.json();
 
             if (!data.isRegistered) {
                 try {
                     statusDiv.textContent = "Registering user with WebAuthn...";
-                    await register();
+                    await register(authid);
                 } catch(error) {
                     statusDiv.textContent = `Error during registration: ${error}`;
-                    await fetch('/done', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: `Error during registration: ${error}`
-                    });
+                    return
                 }
             }
 
             try {
                 statusDiv.textContent = "Authenticating user with WebAuthn...";
-                await login();
+                let response = await login(authid);
+                statusDiv.textContent = "MFA authentication complete!";
             } catch(error) {
                 statusDiv.textContent = `Error during login: ${error}`;
-                await fetch('/done', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: `Error during login: ${error}`
-                });
+                return
             }
-
-            statusDiv.textContent = "MFA authentication complete! You may now close this window";
-            await fetch('/done', {
-                method: 'GET',
-            });
         })
     </script>
 </body>
