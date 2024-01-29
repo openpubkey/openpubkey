@@ -162,8 +162,13 @@ func verifyPKToken(ctx context.Context, op *provider.GoogleProvider, pkt *pktoke
 			return fmt.Errorf("ID token is expired and no refresh token found")
 		}
 
+		refreshedIdToken, ok := token.(string)
+		if !ok {
+			return fmt.Errorf("failed to cast refreshed_id_token to string")
+		}
+
 		verifier := provider.Verifier(&oidc.Config{ClientID: op.ClientID})
-		if _, err = verifier.Verify(ctx, string(token.(string))); err != nil {
+		if _, err = verifier.Verify(ctx, refreshedIdToken); err != nil {
 			return err
 		}
 	}

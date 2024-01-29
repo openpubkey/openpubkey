@@ -25,135 +25,120 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func Login(ctx context.Context, provider *provider.GoogleProvider, autoRefresh bool) error {
+type loginResult struct {
+	pkt        *pktoken.PKToken
+	signer     crypto.Signer
+	alg        jwa.SignatureAlgorithm
+	principals []string
+}
+
+func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, error) {
+	var err error
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	if err != nil {
-		return fmt.Errorf("failed to generate keypair: %w", err)
+		return nil, fmt.Errorf("failed to generate keypair: %w", err)
 	}
 
-	opkClient := &client.OpkClient{
+	client := &client.OpkClient{
 		Op: provider,
 	}
-
-	pkt, err := opkClient.OidcAuth(ctx, signer, alg, map[string]any{}, false)
+	pkt, err := client.OidcAuth(ctx, signer, alg, map[string]any{}, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	trackLoginViaMixpanel(ctx, pkt)
 
-	// If principals is empty the server does not enforce any principal.
-	// The OPK verifier should use policy to make this decision.
+	// If principals is empty the server does not enforce any principal. The OPK
+	// verifier should use policy to make this decision.
 	principals := []string{}
-	certBytes, seckeySshPem, err := createSSHCert(ctx, pkt, signer, alg, principals)
+	certBytes, seckeySshPem, err := createSSHCert(ctx, pkt, signer, principals)
 	if err != nil {
-		return fmt.Errorf("failed to generate SSH cert: %w", err)
+		return nil, fmt.Errorf("failed to generate SSH cert: %w", err)
 	}
 
 	// Write ssh secret key and public key to filesystem
 	if err := writeKeysToSSHDir(seckeySshPem, certBytes); err != nil {
-		return fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
+		return nil, fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
 	}
 
-	// If auto-refresh is selected, this process will refresh and exit only when it encounters an error.
-	if autoRefresh {
-		return continuousRefresh(ctx, provider, pkt, signer, alg, principals)
-	}
-
-	return nil
+	return &loginResult{
+		pkt:        pkt,
+		signer:     signer,
+		alg:        alg,
+		principals: principals,
+	}, nil
 }
 
-func trackLoginViaMixpanel(ctx context.Context, pkt *pktoken.PKToken) {
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return
-	}
-
-	sub, _ := client.ExtractClaim(idt, "sub")
-	issuer, _ := client.ExtractClaim(idt, "iss")
-	if sub == "" || issuer == "" {
-		return
-	}
-
-	userDistinctId := fmt.Sprintf("%s-%s", sub, issuer)
-	email, _ := client.ExtractClaim(idt, "email")
-
-	// This is the project token associated with our Mixpanel project
-	// It is safe to hardcode -> https://stackoverflow.com/a/41730503
-	mp := mixpanel.NewApiClient("981c739f510b69b7acc222f2a013d4bf")
-	if err := mp.Track(ctx, []*mixpanel.Event{
-		mp.NewEvent("User logged in", userDistinctId, map[string]any{
-			"os": runtime.GOOS,
-		}),
-	}); err != nil {
-		return
-	}
-
-	newUser := mixpanel.NewPeopleProperties(userDistinctId, map[string]any{
-		"$email": email,
-	})
-
-	err = mp.PeopleSet(ctx,
-		[]*mixpanel.PeopleProperties{
-			newUser,
-		},
-	)
-	if err != nil {
-		return
-	}
+// Login performs the OIDC login procedure and creates the SSH certs/keys in the
+// default SSH key location.
+func Login(ctx context.Context, provider client.OpenIdProvider) error {
+	_, err := login(ctx, provider)
+	return err
 }
 
-func continuousRefresh(ctx context.Context, provider *provider.GoogleProvider, pkt *pktoken.PKToken, signer crypto.Signer, alg jwa.KeyAlgorithm, principals []string) error {
-	var claims struct {
-		Expiration int64 `json:"exp"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+// LoginWithRefresh performs the OIDC login procedure, creates the SSH
+// certs/keys in the default SSH key location, and continues to run and refresh
+// the PKT (and create new SSH certs) indefinitely as its token expires. This
+// function only returns if it encounters an error or if the supplied context is
+// cancelled.
+func LoginWithRefresh(ctx context.Context, provider provider.RefreshableOP) error {
+	if loginResult, err := login(ctx, provider); err != nil {
 		return err
-	}
-
-	for {
-		// Sleep until a minute before expiration to give us time to refresh the token and minimize any interruptions
-		untilExpired := time.Until(time.Unix(claims.Expiration, 0)) - time.Minute
-		select {
-		case <-time.After(untilExpired):
-		case <-ctx.Done():
-			return ctx.Err()
+	} else {
+		var claims struct {
+			Expiration int64 `json:"exp"`
 		}
-
-		refreshedIdToken, err := provider.Refresh(ctx)
-		if err != nil {
+		if err := json.Unmarshal(loginResult.pkt.Payload, &claims); err != nil {
 			return err
 		}
 
-		pkt.Op.PublicHeaders().Set("refreshed_id_token", refreshedIdToken)
+		for {
+			// Sleep until a minute before expiration to give us time to refresh
+			// the token and minimize any interruptions
+			untilExpired := time.Until(time.Unix(claims.Expiration, 0)) - time.Minute
+			log.Printf("Waiting for %v before attempting to refresh id_token...", untilExpired)
+			select {
+			case <-time.After(untilExpired):
+				log.Print("Refreshing id_token...")
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 
-		certBytes, seckeySshPem, err := createSSHCert(ctx, pkt, signer, alg, principals)
-		if err != nil {
-			return fmt.Errorf("failed to generate SSH cert: %w", err)
-		}
+			refreshedIdToken, err := provider.Refresh(ctx)
+			if err != nil {
+				return err
+			}
 
-		// Write ssh secret key and public key to filesystem
-		if err := writeKeysToSSHDir(seckeySshPem, certBytes); err != nil {
-			return fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
-		}
+			loginResult.pkt.Op.PublicHeaders().Set("refreshed_id_token", refreshedIdToken.String())
 
-		_, payloadB64, _, err := jws.SplitCompactString(refreshedIdToken)
-		if err != nil {
-			return fmt.Errorf("malformed ID token: %w", err)
-		}
-		payload, err := base64.RawURLEncoding.DecodeString(string(payloadB64))
-		if err != nil {
-			return fmt.Errorf("refreshed ID token payload is not base64 encoded: %w", err)
-		}
+			certBytes, seckeySshPem, err := createSSHCert(ctx, loginResult.pkt, loginResult.signer, loginResult.principals)
+			if err != nil {
+				return fmt.Errorf("failed to generate SSH cert: %w", err)
+			}
 
-		if err = json.Unmarshal(payload, &claims); err != nil {
-			return fmt.Errorf("malformed refreshed ID token payload: %w", err)
+			// Write ssh secret key and public key to filesystem
+			if err := writeKeysToSSHDir(seckeySshPem, certBytes); err != nil {
+				return fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
+			}
+
+			_, payloadB64, _, err := jws.SplitCompactString(refreshedIdToken.String())
+			if err != nil {
+				return fmt.Errorf("malformed ID token: %w", err)
+			}
+			payload, err := base64.RawURLEncoding.DecodeString(string(payloadB64))
+			if err != nil {
+				return fmt.Errorf("refreshed ID token payload is not base64 encoded: %w", err)
+			}
+
+			if err = json.Unmarshal(payload, &claims); err != nil {
+				return fmt.Errorf("malformed refreshed ID token payload: %w", err)
+			}
 		}
 	}
 }
 
-func createSSHCert(cxt context.Context, pkt *pktoken.PKToken, signer crypto.Signer, alg jwa.KeyAlgorithm, principals []string) ([]byte, []byte, error) {
+func createSSHCert(ctx context.Context, pkt *pktoken.PKToken, signer crypto.Signer, principals []string) ([]byte, []byte, error) {
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
@@ -191,6 +176,12 @@ func writeKeysToSSHDir(seckeySshPem []byte, certBytes []byte) error {
 		return err
 	}
 	sshPath := filepath.Join(homePath, ".ssh")
+
+	// Make ~/.ssh if folder does not exist
+	err = os.MkdirAll(sshPath, os.ModePerm)
+	if err != nil {
+		return err
+	}
 
 	// For ssh to automatically find the key created by openpubkey when
 	// connecting, we use one of the default ssh key paths. However, the file
@@ -245,4 +236,44 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 func fileExists(fPath string) bool {
 	_, err := os.Open(fPath)
 	return !errors.Is(err, os.ErrNotExist)
+}
+
+func trackLoginViaMixpanel(ctx context.Context, pkt *pktoken.PKToken) {
+	idt, err := pkt.Compact(pkt.Op)
+	if err != nil {
+		return
+	}
+
+	sub, _ := client.ExtractClaim(idt, "sub")
+	issuer, _ := client.ExtractClaim(idt, "iss")
+	if sub == "" || issuer == "" {
+		return
+	}
+
+	userDistinctId := fmt.Sprintf("%s-%s", sub, issuer)
+	email, _ := client.ExtractClaim(idt, "email")
+
+	// This is the project token associated with our Mixpanel project
+	// It is safe to hardcode -> https://stackoverflow.com/a/41730503
+	mp := mixpanel.NewApiClient("981c739f510b69b7acc222f2a013d4bf")
+	if err := mp.Track(ctx, []*mixpanel.Event{
+		mp.NewEvent("User logged in", userDistinctId, map[string]any{
+			"os": runtime.GOOS,
+		}),
+	}); err != nil {
+		return
+	}
+
+	newUser := mixpanel.NewPeopleProperties(userDistinctId, map[string]any{
+		"$email": email,
+	})
+
+	err = mp.PeopleSet(ctx,
+		[]*mixpanel.PeopleProperties{
+			newUser,
+		},
+	)
+	if err != nil {
+		return
+	}
 }

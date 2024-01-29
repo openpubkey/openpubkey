@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	googleScopes  = []string{"openid", "profile", "email"}
+	defaultScopes = []string{"openid", "profile", "email"}
 	loginEndpoint = "/login"
 )
 
@@ -33,14 +33,17 @@ type GoogleProvider struct {
 	Issuer       string
 	ClientID     string
 	clientSecret string
+	scopes       []string
 
 	redirectEndpoint string
 	redirectURI      *url.URL
+	autoOpenLoginURL bool
+	httpClient       *http.Client
 
 	tokens *oidc.Tokens[*oidc.IDTokenClaims]
 }
 
-var _ client.OpenIdProvider = (*GoogleProvider)(nil)
+var _ RefreshableOP = &GoogleProvider{}
 
 func NewGoogleProvider(
 	issuer,
@@ -48,6 +51,9 @@ func NewGoogleProvider(
 	clientSecret string,
 	redirectURIPorts []int,
 	redirectEndpoint string,
+	scopes []string,
+	autoOpenLoginURL bool,
+	httpClient *http.Client,
 ) (*GoogleProvider, error) {
 	redirectPort := redirectURIPorts[0]
 	// Choose an available port if more than one was specified
@@ -65,12 +71,19 @@ func NewGoogleProvider(
 	}
 	redirectURI.Path = redirectEndpoint
 
+	if len(scopes) == 0 {
+		scopes = defaultScopes
+	}
+
 	provider := &GoogleProvider{
 		Issuer:           issuer,
 		ClientID:         clientID,
 		clientSecret:     clientSecret,
 		redirectEndpoint: redirectEndpoint,
 		redirectURI:      redirectURI,
+		autoOpenLoginURL: autoOpenLoginURL,
+		httpClient:       httpClient,
+		scopes:           scopes,
 	}
 
 	return provider, nil
@@ -84,15 +97,16 @@ func (g *GoogleProvider) RequestTokens(ctx context.Context, cicHash string) (*me
 		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
 	}
 
-	cookieHandler :=
-		zhttp.NewCookieHandler(hashKey, blockKey)
+	cookieHandler := zhttp.NewCookieHandler(hashKey, blockKey, zhttp.WithUnsecure())
 	options := []rp.Option{
-		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
 			rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash }),
 		),
 		rp.WithPKCE(cookieHandler),
+	}
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
 	}
 
 	relyingParty, err := rp.NewRelyingPartyOIDC(
@@ -101,7 +115,7 @@ func (g *GoogleProvider) RequestTokens(ctx context.Context, cicHash string) (*me
 		g.ClientID,
 		g.clientSecret,
 		g.redirectURI.String(),
-		googleScopes,
+		g.scopes,
 		options...,
 	)
 	if err != nil {
@@ -125,12 +139,10 @@ func (g *GoogleProvider) RequestTokens(ctx context.Context, cicHash string) (*me
 		rp.WithURLParam("nonce", cicHash),
 		rp.WithURLParam("access_type", "offline")),
 	)
-
 	server := &http.Server{
 		Addr:    fmt.Sprintf("localhost:%s", g.redirectURI.Port()),
 		Handler: mux,
 	}
-
 	go func() {
 		err := server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
@@ -140,37 +152,50 @@ func (g *GoogleProvider) RequestTokens(ctx context.Context, cicHash string) (*me
 	defer server.Shutdown(ctx)
 
 	// auto-open the url
-	earl := fmt.Sprintf("http://%s%s", server.Addr, loginEndpoint)
-	util.OpenUrl(earl)
+	if g.autoOpenLoginURL {
+		earl := fmt.Sprintf("http://%s%s", server.Addr, loginEndpoint)
+		util.OpenUrl(earl)
+	}
 
 	// Wait until we receive the ID token and then exit
-	g.tokens = <-tokenChan
+	select {
+	case token := <-tokenChan:
+		g.tokens = token
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	return memguard.NewBufferFromBytes([]byte(g.tokens.IDToken)), nil
 }
 
-func (g *GoogleProvider) Refresh(ctx context.Context) (string, error) {
+func (g *GoogleProvider) Refresh(ctx context.Context) (*memguard.LockedBuffer, error) {
+	options := []rp.Option{}
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
+	}
+
 	provider, err := rp.NewRelyingPartyOIDC(
 		ctx,
 		g.Issuer,
 		g.ClientID,
 		g.clientSecret,
 		g.redirectURI.String(),
-		googleScopes,
+		g.scopes,
+		options...,
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to create RP to verify token: %w", err)
+		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
 
 	refreshToken := g.tokens.RefreshToken
 	g.tokens, err = rp.RefreshTokens[*oidc.IDTokenClaims](ctx, provider, g.tokens.RefreshToken, "", "")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Google does not rotate refresh tokens, the one you get at the beginning is the only one you'll ever get
 	g.tokens.RefreshToken = refreshToken
 
-	return g.tokens.IDToken, nil
+	return memguard.NewBufferFromBytes([]byte(g.tokens.IDToken)), nil
 }
 
 func (g *GoogleProvider) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
@@ -224,6 +249,9 @@ func (g *GoogleProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expecte
 			rp.WithNonce(func(ctx context.Context) string { return expectedNonce }),
 		),
 	}
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
+	}
 
 	provider, err := rp.NewRelyingPartyOIDC(
 		ctx,
@@ -231,7 +259,7 @@ func (g *GoogleProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expecte
 		g.ClientID,
 		g.clientSecret,
 		g.redirectURI.String(),
-		googleScopes,
+		g.scopes,
 		options...,
 	)
 	if err != nil {

@@ -3,6 +3,8 @@ package policy
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,7 +12,19 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 )
+
+// copyFile copies the content read from srcFilePath and writes it to a new file
+// located at destFilePath. The destination file has the expected permission
+// bits set that the policy enforcer requires
+func copyFile(t *testing.T, srcFilePath, destFilePath string) {
+	input, err := os.ReadFile(srcFilePath)
+	require.NoErrorf(t, err, "failed to read source file path %s", srcFilePath)
+
+	err = os.WriteFile(destFilePath, input, 0600)
+	require.NoErrorf(t, err, "failed to copy source file to destination path %s", destFilePath)
+}
 
 func TestPolicyApproved(t *testing.T) {
 	t.Skip()
@@ -35,8 +49,11 @@ func TestPolicyApproved(t *testing.T) {
 		t.Error(err)
 	}
 
+	tempDir := t.TempDir()
+	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
+	copyFile(t, "./policy_test.yml", policyFilePath)
 	policyEnforcer := Enforcer{
-		PolicyFilePath: "./policy_test.yml",
+		PolicyFilePath: policyFilePath,
 	}
 
 	// Check that policy yaml is properly parsed and checked
@@ -68,8 +85,11 @@ func TestPolicyDeniedBadUser(t *testing.T) {
 		t.Error(err)
 	}
 
+	tempDir := t.TempDir()
+	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
+	copyFile(t, "./policy_test.yml", policyFilePath)
 	policyEnforcer := Enforcer{
-		PolicyFilePath: "./policy_test.yml",
+		PolicyFilePath: policyFilePath,
 	}
 
 	// Check that policy yaml is properly parsed and checked
@@ -104,8 +124,11 @@ func TestPolicyDeniedNoUserEntry(t *testing.T) {
 		t.Error(err)
 	}
 
+	tempDir := t.TempDir()
+	policyFilePath := filepath.Join(tempDir, "policy_test_no_entry.yml")
+	copyFile(t, "./policy_test_no_entry.yml", policyFilePath)
 	policyEnforcer := Enforcer{
-		PolicyFilePath: "./policy_test_no_entry.yml",
+		PolicyFilePath: policyFilePath,
 	}
 
 	// Check that policy yaml is properly parsed and that the error is no user entry

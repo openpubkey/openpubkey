@@ -19,7 +19,7 @@ import (
 	"github.com/bastionzero/opk-ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -41,7 +41,7 @@ func run() int {
 	}
 	command := os.Args[1]
 
-	provider, err := provider.NewGoogleProvider(issuer, clientID, clientSecret, redirectURIPorts, redirectEndpoint)
+	provider, err := provider.NewGoogleProvider(issuer, clientID, clientSecret, redirectURIPorts, redirectEndpoint, nil, true, nil)
 	if err != nil {
 		log.Println("failed to create new google provider instance:", err)
 		return 1
@@ -74,7 +74,12 @@ func run() int {
 		}
 
 		// Execute login command
-		err = commands.Login(ctx, provider, *autoRefresh)
+		if *autoRefresh {
+			err = commands.LoginWithRefresh(ctx, provider)
+		} else {
+			err = commands.Login(ctx, provider)
+		}
+
 		if err != nil {
 			log.Println("ERROR logging in:", err)
 			return 1
@@ -110,15 +115,15 @@ func run() int {
 
 		usr, err := user.Lookup(userArg)
 		if err != nil {
-			log.Println("failed to find home directory for the principal:", userArg)
+			log.Printf("failed to find home directory for the principal %s: %v", userArg, err)
 			return 1
 		}
 
-		// if user is non root, the filepath will be ~/policy.yml
-		// otherwise, it will default to /etc/opk/policy.yml
+		// if user is non root, the filepath will be ~/policy.yml otherwise, it
+		// will default to /etc/opk/policy.yml
 		_, policyFilePath, err := policy.GetPolicy(userArg, usr.HomeDir)
 		if err != nil {
-			log.Println(err)
+			log.Printf("failed to get policy: %v", err)
 			return 1
 		}
 
@@ -206,7 +211,7 @@ func run() int {
 			log.Println("error writing to policy file:", err)
 			return 1
 		} else {
-			log.Println("Successfully added new policy to ", policyFilePath)
+			log.Println("Successfully added new policy to", policyFilePath)
 		}
 	default:
 		log.Println("ERROR! Unrecognized command:", command)
