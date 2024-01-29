@@ -31,13 +31,13 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
+	verifier.ProviderVerifier
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	// Returns the payload claim name where the cicHash was stored from RequestTokens
-	CommitmentClaim() string
 }
 
 type BrowserOpenIdProvider interface {

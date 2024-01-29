@@ -76,22 +76,20 @@ func (p *PKToken) Verify(ctx context.Context, commitmentClaim string) error {
 		}
 	}
 
-	// Verify commitment is equal to hash of client instance claims (CIC)
 	cic, err := p.GetCicValues()
 	if err != nil {
 		return err
 	}
-
 	expectedCommitment, err := cic.Hash()
 	if err != nil {
 		return err
 	}
-
 	commitment, ok := claims[commitmentClaim]
 	if !ok {
 		return fmt.Errorf("missing commitment claim %s", commitmentClaim)
 	}
 
+	// Verify commitment is equal to hash of client instance claims (CIC)
 	if commitment != string(expectedCommitment) {
 		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", commitment, string(expectedCommitment))
 	}
