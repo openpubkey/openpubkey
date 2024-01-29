@@ -1,7 +1,0 @@
-users:
-    - email: alice@bastionzero.com
-      principals:
-        - test
-    - email: bob.@example.com
-      principals:
-        - test

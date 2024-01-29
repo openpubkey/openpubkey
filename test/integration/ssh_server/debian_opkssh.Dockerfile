@@ -18,14 +18,28 @@ RUN  echo "test:test" | chpasswd
 # Source: https://askubuntu.com/a/878705
 RUN echo "test ALL=(ALL:ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/test
 
+# Create unprivileged user named "test2" 
+RUN useradd -rm -d /home/test2 -s /bin/bash -u 1001 test2
+# Set password to "test"
+RUN  echo "test2:test" | chpasswd
+
 # Allow SSH access
 RUN mkdir /var/run/sshd
 
-# Setup OPK directories/files
+# Setup OPK directories/files (root policy)
 RUN mkdir -p /etc/opk
 RUN touch /etc/opk/policy.yml
 RUN chown root /etc/opk/policy.yml
 RUN chmod 600 /etc/opk/policy.yml
+
+# Setup OPK directories/files (unprivileged "test2" user)
+RUN mkdir -p /home/test2/.opk 
+RUN chown test2:test2 /home/test2/.opk
+RUN chmod 700 /home/test2/.opk
+# Create personal policy yaml in user's home directory
+RUN touch /home/test2/.opk/policy.yml
+RUN chown test2:test2 /home/test2/.opk/policy.yml
+RUN chmod 600 /home/test2/.opk/policy.yml
 
 # Comment out existing AuthorizedKeysCommand configuration
 RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
@@ -58,9 +72,14 @@ ARG ISSUER_PORT="9998"
 RUN go build -v -o /etc/opk/opk-ssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
 RUN chmod 700 /etc/opk/opk-ssh
 
+# Copy binary to unprivileged user's home directory
+RUN cp /etc/opk/opk-ssh /home/test2/.opk/opk-ssh
+RUN chown test2:test2 /home/test2/.opk/opk-ssh
+
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
-RUN /etc/opk/opk-ssh add "test-user@zitadel.ch" "test"
+ARG BOOTSTRAP_POLICY
+RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opk-ssh add "test-user@zitadel.ch" "test" ; else echo "Will not init policy" ; fi
 
 # Start SSH server on container startup
 CMD ["/usr/sbin/sshd", "-D"]

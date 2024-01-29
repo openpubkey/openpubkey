@@ -1,6 +1,6 @@
 //go:build integration
 
-package server
+package ssh_server
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-type ServerContainer struct {
+type SshServerContainer struct {
 	testcontainers.Container
 	Host     string
 	Port     int
@@ -23,20 +23,16 @@ type ServerContainer struct {
 	Password string
 }
 
-func RunOpkSshContainer(ctx context.Context, issuerHostIp string, issuerPort string, networkName string) (*ServerContainer, error) {
+func RunOpkSshContainer(ctx context.Context, issuerHostIp string, issuerPort string, networkName string, bootstrapPolicy bool) (*SshServerContainer, error) {
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:       projectpath.Root,
-			Dockerfile:    filepath.Join("test", "integration", "server", "debian_opkssh.Dockerfile"),
+			Dockerfile:    filepath.Join("test", "integration", "ssh_server", "debian_opkssh.Dockerfile"),
 			PrintBuildLog: true,
 			KeepImage:     true,
 			BuildArgs:     make(map[string]*string),
 		},
-		ExposedPorts: []string{"22/tcp"},
-		Networks: []string{
-			networkName,
-		},
-		ExtraHosts:    []string{fmt.Sprintf("oidc.local:%v", issuerHostIp)},
+		ExposedPorts:  []string{"22/tcp"},
 		ImagePlatform: "linux/amd64",
 		// Wait for SSH server to be running by attempting to connect
 		//
@@ -47,8 +43,18 @@ func RunOpkSshContainer(ctx context.Context, issuerHostIp string, issuerPort str
 				return exitCode == 0
 			}),
 	}
+	if issuerHostIp != "" {
+		req.ExtraHosts = []string{fmt.Sprintf("oidc.local:%v", issuerHostIp)}
+	}
 	if issuerPort != "" {
 		req.BuildArgs["ISSUER_PORT"] = &issuerPort
+	}
+	if networkName != "" {
+		req.Networks = []string{networkName}
+	}
+	if bootstrapPolicy {
+		trueStr := "true"
+		req.BuildArgs["BOOTSTRAP_POLICY"] = &trueStr
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -66,7 +72,7 @@ func RunOpkSshContainer(ctx context.Context, issuerHostIp string, issuerPort str
 	if err != nil {
 		return nil, err
 	}
-	return &ServerContainer{
+	return &SshServerContainer{
 		Container: container,
 		Host:      hostIP,
 		Port:      mappedPort.Int(),
@@ -75,11 +81,11 @@ func RunOpkSshContainer(ctx context.Context, issuerHostIp string, issuerPort str
 	}, nil
 }
 
-func RunUbuntuContainer(ctx context.Context) (*ServerContainer, error) {
+func RunUbuntuContainer(ctx context.Context) (*SshServerContainer, error) {
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:    projectpath.Root,
-			Dockerfile: filepath.Join("test", "integration", "server", "ubuntu.Dockerfile"),
+			Dockerfile: filepath.Join("test", "integration", "ssh_server", "ubuntu.Dockerfile"),
 			KeepImage:  true,
 		},
 		ExposedPorts:  []string{"22/tcp"},
@@ -102,7 +108,7 @@ func RunUbuntuContainer(ctx context.Context) (*ServerContainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ServerContainer{
+	return &SshServerContainer{
 		Container: container,
 		Host:      hostIP,
 		Port:      mappedPort.Int(),

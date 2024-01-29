@@ -1,13 +1,10 @@
-package policy
+package policy_test
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/bastionzero/opk-ssh/policy"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
@@ -15,127 +12,129 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// copyFile copies the content read from srcFilePath and writes it to a new file
-// located at destFilePath. The destination file has the expected permission
-// bits set that the policy enforcer requires
-func copyFile(t *testing.T, srcFilePath, destFilePath string) {
-	input, err := os.ReadFile(srcFilePath)
-	require.NoErrorf(t, err, "failed to read source file path %s", srcFilePath)
+var policyTest = &policy.Policy{
+	Users: []policy.User{
+		{
+			Email:      "alice@bastionzero.com",
+			Principals: []string{"test"},
+		},
+		{
+			Email:      "arthur.aardvark@example.com",
+			Principals: []string{"test"},
+		},
+		{
+			Email:      "bob@example.com",
+			Principals: []string{"test"},
+		},
+	},
+}
 
-	err = os.WriteFile(destFilePath, input, 0600)
-	require.NoErrorf(t, err, "failed to copy source file to destination path %s", destFilePath)
+var policyTestNoEntry = &policy.Policy{
+	Users: []policy.User{
+		{
+			Email:      "alice@bastionzero.com",
+			Principals: []string{"test"},
+		},
+		{
+			Email:      "bob@example.com",
+			Principals: []string{"test"},
+		},
+	},
+}
+
+type MockPolicyLoader struct {
+	// Policy is returned on any call to Load() if Error is nil
+	Policy *policy.Policy
+	// Error is returned on any call to Load() if non-nil
+	Error error
+}
+
+var _ policy.Loader = &MockPolicyLoader{}
+
+// Load implements policy.Loader.
+func (m *MockPolicyLoader) Load() (*policy.Policy, policy.Source, error) {
+	if m.Error == nil {
+		return m.Policy, policy.EmptySource{}, nil
+	} else {
+		return nil, nil, m.Error
+	}
 }
 
 func TestPolicyApproved(t *testing.T) {
-	t.Skip()
+	t.Parallel()
+
 	alg := jwa.ES256
 
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	client := &client.OpkClient{
 		Op: op,
 	}
 
 	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
-	copyFile(t, "./policy_test.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
+	policyEnforcer := &policy.Enforcer{
+		PolicyLoader: &MockPolicyLoader{Policy: policyTest},
 	}
 
 	// Check that policy yaml is properly parsed and checked
-	if err := policyEnforcer.CheckPolicy("test", pkt); err != nil {
-		t.Error(err)
-	}
+	err = policyEnforcer.CheckPolicy("test", pkt)
+	require.NoError(t, err)
 }
 
 func TestPolicyDeniedBadUser(t *testing.T) {
-	t.Skip()
+	t.Parallel()
+
 	alg := jwa.ES256
 
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	client := &client.OpkClient{
 		Op: op,
 	}
 
 	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
+	require.NoError(t, err)
+
+	policyEnforcer := &policy.Enforcer{
+		PolicyLoader: &MockPolicyLoader{Policy: policyTest},
 	}
 
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
-	copyFile(t, "./policy_test.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
-	}
-
-	// Check that policy yaml is properly parsed and checked
-	if err := policyEnforcer.CheckPolicy("baduser", pkt); err != nil {
-		fmt.Println(err.Error())
-		if !strings.Contains(strings.ToLower(err.Error()), "no policy to allow") {
-			t.Error(err)
-		}
-	}
+	err = policyEnforcer.CheckPolicy("baduser", pkt)
+	require.Error(t, err, "user should not have access")
 }
 
 func TestPolicyDeniedNoUserEntry(t *testing.T) {
-	t.Skip()
+	t.Parallel()
+
 	alg := jwa.ES256
 
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	client := &client.OpkClient{
 		Op: op,
 	}
 
 	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
+	require.NoError(t, err)
+
+	policyEnforcer := &policy.Enforcer{
+		PolicyLoader: &MockPolicyLoader{Policy: policyTestNoEntry},
 	}
 
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test_no_entry.yml")
-	copyFile(t, "./policy_test_no_entry.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
-	}
-
-	// Check that policy yaml is properly parsed and that the error is no user entry
-	if err := policyEnforcer.CheckPolicy("test", pkt); err != nil {
-		fmt.Println(err.Error())
-		if !strings.Contains(strings.ToLower(err.Error()), "no policy included for user") {
-			t.Error(err)
-		}
-	}
+	err = policyEnforcer.CheckPolicy("test", pkt)
+	require.Error(t, err, "user should not have access")
 }

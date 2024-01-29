@@ -21,7 +21,7 @@ import (
 	"github.com/bastionzero/opk-ssh/commands"
 	"github.com/bastionzero/opk-ssh/provider"
 	testprovider "github.com/bastionzero/opk-ssh/test/integration/provider"
-	"github.com/bastionzero/opk-ssh/test/integration/server"
+	"github.com/bastionzero/opk-ssh/test/integration/ssh_server"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 
@@ -178,7 +178,7 @@ func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, auth
 //
 // Test cleanup functions are registered to cleanup the containers after the
 // test finishes.
-func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpContainer, authCallbackRedirectPort int, serverContainer *server.ServerContainer) {
+func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpContainer, authCallbackRedirectPort int, serverContainer *ssh_server.SshServerContainer) {
 	// Create local Docker network so that the example OIDC container and the
 	// linux container (with SSH) can communicate with each other
 	newNetwork, err := testcontainers.GenericNetwork(TestCtx, testcontainers.GenericNetworkRequest{
@@ -226,11 +226,12 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 	// incoming PK tokens against the OIDC issuer created above
 	issuerIp, err := oidcContainer.ContainerIP(TestCtx)
 	require.NoError(t, err)
-	serverContainer, err = server.RunOpkSshContainer(
+	serverContainer, err = ssh_server.RunOpkSshContainer(
 		TestCtx,
 		issuerIp,
 		issuerPort,
 		networkName,
+		true,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -329,6 +330,77 @@ func TestEndToEndSSH(t *testing.T) {
 	out, err := opkSshClient.Run("whoami")
 	require.NoError(t, err)
 	require.Equal(t, serverContainer.User, strings.TrimSpace(string(out)))
+}
+
+func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
+	// Test usecase of unprivileged user using opk-ssh e2e by performing an SSH
+	// connection to a linux container.
+	//
+	// This user has policy access via their user policy--not the root policy
+	var err error
+
+	// Spawn test containers to run these tests
+	oidcContainer, authCallbackRedirectPort, serverContainer := spawnTestContainers(t)
+	// Create OPK SSH provider that is configured against the spawned OIDC
+	// container's issuer server
+	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
+
+	// Give integration test user access to test2 via user policy
+	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", "/home/test2/.opk/opk-ssh add \"test-user@zitadel.ch\" \"test2\""}, "test2")
+	require.Equal(t, 0, code, "failed to update user policy")
+
+	// Call login
+	errCh := make(chan error)
+	t.Log("------- call login cmd ------")
+	go func() {
+		err := commands.Login(TestCtx, zitadelOp)
+		errCh <- err
+	}()
+
+	// Wait for login-callback server on localhost to come up. It should come up
+	// when login command is called
+	timeoutErr := WaitForServer(TestCtx, fmt.Sprintf("http://localhost:%d", authCallbackRedirectPort), LoginCallbackServerTimeout)
+	require.NoError(t, timeoutErr, "login callback server took too long to startup")
+
+	// Do OIDC login. Use custom transport that adds the expected Host
+	// header--if not specified, then the zitadel server will say it is an
+	// unexpected issuer
+	DoOidcInteractiveLogin(t, customTransport, fmt.Sprintf("http://localhost:%d/login", authCallbackRedirectPort), "test-user@oidc.local", "verysecure")
+
+	// Wait for interactive login to complete and assert no error occurred
+	timeoutCtx, cancel := context.WithTimeout(TestCtx, 3*time.Second)
+	defer cancel()
+	select {
+	case loginErr := <-errCh:
+		require.NoError(t, loginErr, "failed login")
+	case <-timeoutCtx.Done():
+		t.Fatal(timeoutCtx.Err())
+	}
+
+	// Expect to find OPK SSH key is written to disk
+	pubKey, secKeyFilePath, err := GetOPKSshKey()
+	require.NoError(t, err, "expected to find OPK ssh key written to disk")
+
+	// Create OPK SSH signer using the found OPK SSH key on disk
+	certSigner, _ := createOpkSshSigner(t, pubKey, secKeyFilePath)
+
+	// Start new ssh connection using the OPK ssh cert key
+	authKey := goph.Auth{ssh.PublicKeys(certSigner)}
+	opkSshClient, err := goph.NewConn(&goph.Config{
+		User:     "test2", // test2 is not a sudoer
+		Addr:     serverContainer.Host,
+		Port:     uint(serverContainer.Port),
+		Auth:     authKey,
+		Timeout:  goph.DefaultTimeout,
+		Callback: ssh.InsecureIgnoreHostKey(),
+	})
+	require.NoError(t, err)
+	defer opkSshClient.Close()
+
+	// Run simple command to test the connection
+	out, err := opkSshClient.Run("whoami")
+	require.NoError(t, err)
+	require.Equal(t, "test2", strings.TrimSpace(string(out)))
 }
 
 func updateIdTokenLifetime(t *testing.T, oidcContainerMappedPort int, duration string) {

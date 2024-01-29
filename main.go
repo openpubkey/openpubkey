@@ -8,11 +8,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/bastionzero/opk-ssh/commands"
+	"github.com/bastionzero/opk-ssh/policy"
 	"github.com/bastionzero/opk-ssh/provider"
 )
 
@@ -30,7 +31,7 @@ func main() {
 
 func run() int {
 	if len(os.Args) < 2 {
-		fmt.Printf("Example SSH key generator using OpenPubkey: command choices are: login, verify, and add")
+		fmt.Println("Example SSH key generator using OpenPubkey: command choices are: login, verify, and add")
 		return 1
 	}
 	command := os.Args[1]
@@ -58,7 +59,7 @@ func run() int {
 
 		// If a log directory was provided, write any logs to a file in that directory AND stdout
 		if *logFilePath != "" {
-			logFilePath := path.Join(*logFilePath, "openpubkey.log")
+			logFilePath := filepath.Join(*logFilePath, "openpubkey.log")
 			logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
 			if err == nil {
 				defer logFile.Close()
@@ -107,17 +108,10 @@ func run() int {
 		certB64 := os.Args[3]
 		pubkeyType := os.Args[4]
 
-		// Use opk-ssh policy enforcer as the auth func
-		authFunc, err := commands.OpkPolicyEnforcerAsAuthFunc(userArg)
-		if err != nil {
-			log.Println("failed to construct auth func:", err)
-			return 1
-		}
-
 		// Execute verify command
 		v := commands.VerifyCmd{
 			OPConfig: provider,
-			Auth:     authFunc,
+			Auth:     commands.OpkPolicyEnforcerAsAuthFunc(userArg),
 		}
 		if authKey, err := v.Verify(ctx, userArg, certB64, pubkeyType); err != nil {
 			log.Println("failed to verify:", err)
@@ -143,7 +137,10 @@ func run() int {
 		inputPrincipal := os.Args[3]
 
 		// Execute add command
-		a := commands.AddCmd{}
+		a := commands.AddCmd{
+			PolicyFileLoader: policy.NewFileLoader(),
+			Username:         inputPrincipal,
+		}
 		if policyFilePath, err := a.Add(inputEmail, inputPrincipal); err != nil {
 			log.Println("failed to add to policy:", err)
 			return 1

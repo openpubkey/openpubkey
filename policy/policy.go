@@ -1,21 +1,13 @@
 package policy
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/user"
-	"path"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// SystemDefaultPolicyPath is the default filepath where opk-ssh policy is
-// defined
-const SystemDefaultPolicyPath = "/etc/opk/policy.yml"
-
+// User is an opk-ssh policy user entry
 type User struct {
 	// Email is the user's email. It is the expected value used when comparing
 	// against an id_token's email claim
@@ -29,6 +21,15 @@ type User struct {
 type Policy struct {
 	// Users is a list of all user entries in the policy
 	Users []User `yaml:"users"`
+}
+
+// FromYAML decodes YAML encoded input into policy.Policy
+func FromYAML(input []byte) (*Policy, error) {
+	policy := &Policy{}
+	if err := yaml.Unmarshal(input, policy); err != nil {
+		return nil, fmt.Errorf("error unmarshalling input to policy.Policy: %w", err)
+	}
+	return policy, nil
 }
 
 // AddAllowedPrincipal adds a new allowed principal to the user whose email is
@@ -74,71 +75,37 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 	}
 }
 
-// FromYAML decodes YAML encoded input into policy.Policy
-func FromYAML(input []byte) (*Policy, error) {
-	policy := &Policy{}
-	if err := yaml.Unmarshal(input, policy); err != nil {
-		return nil, fmt.Errorf("error unmarshalling input to policy.Policy: %w", err)
+// ToYAML encodes the policy into YAML
+func (p *Policy) ToYAML() ([]byte, error) {
+	marshaledData, err := yaml.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal policy: %w", err)
 	}
-	return policy, nil
+
+	return marshaledData, nil
 }
 
-// ParsePolicy parses the opk-ssh policy at the policy.SystemDefaultPolicyPath.
-// If there is a permission error when reading this file, then the user's local
-// policy file (~/.opk/policy.yml) is parsed instead.
-//
-// If successful, returns the parsed policy and filepath used to read the
-// policy. Otherwise, a non-nil error is returned.
-func ParsePolicy(username string) (*Policy, string, error) {
-	usr, err := user.Lookup(username)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to find home directory for the username %v: %w", username, err)
-	}
-
-	policyData, policyFilePath, err := GetPolicy(usr.HomeDir)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get policy: %w", err)
-	}
-
-	policy, err := FromYAML(policyData)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return policy, policyFilePath, nil
+// Source declares the minimal interface to describe the source of a fetched
+// opk-ssh policy (i.e. where the policy is retrieved from)
+type Source interface {
+	// Source returns a string describing the source of an opk-ssh policy. The
+	// returned value is empty if there is no information about its source
+	Source() string
 }
 
-// GetPolicy has the same semantics as policy.ParsePolicy except it returns the
-// raw YAML instead of parsing the contents into the policy type
-func GetPolicy(userHomeDirectory string) ([]byte, string, error) {
-	var policyFilePath = SystemDefaultPolicyPath
-	// check that the policy.yml file exists (created through configuration
-	// script prior to this)
-	if _, err := os.Stat(policyFilePath); errors.Is(err, os.ErrNotExist) {
-		return nil, "", fmt.Errorf("policy file does not exist at path %s: %w", policyFilePath, err)
-	}
+var _ Source = &EmptySource{}
 
-	// if the user has root access, the policy file will be /etc/opk/policy.yml
-	// else, we will add it to ~/.opk/policy.yml
-	policy, err := os.ReadFile(policyFilePath)
-	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-			policyFilePath = path.Join(userHomeDirectory, ".opk/policy.yml")
-			// if we're accessing as non-root, check that /home/{input_principal}/policy.yml exists
-			// it should be created when the user runs zli configure as a non-root user
-			if _, err := os.Stat(policyFilePath); errors.Is(err, os.ErrNotExist) {
-				return nil, "", fmt.Errorf("policy file does not exist at path %s: %w", policyFilePath, err)
-			}
+// EmptySource implements policy.Source and returns an empty string as the
+// source
+type EmptySource struct{}
 
-			// extract the policy from this user's personal policy file
-			if policy, err = os.ReadFile(policyFilePath); err != nil {
-				return nil, "", fmt.Errorf("failed to read policy at path %s: %w", policyFilePath, err)
-			}
-			return policy, policyFilePath, nil
-		}
-		return nil, "", fmt.Errorf("failed to read the policy file with err: %w", err)
-	}
+func (EmptySource) Source() string { return "" }
 
-	// if no error, then default to returning the root policy
-	return policy, policyFilePath, nil
+// Loader declares the minimal interface to retrieve an opk-ssh policy from an
+// arbitrary source
+type Loader interface {
+	// Load fetches an opk-ssh policy and returns information describing its
+	// source. If an error occurs, all return values are nil except the error
+	// value
+	Load() (*Policy, Source, error)
 }

@@ -8,6 +8,8 @@ import (
 )
 
 func TestAddAllowedPrincipal(t *testing.T) {
+	t.Parallel()
+
 	// Test adding an allowed principal to an opk-ssh policy
 	tests := []struct {
 		name           string

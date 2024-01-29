@@ -70,6 +70,8 @@ func newSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 }
 
 func TestCASignerCreation(t *testing.T) {
+	t.Parallel()
+
 	caSigner, err := newSshSignerFromPem(caSecretKey)
 	if err != nil {
 		t.Error(err)
@@ -88,6 +90,7 @@ func TestCASignerCreation(t *testing.T) {
 func TestInvalidSshPublicKey(t *testing.T) {
 	// Test that the SSH cert smuggler cannot be constructed and returns an
 	// error when given an SSH public key that isn't an SSH certificate
+	t.Parallel()
 
 	// Create SSH key that isn't a cert
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -105,6 +108,8 @@ func TestInvalidSshPublicKey(t *testing.T) {
 }
 
 func TestSshCertCreation(t *testing.T) {
+	t.Parallel()
+
 	caSigner, err := newSshSignerFromPem(caSecretKey)
 	if err != nil {
 		t.Error(err)

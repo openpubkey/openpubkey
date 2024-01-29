@@ -2,8 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
-	"os/user"
 
 	"github.com/bastionzero/opk-ssh/policy"
 	"github.com/bastionzero/opk-ssh/provider"
@@ -61,21 +59,12 @@ func (v *VerifyCmd) Verify(ctx context.Context, username string, pubkey string, 
 
 // OpkPolicyEnforcerAsAuthFunc returns an opk-ssh policy.Enforcer that can be
 // used in the opk-ssh verify command.
-func OpkPolicyEnforcerAsAuthFunc(username string) (AuthFunc, error) {
-	usr, err := user.Lookup(username)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find home directory for the principal %s: %w", username, err)
-	}
-
-	// if user is non root, the filepath will be ~/policy.yml otherwise, it will
-	// default to /etc/opk/policy.yml
-	_, policyFilePath, err := policy.GetPolicy(usr.HomeDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get policy: %w", err)
-	}
-
+func OpkPolicyEnforcerAsAuthFunc(username string) AuthFunc {
 	policyEnforcer := &policy.Enforcer{
-		PolicyFilePath: policyFilePath,
+		PolicyLoader: &policy.MultiFileLoader{
+			FileLoader: policy.NewFileLoader(),
+			Username:   username,
+		},
 	}
-	return policyEnforcer.CheckPolicy, nil
+	return policyEnforcer.CheckPolicy
 }
