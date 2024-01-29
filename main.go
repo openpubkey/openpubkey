@@ -8,18 +8,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"os/user"
 	"path"
 	"strings"
 	"syscall"
 
 	"github.com/bastionzero/opk-ssh/commands"
-	"github.com/bastionzero/opk-ssh/policy"
 	"github.com/bastionzero/opk-ssh/provider"
-	"github.com/bastionzero/opk-ssh/sshcert"
-	"github.com/openpubkey/openpubkey/pktoken"
-	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -113,27 +107,20 @@ func run() int {
 		certB64 := os.Args[3]
 		pubkeyType := os.Args[4]
 
-		usr, err := user.Lookup(userArg)
+		// Use opk-ssh policy enforcer as the auth func
+		authFunc, err := commands.OpkPolicyEnforcerAsAuthFunc(userArg)
 		if err != nil {
-			log.Printf("failed to find home directory for the principal %s: %v", userArg, err)
+			log.Println("failed to construct auth func:", err)
 			return 1
 		}
 
-		// if user is non root, the filepath will be ~/policy.yml otherwise, it
-		// will default to /etc/opk/policy.yml
-		_, policyFilePath, err := policy.GetPolicy(userArg, usr.HomeDir)
-		if err != nil {
-			log.Printf("failed to get policy: %v", err)
-			return 1
+		// Execute verify command
+		v := commands.VerifyCmd{
+			OPConfig: provider,
+			Auth:     authFunc,
 		}
-
-		policyEnforcer := policy.Enforcer{
-			PolicyFilePath: policyFilePath,
-		}
-
-		authKey, err := authorizedKeysCommand(ctx, userArg, certB64, pubkeyType, policyEnforcer.CheckPolicy, provider)
-		if err != nil {
-			log.Println(err)
+		if authKey, err := v.Verify(ctx, userArg, certB64, pubkeyType); err != nil {
+			log.Println("failed to verify:", err)
 			return 1
 		} else {
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
@@ -155,60 +142,10 @@ func run() int {
 		inputEmail := os.Args[2]
 		inputPrincipal := os.Args[3]
 
-		usr, err := user.Lookup(inputPrincipal)
-		if err != nil {
-			log.Println("failed to find home directory for the principal:", inputPrincipal)
-			return 1
-		}
-
-		policyData, policyFilePath, err := policy.GetPolicy(inputPrincipal, usr.HomeDir)
-		if err != nil {
-			log.Println("failed to get policy:", err)
-			return 1
-		}
-
-		users := policy.Users{}
-		if err := yaml.Unmarshal([]byte(policyData), &users); err != nil {
-			log.Println("error unmarshalling policy file data:", err)
-			return 1
-		}
-
-		userExists := false
-		if len(users.Users) != 0 {
-			// search to see if the current user already has an entry in the policy file
-			for _, user := range users.Users {
-				if user.Email == inputEmail {
-					principalExists := false
-					for _, principal := range user.Principals {
-						// if the principal already exists for this user, then skip
-						if principal == inputPrincipal {
-							log.Printf("User with email %s already has access under the principal %s, skipping...\n", inputEmail, inputPrincipal)
-							principalExists = true
-						}
-					}
-
-					if !principalExists {
-						user.Principals = append(user.Principals, inputPrincipal)
-						log.Printf("Successfully added user with email %s with principal %s to the policy file\n", inputEmail, inputPrincipal)
-					}
-					userExists = true
-				}
-			}
-		}
-
-		if len(users.Users) == 0 || !userExists {
-			// if the policy file is empty, then create a new entry
-			newUser := policy.User{
-				Email:      inputEmail,
-				Principals: []string{inputPrincipal},
-			}
-			// add the new user to the list of users in the policy
-			users.Users = append(users.Users, newUser)
-		}
-
-		marshaledData, _ := yaml.Marshal(&users)
-		if err := os.WriteFile(policyFilePath, marshaledData, 0); err != nil {
-			log.Println("error writing to policy file:", err)
+		// Execute add command
+		a := commands.AddCmd{}
+		if policyFilePath, err := a.Add(inputEmail, inputPrincipal); err != nil {
+			log.Println("failed to add to policy:", err)
 			return 1
 		} else {
 			log.Println("Successfully added new policy to", policyFilePath)
@@ -219,29 +156,4 @@ func run() int {
 	}
 
 	return 0
-}
-
-func authorizedKeysCommand(
-	ctx context.Context,
-	userArg string,
-	certB64Arg string,
-	pubkeyTypeArg string,
-	policyCheck func(userDesired string, pkt *pktoken.PKToken) error,
-	op *provider.GoogleProvider,
-) (string, error) {
-	cert, err := sshcert.NewFromAuthorizedKey(pubkeyTypeArg, certB64Arg)
-	if err != nil {
-		return "", err
-	}
-	if pkt, err := cert.VerifySshPktCert(ctx, op); err != nil {
-		return "", err
-	} else if err := policyCheck(userArg, pkt); err != nil {
-		return "", err
-	} else {
-		// sshd expects the public key in the cert, not the cert itself.
-		// This public key is key of the CA the signs the cert, in our
-		// setting there is no CA.
-		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
-		return "cert-authority " + string(pubkeyBytes), nil
-	}
 }

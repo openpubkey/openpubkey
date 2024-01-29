@@ -1,86 +1,119 @@
 package policy
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
+	"log"
 	"os"
 	"os/user"
 	"path"
 	"strings"
 
-	"github.com/openpubkey/openpubkey/pktoken"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
+// SystemDefaultPolicyPath is the default filepath where opk-ssh policy is
+// defined
+const SystemDefaultPolicyPath = "/etc/opk/policy.yml"
+
 type User struct {
-	Email      string   `yaml:"email"`
+	// Email is the user's email. It is the expected value used when comparing
+	// against an id_token's email claim
+	Email string `yaml:"email"`
+	// Principals is a list of allowed principals
 	Principals []string `yaml:"principals"`
 	// Sub        string   `yaml:"sub,omitempty"`
 }
 
-type Users struct {
-	// List of all user entries in the policy file
+// Policy represents an opk-ssh policy
+type Policy struct {
+	// Users is a list of all user entries in the policy
 	Users []User `yaml:"users"`
 }
 
-type Enforcer struct {
-	PolicyFilePath string
-}
+// AddAllowedPrincipal adds a new allowed principal to the user whose email is
+// equal to userEmail. If no user can be found with the email userEmail, then a
+// new user entry is added with an initial allowed principals list containing
+// principal. No changes are made if the principal is already allowed for this
+// user.
+func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
+	userExists := false
+	if len(p.Users) != 0 {
+		// search to see if the current user already has an entry in the policy
+		// file
+		for i := range p.Users {
+			user := &p.Users[i]
+			if user.Email == userEmail {
+				principalExists := false
+				for _, p := range user.Principals {
+					// if the principal already exists for this user, then skip
+					if p == principal {
+						log.Printf("User with email %s already has access under the principal %s, skipping...\n", userEmail, principal)
+						principalExists = true
+					}
+				}
 
-func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	// read the root policy file
-	rootPolicies, err := readPolicyFile("/etc/opk/policy.yml")
-
-	if err != nil {
-		return fmt.Errorf("error reading root policy file: %w", err)
-	}
-
-	usr, err := user.Lookup(principalDesired)
-	if err != nil {
-		return fmt.Errorf("failed to find the unix user with name: %v. error: %w", principalDesired, err)
-	}
-
-	// read the home directory policy file
-	homeDirPolicies, homeDirErr := readPolicyFile(fmt.Sprintf("%v/.opk/policy.yml", usr.HomeDir))
-
-	// if the home directory doesn't exist then only consider the root policy file
-	if homeDirErr != nil && !errors.Is(homeDirErr, os.ErrNotExist) {
-		return fmt.Errorf("failed reading home directory policy file at ~/.opk/policy.yml: %w", homeDirErr)
-	}
-
-	// check if the home directory policy only contains the current user's username
-	if err := checkHomeDirPoliciesValidity(homeDirPolicies, principalDesired); err != nil {
-		return fmt.Errorf("home directory policy file is invalid: %w", err)
-	}
-
-	var claims struct {
-		Email string `json:"email"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return fmt.Errorf("error unmarshalling pk token payload: %w", err)
-	}
-
-	// append the two list of policies and check
-	for _, policy := range append(rootPolicies, homeDirPolicies...) {
-		// check each entry to see if the user in the claims is included
-		if string(claims.Email) == policy.Email {
-			// if they are, then check if the desired principal is allowed
-			if slices.Contains(policy.Principals, principalDesired) {
-				// access granted
-				return nil
+				if !principalExists {
+					user.Principals = append(user.Principals, principal)
+					log.Printf("Successfully added user with email %s with principal %s to the policy file\n", userEmail, principal)
+				}
+				userExists = true
 			}
 		}
 	}
 
-	return fmt.Errorf("no policy to allow %s to assume %s, check policy config at /etc/opk/policy.yml or ~/.opk/policy.yml", claims.Email, principalDesired)
+	// if the policy is empty or if no user found with userEmail, then create a
+	// new entry
+	if len(p.Users) == 0 || !userExists {
+		newUser := User{
+			Email:      userEmail,
+			Principals: []string{principal},
+		}
+		// add the new user to the list of users in the policy
+		p.Users = append(p.Users, newUser)
+	}
 }
 
-func GetPolicy(inputPrincipal string, homeDirectory string) ([]byte, string, error) {
-	var policyFilePath = "/etc/opk/policy.yml"
-	// check that the policy.yml file exists (created through configuration script prior to this)
+// FromYAML decodes YAML encoded input into policy.Policy
+func FromYAML(input []byte) (*Policy, error) {
+	policy := &Policy{}
+	if err := yaml.Unmarshal(input, policy); err != nil {
+		return nil, fmt.Errorf("error unmarshalling input to policy.Policy: %w", err)
+	}
+	return policy, nil
+}
+
+// ParsePolicy parses the opk-ssh policy at the policy.SystemDefaultPolicyPath.
+// If there is a permission error when reading this file, then the user's local
+// policy file (~/.opk/policy.yml) is parsed instead.
+//
+// If successful, returns the parsed policy and filepath used to read the
+// policy. Otherwise, a non-nil error is returned.
+func ParsePolicy(username string) (*Policy, string, error) {
+	usr, err := user.Lookup(username)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to find home directory for the username %v: %w", username, err)
+	}
+
+	policyData, policyFilePath, err := GetPolicy(usr.HomeDir)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get policy: %w", err)
+	}
+
+	policy, err := FromYAML(policyData)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return policy, policyFilePath, nil
+}
+
+// GetPolicy has the same semantics as policy.ParsePolicy except it returns the
+// raw YAML instead of parsing the contents into the policy type
+func GetPolicy(userHomeDirectory string) ([]byte, string, error) {
+	var policyFilePath = SystemDefaultPolicyPath
+	// check that the policy.yml file exists (created through configuration
+	// script prior to this)
 	if _, err := os.Stat(policyFilePath); errors.Is(err, os.ErrNotExist) {
 		return nil, "", fmt.Errorf("policy file does not exist at path %s: %w", policyFilePath, err)
 	}
@@ -90,7 +123,7 @@ func GetPolicy(inputPrincipal string, homeDirectory string) ([]byte, string, err
 	policy, err := os.ReadFile(policyFilePath)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
-			policyFilePath = path.Join(homeDirectory, ".opk/policy.yml")
+			policyFilePath = path.Join(userHomeDirectory, ".opk/policy.yml")
 			// if we're accessing as non-root, check that /home/{input_principal}/policy.yml exists
 			// it should be created when the user runs zli configure as a non-root user
 			if _, err := os.Stat(policyFilePath); errors.Is(err, os.ErrNotExist) {
@@ -108,38 +141,4 @@ func GetPolicy(inputPrincipal string, homeDirectory string) ([]byte, string, err
 
 	// if no error, then default to returning the root policy
 	return policy, policyFilePath, nil
-}
-
-func readPolicyFile(policyFilePath string) ([]User, error) {
-	info, err := os.Stat(policyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to describe the file at path: %w", err)
-	}
-	mode := info.Mode()
-
-	// only the owner of this file should be able to write to it
-	if mode.Perm() != fs.FileMode(0600) {
-		return nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
-	}
-
-	content, err := os.ReadFile(policyFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	users := Users{}
-	if err := yaml.Unmarshal([]byte(content), &users); err != nil {
-		return nil, err
-	}
-
-	return users.Users, nil
-}
-
-func checkHomeDirPoliciesValidity(policies []User, principalDesired string) error {
-	for _, policy := range policies {
-		if len(policy.Principals) != 1 || policy.Principals[0] != principalDesired {
-			return fmt.Errorf("principals used in the home directory policy file are invalid")
-		}
-	}
-	return nil
 }

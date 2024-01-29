@@ -30,8 +30,8 @@ var (
 )
 
 type GoogleProvider struct {
-	Issuer       string
-	ClientID     string
+	issuer       string
+	clientID     string
 	clientSecret string
 	scopes       []string
 
@@ -44,6 +44,7 @@ type GoogleProvider struct {
 }
 
 var _ RefreshableOP = &GoogleProvider{}
+var _ Config = &GoogleProvider{}
 
 func NewGoogleProvider(
 	issuer,
@@ -76,8 +77,8 @@ func NewGoogleProvider(
 	}
 
 	provider := &GoogleProvider{
-		Issuer:           issuer,
-		ClientID:         clientID,
+		issuer:           issuer,
+		clientID:         clientID,
 		clientSecret:     clientSecret,
 		redirectEndpoint: redirectEndpoint,
 		redirectURI:      redirectURI,
@@ -111,8 +112,8 @@ func (g *GoogleProvider) RequestTokens(ctx context.Context, cicHash string) (*me
 
 	relyingParty, err := rp.NewRelyingPartyOIDC(
 		ctx,
-		g.Issuer,
-		g.ClientID,
+		g.issuer,
+		g.clientID,
 		g.clientSecret,
 		g.redirectURI.String(),
 		g.scopes,
@@ -175,8 +176,8 @@ func (g *GoogleProvider) Refresh(ctx context.Context) (*memguard.LockedBuffer, e
 
 	provider, err := rp.NewRelyingPartyOIDC(
 		ctx,
-		g.Issuer,
-		g.ClientID,
+		g.issuer,
+		g.clientID,
 		g.clientSecret,
 		g.redirectURI.String(),
 		g.scopes,
@@ -218,7 +219,7 @@ func (g *GoogleProvider) PublicKey(ctx context.Context, idt []byte) (crypto.Publ
 	}
 	kid := jwt.Signatures()[0].ProtectedHeaders().KeyID()
 
-	provider, err := zoidc.Discover(ctx, g.Issuer, zhttp.DefaultHTTPClient)
+	provider, err := zoidc.Discover(ctx, g.issuer, zhttp.DefaultHTTPClient)
 	if err != nil {
 		return nil, err
 	}
@@ -255,8 +256,8 @@ func (g *GoogleProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expecte
 
 	provider, err := rp.NewRelyingPartyOIDC(
 		ctx,
-		g.Issuer,
-		g.ClientID,
+		g.issuer,
+		g.clientID,
 		g.clientSecret,
 		g.redirectURI.String(),
 		g.scopes,
@@ -272,6 +273,14 @@ func (g *GoogleProvider) VerifyNonGQSig(ctx context.Context, idt []byte, expecte
 	}
 
 	return nil
+}
+
+func (g *GoogleProvider) ClientID() string {
+	return g.clientID
+}
+
+func (g *GoogleProvider) IssuerUrl() string {
+	return g.issuer
 }
 
 // Retrieve an open port

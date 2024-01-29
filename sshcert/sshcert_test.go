@@ -2,6 +2,7 @@ package sshcert
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -81,6 +83,25 @@ func TestCASignerCreation(t *testing.T) {
 	if err == nil {
 		t.Error(fmt.Errorf("expected for signature to fail as the wrong message is used"))
 	}
+}
+
+func TestInvalidSshPublicKey(t *testing.T) {
+	// Test that the SSH cert smuggler cannot be constructed and returns an
+	// error when given an SSH public key that isn't an SSH certificate
+
+	// Create SSH key that isn't a cert
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	pubKey, err := ssh.NewPublicKey(&key.PublicKey)
+	require.NoError(t, err)
+
+	// Marshal the key in expected authorized_keys format and parse the values
+	// needed to construct an SSH cert smuggler
+	splitMarshalPubkey := strings.Split(string(ssh.MarshalAuthorizedKey(pubKey)), " ")
+	require.Len(t, splitMarshalPubkey, 2)
+
+	_, err = NewFromAuthorizedKey(splitMarshalPubkey[0], splitMarshalPubkey[1])
+	require.Error(t, err)
 }
 
 func TestSshCertCreation(t *testing.T) {

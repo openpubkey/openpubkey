@@ -65,8 +65,12 @@ func NewFromAuthorizedKey(certType string, certB64 string) (*SshCertSmuggler, er
 	if certPubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certType + " " + certB64)); err != nil {
 		return nil, err
 	} else {
+		sshCert, ok := certPubkey.(*ssh.Certificate)
+		if !ok {
+			return nil, fmt.Errorf("parsed SSH authorized_key is not an SSH certificate")
+		}
 		opkcert := &SshCertSmuggler{
-			SshCert: certPubkey.(*ssh.Certificate),
+			SshCert: sshCert,
 		}
 		return opkcert, nil
 	}
@@ -103,13 +107,13 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, op *provider.GoogleProvider) (*pktoken.PKToken, error) {
+func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig provider.Config) (*pktoken.PKToken, error) {
 	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	err = verifyPKToken(ctx, op, pkt)
+	err = verifyPKToken(ctx, opConfig, pkt)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +137,10 @@ func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, op *provider.Goo
 	}
 }
 
-func verifyPKToken(ctx context.Context, op *provider.GoogleProvider, pkt *pktoken.PKToken) error {
-	ctxWithTimeout, _ := context.WithTimeout(ctx, 30*time.Second)
-	provider, err := oidc.NewProvider(ctxWithTimeout, op.Issuer)
+func verifyPKToken(ctx context.Context, opConfig provider.Config, pkt *pktoken.PKToken) error {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.IssuerUrl())
 	if err != nil {
 		return err
 	}
@@ -147,7 +152,7 @@ func verifyPKToken(ctx context.Context, op *provider.GoogleProvider, pkt *pktoke
 
 	// Verify ID token
 	verifier := provider.Verifier(&oidc.Config{
-		ClientID:        op.ClientID,
+		ClientID:        opConfig.ClientID(),
 		SkipExpiryCheck: true,
 	})
 	idToken, err := verifier.Verify(ctx, string(idt))
@@ -167,7 +172,7 @@ func verifyPKToken(ctx context.Context, op *provider.GoogleProvider, pkt *pktoke
 			return fmt.Errorf("failed to cast refreshed_id_token to string")
 		}
 
-		verifier := provider.Verifier(&oidc.Config{ClientID: op.ClientID})
+		verifier := provider.Verifier(&oidc.Config{ClientID: opConfig.ClientID()})
 		if _, err = verifier.Verify(ctx, refreshedIdToken); err != nil {
 			return err
 		}

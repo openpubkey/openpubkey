@@ -1,141 +1,106 @@
-package policy
+package policy_test
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/util"
-	"github.com/stretchr/testify/require"
+	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/stretchr/testify/assert"
 )
 
-// copyFile copies the content read from srcFilePath and writes it to a new file
-// located at destFilePath. The destination file has the expected permission
-// bits set that the policy enforcer requires
-func copyFile(t *testing.T, srcFilePath, destFilePath string) {
-	input, err := os.ReadFile(srcFilePath)
-	require.NoErrorf(t, err, "failed to read source file path %s", srcFilePath)
-
-	err = os.WriteFile(destFilePath, input, 0600)
-	require.NoErrorf(t, err, "failed to copy source file to destination path %s", destFilePath)
-}
-
-func TestPolicyApproved(t *testing.T) {
-	t.Skip()
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
+func TestAddAllowedPrincipal(t *testing.T) {
+	// Test adding an allowed principal to an opk-ssh policy
+	tests := []struct {
+		name           string
+		principal      string
+		userEmail      string
+		initialPolicy  *policy.Policy
+		expectedPolicy *policy.Policy
+	}{
+		{
+			name:          "empty policy",
+			principal:     "test",
+			userEmail:     "alice@example.com",
+			initialPolicy: &policy.Policy{},
+			expectedPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test"},
+					},
+				},
+			},
+		},
+		{
+			name:      "non-empty policy. user not found",
+			principal: "test",
+			userEmail: "bob@example.com",
+			initialPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test", "test2"},
+					},
+				}},
+			expectedPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "bob@example.com",
+						Principals: []string{"test"},
+					},
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test", "test2"},
+					},
+				},
+			},
+		},
+		{
+			name:      "user already exists. new principal",
+			principal: "test3",
+			userEmail: "alice@example.com",
+			initialPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test", "test2"},
+					},
+				}},
+			expectedPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test", "test2", "test3"},
+					},
+				},
+			},
+		},
+		{
+			name:      "user already exists. principal not new.",
+			principal: "test",
+			userEmail: "alice@example.com",
+			initialPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test"},
+					},
+				}},
+			expectedPolicy: &policy.Policy{
+				Users: []policy.User{
+					{
+						Email:      "alice@example.com",
+						Principals: []string{"test"},
+					},
+				},
+			},
+		},
 	}
-
-	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
-	}
-
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
-	copyFile(t, "./policy_test.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
-	}
-
-	// Check that policy yaml is properly parsed and checked
-	if err := policyEnforcer.CheckPolicy("test", pkt); err != nil {
-		t.Error(err)
-	}
-}
-
-func TestPolicyDeniedBadUser(t *testing.T) {
-	t.Skip()
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
-	}
-
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test.yml")
-	copyFile(t, "./policy_test.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
-	}
-
-	// Check that policy yaml is properly parsed and checked
-	if err := policyEnforcer.CheckPolicy("baduser", pkt); err != nil {
-		fmt.Println(err.Error())
-		if !strings.Contains(strings.ToLower(err.Error()), "no policy to allow") {
-			t.Error(err)
-		}
-	}
-}
-
-func TestPolicyDeniedNoUserEntry(t *testing.T) {
-	t.Skip()
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
-	if err != nil {
-		t.Error(err)
-	}
-
-	tempDir := t.TempDir()
-	policyFilePath := filepath.Join(tempDir, "policy_test_no_entry.yml")
-	copyFile(t, "./policy_test_no_entry.yml", policyFilePath)
-	policyEnforcer := Enforcer{
-		PolicyFilePath: policyFilePath,
-	}
-
-	// Check that policy yaml is properly parsed and that the error is no user entry
-	if err := policyEnforcer.CheckPolicy("test", pkt); err != nil {
-		fmt.Println(err.Error())
-		if !strings.Contains(strings.ToLower(err.Error()), "no policy included for user") {
-			t.Error(err)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("AddAllowedPrincipal(principal=%s, userEmail=%s)", tt.principal, tt.userEmail)
+			t.Logf("Initial policy: %#v", tt.initialPolicy)
+			tt.initialPolicy.AddAllowedPrincipal(tt.principal, tt.userEmail)
+			assert.ElementsMatch(t, tt.expectedPolicy.Users, tt.initialPolicy.Users)
+		})
 	}
 }
