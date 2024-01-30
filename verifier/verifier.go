@@ -2,28 +2,44 @@ package verifier
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type ProviderVerifier interface {
-	Issuer() string
-	// Returns the payload claim name where the cicHash was stored from RequestTokens
-	CommitmentClaim() string
-}
-type CosignerVerifier interface{}
+type VerifierOption func(*pktoken.PKToken) error
 
-type Verifier struct {
-	provider ProviderVerifier
-}
-
-func New(provider ProviderVerifier, cosigners []CosignerVerifier) (*Verifier, error) {
-	return nil, nil
-}
-
-func (v *Verifier) VerifyPKToken(token *pktoken.PKToken, options ...Option) error {
-	if err := token.Verify(context.Background(), v.provider.CommitmentClaim()); err != nil {
+// Verifies whether a PK token is valid and matches all expected claims.
+//
+// issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
+// commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
+func VerifyPKToken(issuer, commitmentClaim string, pkt *pktoken.PKToken, options ...VerifierOption) error {
+	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
+	// equal to some claim in the payload
+	if err := pkt.Verify(context.Background(), commitmentClaim); err != nil {
 		return err
 	}
+
+	var claims struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+		return err
+	}
+
+	// Check that our provider issuer matches expected
+	if issuer != claims.Issuer {
+		return fmt.Errorf("unexpected issuer: %s, expected %s", claims.Issuer, issuer)
+	}
+
+	// Enforce all additional, optional checks
+	for _, option := range options {
+		// cycles through any provided options, returning the first thrown error
+		if err := option(pkt); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

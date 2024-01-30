@@ -26,12 +26,11 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/util"
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type CosignerClaims struct {
-	Iss         string `json:"iss"`
+	Issuer      string `json:"iss"`
 	KeyID       string `json:"kid"`
 	Algorithm   string `json:"alg"`
 	AuthID      string `json:"eid"`
@@ -43,7 +42,12 @@ type CosignerClaims struct {
 	Typ         string `json:"typ"`
 }
 
-func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
+func (p *PKToken) ParseCosignerClaims() (*CosignerClaims, error) {
+	protected, err := json.Marshal(p.Cos.ProtectedHeaders())
+	if err != nil {
+		return nil, err
+	}
+
 	var claims CosignerClaims
 	if err := json.Unmarshal(protected, &claims); err != nil {
 		return nil, err
@@ -51,7 +55,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 
 	// Check that all fields are present
 	var missing []string
-	if claims.Iss == "" {
+	if claims.Issuer == "" {
 		missing = append(missing, `iss`)
 	}
 	if claims.KeyID == "" {
@@ -86,7 +90,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	return &claims, nil
 }
 
-func (p *PKToken) VerifyCosSig() error {
+func (p *PKToken) VerifyCosignerSignature() error {
 	if p.Cos == nil {
 		return fmt.Errorf("no cosigner signature")
 	}
@@ -97,15 +101,7 @@ func (p *PKToken) VerifyCosSig() error {
 	}
 
 	// Parse our header
-	rawHeader, _, _, err := jws.SplitCompact(cosToken)
-	if err != nil {
-		return err
-	}
-	decodedHeader, err := util.Base64DecodeForJWT(rawHeader)
-	if err != nil {
-		return err
-	}
-	header, err := ParseCosignerClaims(decodedHeader)
+	header, err := p.ParseCosignerClaims()
 	if err != nil {
 		return err
 	}
@@ -115,7 +111,7 @@ func (p *PKToken) VerifyCosSig() error {
 		return fmt.Errorf("cosigner signature expired")
 	}
 
-	discConf, err := oidcclient.Discover(header.Iss, http.DefaultClient)
+	discConf, err := oidcclient.Discover(header.Issuer, http.DefaultClient)
 	if err != nil {
 		return fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
