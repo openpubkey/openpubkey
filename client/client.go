@@ -31,13 +31,15 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
-	verifier.ProviderVerifier
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
+	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
+	Issuer() string
+	// Returns the ID token payload claim name where the cicHash was stored during issuance
+	CommitmentClaim() string
 }
 
 type BrowserOpenIdProvider interface {

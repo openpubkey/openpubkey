@@ -14,7 +14,13 @@ type VerifierOption func(*pktoken.PKToken) error
 //
 // issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
-func VerifyPKToken(issuer, commitmentClaim string, pkt *pktoken.PKToken, options ...VerifierOption) error {
+func VerifyPKToken(
+	ctx context.Context,
+	issuer string,
+	commitmentClaim string,
+	pkt *pktoken.PKToken,
+	options ...VerifierOption,
+) error {
 	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
 	// equal to some claim in the payload
 	if err := pkt.Verify(context.Background(), commitmentClaim); err != nil {
@@ -35,7 +41,7 @@ func VerifyPKToken(issuer, commitmentClaim string, pkt *pktoken.PKToken, options
 
 	// Enforce all additional, optional checks
 	for _, option := range options {
-		// cycles through any provided options, returning the first thrown error
+		// cycles through any provided options, returning the first error if any
 		if err := option(pkt); err != nil {
 			return err
 		}

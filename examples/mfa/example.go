@@ -26,6 +26,7 @@ import (
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 var (
@@ -82,13 +83,7 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		verifier := client.PKTokenVerifier{
-			AllowedProviders: []client.OpenIdProvider{provider},
-			AllowedCosigners: []client.CosignerProvider{cosignerProvider},
-		}
-
-		// Verify our pktoken including the cosigner signature
-		if err := verifier.Verify(context.TODO(), pkt); err != nil {
+		if err := verifier.VerifyPKToken(context.TODO(), provider.Issuer(), provider.CommitmentClaim(), pkt); err != nil {
 			fmt.Println("Failed to verify PK token:", err)
 			os.Exit(1)
 		} else {

@@ -159,7 +159,7 @@ func TestBadCosSigTyp(t *testing.T) {
 	for i, tc := range tests {
 
 		protected := pktoken.CosignerClaims{
-			Iss:         "https://example.com",
+			Issuer:      "https://example.com",
 			KeyID:       kid,
 			Algorithm:   string(alg),
 			AuthID:      "test-auth-id",

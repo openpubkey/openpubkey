@@ -94,7 +94,7 @@ func (c *AuthCosigner) RedeemAuthcode(sig []byte) ([]byte, error) {
 func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authState AuthState, authID string) ([]byte, error) {
 
 	protected := pktoken.CosignerClaims{
-		Iss:         c.Issuer,
+		Issuer:      c.Issuer,
 		KeyID:       c.KeyID,
 		Algorithm:   c.Alg.String(),
 		AuthID:      authID,
