@@ -30,7 +30,6 @@ import (
 	"path"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
@@ -67,7 +66,6 @@ func main() {
 	}
 
 	signGQ := true
-	keyAlgorithm := jwa.ES256
 
 	// Directory for saving data
 	outputDir := "output/google"
@@ -75,14 +73,14 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := login(outputDir, signGQ); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login successful!")
 		}
 	case "sign":
 		message := "sign me!!"
-		if err := sign(message, outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := sign(message, outputDir, signGQ); err != nil {
 			fmt.Println("Failed to sign test message:", err)
 		}
 	default:
@@ -90,11 +88,7 @@ func main() {
 	}
 }
 
-func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		return err
-	}
+func login(outputDir string, signGQ bool) error {
 
 	client := &client.OpkClient{
 		Op: &providers.GoogleOp{
@@ -105,9 +99,11 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
+		SignGQ:      signGQ,
+		ExtraClaims: map[string]any{"extra": "yes"},
 	}
 
-	pkt, err := client.Auth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	pkt, err := client.Auth(context.Background())
 	if err != nil {
 		return err
 	}
@@ -120,10 +116,10 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 	fmt.Println(string(pktJson))
 
 	// Save our signer and pktoken by writing them to a file
-	return saveLogin(outputDir, signer.(*ecdsa.PrivateKey), pkt)
+	return saveLogin(outputDir, client.Signer.(*ecdsa.PrivateKey), pkt)
 }
 
-func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+func sign(message string, outputDir string, signGq bool) error {
 	signer, pkt, err := loadLogin(outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)

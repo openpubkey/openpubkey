@@ -31,11 +31,16 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 type OpkClient struct {
-	Op   OpenIdProvider
-	CosP *CosignerProvider
+	Op          OpenIdProvider
+	CosP        *CosignerProvider
+	Signer      crypto.Signer
+	Alg         jwa.KeyAlgorithm
+	SignGQ      bool // Default is false
+	ExtraClaims map[string]any
 }
 
 // Auth returns a PK Token by running the OpenPubkey protocol. It will first
@@ -45,16 +50,26 @@ type OpkClient struct {
 //
 // signGQ specifies if the OPs signature on the ID Token should be replaced
 // with a GQ signature.
-func (o *OpkClient) Auth(
-	ctx context.Context,
-	signer crypto.Signer,
-	alg jwa.KeyAlgorithm,
-	extraClaims map[string]any,
-	signGQ bool,
-) (*pktoken.PKToken, error) {
+func (o *OpkClient) Auth(ctx context.Context) (*pktoken.PKToken, error) {
+	if o.Alg == nil {
+		o.Alg = jwa.ES256
+	}
+
+	if o.Signer == nil {
+		signer, err := util.GenKeyPair(o.Alg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create key pair for client: %d ", err)
+		}
+		o.Signer = signer
+	}
+
+	if o.ExtraClaims == nil {
+		o.ExtraClaims = map[string]any{}
+	}
+
 	// If no Cosigner is set then do standard OIDC authentication
 	if o.CosP == nil {
-		return o.OidcAuth(ctx, signer, alg, extraClaims, signGQ)
+		return o.OidcAuth(ctx, o.Signer, o.Alg, o.ExtraClaims, o.SignGQ)
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -68,11 +83,11 @@ func (o *OpkClient) Auth(
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 		})
 
-		pkt, err := o.OidcAuth(ctx, signer, alg, extraClaims, signGQ)
+		pkt, err := o.OidcAuth(ctx, o.Signer, o.Alg, o.ExtraClaims, o.SignGQ)
 		if err != nil {
 			return nil, err
 		}
-		return o.CosP.RequestToken(ctx, signer, pkt, redirCh)
+		return o.CosP.RequestToken(ctx, o.Signer, pkt, redirCh)
 	}
 }
 

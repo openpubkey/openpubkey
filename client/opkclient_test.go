@@ -16,8 +16,6 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	alg := jwa.ES256
-
 	testCases := []struct {
 		name string
 		gq   bool
@@ -33,16 +31,12 @@ func TestClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			signer, err := util.GenKeyPair(alg)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			c := client.OpkClient{
-				Op: op,
+				Op:     op,
+				SignGQ: tc.gq,
 			}
 
-			pkt, err := c.OidcAuth(context.Background(), signer, alg, map[string]any{}, tc.gq)
+			pkt, err := c.Auth(context.Background())
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -21,11 +21,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner"
-	"github.com/openpubkey/openpubkey/util"
 )
 
 var (
@@ -64,17 +62,13 @@ func main() {
 	case "login":
 
 		opk := &client.OpkClient{
-			Op:   provider,
-			CosP: &cosignerProvider,
+			Op:          provider,
+			CosP:        &cosignerProvider,
+			ExtraClaims: map[string]any{},
+			SignGQ:      false,
 		}
 
-		clientKey, err := util.GenKeyPair(jwa.ES256)
-		if err != nil {
-			fmt.Println("error generating key pair:", err)
-			return
-		}
-
-		pkt, err := opk.Auth(context.TODO(), clientKey, jwa.ES256, map[string]any{}, false)
+		pkt, err := opk.Auth(context.TODO())
 		if err != nil {
 			fmt.Println(err)
 			return
