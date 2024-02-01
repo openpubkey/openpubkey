@@ -162,7 +162,6 @@ func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 	}
 }
 
-
 func createSSHCert(cxt context.Context, client *client.OpkClient, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.Auth(cxt)
 	if err != nil {
