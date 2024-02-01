@@ -35,12 +35,100 @@ import (
 )
 
 type OpkClient struct {
-	Op          OpenIdProvider
-	CosP        *CosignerProvider
-	Signer      crypto.Signer
-	Alg         jwa.KeyAlgorithm
-	SignGQ      bool // Default is false
-	ExtraClaims map[string]any
+	Op     OpenIdProvider
+	CosP   *CosignerProvider
+	signer crypto.Signer
+	alg    jwa.KeyAlgorithm
+	signGQ bool // Default is false
+}
+
+// ClientOpts contains options for constructing an OpkClient
+type ClientOpts func(o *OpkClient)
+
+// WithSigner allows the caller to inject their own signer and algorithm.
+// Use this option if to generate to bring your own user key pair. If this
+// option is not set the OpkClient constructor will automatically generate
+// a signer, i.e., key pair.
+// Example use:
+//
+//	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+//	WithSigner(signer, jwa.ES256)
+func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
+	return func(o *OpkClient) {
+		o.signer = signer
+		o.alg = alg
+	}
+}
+
+// WithSignGQ specifies if the client should replace the ID Token's signature
+// with a GQ Signature.
+func WithSignGQ(signGQ bool) ClientOpts {
+	return func(o *OpkClient) {
+		o.signGQ = signGQ
+	}
+}
+
+// WithCosignerProvider specifies what cosigner provider should be used to
+// cosign the PK Token. If this is not specified then the cosigning setup
+// is skipped.
+func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
+	return func(o *OpkClient) {
+		o.CosP = cosP
+	}
+}
+
+func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
+	client := &OpkClient{
+		Op:     op,
+		signer: nil,
+		alg:    nil,
+		signGQ: false,
+	}
+
+	for _, applyOpt := range opts {
+		applyOpt(client)
+	}
+
+	if client.alg == nil && client.signer != nil {
+		return nil, fmt.Errorf("signer specified but alg is nil, must specify alg  of signer")
+	}
+
+	if client.signer == nil {
+		// Generate signer for specified alg, if no alg specified choose ES256
+		if client.alg == nil {
+			client.alg = jwa.ES256
+		}
+
+		signer, err := util.GenKeyPair(client.alg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create key pair for client: %w ", err)
+		}
+		client.signer = signer
+	}
+
+	return client, nil
+}
+
+type AuthOptsStruct struct {
+	extraClaims map[string]any
+}
+type AuthOpts func(a *AuthOptsStruct)
+
+// WithExtraClaims specifies additional values to be included in the
+// CIC. These claims will be include in the CIC protected header and
+// will be hashed into the commitment claim in the ID Token. The
+// commitment claim is typically the nonce or aud claim in the ID Token).
+// Example use:
+//
+//	WithExtraClaims(map[string]any{"claimKey": "claimValuez"})
+func WithExtraClaims(extraClaims map[string]any) AuthOpts {
+	return func(a *AuthOptsStruct) {
+		// Replace with maps.Clone when Clone is no longer experimental
+		a.extraClaims = map[string]any{}
+		for k, v := range extraClaims {
+			a.extraClaims[k] = v
+		}
+	}
 }
 
 // Auth returns a PK Token by running the OpenPubkey protocol. It will first
@@ -50,26 +138,17 @@ type OpkClient struct {
 //
 // signGQ specifies if the OPs signature on the ID Token should be replaced
 // with a GQ signature.
-func (o *OpkClient) Auth(ctx context.Context) (*pktoken.PKToken, error) {
-	if o.Alg == nil {
-		o.Alg = jwa.ES256
+func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToken, error) {
+	authOpts := &AuthOptsStruct{
+		extraClaims: map[string]any{},
 	}
-
-	if o.Signer == nil {
-		signer, err := util.GenKeyPair(o.Alg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create key pair for client: %d ", err)
-		}
-		o.Signer = signer
-	}
-
-	if o.ExtraClaims == nil {
-		o.ExtraClaims = map[string]any{}
+	for _, applyOpt := range opts {
+		applyOpt(authOpts)
 	}
 
 	// If no Cosigner is set then do standard OIDC authentication
 	if o.CosP == nil {
-		return o.OidcAuth(ctx, o.Signer, o.Alg, o.ExtraClaims, o.SignGQ)
+		return o.OidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims, o.signGQ)
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -83,11 +162,11 @@ func (o *OpkClient) Auth(ctx context.Context) (*pktoken.PKToken, error) {
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 		})
 
-		pkt, err := o.OidcAuth(ctx, o.Signer, o.Alg, o.ExtraClaims, o.SignGQ)
+		pkt, err := o.OidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims, o.signGQ)
 		if err != nil {
 			return nil, err
 		}
-		return o.CosP.RequestToken(ctx, o.Signer, pkt, redirCh)
+		return o.CosP.RequestToken(ctx, o.signer, pkt, redirCh)
 	}
 }
 
@@ -180,4 +259,16 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 	return pkt, nil
+}
+
+func (o *OpkClient) GetSigner() crypto.Signer {
+	return o.signer
+}
+
+func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
+	return o.alg
+}
+
+func (o *OpkClient) GetSignGQ() bool {
+	return o.signGQ
 }

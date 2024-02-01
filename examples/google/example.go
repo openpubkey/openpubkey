@@ -89,9 +89,8 @@ func main() {
 }
 
 func login(outputDir string, signGQ bool) error {
-
-	client := &client.OpkClient{
-		Op: &providers.GoogleOp{
+	opkClient, err := client.New(
+		&providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Scopes:       scopes,
@@ -99,11 +98,14 @@ func login(outputDir string, signGQ bool) error {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
-		SignGQ:      signGQ,
-		ExtraClaims: map[string]any{"extra": "yes"},
+		client.WithSignGQ(signGQ),
+	)
+	if err != nil {
+		return err
 	}
 
-	pkt, err := client.Auth(context.Background())
+	pkt, err := opkClient.Auth(context.Background(),
+		client.WithExtraClaims(map[string]any{"extra": "yes"}))
 	if err != nil {
 		return err
 	}
@@ -116,7 +118,7 @@ func login(outputDir string, signGQ bool) error {
 	fmt.Println(string(pktJson))
 
 	// Save our signer and pktoken by writing them to a file
-	return saveLogin(outputDir, client.Signer.(*ecdsa.PrivateKey), pkt)
+	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
 }
 
 func sign(message string, outputDir string, signGq bool) error {

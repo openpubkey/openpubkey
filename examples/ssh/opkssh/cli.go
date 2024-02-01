@@ -82,14 +82,13 @@ func main() {
 				os.Exit(1)
 			}
 
-			client := &client.OpkClient{
-				Op:     &op,
-				Signer: signer,
-				Alg:    alg,
-				SignGQ: false,
-			}
+			opkClient, err := client.New(
+				&op,
+				client.WithSigner(signer, alg),
+				client.WithSignGQ(false),
+			)
 
-			certBytes, seckeySshPem, err := createSSHCert(context.Background(), client, principals)
+			certBytes, seckeySshPem, err := createSSHCert(context.Background(), opkClient, principals)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -169,7 +168,7 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, principals []s
 	if err != nil {
 		return nil, nil, err
 	}
-	sshSigner, err := ssh.NewSignerFromSigner(client.Signer)
+	sshSigner, err := ssh.NewSignerFromSigner(client.GetSigner())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -185,7 +184,7 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, principals []s
 	}
 	certBytes := ssh.MarshalAuthorizedKey(sshCert)
 
-	seckeySsh, err := ssh.MarshalPrivateKey(client.Signer, "openpubkey cert")
+	seckeySsh, err := ssh.MarshalPrivateKey(client.GetSigner(), "openpubkey cert")
 	if err != nil {
 		return nil, nil, err
 	}

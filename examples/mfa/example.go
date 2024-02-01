@@ -61,11 +61,12 @@ func main() {
 	switch command {
 	case "login":
 
-		opk := &client.OpkClient{
-			Op:          provider,
-			CosP:        &cosignerProvider,
-			ExtraClaims: map[string]any{},
-			SignGQ:      false,
+		opk, err := client.New(provider,
+			client.WithCosignerProvider(&cosignerProvider),
+			client.WithSignGQ(false))
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
 
 		pkt, err := opk.Auth(context.TODO())
