@@ -111,7 +111,7 @@ func main() {
 			}
 
 			if len(os.Args) != 5 {
-				fmt.Println("Invalid number of arguments for ver, should be `opkssh ver <User (TOKEN u)> <Key type (TOKEN t)> <Cert (TOKEN k)> `")
+				fmt.Println("Invalid number of arguments for ver, should be `opkssh ver <User (TOKEN u)> <Cert (TOKEN k)> <Key type (TOKEN t)>`")
 				os.Exit(1)
 			}
 			userArg := os.Args[2]
@@ -136,8 +136,8 @@ func main() {
 //
 // The following lines are added to /etc/ssh/sshd_config:
 //
-//	authorizedKeysCommand /etc/opk/opkssh ver %u %t %k
-//	AuthorizedPrincipalsCommandUser root
+//	AuthorizedKeysCommand /etc/opk/opkssh ver %u %k %t
+//	AuthorizedKeysCommandUser root
 //
 // The parameters specified in the config map the parameters sent to the function below.
 // We prepend "Arg" to specify which ones are arguments sent by sshd. They are:
@@ -165,6 +165,9 @@ func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 
 func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
 	pkt, err := client.Auth(cxt, signer, alg, map[string]any{}, gqFlag)
+	if err != nil {
+		return nil, nil, err
+	}
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
