@@ -119,7 +119,7 @@ type AuthOpts func(a *AuthOptsStruct)
 // WithExtraClaims specifies additional values to be included in the
 // CIC. These claims will be include in the CIC protected header and
 // will be hashed into the commitment claim in the ID Token. The
-// commitment claim is typically the nonce or aud claim in the ID Token).
+// commitment claim is typically the nonce or aud claim in the ID Token.
 // Example use:
 //
 //	WithExtraClaims(map[string]any{"claimKey": "claimValuez"})
