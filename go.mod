@@ -9,8 +9,7 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/jeremija/gosubmit v0.2.7
-	github.com/lestrrat-go/jwx v1.2.27
-	github.com/lestrrat-go/jwx/v2 v2.0.16
+	github.com/lestrrat-go/jwx/v2 v2.0.19
 	github.com/melbahja/goph v1.4.0
 	github.com/mixpanel/mixpanel-go v1.2.1
 	github.com/openpubkey/openpubkey v0.2.1
@@ -50,7 +49,6 @@ require (
 	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.4 // indirect
@@ -89,7 +87,7 @@ require (
 	golang.org/x/mod v0.13.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect

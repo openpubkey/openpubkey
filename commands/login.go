@@ -16,8 +16,8 @@ import (
 
 	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/bastionzero/opk-ssh/sshcert"
-	"github.com/lestrrat-go/jwx/jws"
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/mixpanel/mixpanel-go"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
