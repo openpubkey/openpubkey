@@ -36,7 +36,7 @@ import (
 
 type OpkClient struct {
 	Op     OpenIdProvider
-	CosP   *CosignerProvider
+	cosP   *CosignerProvider
 	signer crypto.Signer
 	alg    jwa.KeyAlgorithm
 	signGQ bool // Default is false
@@ -73,7 +73,7 @@ func WithSignGQ(signGQ bool) ClientOpts {
 // is skipped.
 func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	return func(o *OpkClient) {
-		o.CosP = cosP
+		o.cosP = cosP
 	}
 }
 
@@ -146,7 +146,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 	}
 
 	// If no Cosigner is set then do standard OIDC authentication
-	if o.CosP == nil {
+	if o.cosP == nil {
 		return o.OidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims, o.signGQ)
 	}
 
@@ -165,7 +165,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 		if err != nil {
 			return nil, err
 		}
-		return o.CosP.RequestToken(ctx, o.signer, pkt, redirCh)
+		return o.cosP.RequestToken(ctx, o.signer, pkt, redirCh)
 	}
 }
 
@@ -258,6 +258,14 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 	return pkt, nil
+}
+
+func (o *OpkClient) GetOp() OpenIdProvider {
+	return o.Op
+}
+
+func (o *OpkClient) GetCosP() *CosignerProvider {
+	return o.cosP
 }
 
 func (o *OpkClient) GetSigner() crypto.Signer {
