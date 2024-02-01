@@ -167,7 +167,7 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 	pkt, err := client.Auth(cxt, signer, alg, map[string]any{}, gqFlag)
 	if err != nil {
 		return nil, nil, err
-	}	
+	}
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
