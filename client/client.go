@@ -77,6 +77,8 @@ func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	}
 }
 
+// New returns a new client.OpkClient. The op argument should be the
+// OpenID Provider you want to authenticate against.
 func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	client := &OpkClient{
 		Op:     op,
