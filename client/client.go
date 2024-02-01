@@ -96,7 +96,7 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	}
 
 	if client.signer == nil {
-		// Generate signer for specified alg, if no alg specified choose ES256
+		// Generate signer for specified alg. If no alg specified, defaults to ES256
 		if client.alg == nil {
 			client.alg = jwa.ES256
 		}
