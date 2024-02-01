@@ -60,8 +60,8 @@ func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
 	}
 }
 
-// WithSignGQ specifies if the client should replace the ID Token's signature
-// with a GQ Signature.
+// WithSignGQ specifies if the OPs signature on the ID Token should be replaced
+// with a GQ signature by the client.
 func WithSignGQ(signGQ bool) ClientOpts {
 	return func(o *OpkClient) {
 		o.signGQ = signGQ
@@ -137,9 +137,6 @@ func WithExtraClaims(extraClaims map[string]any) AuthOpts {
 // authenticate to the configured OpenID Provider (OP) and receive an ID Token.
 // Using this ID Token it will generate a PK Token. If a Cosigner has been
 // configured it will also attempt to get the PK Token cosigned.
-//
-// signGQ specifies if the OPs signature on the ID Token should be replaced
-// with a GQ signature.
 func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToken, error) {
 	authOpts := &AuthOptsStruct{
 		extraClaims: map[string]any{},
