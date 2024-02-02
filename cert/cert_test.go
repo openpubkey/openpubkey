@@ -42,7 +42,7 @@ func TestCreateX509Cert(t *testing.T) {
 	opkClient, err := client.New(op, client.WithSigner(signer, alg), client.WithSignGQ(true))
 	require.NoError(t, err)
 
-	pkToken, err := opkClient.Auth(context.Background(), client.WithExtraClaims(map[string]any{}))
+	pkToken, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	// create x509 cert from pk token

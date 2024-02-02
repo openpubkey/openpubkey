@@ -105,7 +105,7 @@ func login(outputDir string, signGQ bool) error {
 	}
 
 	pkt, err := opkClient.Auth(context.Background(),
-		client.WithExtraClaims(map[string]any{"extra": "yes"}))
+		client.WithExtraClaim("extra", "yes"))
 	if err != nil {
 		return err
 	}

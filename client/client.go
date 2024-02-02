@@ -116,20 +116,19 @@ type AuthOptsStruct struct {
 }
 type AuthOpts func(a *AuthOptsStruct)
 
-// WithExtraClaims specifies additional values to be included in the
+// WithExtraClaim specifies additional values to be included in the
 // CIC. These claims will be include in the CIC protected header and
 // will be hashed into the commitment claim in the ID Token. The
 // commitment claim is typically the nonce or aud claim in the ID Token.
 // Example use:
 //
-//	WithExtraClaims(map[string]any{"claimKey": "claimValuez"})
-func WithExtraClaims(extraClaims map[string]any) AuthOpts {
+//	WithExtraClaim("claimKey", "claimValue")
+func WithExtraClaim(k string, v string) AuthOpts {
 	return func(a *AuthOptsStruct) {
-		// Replace with maps.Clone when Clone is no longer experimental
-		a.extraClaims = map[string]any{}
-		for k, v := range extraClaims {
-			a.extraClaims[k] = v
+		if a.extraClaims == nil {
+			a.extraClaims = map[string]any{}
 		}
+		a.extraClaims[k] = v
 	}
 }
 

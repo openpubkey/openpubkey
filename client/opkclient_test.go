@@ -39,14 +39,14 @@ func TestClient(t *testing.T) {
 		gq          bool
 		signer      bool
 		alg         jwa.KeyAlgorithm
-		extraClaims map[string]any
+		extraClaims map[string]string
 	}{
 		{name: "without GQ", gq: false, signer: false},
 		{name: "with GQ", gq: true, signer: false},
 		{name: "with GQ, with signer", gq: true, signer: true, alg: jwa.RS256},
-		{name: "with GQ, with signer, with empty extraClaims ", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]any{}},
-		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]any{"extra": "yes"}},
-		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]any{"extra": "yes", "aaa": "bbb"}},
+		{name: "with GQ, with signer, with empty extraClaims ", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]string{}},
+		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]string{"extra": "yes"}},
+		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
 	op, err := providers.NewMockOpenIdProvider()
@@ -73,14 +73,19 @@ func TestClient(t *testing.T) {
 			require.Equal(t, tc.gq, c.GetSignGQ(), tc.name)
 
 			var pkt *pktoken.PKToken
-
 			if tc.extraClaims != nil {
-				pkt, err = c.Auth(context.Background(), client.WithExtraClaims(tc.extraClaims))
+				extraClaimsOpts := []client.AuthOpts{}
+				for k, v := range tc.extraClaims {
+					extraClaimsOpts = append(extraClaimsOpts,
+						client.WithExtraClaim(k, v))
+				}
+
+				pkt, err = c.Auth(context.Background(), extraClaimsOpts...)
 				require.NoError(t, err, tc.name)
+
 				cicPH, err := pkt.Cic.ProtectedHeaders().AsMap(context.TODO())
 				require.NoError(t, err, tc.name)
 
-				// ensure the extra claims we set are in the PK Token
 				for k, v := range tc.extraClaims {
 					require.Equal(t, v, cicPH[k], tc.name)
 				}
