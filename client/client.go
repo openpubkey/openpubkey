@@ -92,7 +92,7 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	}
 
 	if client.alg == nil && client.signer != nil {
-		return nil, fmt.Errorf("signer specified but alg is nil, must specify alg  of signer")
+		return nil, fmt.Errorf("signer specified but alg is nil, must specify alg of signer")
 	}
 
 	if client.signer == nil {
