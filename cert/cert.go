@@ -48,6 +48,8 @@ func CreateX509Cert(pkToken *pktoken.PKToken, signer crypto.Signer) ([]byte, err
 	return pem.EncodeToMemory(certBlock), nil
 }
 
+// PktToX509Template takes a PK Token and returns a X.509 certificate template
+// with the fields of the template set to the values in the X509
 func PktToX509Template(pkt *pktoken.PKToken) (*x509.Certificate, error) {
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {

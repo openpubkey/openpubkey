@@ -123,13 +123,9 @@ func (a *Ca) PktToSignedX509(pktJson []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cic, err := pkt.GetCicValues()
+
+	pktUpk, err := ExtractRawPubkey(pkt)
 	if err != nil {
-		return nil, err
-	}
-	upk := cic.PublicKey()
-	var rawUpk interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
-	if err := upk.Raw(&rawUpk); err != nil {
 		return nil, err
 	}
 
@@ -147,7 +143,7 @@ func (a *Ca) PktToSignedX509(pktJson []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, rawUpk, a.pksk)
+	subCertBytes, err := x509.CreateCertificate(rand.Reader, subTemplate, caTemplate, pktUpk, a.pksk)
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +194,9 @@ func (a *Ca) VerifyPktCert(issuedCertPEM []byte) error {
 		return err
 	}
 	pktUpk, err := ExtractRawPubkey(pkt)
+	if err != nil {
+		return err
+	}
 
 	certPublickey := cert.PublicKey.(*ecdsa.PublicKey)
 	if !certPublickey.Equal(pktUpk) {

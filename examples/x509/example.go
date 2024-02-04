@@ -17,17 +17,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -35,9 +28,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/x509/ca"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-	"golang.org/x/crypto/sha3"
 )
 
 // Variables for building our google provider
@@ -49,10 +40,6 @@ var (
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
 	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
-
-	// File names for when we save or load our pktoken and the corresponding signing key
-	skFileName  = "key.pem"
-	pktFileName = "pktoken.json"
 )
 
 func main() {
@@ -70,33 +57,20 @@ func main() {
 	signGQ := true
 	keyAlgorithm := jwa.ES256
 
-	// Directory for saving data
-	outputDir := "output/google"
-
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := login(keyAlgorithm, signGQ); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
-			fmt.Println("Login successful!")
-		}
-	case "sign":
-		message := "sign me!!"
-		if err := sign(message, outputDir, keyAlgorithm, signGQ); err != nil {
-			fmt.Println("Failed to sign test message:", err)
+			fmt.Println("Login and X509 issuance successful!")
 		}
 	default:
 		fmt.Println("Unrecognized command:", command)
 	}
 }
 
-func CA(pkt *pktoken.PKToken) error {
-
-	return nil
-}
-
-func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
+func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 	signer, err := util.GenKeyPair(alg)
 	if err != nil {
 		return err
@@ -136,89 +110,17 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 	}
 	fmt.Println("Issued Cert: \n", string(pemSubCert))
 
-	err = CertAuth.VerifyPktCert(pemSubCert)
-	if err != nil {
-		return err
-	}
-
 	msg := []byte("All is discovered - flee at once")
 	signedMsg, err := pkt.NewSignedMessage(msg, signer)
 	if err != nil {
 		return err
 	}
-	println(string(msg))
-	println(string(signedMsg))
+	println("Signed Message: \n", string(signedMsg))
+
+	err = CertAuth.VerifyPktCert(pemSubCert)
+	if err != nil {
+		return err
+	}
 
 	return nil
-}
-
-func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
-	signer, pkt, err := loadLogin(outputDir)
-	if err != nil {
-		return fmt.Errorf("failed to load client state: %w", err)
-	}
-
-	msgHashSum := sha3.Sum256([]byte(message))
-	sig, err := signer.Sign(rand.Reader, msgHashSum[:], crypto.SHA256)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Signed Message:", message)
-	fmt.Println("Praise Sigma:", base64.StdEncoding.EncodeToString(sig))
-	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
-	fmt.Println("Cert:")
-
-	pktJson, err := json.Marshal(pkt)
-	if err != nil {
-		return err
-	}
-
-	// Pretty print our json token
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
-		return err
-	}
-	fmt.Println(prettyJSON.String())
-
-	return nil
-}
-
-func saveLogin(outputDir string, sk *ecdsa.PrivateKey, pkt *pktoken.PKToken) error {
-	if err := os.MkdirAll(outputDir, 0777); err != nil {
-		return err
-	}
-
-	skFilePath := path.Join(outputDir, skFileName)
-	if err := util.WriteSKFile(skFilePath, sk); err != nil {
-		return err
-	}
-
-	pktFilePath := path.Join(outputDir, pktFileName)
-	pktJson, err := json.Marshal(pkt)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(pktFilePath, pktJson, 0600)
-}
-
-func loadLogin(outputDir string) (crypto.Signer, *pktoken.PKToken, error) {
-	skFilePath := path.Join(outputDir, skFileName)
-	key, err := util.ReadSKFile(skFilePath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pktFilePath := path.Join(outputDir, pktFileName)
-	pktJson, err := os.ReadFile(pktFilePath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var pkt *pktoken.PKToken
-	if err := json.Unmarshal(pktJson, &pkt); err != nil {
-		return nil, nil, err
-	}
-
-	return key, pkt, nil
 }
