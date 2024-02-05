@@ -31,14 +31,19 @@ import (
 )
 
 func TestCreateX509Cert(t *testing.T) {
+	alg := jwa.ES256
 	// generate pktoken
-	signer, err := util.GenKeyPair(jwa.ES256)
-	require.NoError(t, err)
-	provider, err := providers.NewMockOpenIdProvider()
+
+	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opkClient := client.OpkClient{Op: provider}
-	pkToken, err := opkClient.OidcAuth(context.Background(), signer, jwa.ES256, map[string]any{}, true)
+	op, err := providers.NewMockOpenIdProvider()
+	require.NoError(t, err)
+
+	opkClient, err := client.New(op, client.WithSigner(signer, alg), client.WithSignGQ(true))
+	require.NoError(t, err)
+
+	pkToken, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	// create x509 cert from pk token
@@ -52,7 +57,7 @@ func TestCreateX509Cert(t *testing.T) {
 	// test cert SubjectKeyId field contains PK token
 	pkTokenJSON, err := json.Marshal(pkToken)
 	require.NoError(t, err)
-	require.Equal(t, string(result.SubjectKeyId), string(pkTokenJSON),
+	require.Equal(t, string(pkTokenJSON), string(result.SubjectKeyId),
 		"certificate subject key id does not match PK token")
 
 	// test cert RawSubjectPublicKeyInfo field contains ephemeral public key
@@ -65,11 +70,8 @@ func TestCreateX509Cert(t *testing.T) {
 	var payload struct {
 		Subject string `json:"sub"`
 	}
-	if err := json.Unmarshal(pkToken.Payload, &payload); err != nil {
-		require.NoError(t, err)
-	}
 
-	require.Equal(t, payload.Subject, result.Subject.CommonName,
-		"cert common name does not equal pk token sub claim")
-
+	err = json.Unmarshal(pkToken.Payload, &payload)
+	require.NoError(t, err)
+	require.Equal(t, payload.Subject, result.Subject.CommonName, "cert common name does not equal pk token sub claim")
 }
