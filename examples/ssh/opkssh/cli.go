@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -74,20 +73,20 @@ func main() {
 			// The OPK verifier should use policy to make this decision.
 			principals := []string{}
 
-			gqFalse := false
 			alg := jwa.ES256
-
 			signer, err := util.GenKeyPair(alg)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 
-			client := &client.OpkClient{
-				Op: &op,
-			}
+			opkClient, err := client.New(
+				&op,
+				client.WithSigner(signer, alg),
+				client.WithSignGQ(false),
+			)
 
-			certBytes, seckeySshPem, err := createSSHCert(context.Background(), client, signer, alg, gqFalse, principals)
+			certBytes, seckeySshPem, err := createSSHCert(context.Background(), opkClient, principals)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -161,16 +160,17 @@ func authorizedKeysCommand(userArg string, typArg string, certB64Arg string, pol
 	}
 }
 
-func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.Signer, alg jwa.KeyAlgorithm, gqFlag bool, principals []string) ([]byte, []byte, error) {
-	pkt, err := client.Auth(cxt, signer, alg, map[string]any{}, gqFlag)
+func createSSHCert(cxt context.Context, client *client.OpkClient, principals []string) ([]byte, []byte, error) {
+	pkt, err := client.Auth(cxt)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err
 	}
-	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	sshSigner, err := ssh.NewSignerFromSigner(client.GetSigner())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -186,7 +186,7 @@ func createSSHCert(cxt context.Context, client *client.OpkClient, signer crypto.
 	}
 	certBytes := ssh.MarshalAuthorizedKey(sshCert)
 
-	seckeySsh, err := ssh.MarshalPrivateKey(signer, "openpubkey cert")
+	seckeySsh, err := ssh.MarshalPrivateKey(client.GetSigner(), "openpubkey cert")
 	if err != nil {
 		return nil, nil, err
 	}
