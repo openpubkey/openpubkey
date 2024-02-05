@@ -37,10 +37,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // println!(" *** Latest Object *** ");
     // println!("{:#?}", object.data.clone().unwrap());
-    println!("\"latest-obj\":{}", serde_json::to_string_pretty(&object.data.clone()).unwrap());
+    println!("\"latest-obj\":{},", serde_json::to_string_pretty(&object.data.clone()).unwrap());
 
     // println!(" *** Latest Object ***\n");
     let mut prev_tx_digest = object.data.clone().unwrap().previous_transaction.unwrap();
+
+
+    println!("\"past-objs\":[");
 
     for i in 0..past_objects {
         // Fetch the previous transaction
@@ -93,7 +96,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
         // println!(" *** Previous Object {} *** ", i);
         // println!("{:#?}", prev_obj);
-        println!(",\"{}-{}\":{}", i, serde_json::to_string_pretty(&prev_obj_version).unwrap(), serde_json::to_string_pretty(&prev_obj).unwrap());
+        println!("{{\"{}-{}\":{} }}", i, serde_json::to_string_pretty(&prev_obj_version).unwrap(), serde_json::to_string_pretty(&prev_obj).unwrap());
+        if i < past_objects-1 {
+            println!(",")
+        }
 
         // println!("{},", serde_json::to_string_pretty(&prev_obj).unwrap());
         // println!("{}", serde_json::to_string_pretty(&prev_obj).unwrap());
@@ -107,6 +113,8 @@ async fn main() -> Result<(), anyhow::Error> {
             _ => panic!("Expected SuiPastObjectResponse::VersionFound")
         }
     }
+    println!("]");
+
 
     println!("}}");
 
