@@ -28,7 +28,6 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/x509/ca"
-	"github.com/openpubkey/openpubkey/util"
 )
 
 // Variables for building our google provider
@@ -71,10 +70,6 @@ func main() {
 }
 
 func login(alg jwa.KeyAlgorithm, signGQ bool) error {
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		return err
-	}
 
 	op := &providers.GoogleOp{
 		ClientID:     clientID,
@@ -85,14 +80,15 @@ func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 		RedirectURI:  redirectURI,
 	}
 
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.Auth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	opkClient, err := client.New(
+		op,
+		client.WithSignGQ(signGQ),
+	)
 	if err != nil {
 		return err
 	}
+
+	pkt, err := opkClient.Auth(context.Background())
 
 	// Pretty print our json token
 	pktJson, err := json.MarshalIndent(pkt, "", "  ")
@@ -111,7 +107,7 @@ func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 	fmt.Println("Issued Cert: \n", string(pemSubCert))
 
 	msg := []byte("All is discovered - flee at once")
-	signedMsg, err := pkt.NewSignedMessage(msg, signer)
+	signedMsg, err := pkt.NewSignedMessage(msg, opkClient.GetSigner())
 	if err != nil {
 		return err
 	}

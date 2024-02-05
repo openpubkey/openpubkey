@@ -33,10 +33,10 @@ import (
 )
 
 func TestCACertCreation(t *testing.T) {
-	provider, err := providers.NewMockOpenIdProvider()
+	op, err := providers.NewMockOpenIdProvider()
 	require.NoError(t, err)
 
-	certAuth, err := New(provider)
+	certAuth, err := New(op)
 	require.NoError(t, err)
 
 	err = certAuth.KeyGen(string(jwa.ES256))
