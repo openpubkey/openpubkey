@@ -299,7 +299,7 @@ func chooseAvailablePort(possiblePorts []int) (port int, err error) {
 func checkPortIsAvailable(port int) error {
 
 	// Concatenate a colon and the port
-	host := fmt.Sprintf(":%d", port)
+	host := fmt.Sprintf("127.0.0.1:%d", port)
 	// Try to create a server with the port
 	server, err := net.Listen("tcp", host)
 	// if it fails then the port is likely taken
