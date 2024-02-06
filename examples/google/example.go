@@ -30,7 +30,6 @@ import (
 	"path"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
@@ -41,9 +40,9 @@ import (
 
 // Variables for building our google provider
 var (
-	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
+	clientID = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
+	// The clientSecret was intentionally checked in. It holds no power and is used for development. Do not report as a security issue
+	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
 	scopes       = []string{"openid profile email"}
 	redirURIPort = "3000"
 	callbackPath = "/login-callback"
@@ -67,7 +66,6 @@ func main() {
 	}
 
 	signGQ := true
-	keyAlgorithm := jwa.ES256
 
 	// Directory for saving data
 	outputDir := "output/google"
@@ -75,14 +73,14 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := login(outputDir, signGQ); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login successful!")
 		}
 	case "sign":
 		message := "sign me!!"
-		if err := sign(message, outputDir, keyAlgorithm, signGQ); err != nil {
+		if err := sign(message, outputDir, signGQ); err != nil {
 			fmt.Println("Failed to sign test message:", err)
 		}
 	default:
@@ -90,14 +88,9 @@ func main() {
 	}
 }
 
-func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
-	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		return err
-	}
-
-	client := &client.OpkClient{
-		Op: &providers.GoogleOp{
+func login(outputDir string, signGQ bool) error {
+	opkClient, err := client.New(
+		&providers.GoogleOp{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Scopes:       scopes,
@@ -105,9 +98,14 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
 		},
+		client.WithSignGQ(signGQ),
+	)
+	if err != nil {
+		return err
 	}
 
-	pkt, err := client.Auth(context.Background(), signer, alg, map[string]any{"extra": "yes"}, signGQ)
+	pkt, err := opkClient.Auth(context.Background(),
+		client.WithExtraClaim("extra", "yes"))
 	if err != nil {
 		return err
 	}
@@ -120,10 +118,10 @@ func login(outputDir string, alg jwa.KeyAlgorithm, signGQ bool) error {
 	fmt.Println(string(pktJson))
 
 	// Save our signer and pktoken by writing them to a file
-	return saveLogin(outputDir, signer.(*ecdsa.PrivateKey), pkt)
+	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
 }
 
-func sign(message string, outputDir string, alg jwa.KeyAlgorithm, signGq bool) error {
+func sign(message string, outputDir string, signGq bool) error {
 	signer, pkt, err := loadLogin(outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)
