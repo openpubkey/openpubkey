@@ -96,7 +96,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
         // println!(" *** Previous Object {} *** ", i);
         // println!("{:#?}", prev_obj);
-        println!("{{\"{}-{}\":{} }}", i, serde_json::to_string_pretty(&prev_obj_version).unwrap(), serde_json::to_string_pretty(&prev_obj).unwrap());
+        // println!("{{\"{}-{}\":{} }}", i, serde_json::to_string_pretty(&prev_obj_version).unwrap(), serde_json::to_string_pretty(&prev_obj).unwrap());
+        println!("{}", serde_json::to_string_pretty(&prev_obj).unwrap());
+
         if i < past_objects-1 {
             println!(",")
         }
