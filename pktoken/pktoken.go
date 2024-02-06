@@ -30,6 +30,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 
+	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 
 	_ "golang.org/x/crypto/sha3"
@@ -183,7 +184,29 @@ func (p *PKToken) ProviderPublicKey(ctx context.Context) (*rsa.PublicKey, error)
 		return nil, fmt.Errorf("malformatted PK token claims: %w", err)
 	}
 
-	return DiscoverPublicKey(ctx, p.Op.ProtectedHeaders().KeyID(), claims.Issuer)
+	alg, ok := p.ProviderAlgorithm()
+	if !ok {
+		return nil, fmt.Errorf("provider algorithm type missing")
+	}
+
+	var kid string
+	if alg == gq.GQ256 {
+		origHeaders, err := p.OriginalTokenHeaders()
+		if err != nil {
+			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
+		}
+
+		alg = origHeaders.Algorithm()
+		if alg != jwa.RS256 {
+			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
+		}
+
+		kid = origHeaders.KeyID()
+	} else {
+		kid = p.Op.ProtectedHeaders().KeyID()
+	}
+
+	return DiscoverPublicKey(ctx, kid, claims.Issuer)
 }
 
 func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (*rsa.PublicKey, error) {

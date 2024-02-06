@@ -13,18 +13,18 @@ import (
 )
 
 func (p *PKToken) Verify(ctx context.Context, commitmentClaim string) error {
-	alg, ok := p.ProviderAlgorithm()
-	if !ok {
-		return fmt.Errorf("provider algorithm type missing")
-	}
-
-	var claims map[string]string
+	var claims map[string]any
 	if err := json.Unmarshal(p.Payload, &claims); err != nil {
 		return err
 	}
-	issuer, ok := claims["iss"]
+	issuer, ok := claims["iss"].(string)
 	if !ok {
-		return fmt.Errorf("missing issuer claim in payload")
+		return fmt.Errorf("missing or malformed issuer claim in payload")
+	}
+
+	alg, ok := p.ProviderAlgorithm()
+	if !ok {
+		return fmt.Errorf("provider algorithm type missing")
 	}
 
 	switch alg {
@@ -34,7 +34,7 @@ func (p *PKToken) Verify(ctx context.Context, commitmentClaim string) error {
 			return fmt.Errorf("malformatted PK token headers: %w", err)
 		}
 
-		alg := origHeaders.Algorithm()
+		alg = origHeaders.Algorithm()
 		if alg != jwa.RS256 {
 			return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
 		}

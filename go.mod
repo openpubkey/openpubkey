@@ -6,6 +6,7 @@ require (
 	filippo.io/bigmod v0.0.3
 	github.com/awnumar/memguard v0.22.3
 	github.com/go-webauthn/webauthn v0.8.6
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.4.0
 	github.com/lestrrat-go/jwx/v2 v2.0.19
 	github.com/sirupsen/logrus v1.9.3
@@ -13,6 +14,8 @@ require (
 	github.com/zitadel/oidc/v2 v2.11.0
 	golang.org/x/crypto v0.17.0
 )
+
+require github.com/stretchr/objx v0.5.0 // indirect
 
 require (
 	github.com/awnumar/memcall v0.1.2 // indirect

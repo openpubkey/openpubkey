@@ -32,6 +32,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 // Interface for interacting with the OP (OpenID Provider)
@@ -39,7 +40,7 @@ type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	// Returns the ID token payload claim name where the cicHash was stored during issuance
+	// Returns the ID token payload claim name where the cicHash was stored during issuance e.g. "nonce" or "aud"
 	CommitmentClaim() string
 }
 
@@ -265,7 +266,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	err = pkt.Verify(ctx, o.Op.CommitmentClaim())
+	err = verifier.VerifyPKToken(ctx, pkt, o.Op.Issuer(), o.Op.CommitmentClaim())
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}

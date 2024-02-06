@@ -16,9 +16,9 @@ type VerifierOption func(*pktoken.PKToken) error
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
 func VerifyPKToken(
 	ctx context.Context,
+	pkt *pktoken.PKToken,
 	issuer string,
 	commitmentClaim string,
-	pkt *pktoken.PKToken,
 	options ...VerifierOption,
 ) error {
 	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
