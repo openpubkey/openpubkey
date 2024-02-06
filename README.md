@@ -16,6 +16,47 @@ Companies building on OpenPubkey include:
 
 OpenPubkey is a Linux Foundation project. It is open source and licensed under the Apache 2.0 license. This project presently provides an OpenPubkey client and verifier for creating and verifying PK Tokens from Google’s OP (for users) and GitHub’s OP (for workloads).
 
+## Getting Started
+To get started let's walk through a simple message signing example. For conciseness we omit the error handling code, the full running code for this example can be found in [./examples/simple/example.go](./examples/simple/example.go).
+
+
+We start by configuring the OP (OpenID Provider) our client and verifier will use (Google).
+
+```golang
+op := &providers.GoogleOp{
+  ClientID:     "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+  ClientSecret: "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", // The client secret is a public value
+  Scopes:       []string{"openid profile email"},
+  RedirURIPort: "3000",
+  CallbackPath: "/login-callback",
+  RedirectURI:  "http://localhost:3000/login-callback",
+}
+```
+
+Next we create the OpenPubkey client and call `opkClient.Auth`:
+```golang
+opkClient, err := client.New(op)
+pkt, err := opkClient.Auth(context.TODO())
+```
+The function `opkClient.Auth` opens a browser window to the OP, Google in this case, which then prompts the user to authenticate their identity. If the user authenticates successfully the client will generate and return a PK Token, `pkt`.
+
+The PK Token, `pkt`, along with the client's signing key can then be used to sign messages:
+```golang
+msg := []byte("All is discovered - flee at once")
+signedMsg, err := pkt.NewSignedMessage(msg, opkClient.GetSigner())
+```
+
+To verify a signed message, we first verify that the PK Token `pkt` is issued by the OP (Google). Then we use the PK Token to verify the signed message.
+
+```golang
+err = client.VerifyPKToken(context.TODO(), pkt, op)
+msg, err := pkt.VerifySignedMessage(osm)
+```
+
+To run this example type: `go run .\examples\simple\example.go`.
+
+This will open a browser window to Google. If you authenticate to Google successfully, you should see: `Verification successful: anon.author.aardvark@gmail.com (https://accounts.google.com) signed the message 'All is discovered - flee at once'` where `anon.author.aardvark@gmail.com` is your gmail address.
+
 ## How Does OpenPubkey Work?
 
 OpenPubkey supports both workload identities and user identities. Let's look at how this works for users and then show how to extend OpenPubkey to workloads.
