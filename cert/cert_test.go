@@ -33,6 +33,7 @@ import (
 func TestCreateX509Cert(t *testing.T) {
 	alg := jwa.ES256
 	// generate pktoken
+
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
@@ -69,6 +70,7 @@ func TestCreateX509Cert(t *testing.T) {
 	var payload struct {
 		Subject string `json:"sub"`
 	}
+
 	err = json.Unmarshal(pkToken.Payload, &payload)
 	require.NoError(t, err)
 	require.Equal(t, payload.Subject, result.Subject.CommonName, "cert common name does not equal pk token sub claim")
