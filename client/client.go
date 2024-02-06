@@ -50,11 +50,12 @@ type BrowserOpenIdProvider interface {
 }
 
 type OpkClient struct {
-	Op     OpenIdProvider
-	cosP   *CosignerProvider
-	signer crypto.Signer
-	alg    jwa.KeyAlgorithm
-	signGQ bool // Default is false
+	Op       OpenIdProvider
+	cosP     *CosignerProvider
+	signer   crypto.Signer
+	alg      jwa.KeyAlgorithm
+	signGQ   bool // Default is false
+	verifier verifier.Verifier
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -92,6 +93,13 @@ func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	}
 }
 
+// WithCustomVerifier specifies a custom verifier to use instead of default
+func WithCustomVerifier(verifier verifier.Verifier) ClientOpts {
+	return func(o *OpkClient) {
+		o.verifier = verifier
+	}
+}
+
 // New returns a new client.OpkClient. The op argument should be the
 // OpenID Provider you want to authenticate against.
 func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
@@ -121,6 +129,12 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 			return nil, fmt.Errorf("failed to create key pair for client: %w ", err)
 		}
 		client.signer = signer
+	}
+
+	// If no custom verifier has been specified, then use the default
+	client.verifier = verifier.New(op.Issuer(), op.CommitmentClaim())
+	if client.cosP != nil {
+		client.verifier.AddCosignerVerifier(client.cosP.Issuer, true)
 	}
 
 	return client, nil
@@ -191,6 +205,9 @@ func (o *OpkClient) OidcAuth(
 	extraClaims map[string]any,
 	signGQ bool,
 ) (*pktoken.PKToken, error) {
+	// keep track of any additional verifierChecks for the verifier
+	verifierChecks := []verifier.Check{}
+
 	// Use our signing key to generate a JWK key and set the "alg" header
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	if err != nil {
@@ -253,6 +270,9 @@ func (o *OpkClient) OidcAuth(
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
 		idToken = memguard.NewBufferFromBytes(gqToken)
+
+		// Make sure we force the check for GQ during verification
+		verifierChecks = append(verifierChecks, verifier.GQOnly())
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
@@ -266,7 +286,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	err = verifier.VerifyPKToken(ctx, pkt, o.Op.Issuer(), o.Op.CommitmentClaim())
+	err = o.verifier.VerifyPKToken(ctx, pkt, verifierChecks...)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}

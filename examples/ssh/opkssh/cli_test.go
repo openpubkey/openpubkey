@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/client/providers"
+	clientmocks "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
+
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
 )
@@ -18,7 +19,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestAuthorizedKeysCommand(t *testing.T) {
-	op, err := providers.NewMockOpenIdProvider()
+	op, err := clientmocks.NewMockOpenIdProvider(t)
 	if err != nil {
 		t.Fatal(err)
 	}

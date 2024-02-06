@@ -9,7 +9,7 @@ import (
 
 var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
-func GQOnly() VerifierOption {
+func GQOnly() Check {
 	return func(pkt *pktoken.PKToken) error {
 		alg, ok := pkt.ProviderAlgorithm()
 		if !ok {
@@ -24,7 +24,7 @@ func GQOnly() VerifierOption {
 }
 
 // Option that allows specification of a single cosigner, if strict then an error is thrown if the cosigner is not found
-func WithCosigner(issuer string, strict bool) VerifierOption {
+func WithCosigner(issuer string, strict bool) Check {
 	return func(pkt *pktoken.PKToken) error {
 		if pkt.Cos == nil {
 			if strict {

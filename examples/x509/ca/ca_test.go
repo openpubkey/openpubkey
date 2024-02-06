@@ -27,13 +27,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openpubkey/openpubkey/client/providers"
+	clientmocks "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestCACertCreation(t *testing.T) {
-	op, err := providers.NewMockOpenIdProvider()
+	op, err := clientmocks.NewMockOpenIdProvider(t)
 	require.NoError(t, err)
 
 	certAuth, err := New(op)

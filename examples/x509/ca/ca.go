@@ -35,6 +35,7 @@ import (
 	"github.com/openpubkey/openpubkey/cert"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 type Ca struct {
@@ -110,9 +111,9 @@ func (a *Ca) CheckPKToken(pktJson []byte) (*pktoken.PKToken, error) {
 		return nil, err
 	}
 
-	err := client.VerifyPKToken(context.Background(), pkt, a.op)
-	if err != nil {
-		return nil, fmt.Errorf("error PK Token is not valid: %w", err)
+	verifier := verifier.New(a.op.Issuer(), a.op.CommitmentClaim())
+	if err := verifier.VerifyPKToken(context.TODO(), pkt); err != nil {
+		return nil, fmt.Errorf("Failed to verify PK token: %w", err)
 	}
 
 	return pkt, nil
