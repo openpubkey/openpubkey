@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package util
 
 import (
@@ -12,23 +28,7 @@ import (
 	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
-
-func WriteCertFile(fpath string, cert []byte) error {
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
-	return os.WriteFile(fpath, pemBytes, 0600)
-}
-
-func WritePKFile(fpath string, pk *ecdsa.PublicKey) error {
-	x509Encoded, err := x509.MarshalPKIXPublicKey(pk)
-	if err != nil {
-		return err
-	}
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509Encoded})
-
-	return os.WriteFile(fpath, pemBytes, 0600)
-}
 
 func SKToX509Bytes(sk *ecdsa.PrivateKey) ([]byte, error) {
 	x509Encoded, err := x509.MarshalECPrivateKey(sk)
@@ -46,46 +46,6 @@ func WriteSKFile(fpath string, sk *ecdsa.PrivateKey) error {
 	}
 
 	return os.WriteFile(fpath, pemBytes, 0600)
-}
-
-func ReadCertFile(fpath string) (*x509.Certificate, error) {
-	pemBytes, err := os.ReadFile(fpath)
-	if err != nil {
-		return nil, err
-	}
-
-	block, _ := pem.Decode(pemBytes)
-	return x509.ParseCertificate(block.Bytes)
-}
-
-func SecretKeyFromBytes(pemBytes []byte) (*ecdsa.PrivateKey, error) {
-	block, _ := pem.Decode(pemBytes)
-	return x509.ParseECPrivateKey(block.Bytes)
-}
-
-func X509PublicKeyBytesFromJWK(upkjwk jwk.Key) ([]byte, error) {
-	var rawkey interface{}
-	if err := upkjwk.Raw(&rawkey); err != nil {
-		return nil, err
-	}
-	pupkPKTCom := rawkey.(*ecdsa.PublicKey)
-
-	return x509.MarshalPKIXPublicKey(pupkPKTCom)
-}
-
-func ReadPKFile(fpath string) (*ecdsa.PublicKey, error) {
-	pemBytes, err := os.ReadFile(fpath)
-	if err != nil {
-		return nil, err
-	}
-	block, _ := pem.Decode(pemBytes)
-	pkAny, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	pk := pkAny.(*ecdsa.PublicKey)
-	return pk, nil
 }
 
 func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
