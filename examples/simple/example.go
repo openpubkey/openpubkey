@@ -38,7 +38,7 @@ func Sign(op client.OpenIdProvider) ([]byte, []byte, error) {
 	}
 
 	// Generate a PK Token by authenticating to the OP (Google)
-	pkt, err := opkClient.Auth(context.TODO())
+	pkt, err := opkClient.Auth(context.Background())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -67,7 +67,7 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use
-	err = client.VerifyPKToken(context.TODO(), pkt, op)
+	err = client.VerifyPKToken(context.Background(), pkt, op)
 	if err != nil {
 		return err
 	}
