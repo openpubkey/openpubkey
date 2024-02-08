@@ -49,7 +49,7 @@ func TestClient(t *testing.T) {
 		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
-	provider, err := mocks.NewMockOpenIdProvider(t)
+	provider, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}

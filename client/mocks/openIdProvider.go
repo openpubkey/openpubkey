@@ -84,17 +84,20 @@ func NewOpenIdProvider(t interface {
 	mock := &OpenIdProvider{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
-
 	return mock
 }
 
 // This function creates a new, correctly functioning Provider that can be used for test purposes, for finer grain control
 // or error testing, please use the function above.
-func NewMockOpenIdProvider(t interface {
-	mock.TestingT
-	Cleanup(func())
-}) (*OpenIdProvider, error) {
+//
+// extraClaims: Allows for optional id token payload values to be supplied, these values will overwrite existing ones of the same name.
+func NewMockOpenIdProvider(
+	t interface {
+		mock.TestingT
+		Cleanup(func())
+	},
+	extraClaims map[string]any,
+) (*OpenIdProvider, error) {
 	alg := jwa.RS256
 	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -123,13 +126,19 @@ func NewMockOpenIdProvider(t interface {
 		headers.Set(jws.KeyIDKey, oidpServer.KID())
 		headers.Set(jws.TypeKey, "JWT")
 
+		// Default, minimum viable claims for functional id token payload
 		payload := map[string]any{
 			"sub":   "me",
-			"iss":   issuer,
 			"aud":   "also me",
+			"iss":   issuer,
 			"iat":   time.Now().Unix(),
 			"nonce": cicHash,
 		}
+		// Add/replace values in payload map with those provided
+		for k, v := range extraClaims {
+			payload[k] = v
+		}
+
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
 			return nil, err

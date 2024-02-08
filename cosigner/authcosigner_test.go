@@ -39,7 +39,7 @@ func TestInitAuth(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
-	pkt, err := mocks.GenerateMockPKToken(signer, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
@@ -67,7 +67,7 @@ func TestRedeemAuthcode(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
-	pkt, err := mocks.GenerateMockPKToken(signer, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cosP := client.CosignerProvider{
@@ -79,7 +79,7 @@ func TestRedeemAuthcode(t *testing.T) {
 	diffSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
-	diffPkt, err := mocks.GenerateMockPKToken(diffSigner, alg)
+	diffPkt, err := mocks.GenerateMockPKToken(t, diffSigner, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestRedeemAuthcode(t *testing.T) {
 func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	pkt, err := mocks.GenerateMockPKToken(signer, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
 
 	cos := CreateAuthCosigner(t)

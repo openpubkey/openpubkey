@@ -25,7 +25,7 @@ func TestPkToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signingKey, alg)
 	if err != nil {
 		t.Fatal(err)
 	}

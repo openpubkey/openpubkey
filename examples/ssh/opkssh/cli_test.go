@@ -19,7 +19,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestAuthorizedKeysCommand(t *testing.T) {
-	op, err := clientmocks.NewMockOpenIdProvider(t)
+	op, err := clientmocks.NewMockOpenIdProvider(t, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(signer, alg, email)
+	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
 	if err != nil {
 		t.Fatal(err)
 	}
