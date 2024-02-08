@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/block-vision/sui-go-sdk/models"
 	"github.com/block-vision/sui-go-sdk/sui"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/openpubkey/openpubkey/ajwks"
 )
 
 type JWKSObj struct {
@@ -28,14 +30,7 @@ type JWKSObj struct {
 	} `json:"fields"`
 }
 
-type JwksKey struct {
-	Iss    string
-	Kid    string
-	JwkKey jwk.Key
-	Epoch  string
-}
-
-func NewJwksKey(jwksMap map[string]any) (*JwksKey, error) {
+func NewJwksKey(jwksMap map[string]any, timestampMS uint64) (*ajwks.JwksKey, error) {
 
 	epoch := jwksMap["fields"].(map[string]any)["epoch"].(string)
 
@@ -55,12 +50,13 @@ func NewJwksKey(jwksMap map[string]any) (*JwksKey, error) {
 	iss := jwkId["iss"].(string)
 	kid := jwkId["kid"].(string)
 
-	fmt.Println(epoch, jwkObj, jwkId, iss, kid, key)
-	return &JwksKey{
-		Iss:    iss,
-		Kid:    kid,
-		JwkKey: key,
-		Epoch:  epoch,
+	// fmt.Println(epoch, jwkObj, jwkId, iss, kid, key)
+	return &ajwks.JwksKey{
+		Issuer:      iss,
+		KeyId:       kid,
+		Epoch:       epoch,
+		TimestampMS: timestampMS,
+		JwkKey:      key,
 	}, nil
 }
 
@@ -155,17 +151,57 @@ func read() error {
 	return nil
 }
 
-func DownloadFromSui() error {
-	// jwksDb := JwksDb{
-	// 	JwksMap: map[string][]JwksState{},
-	// }
+type SuiJwksArchive struct {
+	rpcUrl    string
+	client    sui.ISuiAPI
+	jwksObjId string // This is the object ID of JWKS objects
+}
 
-	var ctx = context.Background()
-	var cli = sui.NewSuiClient("https://fullnode.mainnet.sui.io:443")
+func NewSuiJwksArchive(rpcUrl string) *SuiJwksArchive {
+	return &SuiJwksArchive{
+		rpcUrl:    rpcUrl,
+		client:    sui.NewSuiClient(rpcUrl),
+		jwksObjId: "0xcfecb053c69314e75f36561910f3535dd466b6e2e3593708f370e80424617ae7",
+	}
+}
 
-	objdata, err := cli.SuiGetObject(ctx,
+func (s *SuiJwksArchive) GetLatestJwks(ctx context.Context) (map[string][]*ajwks.JwksKey, error) {
+	objdata, err := s.client.SuiGetObject(ctx,
 		models.SuiGetObjectRequest{
-			ObjectId: "0xcfecb053c69314e75f36561910f3535dd466b6e2e3593708f370e80424617ae7",
+			ObjectId: s.jwksObjId,
+			Options: models.SuiObjectDataOptions{
+				ShowContent:             true,
+				ShowPreviousTransaction: true,
+				ShowBcs:                 true,
+			},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	active_jwks := objdata.Content.SuiMoveObject.Fields["value"].(map[string]any)["fields"].(map[string]any)["active_jwks"].([]any)
+	jwksIss := map[string][]*ajwks.JwksKey{}
+	for _, v := range active_jwks {
+		jwks := v.(map[string]any)
+		jwskKey, err := NewJwksKey(jwks, 0)
+		if err != nil {
+			return nil, err
+		}
+		if jwksIss[jwskKey.Issuer] == nil {
+			jwksIss[jwskKey.Issuer] = []*ajwks.JwksKey{}
+		}
+		jwksIss[jwskKey.Issuer] = append(jwksIss[jwskKey.Issuer], jwskKey)
+	}
+	return jwksIss, nil
+}
+
+func (s *SuiJwksArchive) GetPastJwks(ctx context.Context, depth int) (map[string]*[]ajwks.JwksSave, error) {
+	jwksIss := map[string]*[]ajwks.JwksSave{}
+
+	objdata, err := s.client.SuiGetObject(ctx,
+		models.SuiGetObjectRequest{
+			ObjectId: s.jwksObjId,
 			Options: models.SuiObjectDataOptions{
 				ShowContent:             true,
 				ShowPreviousTransaction: true,
@@ -173,23 +209,99 @@ func DownloadFromSui() error {
 		},
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	active_jwks := objdata.Content.SuiMoveObject.Fields["value"].(map[string]any)["fields"].(map[string]any)["active_jwks"].([]any)
+	prevTxnDigest := objdata.PreviousTransaction
 
-	// w := []map[string]any{}
-	for _, v := range active_jwks {
-		jwks := v.(map[string]any)
-		// _ = jwks
-		jwskKey, err := NewJwksKey(jwks)
+	for i := 0; i < depth; i++ {
+		prevobjdata, err := s.client.SuiGetTransactionBlock(ctx,
+			models.SuiGetTransactionBlockRequest{
+				Digest: prevTxnDigest,
+				Options: models.SuiTransactionBlockOptions{
+					ShowObjectChanges: true,
+				},
+			},
+		)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		_ = jwskKey
-		// jwksDb.Add(jwks)
-		// w = append(w, jwks.(map[string]any))
+
+		timestampMS, err := strconv.ParseUint(prevobjdata.TimestampMs, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		prevTxnDigestFound := false
+
+		for _, change := range prevobjdata.ObjectChanges {
+			if change.ObjectId == s.jwksObjId { // Filter out changes which aren't changes to the JWKS object
+				pastObjId := change.ObjectId
+
+				version, err := strconv.ParseUint(change.PreviousVersion, 10, 64)
+				if err != nil {
+					if change.PreviousVersion == "" {
+						break
+					}
+					return nil, err
+				}
+
+				prevObj, err := s.client.SuiTryGetPastObject(ctx, models.SuiTryGetPastObjectRequest{
+					ObjectId: pastObjId,
+					Version:  version,
+					Options: models.SuiObjectDataOptions{
+						ShowContent:             true,
+						ShowPreviousTransaction: true,
+					},
+				})
+				if err != nil {
+					return nil, err
+				}
+				if prevObj.Status != "VersionFound" {
+					return nil, fmt.Errorf("unexpected status when fetching prevObj from sui, expected (VersionFound) got (%s)", prevObj.Status)
+				}
+				if prevTxnDigestFound {
+					return nil, fmt.Errorf("Expecting only one prevTxn")
+				}
+				prevTxnDigestFound = true
+				prevTxnDigest = prevObj.Details.(map[string]any)["previousTransaction"].(string)
+
+				saves := map[string]*ajwks.JwksSave{}
+
+				activeJwks := prevObj.Details.(map[string]any)["content"].(map[string]any)["fields"].(map[string]any)["value"].(map[string]any)["fields"].(map[string]any)["active_jwks"].([]any)
+				for _, jkws := range activeJwks {
+
+					jwks := jkws.(map[string]any)
+					jwskKey, err := NewJwksKey(jwks, timestampMS)
+					if err != nil {
+						return nil, err
+					}
+
+					if k, ok := saves[jwskKey.Issuer]; !ok {
+						saves[jwskKey.Issuer] = &ajwks.JwksSave{
+							Iss:         jwskKey.Issuer,
+							Epoch:       []string{jwskKey.Epoch},
+							TimestampMS: jwskKey.TimestampMS,
+							JwkKeys:     []*ajwks.JwksKey{jwskKey},
+						}
+					} else {
+						if saves[jwskKey.Issuer].Iss != jwskKey.Issuer || saves[jwskKey.Issuer].TimestampMS != jwskKey.TimestampMS {
+							return nil, fmt.Errorf("data in save doesn't match like it should match")
+						}
+						k.Epoch = append(k.Epoch, jwskKey.Epoch)
+						k.JwkKeys = append(k.JwkKeys, jwskKey)
+					}
+				}
+
+				for iss, save := range saves {
+					if k, ok := jwksIss[iss]; !ok {
+						jwksIss[iss] = &[]ajwks.JwksSave{*save}
+					} else {
+						*k = append(*k, *save)
+					}
+				}
+			}
+		}
 	}
-	return nil
-	// fmt.Println(active_jwks)
+	return jwksIss, nil
 }
