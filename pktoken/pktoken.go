@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -57,12 +56,8 @@ type PKToken struct {
 
 // kid isn't always present, and is only guaranteed to be unique within a given key set,
 // so we can use the thumbprint of the key instead to identify it at verification time
-func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
-	public, err := jwk.FromRaw(opKey)
-	if err != nil {
-		return fmt.Errorf("failed to create JWK from public key: %w", err)
-	}
-	thumbprint, err := public.Thumbprint(crypto.SHA256)
+func (p *PKToken) AddJKTHeader(opKey jwk.Key) error {
+	thumbprint, err := opKey.Thumbprint(crypto.SHA256)
 	if err != nil {
 		return fmt.Errorf("failed to calculate thumbprint: %w", err)
 	}
@@ -90,6 +85,16 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	}
 
 	return pkt, nil
+}
+
+func (p *PKToken) Issuer() (string, error) {
+	var claims struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return "", fmt.Errorf("malformatted PK token claims: %w", err)
+	}
+	return claims.Issuer, nil
 }
 
 // Signs PK Token and then returns only the payload, header and signature as a JWT
@@ -176,7 +181,7 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 	return alg.(jwa.SignatureAlgorithm), true
 }
 
-func (p *PKToken) ProviderPublicKey(ctx context.Context) (*rsa.PublicKey, error) {
+func (p *PKToken) ProviderPublicKey(ctx context.Context) (jwk.Key, error) {
 	var claims struct {
 		Issuer string `json:"iss"`
 	}
@@ -191,7 +196,7 @@ func (p *PKToken) ProviderPublicKey(ctx context.Context) (*rsa.PublicKey, error)
 
 	var kid string
 	if alg == gq.GQ256 {
-		origHeaders, err := p.OriginalTokenHeaders()
+		origHeaders, err := p.originalTokenHeaders()
 		if err != nil {
 			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
 		}
@@ -209,7 +214,7 @@ func (p *PKToken) ProviderPublicKey(ctx context.Context) (*rsa.PublicKey, error)
 	return DiscoverPublicKey(ctx, kid, claims.Issuer)
 }
 
-func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (*rsa.PublicKey, error) {
+func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (jwk.Key, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
@@ -222,20 +227,10 @@ func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (*rsa.Pub
 
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
-		return nil, fmt.Errorf("key %q isn't in JWKS", kid)
+		return nil, fmt.Errorf("key %s isn't in JWKS", kid)
 	}
 
-	if key.Algorithm() != jwa.RS256 {
-		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
+	return key, err
 }
 
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {

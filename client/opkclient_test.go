@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/gq"
@@ -111,10 +110,9 @@ func TestClient(t *testing.T) {
 				time.Sleep(20 * time.Second)
 				t.Fatal(err)
 			}
-			pub, err := jwk.FromRaw(pubkey)
 			require.NoError(t, err, tc.name)
 
-			thumbprint, err := pub.Thumbprint(crypto.SHA256)
+			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
 			require.NoError(t, err, tc.name)
 
 			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))

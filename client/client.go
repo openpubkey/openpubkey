@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -260,8 +261,16 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error getting OP public key: %w", err)
 	}
 
-	if signGQ { // sign GQ256
-		sv, err := gq.New256SignerVerifier(opKey)
+	// sign GQ256
+	if signGQ {
+		// GQ signatures require original provider to have signed with an RSA key
+		rsaKey := new(rsa.PublicKey)
+		err = opKey.Raw(rsaKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode public key: %w", err)
+		}
+
+		sv, err := gq.New256SignerVerifier(rsaKey)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signer: %w", err)
 		}
