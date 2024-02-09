@@ -70,7 +70,7 @@ func (v *ProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKTo
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 	case jwa.RS256:
-		pubKey, err := v.providerPublicKey(ctx, pkt)
+		pubKey, err := v.ProviderPublicKey(ctx, pkt)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
@@ -92,7 +92,7 @@ func (v *ProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKTo
 	return nil
 }
 
-func (v *ProviderVerifier) providerPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error) {
+func (v *ProviderVerifier) ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error) {
 	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
 		return nil, fmt.Errorf("provider algorithm type missing")
@@ -143,7 +143,7 @@ func (v *ProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 	}
 
 	if commitment != string(expectedCommitment) {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", commitment, string(expectedCommitment))
+		return fmt.Errorf("nonce claim doesn't match, got %q, expected %s", commitment, string(expectedCommitment))
 	}
 	return nil
 }
@@ -170,12 +170,12 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 
 	issuer, err := pkt.Issuer()
 	if err != nil {
-		return fmt.Errorf("missing issuer")
+		return fmt.Errorf("missing issuer: %w", err)
 	}
 
 	jwkKey, err := DiscoverProviderPublicKey(ctx, origHeaders.KeyID(), issuer)
 	if err != nil {
-		return fmt.Errorf("failed to get OP public key: %w", err)
+		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
 	if jwkKey.Algorithm() != jwa.RS256 {

@@ -18,6 +18,7 @@ package client_test
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,28 +95,29 @@ func TestClient(t *testing.T) {
 				require.NoError(t, err, tc.name)
 			}
 
-			// jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			// if !ok {
-			// 	t.Fatal("missing jkt header")
-			// }
-			// data, ok := jkt.([]byte)
-			// if !ok {
-			// 	t.Fatalf("expected jkt header to be a []byte, got %T", jkt)
-			// }
-			// jktstr := string(data)
+			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
+			if !ok {
+				t.Fatal("missing jkt header")
+			}
+			data, ok := jkt.([]byte)
+			if !ok {
+				t.Fatalf("expected jkt header to be a []byte, got %T", jkt)
+			}
+			jktstr := string(data)
 
-			// pubkey, err := pkt.ProviderPublicKey(context.Background())
-			// if err != nil {
-			// 	time.Sleep(20 * time.Second)
-			// 	t.Fatal(err)
-			// }
-			// require.NoError(t, err, tc.name)
+			providerVerifier := verifier.NewProviderVerifier(provider.Issuer(), provider.CommitmentClaim(), verifier.ProviderVerifierOpts{})
 
-			// thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
-			// require.NoError(t, err, tc.name)
+			pubkey, err := providerVerifier.ProviderPublicKey(context.Background(), pkt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			require.NoError(t, err, tc.name)
 
-			// thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
-			// require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
+			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
+			require.NoError(t, err, tc.name)
+
+			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
+			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
 			providerKeyAlgorithm, ok := pkt.ProviderAlgorithm()
 			if !ok {
