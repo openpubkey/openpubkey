@@ -54,7 +54,7 @@ func (p *PKToken) Verify(ctx context.Context, commitmentClaim string) error {
 // Verifies commitment in header is equal to hash of client instance claims (CIC)
 // commitmentClaim: the token payload claim name where the CIC hash was stored during issuance e.g. "nonce" or "aud"
 func (p *PKToken) VerifyCommitment(commitmentClaim string) error {
-	var claims map[string]any
+	var claims map[string]string
 	if err := json.Unmarshal(p.Payload, &claims); err != nil {
 		return err
 	}

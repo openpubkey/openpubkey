@@ -30,9 +30,7 @@ func New(verifier *ProviderVerifier, options ...VerifierOpts) *Verifier {
 
 // Verifies whether a PK token is valid and matches all expected claims.
 //
-// issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
-// commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
-// checks: Allows specification of additional checks
+// extraChecks: Allows for optional specification of additional checks
 func (v *Verifier) VerifyPKToken(
 	ctx context.Context,
 	pkt *pktoken.PKToken,
@@ -46,7 +44,7 @@ func (v *Verifier) VerifyPKToken(
 	providerVerfier, ok := v.providers[issuer]
 	// If our issuer does not match any providers, throw an error
 	if !ok {
-		return fmt.Errorf("unrecognized issuer %s", issuer)
+		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
 	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
@@ -91,10 +89,9 @@ func (v *Verifier) VerifyPKToken(
 		}
 	}
 
-	// Enforce all additional, optional checks
-	for _, option := range extraChecks {
-		// cycles through any provided options, returning the first error if any
-		if err := option(v, pkt); err != nil {
+	// Cycles through any provided additional checks and returns the first error, if any.
+	for _, check := range extraChecks {
+		if err := check(v, pkt); err != nil {
 			return err
 		}
 	}
