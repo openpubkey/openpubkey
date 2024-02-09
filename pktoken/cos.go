@@ -17,16 +17,8 @@
 package pktoken
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
-
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type CosignerClaims struct {
@@ -88,48 +80,4 @@ func (p *PKToken) ParseCosignerClaims() (*CosignerClaims, error) {
 	}
 
 	return &claims, nil
-}
-
-func (p *PKToken) VerifyCosignerSignature() error {
-	if p.Cos == nil {
-		return fmt.Errorf("no cosigner signature")
-	}
-
-	cosToken, err := p.Compact(p.Cos)
-	if err != nil {
-		return err
-	}
-
-	// Parse our header
-	header, err := p.ParseCosignerClaims()
-	if err != nil {
-		return err
-	}
-
-	// Check if it's expired
-	if time.Now().After(time.Unix(header.Expiration, 0)) {
-		return fmt.Errorf("cosigner signature expired")
-	}
-
-	discConf, err := oidcclient.Discover(header.Issuer, http.DefaultClient)
-	if err != nil {
-		return fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
-	if err != nil {
-		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
-	}
-
-	key, ok := set.LookupKeyID(header.KeyID)
-	if !ok {
-		return fmt.Errorf("missing key id (kid)")
-	}
-
-	if header.Algorithm != key.Algorithm().String() {
-		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", key.KeyID(), key.Algorithm(), header.Algorithm)
-	}
-
-	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
-
-	return err
 }

@@ -22,14 +22,12 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 
 	_ "golang.org/x/crypto/sha3"
@@ -181,56 +179,13 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 	return alg.(jwa.SignatureAlgorithm), true
 }
 
-func (p *PKToken) ProviderPublicKey(ctx context.Context) (jwk.Key, error) {
-	var claims struct {
-		Issuer string `json:"iss"`
-	}
-	if err := json.Unmarshal(p.Payload, &claims); err != nil {
-		return nil, fmt.Errorf("malformatted PK token claims: %w", err)
-	}
-
-	alg, ok := p.ProviderAlgorithm()
-	if !ok {
-		return nil, fmt.Errorf("provider algorithm type missing")
-	}
-
-	var kid string
-	if alg == gq.GQ256 {
-		origHeaders, err := p.originalTokenHeaders()
-		if err != nil {
-			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
-		}
-
-		alg = origHeaders.Algorithm()
-		if alg != jwa.RS256 {
-			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
-		}
-
-		kid = origHeaders.KeyID()
-	} else {
-		kid = p.Op.ProtectedHeaders().KeyID()
-	}
-
-	return DiscoverPublicKey(ctx, kid, claims.Issuer)
-}
-
-func DiscoverPublicKey(ctx context.Context, kid string, issuer string) (jwk.Key, error) {
-	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
+func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
+	cicPH, err := p.Cic.ProtectedHeaders().AsMap(context.TODO())
 	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+		return nil, err
 	}
 
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key %s isn't in JWKS", kid)
-	}
-
-	return key, err
+	return clientinstance.ParseClaims(cicPH)
 }
 
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {

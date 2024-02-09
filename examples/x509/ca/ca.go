@@ -107,10 +107,6 @@ func (a *Ca) CheckPKToken(pktJson []byte) (*pktoken.PKToken, error) {
 		return nil, err
 	}
 
-	if err := pkt.VerifyCicSig(); err != nil {
-		return nil, err
-	}
-
 	providerVerifier := verifier.NewProviderVerifier(a.op.Issuer(), a.op.CommitmentClaim(), verifier.ProviderVerifierOpts{})
 	verifier := verifier.New(providerVerifier)
 	if err := verifier.VerifyPKToken(context.TODO(), pkt); err != nil {

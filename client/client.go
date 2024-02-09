@@ -262,7 +262,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, err
 	}
 
-	opKey, err := pktoken.DiscoverPublicKey(ctx, kid, claims.Issuer)
+	opKey, err := verifier.DiscoverProviderPublicKey(ctx, kid, claims.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("error getting OP public key: %w", err)
 	}

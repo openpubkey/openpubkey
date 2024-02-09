@@ -2,9 +2,9 @@ package verifier
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
@@ -42,22 +42,12 @@ func (v *Verifier) VerifyPKToken(
 	}
 
 	providerVerfier, ok := v.providers[issuer]
-	// If our issuer does not match any providers, throw an error
 	if !ok {
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
-	// equal to some claim in the payload
-	if err := pkt.Verify(context.Background(), providerVerfier.commitmentClaim); err != nil {
+	if err := providerVerfier.VerifyProvider(ctx, pkt); err != nil {
 		return err
-	}
-
-	// If ClientID is specified, verify clientID is contained in the audience
-	if providerVerfier.options.ClientID != "" {
-		if err := verifyAudience(pkt, providerVerfier.options.ClientID); err != nil {
-			return err
-		}
 	}
 
 	if len(v.cosigners) > 0 {
@@ -74,10 +64,15 @@ func (v *Verifier) VerifyPKToken(
 				return err
 			}
 
-			_, ok := v.cosigners[cosignerClaims.Issuer]
+			cosignerVerifier, ok := v.cosigners[cosignerClaims.Issuer]
 			if !ok {
 				// If other cosigners are present, do we accept?
 				return fmt.Errorf("unrecognized cosigner %s", cosignerClaims.Issuer)
+			}
+
+			// Verify cosigner signature
+			if err := cosignerVerifier.VerifyCosigner(ctx, pkt); err != nil {
+				return err
 			}
 
 			// If any other cosigner verifiers are set to strict but aren't present, then return error
@@ -87,6 +82,10 @@ func (v *Verifier) VerifyPKToken(
 				}
 			}
 		}
+	}
+
+	if err := VerifyCicSignature(pkt); err != nil {
+		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
 	}
 
 	// Cycles through any provided additional checks and returns the first error, if any.
@@ -99,28 +98,17 @@ func (v *Verifier) VerifyPKToken(
 	return nil
 }
 
-func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
-	var claims struct {
-		Audience any `json:"aud"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+func VerifyCicSignature(pkt *pktoken.PKToken) error {
+	token, err := pkt.Compact(pkt.Cic)
+	if err != nil {
 		return err
 	}
 
-	switch aud := claims.Audience.(type) {
-	case string:
-		if aud != clientID {
-			return fmt.Errorf("audience does not contain clientID %s, aud = %s", clientID, aud)
-		}
-	case []string:
-		for _, audience := range aud {
-			if audience == clientID {
-				return nil
-			}
-		}
-		return fmt.Errorf("audience does not contain clientID %s, aud = %v", clientID, aud)
-	default:
-		return fmt.Errorf("missing audience claim")
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
 	}
-	return nil
+
+	_, err = jws.Verify(token, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	return err
 }

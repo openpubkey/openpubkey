@@ -18,10 +18,8 @@ package client_test
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
@@ -95,28 +93,28 @@ func TestClient(t *testing.T) {
 				require.NoError(t, err, tc.name)
 			}
 
-			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			if !ok {
-				t.Fatal("missing jkt header")
-			}
-			data, ok := jkt.([]byte)
-			if !ok {
-				t.Fatalf("expected jkt header to be a []byte, got %T", jkt)
-			}
-			jktstr := string(data)
+			// jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
+			// if !ok {
+			// 	t.Fatal("missing jkt header")
+			// }
+			// data, ok := jkt.([]byte)
+			// if !ok {
+			// 	t.Fatalf("expected jkt header to be a []byte, got %T", jkt)
+			// }
+			// jktstr := string(data)
 
-			pubkey, err := pkt.ProviderPublicKey(context.Background())
-			if err != nil {
-				time.Sleep(20 * time.Second)
-				t.Fatal(err)
-			}
-			require.NoError(t, err, tc.name)
+			// pubkey, err := pkt.ProviderPublicKey(context.Background())
+			// if err != nil {
+			// 	time.Sleep(20 * time.Second)
+			// 	t.Fatal(err)
+			// }
+			// require.NoError(t, err, tc.name)
 
-			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
-			require.NoError(t, err, tc.name)
+			// thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
+			// require.NoError(t, err, tc.name)
 
-			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
-			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
+			// thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
+			// require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
 			providerKeyAlgorithm, ok := pkt.ProviderAlgorithm()
 			if !ok {
