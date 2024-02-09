@@ -8,36 +8,24 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type Verifier interface {
-	AddCosignerVerifier(issuer string, strict bool)
-	VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, checks ...Check) error
+type Verifier struct {
+	providers map[string]*ProviderVerifier
+	cosigners map[string]*CosignerVerifier
 }
 
-type Check func(*pktoken.PKToken) error
-
-type cosignerOpts struct {
-	issuer string
-	strict bool
-}
-
-type verifier struct {
-	issuer           string
-	commitmentClaim  string
-	cosignerVerifier cosignerOpts
-}
-
-func New(issuer, commitmentClaim string) Verifier {
-	return &verifier{
-		issuer:          issuer,
-		commitmentClaim: commitmentClaim,
+func New(verifier *ProviderVerifier, options ...VerifierOpts) *Verifier {
+	v := &Verifier{
+		providers: map[string]*ProviderVerifier{
+			verifier.issuer: verifier,
+		},
+		cosigners: map[string]*CosignerVerifier{},
 	}
-}
 
-func (v *verifier) AddCosignerVerifier(issuer string, strict bool) {
-	v.cosignerVerifier = cosignerOpts{
-		issuer: issuer,
-		strict: strict,
+	for _, option := range options {
+		option(v)
 	}
+
+	return v
 }
 
 // Verifies whether a PK token is valid and matches all expected claims.
@@ -45,42 +33,60 @@ func (v *verifier) AddCosignerVerifier(issuer string, strict bool) {
 // issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
 // checks: Allows specification of additional checks
-func (v *verifier) VerifyPKToken(
+func (v *Verifier) VerifyPKToken(
 	ctx context.Context,
 	pkt *pktoken.PKToken,
 	extraChecks ...Check,
 ) error {
+	issuer, err := pkt.Issuer()
+	if err != nil {
+		return err
+	}
+
+	providerVerfier, ok := v.providers[issuer]
+	// If our issuer does not match any providers, throw an error
+	if !ok {
+		return fmt.Errorf("unrecognized issuer %s", issuer)
+	}
+
 	// Have our pk token verify itself including checking whether the hash of the client instance claims (CIC) is
 	// equal to some claim in the payload
-	if err := pkt.Verify(context.Background(), v.commitmentClaim); err != nil {
+	if err := pkt.Verify(context.Background(), providerVerfier.commitmentClaim); err != nil {
 		return err
 	}
 
-	var claims struct {
-		Issuer string `json:"iss"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return err
-	}
-
-	// Check that our provider issuer matches expected
-	if v.issuer != claims.Issuer {
-		return fmt.Errorf("unexpected issuer: %s, expected %s", claims.Issuer, v.issuer)
+	// If ClientID is specified, verify clientID is contained in the audience
+	if providerVerfier.options.ClientID != "" {
+		if err := verifyAudience(pkt, providerVerfier.options.ClientID); err != nil {
+			return err
+		}
 	}
 
-	if v.cosignerVerifier.issuer != "" {
+	if len(v.cosigners) > 0 {
 		if pkt.Cos == nil {
-			if v.cosignerVerifier.strict {
-				return fmt.Errorf("missing required cosigner")
+			// If there's no cosigner signature and any provided cosigner verifiers are strict, then return error
+			for _, cosignerVerifier := range v.cosigners {
+				if cosignerVerifier.options.Strict {
+					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.issuer)
+				}
 			}
 		} else {
-			claims, err := pkt.ParseCosignerClaims()
+			cosignerClaims, err := pkt.ParseCosignerClaims()
 			if err != nil {
 				return err
 			}
 
-			if claims.Issuer != v.issuer {
-				return fmt.Errorf("expected cosigner: %s, expected %s", claims.Issuer, v.issuer)
+			_, ok := v.cosigners[cosignerClaims.Issuer]
+			if !ok {
+				// If other cosigners are present, do we accept?
+				return fmt.Errorf("unrecognized cosigner %s", cosignerClaims.Issuer)
+			}
+
+			// If any other cosigner verifiers are set to strict but aren't present, then return error
+			for _, cosignerVerifier := range v.cosigners {
+				if cosignerVerifier.options.Strict && cosignerVerifier.issuer != cosignerClaims.Issuer {
+					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.issuer)
+				}
 			}
 		}
 	}
@@ -88,10 +94,36 @@ func (v *verifier) VerifyPKToken(
 	// Enforce all additional, optional checks
 	for _, option := range extraChecks {
 		// cycles through any provided options, returning the first error if any
-		if err := option(pkt); err != nil {
+		if err := option(v, pkt); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
+	var claims struct {
+		Audience any `json:"aud"`
+	}
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
+		return err
+	}
+
+	switch aud := claims.Audience.(type) {
+	case string:
+		if aud != clientID {
+			return fmt.Errorf("audience does not contain clientID %s, aud = %s", clientID, aud)
+		}
+	case []string:
+		for _, audience := range aud {
+			if audience == clientID {
+				return nil
+			}
+		}
+		return fmt.Errorf("audience does not contain clientID %s, aud = %v", clientID, aud)
+	default:
+		return fmt.Errorf("missing audience claim")
+	}
 	return nil
 }

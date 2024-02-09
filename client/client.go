@@ -50,13 +50,17 @@ type BrowserOpenIdProvider interface {
 	HookHTTPSession(h http.HandlerFunc)
 }
 
+type PKTokenVerifier interface {
+	VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, extraChecks ...verifier.Check) error
+}
+
 type OpkClient struct {
 	Op       OpenIdProvider
 	cosP     *CosignerProvider
 	signer   crypto.Signer
 	alg      jwa.KeyAlgorithm
 	signGQ   bool // Default is false
-	verifier verifier.Verifier
+	verifier PKTokenVerifier
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -95,7 +99,7 @@ func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 }
 
 // WithCustomVerifier specifies a custom verifier to use instead of default
-func WithCustomVerifier(verifier verifier.Verifier) ClientOpts {
+func WithCustomVerifier(verifier PKTokenVerifier) ClientOpts {
 	return func(o *OpkClient) {
 		o.verifier = verifier
 	}
@@ -133,10 +137,12 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	}
 
 	// If no custom verifier has been specified, then use the default
-	client.verifier = verifier.New(op.Issuer(), op.CommitmentClaim())
+	providerVerifier := verifier.NewProviderVerifier(op.Issuer(), op.CommitmentClaim(), verifier.ProviderVerifierOpts{})
 	if client.cosP != nil {
-		client.verifier.AddCosignerVerifier(client.cosP.Issuer, true)
+		cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
+		client.verifier = verifier.New(providerVerifier, verifier.WithCosignerVerifiers(cosignerVerifier))
 	}
+	client.verifier = verifier.New(providerVerifier)
 
 	return client, nil
 }

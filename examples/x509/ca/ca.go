@@ -111,9 +111,10 @@ func (a *Ca) CheckPKToken(pktJson []byte) (*pktoken.PKToken, error) {
 		return nil, err
 	}
 
-	verifier := verifier.New(a.op.Issuer(), a.op.CommitmentClaim())
+	providerVerifier := verifier.NewProviderVerifier(a.op.Issuer(), a.op.CommitmentClaim(), verifier.ProviderVerifierOpts{})
+	verifier := verifier.New(providerVerifier)
 	if err := verifier.VerifyPKToken(context.TODO(), pkt); err != nil {
-		return nil, fmt.Errorf("Failed to verify PK token: %w", err)
+		return nil, fmt.Errorf("failed to verify PK token: %w", err)
 	}
 
 	return pkt, nil
