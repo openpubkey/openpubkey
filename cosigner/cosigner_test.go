@@ -45,7 +45,7 @@ func TestSimpleCosigner(t *testing.T) {
 	require.NoError(t, err, "failed to generate key pair")
 
 	cosignerClaims := pktoken.CosignerClaims{
-		Iss:         "example.com",
+		Issuer:      "example.com",
 		KeyID:       "none",
 		Algorithm:   cos.Alg.String(),
 		AuthID:      "none",
