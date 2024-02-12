@@ -31,7 +31,7 @@ import (
 )
 
 type CosignerClaims struct {
-	Iss         string `json:"iss"`
+	Issuer      string `json:"iss"`
 	KeyID       string `json:"kid"`
 	Algorithm   string `json:"alg"`
 	AuthID      string `json:"eid"`
@@ -51,7 +51,7 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 
 	// Check that all fields are present
 	var missing []string
-	if claims.Iss == "" {
+	if claims.Issuer == "" {
 		missing = append(missing, `iss`)
 	}
 	if claims.KeyID == "" {
@@ -115,7 +115,7 @@ func (p *PKToken) VerifyCosSig() error {
 		return fmt.Errorf("cosigner signature expired")
 	}
 
-	discConf, err := oidcclient.Discover(header.Iss, http.DefaultClient)
+	discConf, err := oidcclient.Discover(header.Issuer, http.DefaultClient)
 	if err != nil {
 		return fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}

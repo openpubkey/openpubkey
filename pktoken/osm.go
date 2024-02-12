@@ -91,12 +91,12 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 		return nil, fmt.Errorf("missing required header `typ`")
 	}
 	if typ != "osm" {
-		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but recieved %s`, typ)
+		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but received %s`, typ)
 	}
 
 	// Verify key algorithm header matches cic
 	if protected.Algorithm() != cic.PublicKey().Algorithm() {
-		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but recieved %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
+		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
 	}
 
 	// Verify kid header matches hash of pktoken
