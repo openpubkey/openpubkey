@@ -24,6 +24,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 func Sign(op client.OpenIdProvider) ([]byte, []byte, error) {
@@ -67,7 +68,9 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use
-	err = client.VerifyPKToken(context.Background(), pkt, op)
+	providerVerifier := verifier.NewProviderVerifier(op.Issuer(), op.CommitmentClaim(), verifier.ProviderVerifierOpts{})
+	pktVerifier := verifier.New(providerVerifier)
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	if err != nil {
 		return err
 	}
