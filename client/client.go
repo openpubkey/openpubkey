@@ -34,6 +34,7 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+// OpkClient is the OpenPubkey client
 type OpkClient struct {
 	Op     OpenIdProvider
 	cosP   *CosignerProvider
@@ -259,22 +260,30 @@ func (o *OpkClient) OidcAuth(
 	return pkt, nil
 }
 
+// GetOp returns the OpenID Provider the OpkClient has been configured to use
 func (o *OpkClient) GetOp() OpenIdProvider {
 	return o.Op
 }
 
+// GetCosP returns the MFA Cosigner Provider the OpkClient has been
+// configured to use
 func (o *OpkClient) GetCosP() *CosignerProvider {
 	return o.cosP
 }
 
+// GetSigner returns the client's key pair (Public Key, Signing Key)
 func (o *OpkClient) GetSigner() crypto.Signer {
 	return o.signer
 }
 
+// GetAlg returns the algorithm of the client's key pair
+// (Public Key, Signing Key)
 func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
 	return o.alg
 }
 
+// GetSignGQ returns if the client is using GQ signatures to hide the OPs
+// signature on the ID Token in this PK Token.
 func (o *OpkClient) GetSignGQ() bool {
 	return o.signGQ
 }
