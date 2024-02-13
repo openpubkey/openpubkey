@@ -133,4 +133,29 @@ func TestVerifier(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
+
+	// When the PK token does not have a GQ signature but only GQ signatures are allowed, check that verification fails
+	providerVerifier = verifier.NewProviderVerifier(provider.Issuer(), provider.CommitmentClaim(), verifier.ProviderVerifierOpts{})
+	pktVerifier = verifier.New(providerVerifier)
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	// When the PK token has a GQ signature and only GQ signatures are allowed, check that verification succeeds
+	opkClient, err = client.New(provider, client.WithSignGQ(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkt, err = opkClient.Auth(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	providerVerifier = verifier.NewProviderVerifier(provider.Issuer(), provider.CommitmentClaim(), verifier.ProviderVerifierOpts{})
+	pktVerifier = verifier.New(providerVerifier)
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())
+	if err != nil {
+		t.Fatal(err)
+	}
 }
