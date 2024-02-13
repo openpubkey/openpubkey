@@ -247,9 +247,9 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 		if aud != clientID {
 			return fmt.Errorf("audience does not contain clientID %s, aud = %s", clientID, aud)
 		}
-	case []string:
+	case []any:
 		for _, audience := range aud {
-			if audience == clientID {
+			if audience.(string) == clientID {
 				return nil
 			}
 		}
