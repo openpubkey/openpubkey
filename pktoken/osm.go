@@ -23,6 +23,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
+// NewSignedMessage signs a message with the signer provided. The signed
+// message is OSM (OpenPubkey Signed Message) which is a type of
+// JWS (JSON Web Signature). OSMs commit to the PK Token which was used
+// to generate the OSM.
 func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte, error) {
 	cic, err := p.GetCicValues()
 	if err != nil {
@@ -56,6 +60,14 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 	)
 }
 
+// NewSignedMessage verifies that an OSM (OpenPubkey Signed Message) using
+// the public key in this PK Token. If verification is successful,
+// VerifySignedMessage returns the content of the signed message. Otherwise
+// it returns an error explaining why verification failed.
+//
+// Note: VerifySignedMessage does not check this the PK Token is valid.
+// The PK Token should always be verified first before calling
+// VerifySignedMessage
 func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	cic, err := p.GetCicValues()
 	if err != nil {
@@ -79,12 +91,12 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 		return nil, fmt.Errorf("missing required header `typ`")
 	}
 	if typ != "osm" {
-		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but recieved %s`, typ)
+		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but received %s`, typ)
 	}
 
 	// Verify key algorithm header matches cic
 	if protected.Algorithm() != cic.PublicKey().Algorithm() {
-		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but recieved %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
+		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
 	}
 
 	// Verify kid header matches hash of pktoken
