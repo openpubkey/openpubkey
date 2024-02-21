@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/block-vision/sui-go-sdk/models"
 	"github.com/block-vision/sui-go-sdk/sui"
@@ -53,7 +54,7 @@ func NewJwksKey(jwksMap map[string]any, timestampMS uint64) (*ajwks.JwksKey, err
 	// fmt.Println(epoch, jwkObj, jwkId, iss, kid, key)
 	return &ajwks.JwksKey{
 		Issuer:      iss,
-		KeyId:       kid,
+		KeyID:       kid,
 		Epoch:       epoch,
 		TimestampMS: timestampMS,
 		JwkKey:      key,
@@ -270,7 +271,6 @@ func (s *SuiJwksArchive) GetPastJwks(ctx context.Context, depth int) (map[string
 
 				activeJwks := prevObj.Details.(map[string]any)["content"].(map[string]any)["fields"].(map[string]any)["value"].(map[string]any)["fields"].(map[string]any)["active_jwks"].([]any)
 				for _, jkws := range activeJwks {
-
 					jwks := jkws.(map[string]any)
 					jwskKey, err := NewJwksKey(jwks, timestampMS)
 					if err != nil {
@@ -279,13 +279,15 @@ func (s *SuiJwksArchive) GetPastJwks(ctx context.Context, depth int) (map[string
 
 					if k, ok := saves[jwskKey.Issuer]; !ok {
 						saves[jwskKey.Issuer] = &ajwks.JwksSave{
-							Iss:         jwskKey.Issuer,
-							Epoch:       []string{jwskKey.Epoch},
-							TimestampMS: jwskKey.TimestampMS,
-							JwkKeys:     []*ajwks.JwksKey{jwskKey},
+							Issuer:       jwskKey.Issuer,
+							Epoch:        []string{jwskKey.Epoch},
+							CreateTime:   jwskKey.TimestampMS,
+							DownloadTime: uint64(time.Now().UnixMilli()),
+							JwkKeys:      []*ajwks.JwksKey{jwskKey},
+							Source:       s.rpcUrl,
 						}
 					} else {
-						if saves[jwskKey.Issuer].Iss != jwskKey.Issuer || saves[jwskKey.Issuer].TimestampMS != jwskKey.TimestampMS {
+						if saves[jwskKey.Issuer].Issuer != jwskKey.Issuer || saves[jwskKey.Issuer].CreateTime != jwskKey.TimestampMS {
 							return nil, fmt.Errorf("data in save doesn't match like it should match")
 						}
 						k.Epoch = append(k.Epoch, jwskKey.Epoch)

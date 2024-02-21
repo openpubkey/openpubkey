@@ -28,11 +28,14 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/awnumar/memguard"
 
+	"github.com/openpubkey/openpubkey/ajwks"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/examples/sui/reader"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/sha3"
@@ -61,7 +64,7 @@ func main() {
 	defer memguard.Purge()
 
 	if len(os.Args) < 2 {
-		fmt.Printf("OpenPubkey: command choices are login, sign, and cert")
+		fmt.Printf("OpenPubkey: command choices are download, sign, and verify")
 		return
 	}
 
@@ -72,13 +75,50 @@ func main() {
 
 	command := os.Args[1]
 	switch command {
-	case "login":
-		if err := login(outputDir, signGQ); err != nil {
-			fmt.Println("Error logging in:", err)
-		} else {
-			fmt.Println("Login successful!")
+	case "download":
+		suiClient := reader.NewSuiJwksArchive("https://fullnode.mainnet.sui.io:443")
+		// jwksMap, err := suiClient.GetLatestJwks(context.TODO())
+		// if err != nil {
+		// 	panic(err)
+		// }
+
+		// for iss, jwks := range jwksMap {
+		// 	println(iss, len(jwks))
+		// }
+
+		depth := 300
+		jwksMapPast, err := suiClient.GetPastJwks(context.TODO(), depth)
+		if err != nil {
+			panic(err)
+		}
+
+		// for iss, jwksList := range jwksMapPast {
+		// 	fmt.Println(iss)
+		// 	for _, jwkData := range *jwksList {
+		// 		println("\t", jwkData.CreateTime, jwkData.Epoch)
+		// 	}
+		// }
+
+		for iss, jwksList := range jwksMapPast {
+			aJwks := ajwks.New(iss)
+			for _, save := range *jwksList {
+				err = aJwks.AddJwksSave(save)
+				if err != nil {
+					panic(err)
+				}
+			}
+			aJwks.Print()
+			err = aJwks.SaveToFile("jwks-" + strings.Split(aJwks.Issuer, ".")[1] + "-" + "350" + ".json")
+			if err != nil {
+				panic(err)
+			}
 		}
 	case "sign":
+		message := "sign me!!"
+		if err := sign(message, outputDir, signGQ); err != nil {
+			fmt.Println("Failed to sign test message:", err)
+		}
+	case "verify":
 		message := "sign me!!"
 		if err := sign(message, outputDir, signGQ); err != nil {
 			fmt.Println("Failed to sign test message:", err)

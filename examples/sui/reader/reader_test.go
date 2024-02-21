@@ -2,6 +2,8 @@ package reader
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/openpubkey/openpubkey/ajwks"
@@ -23,7 +25,7 @@ func TestRequest(t *testing.T) {
 		println(iss, len(jwks))
 	}
 
-	depth := 300
+	depth := 350
 	jwksMapPast, err := suiClient.GetPastJwks(context.TODO(), depth)
 	require.NoError(t, err)
 	require.NotNil(t, jwksMapPast)
@@ -31,7 +33,7 @@ func TestRequest(t *testing.T) {
 	for iss, jwksList := range jwksMapPast {
 		println(iss)
 		for _, jwkData := range *jwksList {
-			println("\t", jwkData.TimestampMS, jwkData.Epoch)
+			println("\t", jwkData.CreateTime, jwkData.Epoch)
 		}
 	}
 
@@ -45,5 +47,16 @@ func TestRequest(t *testing.T) {
 			}
 		}
 		aJwks.Print()
+		j, err := aJwks.GetSaves()
+		require.NoError(t, err)
+		fmt.Println(string(j))
+		err = aJwks.SaveToFile("jwks-" + strings.Split(aJwks.Issuer, ".")[1] + "-" + "350" + ".json")
+		require.NoError(t, err)
 	}
+}
+
+func TestRead(t *testing.T) {
+	archive, err := ajwks.NewFromFile("jwks-google-10.json")
+	require.NoError(t, err)
+	archive.Print()
 }
