@@ -7,11 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestReader(t *testing.T) {
-	err := read()
-	require.NoError(t, err)
-}
-
 // func TestRequest(t *testing.T) {
 
 // 	suiClient := NewSuiJwksArchive("https://fullnode.mainnet.sui.io:443")

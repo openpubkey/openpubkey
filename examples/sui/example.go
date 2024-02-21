@@ -86,18 +86,11 @@ func main() {
 		// 	println(iss, len(jwks))
 		// }
 
-		depth := 300
+		depth := 10
 		jwksMapPast, err := suiClient.GetPastJwks(context.TODO(), depth)
 		if err != nil {
 			panic(err)
 		}
-
-		// for iss, jwksList := range jwksMapPast {
-		// 	fmt.Println(iss)
-		// 	for _, jwkData := range *jwksList {
-		// 		println("\t", jwkData.CreateTime, jwkData.Epoch)
-		// 	}
-		// }
 
 		for iss, jwksList := range jwksMapPast {
 			aJwks := ajwks.New(iss)
@@ -108,7 +101,7 @@ func main() {
 				}
 			}
 			aJwks.Print()
-			err = aJwks.SaveToFile("jwks-" + strings.Split(aJwks.Issuer, ".")[1] + "-" + "350" + ".json")
+			err = aJwks.SaveToFile("jwks-" + strings.Split(aJwks.Issuer, ".")[1] + "-" + "10" + ".json")
 			if err != nil {
 				panic(err)
 			}

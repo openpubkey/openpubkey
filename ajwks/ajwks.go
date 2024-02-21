@@ -182,17 +182,18 @@ type JwksKey struct {
 	JwkKey      jwk.Key `json:"-"`
 }
 
-// func (k *jwk.Key) UnmarshalJSON(data []byte) error {
-// 	key, err := jwk.ParseKey(data)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	k = &key
-// }
+func (k *JwksKey) MarshalJSON() ([]byte, error) {
+	type Alias JwksKey
+	aux := &struct {
+		JwkKey jwk.Key `json:"jwk"`
+		*Alias
+	}{
+		Alias: (*Alias)(k),
+	}
 
-// type JsonJwk struct {
-// 	Map map[string]string
-// }
+	aux.JwkKey = k.JwkKey
+	return json.Marshal(aux)
+}
 
 func (k *JwksKey) UnmarshalJSON(data []byte) error {
 	type Alias JwksKey
