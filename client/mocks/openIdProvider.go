@@ -7,12 +7,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -21,29 +21,17 @@ type OpenIdProvider struct {
 	mock.Mock
 }
 
-// CommitmentClaim provides a mock function with given fields:
-func (_m *OpenIdProvider) CommitmentClaim() string {
+// Verifier provides a mock function with given fields:
+func (_m *OpenIdProvider) Verifier() verifier.ProviderVerifier {
 	ret := _m.Called()
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
+	var r0 verifier.ProviderVerifier
+	if rf, ok := ret.Get(0).(func() verifier.ProviderVerifier); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	return r0
-}
-
-// Issuer provides a mock function with given fields:
-func (_m *OpenIdProvider) Issuer() string {
-	ret := _m.Called()
-
-	var r0 string
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(verifier.ProviderVerifier)
+		}
 	}
 
 	return r0
@@ -115,11 +103,9 @@ func NewMockOpenIdProvider(
 
 	// Use our OIDP server uri as the mock issuer
 	issuer := oidpServer.URI()
-	fmt.Println(issuer)
 
 	provider := NewOpenIdProvider(t)
-	provider.On("CommitmentClaim").Return("nonce")
-	provider.On("Issuer").Return(issuer)
+	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{}))
 	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)

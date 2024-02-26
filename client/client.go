@@ -39,10 +39,7 @@ import (
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
-	Issuer() string
-	// Returns the ID token payload claim name where the cicHash was stored during issuance e.g. "nonce" or "aud"
-	CommitmentClaim() string
+	Verifier() verifier.ProviderVerifier
 }
 
 type BrowserOpenIdProvider interface {
@@ -136,13 +133,11 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 		client.signer = signer
 	}
 
-	// If no custom verifier has been specified, then use the default
-	providerVerifier := verifier.NewProviderVerifier(op.Issuer(), op.CommitmentClaim(), verifier.ProviderVerifierOpts{})
 	if client.cosP != nil {
 		cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
-		client.verifier = verifier.New(providerVerifier, verifier.WithCosignerVerifiers(cosignerVerifier))
+		client.verifier = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
 	}
-	client.verifier = verifier.New(providerVerifier)
+	client.verifier = verifier.New(op.Verifier())
 
 	return client, nil
 }

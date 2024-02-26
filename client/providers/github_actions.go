@@ -11,6 +11,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -66,12 +67,8 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func (g *GithubOp) Issuer() string {
-	return githubIssuer
-}
-
-func (g *GithubOp) CommitmentClaim() string {
-	return "aud"
+func (g *GithubOp) Verifier() verifier.ProviderVerifier {
+	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{})
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

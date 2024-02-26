@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
@@ -143,6 +144,10 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	case token := <-ch:
 		return memguard.NewBufferFromBytes(token), nil
 	}
+}
+
+func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
+	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{})
 }
 
 func (g *GoogleOp) CommitmentClaim() string {

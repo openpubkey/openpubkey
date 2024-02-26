@@ -28,7 +28,6 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,9 +104,7 @@ func TestClient(t *testing.T) {
 			}
 			jktstr := string(data)
 
-			providerVerifier := verifier.NewProviderVerifier(provider.Issuer(), provider.CommitmentClaim(), verifier.ProviderVerifierOpts{})
-
-			pubkey, err := providerVerifier.ProviderPublicKey(context.Background(), pkt)
+			pubkey, err := provider.Verifier().ProviderPublicKey(context.Background(), pkt)
 			if err != nil {
 				t.Fatal(err)
 			}

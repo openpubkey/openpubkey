@@ -4,7 +4,7 @@ import "fmt"
 
 type VerifierOpts func(*Verifier)
 
-func WithCosignerVerifiers(verifiers ...*CosignerVerifier) VerifierOpts {
+func WithCosignerVerifiers(verifiers ...*DefaultCosignerVerifier) VerifierOpts {
 	return func(v *Verifier) {
 		for _, verifier := range verifiers {
 			fmt.Println(verifier.issuer)
@@ -13,10 +13,10 @@ func WithCosignerVerifiers(verifiers ...*CosignerVerifier) VerifierOpts {
 	}
 }
 
-func AddProviderVerifiers(verifiers ...*ProviderVerifier) VerifierOpts {
+func AddProviderVerifiers(verifiers ...ProviderVerifier) VerifierOpts {
 	return func(v *Verifier) {
 		for _, verifier := range verifiers {
-			v.providers[verifier.issuer] = verifier
+			v.providers[verifier.Issuer()] = verifier
 		}
 	}
 }

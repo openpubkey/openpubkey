@@ -4,21 +4,35 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
-type Verifier struct {
-	providers map[string]*ProviderVerifier
-	cosigners map[string]*CosignerVerifier
+type ProviderVerifier interface {
+	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
+	Issuer() string
+	ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error)
+	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
 }
 
-func New(verifier *ProviderVerifier, options ...VerifierOpts) *Verifier {
+type CosignerVerifier interface {
+	Issuer() string
+	Strict() bool // Whether or not a given cosigner MUST be present for successful verification
+	VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error
+}
+
+type Verifier struct {
+	providers map[string]ProviderVerifier
+	cosigners map[string]CosignerVerifier
+}
+
+func New(verifier ProviderVerifier, options ...VerifierOpts) *Verifier {
 	v := &Verifier{
-		providers: map[string]*ProviderVerifier{
-			verifier.issuer: verifier,
+		providers: map[string]ProviderVerifier{
+			verifier.Issuer(): verifier,
 		},
-		cosigners: map[string]*CosignerVerifier{},
+		cosigners: map[string]CosignerVerifier{},
 	}
 
 	for _, option := range options {
@@ -54,8 +68,8 @@ func (v *Verifier) VerifyPKToken(
 		if pkt.Cos == nil {
 			// If there's no cosigner signature and any provided cosigner verifiers are strict, then return error
 			for _, cosignerVerifier := range v.cosigners {
-				if cosignerVerifier.options.Strict {
-					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.issuer)
+				if cosignerVerifier.Strict() {
+					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.Issuer())
 				}
 			}
 		} else {
@@ -77,8 +91,8 @@ func (v *Verifier) VerifyPKToken(
 
 			// If any other cosigner verifiers are set to strict but aren't present, then return error
 			for _, cosignerVerifier := range v.cosigners {
-				if cosignerVerifier.options.Strict && cosignerVerifier.issuer != cosignerClaims.Issuer {
-					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.issuer)
+				if cosignerVerifier.Strict() && cosignerVerifier.Issuer() != cosignerClaims.Issuer {
+					return fmt.Errorf("missing required cosigner signature by %s", cosignerVerifier.Issuer())
 				}
 			}
 		}

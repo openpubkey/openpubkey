@@ -16,7 +16,7 @@ import (
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
-type ProviderVerifier struct {
+type DefaultProviderVerifier struct {
 	issuer          string
 	commitmentClaim string
 	options         ProviderVerifierOpts
@@ -36,8 +36,8 @@ type ProviderVerifierOpts struct {
 //
 // issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
-func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifierOpts) *ProviderVerifier {
-	v := &ProviderVerifier{
+func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifierOpts) *DefaultProviderVerifier {
+	v := &DefaultProviderVerifier{
 		issuer:          issuer,
 		commitmentClaim: commitmentClaim,
 		options:         options,
@@ -51,7 +51,11 @@ func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifie
 	return v
 }
 
-func (v *ProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (v *DefaultProviderVerifier) Issuer() string {
+	return v.issuer
+}
+
+func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
 	// If ClientID is specified, verify clientID is contained in the audience
 	if v.options.ClientID != "" {
 		if err := verifyAudience(pkt, v.options.ClientID); err != nil {
@@ -92,7 +96,7 @@ func (v *ProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKTo
 	return nil
 }
 
-func (v *ProviderVerifier) ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error) {
+func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error) {
 	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
 		return nil, fmt.Errorf("provider algorithm type missing")
@@ -123,7 +127,7 @@ func (v *ProviderVerifier) ProviderPublicKey(ctx context.Context, pkt *pktoken.P
 	return v.options.DiscoverPublicKey(ctx, kid, issuer)
 }
 
-func (v *ProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
+func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 	var claims map[string]any
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return err

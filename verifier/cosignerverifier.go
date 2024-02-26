@@ -13,7 +13,7 @@ import (
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
-type CosignerVerifier struct {
+type DefaultCosignerVerifier struct {
 	issuer  string
 	options CosignerVerifierOpts
 }
@@ -26,8 +26,8 @@ type CosignerVerifierOpts struct {
 	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (jwk.Key, error)
 }
 
-func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *CosignerVerifier {
-	v := &CosignerVerifier{
+func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCosignerVerifier {
+	v := &DefaultCosignerVerifier{
 		issuer:  issuer,
 		options: options,
 	}
@@ -40,7 +40,15 @@ func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *CosignerV
 	return v
 }
 
-func (v *CosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error {
+func (v *DefaultCosignerVerifier) Issuer() string {
+	return v.issuer
+}
+
+func (v *DefaultCosignerVerifier) Strict() bool {
+	return v.options.Strict
+}
+
+func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error {
 	if pkt.Cos == nil {
 		return fmt.Errorf("no cosigner signature")
 	}
