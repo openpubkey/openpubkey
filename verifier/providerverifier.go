@@ -26,6 +26,8 @@ type ProviderVerifierOpts struct {
 	// If ClientID is specified, then verification will require that the ClientID
 	// be present in the audience ("aud") claim of the PK token payload
 	ClientID string
+	// Specifies whether to skip the Client ID check, defaults to false
+	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
 	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (jwk.Key, error)
 	// Allows for successful verification of expired tokens
@@ -56,11 +58,10 @@ func (v *DefaultProviderVerifier) Issuer() string {
 }
 
 func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	// If ClientID is specified, verify clientID is contained in the audience
-	if v.options.ClientID != "" {
-		if err := verifyAudience(pkt, v.options.ClientID); err != nil {
-			return err
-		}
+	// Check whether Audience claim matches provided Client ID
+	// No error is thrown if option is set to skip client ID check
+	if err := verifyAudience(pkt, v.options.ClientID); err != nil && !v.options.SkipClientIDCheck {
+		return err
 	}
 
 	alg, ok := pkt.ProviderAlgorithm()
