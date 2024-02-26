@@ -86,25 +86,42 @@ func TestPkTokenJwsUnchanged(t *testing.T) {
 		"sub": "1234567890"
 	  }`
 
-	// Alphabetical order A to Z
-	pheaderOpAz := `{"alg":"RS256","typ":"JWT"}`
-	pheaderCicAz := `{"alg":"ES256","rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e","typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`
-	testUnchangedByCompact(t, payload, pheaderOpAz, pheaderCicAz)
-
-	// Reverse Alphabetical order Z to A
-	pheaderOpZa := `{"typ":"JWT","alg":"RS256"}`
-	pheaderCicZa := `{"upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}, "typ":"CIC", "rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e", "alg":"ES256"}`
-	testUnchangedByCompact(t, payload, pheaderOpZa, pheaderCicZa)
-
-	// Whitespace
-	pheaderOpWs := `{  "alg":"RS256",     "typ":"JWT" }`
-	pheaderCicWs := `{ "alg":    "ES256",  "rz": "872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e" , "typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`
-
-	testUnchangedByCompact(t, payload, pheaderOpWs, pheaderCicWs)
-	testUnchangedAfterMarshalling(t, payload, pheaderOpWs, pheaderCicWs)
+	testCases := []struct {
+		name         string
+		payload      string
+		opProtected  string
+		cicProtected string
+		cosProtected string
+	}{
+		{name: "with alphabetical order",
+			payload:      payload,
+			opProtected:  `{"alg":"RS256","typ":"JWT"}`,
+			cicProtected: `{"alg":"ES256","rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e","typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`,
+			cosProtected: `{"alg":"ES256","auth_time":1708991378,"eid":"1234","exp":1708994978,"iat":1708991378,"iss":"example.com","kid":"1234","nonce":"test-nonce","ruri":"http://localhost:3000","typ":"COS"}`,
+		},
+		{name: "with reverse alphabetical order",
+			payload:      payload,
+			opProtected:  `{"typ":"JWT","alg":"RS256"}`,
+			cicProtected: `{"upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}, "typ":"CIC", "rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e", "alg":"ES256"}`,
+			cosProtected: `{"typ":"COS","ruri":"http://localhost:3000","nonce":"test-nonce","kid":"1234","iss":"example.com","iat":1708991378,"exp":1708994978,"eid":"none","auth_time":1708991378,"alg":"ES256"}`,
+		},
+		{name: "with extra whitespace",
+			payload:      payload,
+			opProtected:  `{  "alg" : "RS256",     "typ": "JWT" }`,
+			cicProtected: `{  "alg" : "ES256",  "rz": "872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e" , "typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`,
+			cosProtected: `{  "alg" : "ES256",  "auth_time": 1708991378,"eid":"1234","exp":1708994978,"iat":1708991378,"iss":"example.com","kid":"1234","nonce":"test-nonce","ruri":"http://localhost:3000","typ":"COS"}`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testUnchangedByCompact(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+			testUnchangedAfterMarshalling(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+		})
+	}
 }
 
-func testUnchangedByCompact(t *testing.T, payload string, opPheader string, cicPheader string) {
+// Once we remove pkt.Compact we can remove this test
+func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
 	pkt := &pktoken.PKToken{}
 
 	// Build OP Token and add it to PK Token
@@ -114,20 +131,31 @@ func testUnchangedByCompact(t *testing.T, payload string, opPheader string, cicP
 
 	// Check that Compact does not change original OP Token
 	opTokenOut, err := pkt.Compact(pkt.Op)
+	require.NoError(t, err)
 	require.EqualValues(t, string(opTokenOriginal), string(opTokenOut), "danger, signed values in OP Token being changed")
 
 	// Build CIC Token and add it to PK Token
 	cicTokenOriginal := BuildToken(cicPheader, payload, "fakeSignature")
-	require.NotNil(t, cicTokenOriginal)
 	err = pkt.AddSignature(cicTokenOriginal, pktoken.CIC)
 	require.NoError(t, err)
 
 	// Check that Compact does not change original CIC Token
 	cicTokenCompact, err := pkt.Compact(pkt.Cic)
+	require.NoError(t, err)
 	require.EqualValues(t, string(cicTokenOriginal), string(cicTokenCompact), "danger, signed values in CIC Token being changed")
+
+	// Build COS Token and add it to PK Token
+	cosTokenOriginal := BuildToken(cosPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cosTokenOriginal, pktoken.COS)
+	require.NoError(t, err)
+
+	// Check that Compact does not change original COS Token
+	cosTokenCompact, err := pkt.Compact(pkt.Cos)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cosTokenOriginal), string(cosTokenCompact), "danger, signed values in COS Token being changed")
 }
 
-func testUnchangedAfterMarshalling(t *testing.T, payload string, opPheader string, cicPheader string) {
+func testUnchangedAfterMarshalling(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
 	pkt := &pktoken.PKToken{}
 
 	// Build OP Token and add it to PK Token
@@ -138,6 +166,11 @@ func testUnchangedAfterMarshalling(t *testing.T, payload string, opPheader strin
 	// Build CIC Token and add it to PK Token
 	cicTokenOriginal := BuildToken(cicPheader, payload, "fakeSignature")
 	err = pkt.AddSignature(cicTokenOriginal, pktoken.CIC)
+	require.NoError(t, err)
+
+	// Build CIC Token and add it to PK Token
+	cosTokenOriginal := BuildToken(cosPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cosTokenOriginal, pktoken.COS)
 	require.NoError(t, err)
 
 	// Check that Marshal PK Token to Json leaves underlying signed values unchanged
@@ -156,6 +189,10 @@ func testUnchangedAfterMarshalling(t *testing.T, payload string, opPheader strin
 	cicTokenUnmarshalled, err := simpleJWS.GetTokenByTyp("CIC") // CIC is the token typ used by the OP Token (ID Token)
 	require.NoError(t, err)
 	require.EqualValues(t, string(cicTokenOriginal), string(cicTokenUnmarshalled), "danger, signed values in CIC Token being changed during marshalling")
+
+	cosTokenUnmarshalled, err := simpleJWS.GetTokenByTyp("COS") // COS is the token typ used by the OP Token (ID Token)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cosTokenOriginal), string(cosTokenUnmarshalled), "danger, signed values in CIC Token being changed during marshalling")
 }
 
 //go:embed test_jwk.json
@@ -179,10 +216,8 @@ func TestThumprintCalculation(t *testing.T) {
 }
 
 func BuildToken(protected string, payload string, sig string) []byte {
-	tokenStr := string(util.Base64EncodeForJWT([]byte(protected)))
-	tokenStr += "."
-	tokenStr += string(util.Base64EncodeForJWT([]byte(payload)))
-	tokenStr += "."
-	tokenStr += string(util.Base64EncodeForJWT([]byte(sig)))
-	return []byte(tokenStr)
+	return util.JoinJWTSegments(
+		util.Base64EncodeForJWT([]byte(protected)),
+		util.Base64EncodeForJWT([]byte(payload)),
+		util.Base64EncodeForJWT([]byte(sig)))
 }
