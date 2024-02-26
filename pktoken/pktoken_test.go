@@ -1,10 +1,25 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package pktoken_test
 
 import (
 	"crypto"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,14 +38,10 @@ func TestPkToken(t *testing.T) {
 	alg := jwa.ES256
 
 	signingKey, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	testPkTokenMessageSigning(t, pkt, signingKey)
 	testPkTokenSerialization(t, pkt)
@@ -40,38 +51,26 @@ func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signingKey cr
 	// Create new OpenPubKey Signed Message (OSM)
 	msg := "test message!"
 	osm, err := pkt.NewSignedMessage([]byte(msg), signingKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Verify our OSM is valid
 	payload, err := pkt.VerifySignedMessage(osm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if string(payload) != msg {
-		t.Fatal("OSM payload did not match what we initially wrapped")
-	}
+	require.Equal(t, msg, string(payload), "OSM payload did not match what we initially wrapped")
 }
 
 func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	// Test json serialization/deserialization
 	pktJson, err := json.Marshal(pkt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(string(pktJson))
+	require.NoError(t, err)
 
 	var newPkt *pktoken.PKToken
-	if err := json.Unmarshal(pktJson, &newPkt); err != nil {
-		t.Fatal(err)
-	}
+	err = json.Unmarshal(pktJson, &newPkt)
+	require.NoError(t, err)
 
 	newPktJson, err := json.Marshal(newPkt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	require.JSONEq(t, string(pktJson), string(newPktJson))
 }
