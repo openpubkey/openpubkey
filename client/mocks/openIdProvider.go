@@ -105,7 +105,7 @@ func NewMockOpenIdProvider(
 	issuer := oidpServer.URI()
 
 	provider := NewOpenIdProvider(t)
-	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{}))
+	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{SkipClientIDCheck: true}))
 	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)

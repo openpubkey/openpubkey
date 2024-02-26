@@ -41,7 +41,7 @@ func TestVerifier(t *testing.T) {
 
 	// Check if verification fails with incorrect issuer
 	wrongIssuer := "https://evil.com/"
-	providerVerifier := verifier.NewProviderVerifier(wrongIssuer, commitmentClaim, verifier.ProviderVerifierOpts{})
+	providerVerifier := verifier.NewProviderVerifier(wrongIssuer, commitmentClaim, verifier.ProviderVerifierOpts{SkipClientIDCheck: true})
 	pktVerifier = verifier.New(providerVerifier)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	if err == nil {
@@ -50,7 +50,7 @@ func TestVerifier(t *testing.T) {
 
 	// Check if verification failes with incorrect commitment claim
 	wrongCommitmentClaim := "evil"
-	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), wrongCommitmentClaim, verifier.ProviderVerifierOpts{})
+	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), wrongCommitmentClaim, verifier.ProviderVerifierOpts{SkipClientIDCheck: true})
 	pktVerifier = verifier.New(providerVerifier)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	if err == nil {
@@ -152,7 +152,7 @@ func TestVerifier(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{})
+	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{ClientID: clientID})
 	pktVerifier = verifier.New(providerVerifier)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())
 	if err != nil {

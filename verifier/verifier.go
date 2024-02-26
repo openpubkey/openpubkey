@@ -22,6 +22,25 @@ type CosignerVerifier interface {
 	VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error
 }
 
+type VerifierOpts func(*Verifier)
+
+func WithCosignerVerifiers(verifiers ...*DefaultCosignerVerifier) VerifierOpts {
+	return func(v *Verifier) {
+		for _, verifier := range verifiers {
+			fmt.Println(verifier.issuer)
+			v.cosigners[verifier.issuer] = verifier
+		}
+	}
+}
+
+func AddProviderVerifiers(verifiers ...ProviderVerifier) VerifierOpts {
+	return func(v *Verifier) {
+		for _, verifier := range verifiers {
+			v.providers[verifier.Issuer()] = verifier
+		}
+	}
+}
+
 type Verifier struct {
 	providers map[string]ProviderVerifier
 	cosigners map[string]CosignerVerifier
