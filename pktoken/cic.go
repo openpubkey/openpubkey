@@ -17,19 +17,11 @@ func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
 }
 
 func (p *PKToken) VerifyCicSig() error {
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(p.Cic)
-	token, err := jws.Compact(message)
-	if err != nil {
-		return err
-	}
-
 	cic, err := p.GetCicValues()
 	if err != nil {
 		return err
 	}
 
-	_, err = jws.Verify(token, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	_, err = jws.Verify(p.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
 	return err
 }
