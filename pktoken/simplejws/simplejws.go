@@ -17,9 +17,11 @@
 package simplejws
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -47,6 +49,49 @@ func (s *Signature) GetTyp() (string, error) {
 		return "", err
 	}
 	return ph.Typ, nil
+}
+
+type SigOptStruct struct {
+	PublicHeader map[string]any
+}
+type SigOpts func(a *SigOptStruct)
+
+// WithPublicHeader species that a public header be included in the
+// signature. Public headers aren't Base64 encoded because they aren't signed.
+// Example use: WithPublicHeader(map[string]any{"key1": "abc", "key2": "def"})
+func WithPublicHeader(publicHeader map[string]any) SigOpts {
+	return func(o *SigOptStruct) {
+		o.PublicHeader = publicHeader
+	}
+}
+
+func (j *Jws) AddSignature(token []byte, opts ...SigOpts) error {
+	sigOpts := &SigOptStruct{}
+	for _, applyOpt := range opts {
+		applyOpt(sigOpts)
+	}
+
+	protected, payload, signature, err := jws.SplitCompact(token)
+	if err != nil {
+		return err
+	}
+	if j.Payload != string(payload) {
+		return fmt.Errorf("payload in compact token does not match existing payload in jws, expected=(%s), got=(%s)",
+			string(j.Payload),
+			string(payload))
+	}
+	sig := Signature{
+		Protected: string(protected),
+		Public:    sigOpts.PublicHeader,
+		Signature: string(signature),
+	}
+
+	if j.Signatures == nil {
+		j.Signatures = []Signature{}
+	}
+	j.Signatures = append(j.Signatures, sig)
+
+	return nil
 }
 
 func (j *Jws) GetToken(i int) ([]byte, error) {
@@ -92,4 +137,16 @@ func (j *Jws) GetTokenByTyp(typ string) ([]byte, error) {
 	} else {
 		return []byte(matchingTokens[0].Protected + "." + j.Payload + "." + matchingTokens[0].Signature), nil
 	}
+}
+
+// SplitCompact splits a JWT and returns its three parts
+// separately: protected headers, payload and signature.
+// This is copied from github.com/lestrrat-go/jwx/v2/jws.SplitCompact
+// We include it here so so that jwx is not a dependency of simpleJws
+func SplitCompact(src []byte) ([]byte, []byte, []byte, error) {
+	parts := bytes.Split(src, []byte("."))
+	if len(parts) < 3 {
+		return nil, nil, nil, fmt.Errorf(`invalid number of segments`)
+	}
+	return parts[0], parts[1], parts[2], nil
 }

@@ -182,8 +182,9 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 }
 
 // Deprecated: The PK Token now stores the signed tokens such as OpToken,
-// CicToken, etc.... Instead of calling Compact, request the token directly
-// like pkt.OpToken
+// CicToken, etc.... removing the need for this function. Instead of
+// calling Compact, just get the token directly from the PK Token.
+// Do `pkt.OpToken` instead of `opToken, err := pkt.Compact(pkt.Op)`
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
 	sigType := SignatureType(sig.ProtectedHeaders().Type())
 	switch sigType {
@@ -223,49 +224,25 @@ func (p *PKToken) MarshalJSON() ([]byte, error) {
 		Payload:    string(util.Base64EncodeForJWT(p.Payload)),
 		Signatures: []simplejws.Signature{},
 	}
-
-	OpPh, _, OpSig, err := jws.SplitCompact(p.OpToken)
-	var opPublicHeaders map[string]any
+	var opPublicHeader map[string]any
+	var err error
 	if p.Op.PublicHeaders() != nil {
-		opPublicHeaders, err = p.Op.PublicHeaders().AsMap(context.Background())
-		if err != nil {
+		if opPublicHeader, err = p.Op.PublicHeaders().AsMap(context.Background()); err != nil {
 			return nil, err
 		}
 	}
-
-	opSig := simplejws.Signature{
-		Protected: string(OpPh),
-		Public:    opPublicHeaders, // Public headers aren't Base64 encoded because they aren't signed
-		Signature: string(OpSig),
-	}
-	rawJws.Signatures = append(rawJws.Signatures, opSig)
-
-	CicPh, _, CicSig, err := jws.SplitCompact(p.CicToken)
-	if err != nil {
+	if err = rawJws.AddSignature(p.OpToken, simplejws.WithPublicHeader(opPublicHeader)); err != nil {
 		return nil, err
 	}
-	cicSig := simplejws.Signature{
-		Protected: string(CicPh),
-		Signature: string(CicSig),
+	if err = rawJws.AddSignature(p.CicToken); err != nil {
+		return nil, err
 	}
-	rawJws.Signatures = append(rawJws.Signatures, cicSig)
 	if p.CosToken != nil {
-		CosPh, _, CosSig, err := jws.SplitCompact(p.CosToken)
-		if err != nil {
+		if err = rawJws.AddSignature(p.CosToken); err != nil {
 			return nil, err
 		}
-		cosSig := simplejws.Signature{
-			Protected: string(CosPh),
-			Signature: string(CosSig),
-		}
-		rawJws.Signatures = append(rawJws.Signatures, cosSig)
 	}
-
-	jwsJSON, err := json.Marshal(rawJws)
-	if err != nil {
-		return nil, err
-	}
-	return jwsJSON, nil
+	return json.Marshal(rawJws)
 }
 
 func (p *PKToken) UnmarshalJSON(data []byte) error {

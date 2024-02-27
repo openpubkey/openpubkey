@@ -200,9 +200,11 @@ func (o *OpkClient) OidcAuth(
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idTokenLB, err := o.Op.RequestTokens(ctx, string(nonce)) // idTokenLB is the ID Token in a
-	// memguard LockedBuffer, this is done because at this stage, if we are using GQ signatures,
-	// the ID Token may contain secrets we wish to protect.
+	idTokenLB, err := o.Op.RequestTokens(ctx, string(nonce))
+	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
+	// because the ID Token contains the OPs RSA signature which is a secret
+	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
+	// a public value.
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
