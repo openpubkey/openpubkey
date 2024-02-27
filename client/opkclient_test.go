@@ -98,11 +98,10 @@ func TestClient(t *testing.T) {
 			if !ok {
 				t.Fatal("missing jkt header")
 			}
-			data, ok := jkt.([]byte)
+			jktstr, ok := jkt.(string)
 			if !ok {
-				t.Fatalf("expected jkt header to be a []byte, got %T", jkt)
+				t.Fatalf("expected jkt header to be a string, got %T", jkt)
 			}
-			jktstr := string(data)
 
 			pubkey, err := op.PublicKey(context.Background(), nil)
 			require.NoError(t, err, tc.name)

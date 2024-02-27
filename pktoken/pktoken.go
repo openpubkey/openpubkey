@@ -66,7 +66,10 @@ func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
 	if headers == nil {
 		headers = jws.NewHeaders()
 	}
-	err = headers.Set("jkt", util.Base64EncodeForJWT(thumbprint))
+	thumbprintB64 := util.Base64EncodeForJWT(thumbprint)
+
+	// We make thumbprint a string otherwise jkt will Base64 encode it again
+	err = headers.Set("jkt", string(thumbprintB64))
 	if err != nil {
 		return fmt.Errorf("failed to set jkt claim: %w", err)
 	}
