@@ -118,19 +118,17 @@ func TestJktInPublicHEader(t *testing.T) {
 	require.NoError(t, err)
 	pubJwk, err := keyJwk.PublicKey()
 	require.NoError(t, err)
-	var pubRaw interface{}
-	err = pubJwk.Raw(&pubRaw)
 	require.NoError(t, err)
 
 	alg := jwa.ES256
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signingKey, alg)
 	require.NoError(t, err)
 
 	// Add to public header
-	err = pkt.AddJKTHeader(pubRaw)
+	err = pkt.AddJKTHeader(pubJwk)
 	require.NoError(t, err)
 
 	publicHeadersJson, err := pkt.Op.PublicHeaders().MarshalJSON()
