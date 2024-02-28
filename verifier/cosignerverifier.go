@@ -20,8 +20,8 @@ type DefaultCosignerVerifier struct {
 
 type CosignerVerifierOpts struct {
 	// Strict specifies whether or not a pk token MUST contain a signature by this cosigner.
-	// Defaults to false.
-	Strict bool
+	// Defaults to true.
+	Strict *bool
 	// Allows users to set custom function for discovering public key of Cosigner
 	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (jwk.Key, error)
 }
@@ -37,6 +37,10 @@ func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCo
 		v.options.DiscoverPublicKey = discoverCosignerPublicKey
 	}
 
+	if v.options.Strict == nil {
+		*v.options.Strict = true
+	}
+
 	return v
 }
 
@@ -45,7 +49,7 @@ func (v *DefaultCosignerVerifier) Issuer() string {
 }
 
 func (v *DefaultCosignerVerifier) Strict() bool {
-	return v.options.Strict
+	return *v.options.Strict
 }
 
 func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error {
