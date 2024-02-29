@@ -71,7 +71,7 @@ func (j *Jws) AddSignature(token []byte, opts ...SigOpts) error {
 		applyOpt(sigOpts)
 	}
 
-	protected, payload, signature, err := jws.SplitCompact(token)
+	protected, payload, signature, err := SplitCompact(token)
 	if err != nil {
 		return err
 	}
