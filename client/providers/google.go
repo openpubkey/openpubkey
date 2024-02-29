@@ -37,7 +37,8 @@ import (
 )
 
 var (
-	key = []byte("NotASecureKey123")
+	key            = []byte("NotASecureKey123")
+	issuedAtOffset = 1 * time.Minute
 )
 
 const googleIssuer = "https://accounts.google.com"
@@ -61,7 +62,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(
+			rp.WithIssuedAtOffset(issuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
@@ -170,7 +171,7 @@ func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.P
 
 func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
 	options := []rp.Option{
-		rp.WithVerifierOpts(rp.WithIssuedAtOffset(5*time.Second), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
+		rp.WithVerifierOpts(rp.WithIssuedAtOffset(issuedAtOffset), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
 	}
 
 	googleRP, err := rp.NewRelyingPartyOIDC(
