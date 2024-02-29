@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
 
