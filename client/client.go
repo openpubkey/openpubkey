@@ -20,14 +20,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -229,7 +227,7 @@ func (o *OpkClient) OidcAuth(
 	// Define our commitment as the hash of the client instance claims
 	commitment, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error getting nonce: %w", err)
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	// Use the commitment to complete the OIDC flow and get an ID token from the provider
@@ -245,21 +243,9 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	idMessage, err := jws.Parse(idToken.Bytes())
+	opKey, err := o.Op.Verifier().ProviderPublicKey(ctx, idToken.Bytes())
 	if err != nil {
-		return nil, fmt.Errorf("malformatted ID token: %w", err)
-	}
-	kid := idMessage.Signatures()[0].ProtectedHeaders().KeyID()
-	var claims struct {
-		Issuer string `json:"iss"`
-	}
-	if err := json.Unmarshal(idMessage.Payload(), &claims); err != nil {
 		return nil, err
-	}
-
-	opKey, err := verifier.DiscoverProviderPublicKey(ctx, kid, claims.Issuer)
-	if err != nil {
-		return nil, fmt.Errorf("error getting OP public key: %w", err)
 	}
 
 	// sign GQ256
@@ -268,7 +254,7 @@ func (o *OpkClient) OidcAuth(
 		rsaKey := new(rsa.PublicKey)
 		err = opKey.Raw(rsaKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode public key: %w", err)
+			return nil, fmt.Errorf("GQ signatures require RSA key but got %T", opKey)
 		}
 
 		sv, err := gq.New256SignerVerifier(rsaKey)
@@ -291,13 +277,16 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	err = pkt.AddJKTHeader(opKey)
-	if err != nil {
+	var pubKey any
+	if err := opKey.Raw(&pubKey); err != nil {
+		return nil, err
+	}
+
+	if err := pkt.AddJKTHeader(pubKey); err != nil {
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	err = o.verifier.VerifyPKToken(ctx, pkt, verifierChecks...)
-	if err != nil {
+	if err := o.verifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 

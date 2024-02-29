@@ -110,7 +110,7 @@ func TestThumprintCalculation(t *testing.T) {
 
 }
 
-func TestJktInPublicHEader(t *testing.T) {
+func TestJktInPublicHeader(t *testing.T) {
 	fromRfc := "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
 
 	// Add create thumbprint
@@ -118,6 +118,8 @@ func TestJktInPublicHEader(t *testing.T) {
 	require.NoError(t, err)
 	pubJwk, err := keyJwk.PublicKey()
 	require.NoError(t, err)
+	var pubRaw interface{}
+	err = pubJwk.Raw(&pubRaw)
 	require.NoError(t, err)
 
 	alg := jwa.ES256
@@ -128,7 +130,7 @@ func TestJktInPublicHEader(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add to public header
-	err = pkt.AddJKTHeader(pubJwk)
+	err = pkt.AddJKTHeader(pubRaw)
 	require.NoError(t, err)
 
 	publicHeadersJson, err := pkt.Op.PublicHeaders().MarshalJSON()

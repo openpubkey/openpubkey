@@ -103,7 +103,10 @@ func TestClient(t *testing.T) {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
 			}
 
-			pubkey, err := provider.Verifier().ProviderPublicKey(context.Background(), pkt)
+			opToken, err := pkt.Compact(pkt.Op)
+			require.NoError(t, err, tc.name)
+
+			pubkey, err := provider.Verifier().ProviderPublicKey(context.Background(), opToken)
 			if err != nil {
 				t.Fatal(err)
 			}

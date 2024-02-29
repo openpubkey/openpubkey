@@ -75,7 +75,12 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 	case jwa.RS256:
-		pubKey, err := v.ProviderPublicKey(ctx, pkt)
+		opToken, err := pkt.Compact(pkt.Op)
+		if err != nil {
+			return err
+		}
+
+		pubKey, err := v.ProviderPublicKey(ctx, opToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
@@ -97,35 +102,47 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 	return nil
 }
 
-func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error) {
-	alg, ok := pkt.ProviderAlgorithm()
-	if !ok {
-		return nil, fmt.Errorf("provider algorithm type missing")
-	}
-
-	var kid string
-	if alg == gq.GQ256 {
-		origHeaders, err := originalTokenHeaders(pkt)
-		if err != nil {
-			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
-		}
-
-		alg = origHeaders.Algorithm()
-		if alg != jwa.RS256 {
-			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
-		}
-
-		kid = origHeaders.KeyID()
-	} else {
-		kid = pkt.Op.ProtectedHeaders().KeyID()
-	}
-
-	issuer, err := pkt.Issuer()
+// This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
+// the associated public key
+func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (jwk.Key, error) {
+	message, err := jws.Parse(token)
 	if err != nil {
 		return nil, err
 	}
 
-	return v.options.DiscoverPublicKey(ctx, kid, issuer)
+	// a JWT is guaranteed to have exactly one signature
+	headers := message.Signatures()[0].ProtectedHeaders()
+
+	alg, ok := headers.Get(jws.AlgorithmKey)
+	if !ok {
+		return nil, fmt.Errorf("missing algorithm header")
+	}
+
+	var kid string
+	if alg == gq.GQ256 {
+		origHeaders, err := originalTokenHeaders(token)
+		if err != nil {
+			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
+		}
+
+		if origHeaders.Algorithm() != jwa.RS256 {
+			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", headers.Algorithm())
+		}
+
+		kid = origHeaders.KeyID()
+	} else {
+		kid = headers.KeyID()
+	}
+
+	// Extract our issuer from the payload claims
+	var claims struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(message.Payload(), &claims); err != nil {
+		return nil, err
+	}
+
+	return v.options.DiscoverPublicKey(ctx, kid, claims.Issuer)
 }
 
 func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
@@ -163,7 +180,12 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
-	origHeaders, err := originalTokenHeaders(pkt)
+	opToken, err := pkt.Compact(pkt.Op)
+	if err != nil {
+		return err
+	}
+
+	origHeaders, err := originalTokenHeaders(opToken)
 	if err != nil {
 		return fmt.Errorf("malformatted PK token headers: %w", err)
 	}
@@ -209,18 +231,8 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	return nil
 }
 
-func originalTokenHeaders(pkt *pktoken.PKToken) (jws.Headers, error) {
-	opHeaders := pkt.Op.ProtectedHeaders()
-	if opHeaders.Algorithm() != gq.GQ256 {
-		return nil, fmt.Errorf("expected GQ256 alg, got %s", opHeaders.Algorithm())
-	}
-
-	opToken, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return nil, err
-	}
-
-	origHeadersB64, err := gq.OriginalJWTHeaders(opToken)
+func originalTokenHeaders(token []byte) (jws.Headers, error) {
+	origHeadersB64, err := gq.OriginalJWTHeaders(token)
 	if err != nil {
 		return nil, fmt.Errorf("malformatted PK token headers: %w", err)
 	}
@@ -274,6 +286,14 @@ func DiscoverProviderPublicKey(ctx context.Context, kid string, issuer string) (
 	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+
+	// kids are not always present, particularly when there is only a single key
+	// therefore, we allow an empty kid to return a key if there is only one in
+	// the set
+	if kid == "" && jwks.Len() == 1 {
+		key, _ := jwks.Key(0)
+		return key, nil
 	}
 
 	key, ok := jwks.LookupKeyID(kid)

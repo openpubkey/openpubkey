@@ -54,8 +54,12 @@ type PKToken struct {
 
 // kid isn't always present, and is only guaranteed to be unique within a given key set,
 // so we can use the thumbprint of the key instead to identify it at verification time
-func (p *PKToken) AddJKTHeader(opKey jwk.Key) error {
-	thumbprint, err := opKey.Thumbprint(crypto.SHA256)
+func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
+	public, err := jwk.FromRaw(opKey)
+	if err != nil {
+		return fmt.Errorf("failed to create JWK from public key: %w", err)
+	}
+	thumbprint, err := public.Thumbprint(crypto.SHA256)
 	if err != nil {
 		return fmt.Errorf("failed to calculate thumbprint: %w", err)
 	}

@@ -12,7 +12,7 @@ import (
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	ProviderPublicKey(ctx context.Context, pkt *pktoken.PKToken) (jwk.Key, error)
+	ProviderPublicKey(ctx context.Context, token []byte) (jwk.Key, error)
 	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
 }
 

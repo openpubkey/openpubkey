@@ -150,10 +150,6 @@ func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{})
 }
 
-func (g *GoogleOp) CommitmentClaim() string {
-	return "nonce"
-}
-
 func (g *GoogleOp) Issuer() string {
 	return googleIssuer
 }
