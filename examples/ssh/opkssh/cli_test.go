@@ -7,7 +7,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	clientmocks "github.com/openpubkey/openpubkey/client/mocks"
+	providermocks "github.com/openpubkey/openpubkey/client/providers/mocks"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,7 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		"email": mockEmail,
 	}
 
-	op, err := clientmocks.NewMockOpenIdProvider(t, extraClaims)
+	op, err := providermocks.NewMockOpenIdProvider(t, extraClaims)
 	if err != nil {
 		t.Fatal(err)
 	}
