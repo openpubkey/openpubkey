@@ -68,7 +68,10 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use
-	pktVerifier := verifier.New(op.Verifier())
+	pktVerifier, err := verifier.New(op.Verifier())
+	if err != nil {
+		return err
+	}
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	if err != nil {
 		return err

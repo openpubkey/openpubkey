@@ -131,11 +131,22 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 		client.signer = signer
 	}
 
-	if client.cosP != nil {
-		cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
-		client.verifier = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
+	// If there is no provided client verifier, create our default
+	if client.verifier == nil {
+		var pktVerifier *verifier.Verifier
+		var err error
+		if client.cosP != nil {
+			cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
+			pktVerifier, err = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
+		} else {
+			pktVerifier, err = verifier.New(op.Verifier())
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		client.verifier = pktVerifier
 	}
-	client.verifier = verifier.New(op.Verifier())
 
 	return client, nil
 }

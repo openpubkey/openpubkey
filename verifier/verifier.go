@@ -22,22 +22,27 @@ type CosignerVerifier interface {
 	VerifyCosigner(ctx context.Context, pkt *pktoken.PKToken) error
 }
 
-type VerifierOpts func(*Verifier)
+type VerifierOpts func(*Verifier) error
 
 func WithCosignerVerifiers(verifiers ...*DefaultCosignerVerifier) VerifierOpts {
-	return func(v *Verifier) {
+	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
 			fmt.Println(verifier.issuer)
 			v.cosigners[verifier.issuer] = verifier
 		}
+		return nil
 	}
 }
 
 func AddProviderVerifiers(verifiers ...ProviderVerifier) VerifierOpts {
-	return func(v *Verifier) {
+	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
+			if _, ok := v.providers[verifier.Issuer()]; ok {
+				return fmt.Errorf("provider verifier found with duplicate issuer: %s", verifier.Issuer())
+			}
 			v.providers[verifier.Issuer()] = verifier
 		}
+		return nil
 	}
 }
 
@@ -46,7 +51,7 @@ type Verifier struct {
 	cosigners map[string]CosignerVerifier
 }
 
-func New(verifier ProviderVerifier, options ...VerifierOpts) *Verifier {
+func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) {
 	v := &Verifier{
 		providers: map[string]ProviderVerifier{
 			verifier.Issuer(): verifier,
@@ -55,10 +60,12 @@ func New(verifier ProviderVerifier, options ...VerifierOpts) *Verifier {
 	}
 
 	for _, option := range options {
-		option(v)
+		if err := option(v); err != nil {
+			return nil, err
+		}
 	}
 
-	return v
+	return v, nil
 }
 
 // Verifies whether a PK token is valid and matches all expected claims.
