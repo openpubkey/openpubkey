@@ -67,7 +67,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	options = append(options, rp.WithPKCE(cookieHandler))
 
 	provider, err := rp.NewRelyingPartyOIDC(
-		g.Issuer(), g.ClientID, g.ClientSecret, g.RedirectURI,
+		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -149,10 +149,6 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{})
-}
-
-func (g *GoogleOp) Issuer() string {
-	return googleIssuer
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
