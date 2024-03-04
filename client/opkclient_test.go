@@ -47,7 +47,7 @@ func TestClient(t *testing.T) {
 		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
-	provider, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
+	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,15 +59,15 @@ func TestClient(t *testing.T) {
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
-				c, err = client.New(provider, client.WithSignGQ(tc.gq), client.WithSigner(signer, tc.signerAlg))
+				c, err = client.New(op, client.WithSignGQ(tc.gq), client.WithSigner(signer, tc.signerAlg))
 				require.NoError(t, err, tc.name)
 				require.Equal(t, signer, c.GetSigner(), tc.name)
 				require.Equal(t, tc.signerAlg, c.GetAlg(), tc.name)
 			} else if tc.gq {
-				c, err = client.New(provider, client.WithSignGQ(tc.gq))
+				c, err = client.New(op, client.WithSignGQ(tc.gq))
 				require.NoError(t, err, tc.name)
 			} else {
-				c, err = client.New(provider)
+				c, err = client.New(op)
 				require.NoError(t, err, tc.name)
 			}
 			require.Equal(t, tc.gq, c.GetSignGQ(), tc.name)
@@ -106,7 +106,7 @@ func TestClient(t *testing.T) {
 			opToken, err := pkt.Compact(pkt.Op)
 			require.NoError(t, err, tc.name)
 
-			pubkey, err := provider.Verifier().ProviderPublicKey(context.Background(), opToken)
+			pubkey, err := op.Verifier().ProviderPublicKey(context.Background(), opToken)
 			require.NoError(t, err, tc.name)
 
 			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
