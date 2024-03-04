@@ -39,7 +39,7 @@ func TestVerifier(t *testing.T) {
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	require.Error(t, err)
 
-	// Check if verification failes with incorrect commitment claim
+	// Check if verification fails with incorrect commitment claim
 	wrongCommitmentClaim := "evil"
 	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), wrongCommitmentClaim, verifier.ProviderVerifierOpts{SkipClientIDCheck: true})
 	pktVerifier = verifier.New(providerVerifier)

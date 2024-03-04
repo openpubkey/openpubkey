@@ -107,9 +107,6 @@ func TestClient(t *testing.T) {
 			require.NoError(t, err, tc.name)
 
 			pubkey, err := provider.Verifier().ProviderPublicKey(context.Background(), opToken)
-			if err != nil {
-				t.Fatal(err)
-			}
 			require.NoError(t, err, tc.name)
 
 			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
