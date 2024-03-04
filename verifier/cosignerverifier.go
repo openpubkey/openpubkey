@@ -13,6 +13,8 @@ import (
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
+type JSONWebKey = jwk.Key
+
 type DefaultCosignerVerifier struct {
 	issuer  string
 	options CosignerVerifierOpts
@@ -23,7 +25,7 @@ type CosignerVerifierOpts struct {
 	// Defaults to true.
 	Strict *bool
 	// Allows users to set custom function for discovering public key of Cosigner
-	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (jwk.Key, error)
+	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (JSONWebKey, error)
 }
 
 func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCosignerVerifier {
@@ -87,7 +89,7 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 	return err
 }
 
-func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (jwk.Key, error) {
+func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (JSONWebKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -12,7 +11,7 @@ import (
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	ProviderPublicKey(ctx context.Context, token []byte) (jwk.Key, error)
+	ProviderPublicKey(ctx context.Context, token []byte) (JSONWebKey, error)
 	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
 }
 

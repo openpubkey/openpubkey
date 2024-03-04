@@ -29,7 +29,7 @@ type ProviderVerifierOpts struct {
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
-	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (jwk.Key, error)
+	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (JSONWebKey, error)
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
 }
@@ -104,7 +104,7 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (jwk.Key, error) {
+func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (JSONWebKey, error) {
 	message, err := jws.Parse(token)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 	return nil
 }
 
-func DiscoverProviderPublicKey(ctx context.Context, kid string, issuer string) (jwk.Key, error) {
+func DiscoverProviderPublicKey(ctx context.Context, kid string, issuer string) (JSONWebKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)

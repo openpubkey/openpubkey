@@ -90,7 +90,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// Specify a custom public key discoverer that returns the incorrect key and check that verification fails
-	customKeyDiscoverer := func(ctx context.Context, kid string, issuer string) (jwk.Key, error) {
+	customKeyDiscoverer := func(ctx context.Context, kid string, issuer string) (verifier.JSONWebKey, error) {
 		alg := jwa.RS256
 		signer, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
