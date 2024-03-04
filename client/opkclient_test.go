@@ -19,6 +19,7 @@ package client_test
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"fmt"
 	"testing"
 
@@ -122,6 +123,25 @@ func TestClient(t *testing.T) {
 
 			if tc.gq {
 				require.Equal(t, gq.GQ256, providerKeyAlgorithm, tc.name)
+
+				// Verify our GQ signature
+				idt, err := pkt.Compact(pkt.Op)
+				require.NoError(t, err, tc.name)
+
+				opPubKey, err := op.Verifier().ProviderPublicKey(context.Background(), nil)
+				require.NoError(t, err, tc.name)
+
+				rsaKey := new(rsa.PublicKey)
+				err = opPubKey.Raw(rsaKey)
+				require.NoError(t, err, tc.name)
+
+				sv, err := gq.New256SignerVerifier(rsaKey)
+				require.NoError(t, err, tc.name)
+
+				ok := sv.VerifyJWT(idt)
+				if !ok {
+					t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
+				}
 			} else {
 				// Expect alg to be RS256 alg when not signing with GQ
 				require.Equal(t, jwa.RS256, providerKeyAlgorithm, tc.name)
