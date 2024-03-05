@@ -26,6 +26,7 @@ import (
 
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/openpubkey/openpubkey/pktoken/simplejws"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -37,14 +38,10 @@ func TestPkToken(t *testing.T) {
 	alg := jwa.ES256
 
 	signingKey, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	testPkTokenMessageSigning(t, pkt, signingKey)
 	testPkTokenSerialization(t, pkt)
@@ -54,39 +51,148 @@ func testPkTokenMessageSigning(t *testing.T, pkt *pktoken.PKToken, signingKey cr
 	// Create new OpenPubKey Signed Message (OSM)
 	msg := "test message!"
 	osm, err := pkt.NewSignedMessage([]byte(msg), signingKey)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Verify our OSM is valid
 	payload, err := pkt.VerifySignedMessage(osm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if string(payload) != msg {
-		t.Fatal("OSM payload did not match what we initially wrapped")
-	}
+	require.Equal(t, msg, string(payload), "OSM payload did not match what we initially wrapped")
 }
 
 func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	// Test json serialization/deserialization
 	pktJson, err := json.Marshal(pkt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var newPkt *pktoken.PKToken
-	if err := json.Unmarshal(pktJson, &newPkt); err != nil {
-		t.Fatal(err)
-	}
+	err = json.Unmarshal(pktJson, &newPkt)
+	require.NoError(t, err)
 
 	newPktJson, err := json.Marshal(newPkt)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	require.JSONEq(t, string(pktJson), string(newPktJson))
+}
+
+func TestPkTokenJwsUnchanged(t *testing.T) {
+	payload := `{
+		"aud": testAud
+		"email": "arthur.aardvark@example.com",
+		"exp": 1708641372,
+		"iat": 1708554972,
+		"iss": "me",
+		"nonce": "iOqVQfpJsbt4gpcGUX0lJLT82bTm8PU1fwNghiGau0M",
+		"sub": "1234567890"
+	  }`
+
+	testCases := []struct {
+		name         string
+		payload      string
+		opProtected  string
+		cicProtected string
+		cosProtected string
+	}{
+		{name: "with alphabetical order",
+			payload:      payload,
+			opProtected:  `{"alg":"RS256","typ":"JWT"}`,
+			cicProtected: `{"alg":"ES256","rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e","typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`,
+			cosProtected: `{"alg":"ES256","auth_time":1708991378,"eid":"1234","exp":1708994978,"iat":1708991378,"iss":"example.com","kid":"1234","nonce":"test-nonce","ruri":"http://localhost:3000","typ":"COS"}`,
+		},
+		{name: "with reverse alphabetical order",
+			payload:      payload,
+			opProtected:  `{"typ":"JWT","alg":"RS256"}`,
+			cicProtected: `{"upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}, "typ":"CIC", "rz":"872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e", "alg":"ES256"}`,
+			cosProtected: `{"typ":"COS","ruri":"http://localhost:3000","nonce":"test-nonce","kid":"1234","iss":"example.com","iat":1708991378,"exp":1708994978,"eid":"none","auth_time":1708991378,"alg":"ES256"}`,
+		},
+		{name: "with extra whitespace",
+			payload:      payload,
+			opProtected:  `{  "alg" : "RS256",     "typ": "JWT" }`,
+			cicProtected: `{  "alg" : "ES256",  "rz": "872c6399f440d80a8c28935d8dd84da13ecdfc8e99b3dfbf92bdf1a3133a0b5e" , "typ":"CIC","upk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"1UxCtDCjyb0bSz9P815sMTqGjSdF2u-sYk0egy4yigs","y":"0qQnHkOLMyQY5WwnpjaFO2TzGCtq_nFg10fI16LcexE"}}`,
+			cosProtected: `{  "alg" : "ES256",  "auth_time": 1708991378,"eid":"1234","exp":1708994978,"iat":1708991378,"iss":"example.com","kid":"1234","nonce":"test-nonce","ruri":"http://localhost:3000","typ":"COS"}`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testUnchangedByCompact(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+			testUnchangedAfterMarshalling(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+		})
+	}
+}
+
+// Once we remove pkt.Compact we can remove this test
+func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
+	pkt := &pktoken.PKToken{}
+
+	// Build OP Token and add it to PK Token
+	opTokenOriginal := BuildToken(opPheader, payload, "fakeSignature OP")
+	err := pkt.AddSignature(opTokenOriginal, pktoken.OIDC)
+	require.NoError(t, err)
+
+	// Check that Compact does not change original OP Token
+	opTokenOut, err := pkt.Compact(pkt.Op)
+	require.NoError(t, err)
+	require.EqualValues(t, string(opTokenOriginal), string(opTokenOut), "danger, signed values in OP Token being changed")
+
+	// Build CIC Token and add it to PK Token
+	cicTokenOriginal := BuildToken(cicPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cicTokenOriginal, pktoken.CIC)
+	require.NoError(t, err)
+
+	// Check that Compact does not change original CIC Token
+	cicTokenCompact, err := pkt.Compact(pkt.Cic)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cicTokenOriginal), string(cicTokenCompact), "danger, signed values in CIC Token being changed")
+
+	// Build COS Token and add it to PK Token
+	cosTokenOriginal := BuildToken(cosPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cosTokenOriginal, pktoken.COS)
+	require.NoError(t, err)
+
+	// Check that Compact does not change original COS Token
+	cosTokenCompact, err := pkt.Compact(pkt.Cos)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cosTokenOriginal), string(cosTokenCompact), "danger, signed values in COS Token being changed")
+}
+
+func testUnchangedAfterMarshalling(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
+	pkt := &pktoken.PKToken{}
+
+	// Build OP Token and add it to PK Token
+	opTokenOriginal := BuildToken(opPheader, payload, "fakeSignature OP")
+	err := pkt.AddSignature(opTokenOriginal, pktoken.OIDC)
+	require.NoError(t, err)
+
+	// Build CIC Token and add it to PK Token
+	cicTokenOriginal := BuildToken(cicPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cicTokenOriginal, pktoken.CIC)
+	require.NoError(t, err)
+
+	// Build CIC Token and add it to PK Token
+	cosTokenOriginal := BuildToken(cosPheader, payload, "fakeSignature")
+	err = pkt.AddSignature(cosTokenOriginal, pktoken.COS)
+	require.NoError(t, err)
+
+	// Check that Marshal PK Token to Json leaves underlying signed values unchanged
+	pktJson, err := pkt.MarshalJSON()
+	require.NoError(t, err)
+
+	// Unmarshal it into a simple JWS structure to see if the underlying values have changed
+	var simpleJWS simplejws.Jws
+	err = json.Unmarshal(pktJson, &simpleJWS)
+	require.NoError(t, err)
+
+	opTokenUnmarshalled, err := simpleJWS.GetTokenByTyp("JWT") // JWT is the token typ used by the OP Token (ID Token)
+	require.NoError(t, err)
+	require.EqualValues(t, string(opTokenOriginal), string(opTokenUnmarshalled), "danger, signed values in OP Token being changed during marshalling")
+
+	cicTokenUnmarshalled, err := simpleJWS.GetTokenByTyp("CIC") // CIC is the token typ used by the OP Token (ID Token)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cicTokenOriginal), string(cicTokenUnmarshalled), "danger, signed values in CIC Token being changed during marshalling")
+
+	cosTokenUnmarshalled, err := simpleJWS.GetTokenByTyp("COS") // COS is the token typ used by the OP Token (ID Token)
+	require.NoError(t, err)
+	require.EqualValues(t, string(cosTokenOriginal), string(cosTokenUnmarshalled), "danger, signed values in CIC Token being changed during marshalling")
 }
 
 //go:embed test_jwk.json
@@ -141,4 +247,11 @@ func TestJktInPublicHEader(t *testing.T) {
 	err = json.Unmarshal(publicHeadersJson, &jktStruct)
 	require.NoError(t, err)
 	require.Equal(t, fromRfc, jktStruct.Jkt, "jkt in public headers does not match value we supplied")
+}
+
+func BuildToken(protected string, payload string, sig string) []byte {
+	return util.JoinJWTSegments(
+		util.Base64EncodeForJWT([]byte(protected)),
+		util.Base64EncodeForJWT([]byte(payload)),
+		util.Base64EncodeForJWT([]byte(sig)))
 }
