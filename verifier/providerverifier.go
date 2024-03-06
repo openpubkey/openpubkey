@@ -29,7 +29,7 @@ type ProviderVerifierOpts struct {
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
-	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (JSONWebKey, error)
+	DiscoverPublicKey func(ctx context.Context, headers jws.Headers, issuer string) (JSONWebKey, error)
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
 	// Only allows GQ signatures
@@ -124,7 +124,7 @@ func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token [
 		return nil, fmt.Errorf("missing algorithm header")
 	}
 
-	var kid string
+	var providerHeaders jws.Headers
 	if alg == gq.GQ256 {
 		origHeaders, err := originalTokenHeaders(token)
 		if err != nil {
@@ -135,9 +135,9 @@ func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token [
 			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", headers.Algorithm())
 		}
 
-		kid = origHeaders.KeyID()
+		providerHeaders = origHeaders
 	} else {
-		kid = headers.KeyID()
+		providerHeaders = headers
 	}
 
 	// Extract our issuer from the payload claims
@@ -148,7 +148,7 @@ func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token [
 		return nil, err
 	}
 
-	return v.options.DiscoverPublicKey(ctx, kid, claims.Issuer)
+	return v.options.DiscoverPublicKey(ctx, providerHeaders, claims.Issuer)
 }
 
 func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
@@ -206,7 +206,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("missing issuer: %w", err)
 	}
 
-	jwkKey, err := DiscoverProviderPublicKey(ctx, origHeaders.KeyID(), issuer)
+	jwkKey, err := DiscoverProviderPublicKey(ctx, origHeaders, issuer)
 	if err != nil {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
@@ -283,7 +283,7 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 	return nil
 }
 
-func DiscoverProviderPublicKey(ctx context.Context, kid string, issuer string) (JSONWebKey, error) {
+func DiscoverProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (JSONWebKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
@@ -294,14 +294,7 @@ func DiscoverProviderPublicKey(ctx context.Context, kid string, issuer string) (
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
 
-	// kids are not always present, particularly when there is only a single key
-	// therefore, we allow an empty kid to return a key if there is only one in
-	// the set
-	if kid == "" && jwks.Len() == 1 {
-		key, _ := jwks.Key(0)
-		return key, nil
-	}
-
+	kid := headers.KeyID()
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
 		return nil, fmt.Errorf("key %s isn't in JWKS", kid)

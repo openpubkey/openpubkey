@@ -8,6 +8,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers/mocks"
 	"github.com/openpubkey/openpubkey/verifier"
@@ -90,7 +91,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// Specify a custom public key discoverer that returns the incorrect key and check that verification fails
-	customKeyDiscoverer := func(ctx context.Context, kid string, issuer string) (verifier.JSONWebKey, error) {
+	customKeyDiscoverer := func(ctx context.Context, header jws.Headers, issuer string) (verifier.JSONWebKey, error) {
 		alg := jwa.RS256
 		signer, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -102,6 +103,8 @@ func TestVerifier(t *testing.T) {
 			return nil, err
 		}
 		jwkKey.Set(jwk.AlgorithmKey, alg)
+
+		kid := header.KeyID()
 		jwkKey.Set(jwk.KeyIDKey, kid)
 
 		return jwkKey, nil
