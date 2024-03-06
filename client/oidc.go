@@ -18,10 +18,14 @@ package client
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
+	"fmt"
 	"strings"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -77,4 +81,50 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	}
 
 	return pktVerifier.VerifyPKToken(ctx, pkt)
+}
+
+// Deprecated: please use function in verifier
+func DiscoverPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
+	return verifier.DiscoverProviderPublicKey(ctx, headers, issuer)
+}
+
+// Deprecated:
+func ExtractClaim(idt []byte, claimName string) (string, error) {
+	_, payloadB64, _, err := jws.SplitCompact(idt)
+	if err != nil {
+		return "", fmt.Errorf("failed to split/decode JWT: %w", err)
+	}
+
+	payload := make(map[string]any)
+	err = parseJWTSegment(payloadB64, &payload)
+	if err != nil {
+		return "", err
+	}
+
+	claim, ok := payload[claimName]
+	if !ok {
+		return "", fmt.Errorf("claim '%s' missing from payload", claimName)
+	}
+
+	claimStr, ok := claim.(string)
+	if !ok {
+		return "", fmt.Errorf("expected claim '%s' to be a string, was %T", claimName, claim)
+	}
+
+	return claimStr, nil
+}
+
+// Deprecated:
+func parseJWTSegment(segment []byte, v any) error {
+	segmentJSON, err := util.Base64DecodeForJWT(segment)
+	if err != nil {
+		return fmt.Errorf("error decoding segment: %w", err)
+	}
+
+	err = json.Unmarshal(segmentJSON, v)
+	if err != nil {
+		return fmt.Errorf("error parsing segment: %w", err)
+	}
+
+	return nil
 }
