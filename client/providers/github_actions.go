@@ -68,7 +68,7 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 }
 
 func (g *GithubOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{})
+	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true})
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

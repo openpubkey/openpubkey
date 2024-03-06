@@ -32,6 +32,8 @@ type ProviderVerifierOpts struct {
 	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (JSONWebKey, error)
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
+	// Only allows GQ signatures
+	GQOnly bool
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -67,6 +69,10 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
 		return fmt.Errorf("provider algorithm type missing")
+	}
+
+	if alg != gq.GQ256 && v.options.GQOnly {
+		return ErrNonGQUnsupported
 	}
 
 	switch alg {
