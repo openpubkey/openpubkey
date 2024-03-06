@@ -124,16 +124,13 @@ func TestClient(t *testing.T) {
 				require.Equal(t, gq.GQ256, alg, tc.name)
 
 				// Verify our GQ signature
-				idt, err := pkt.Compact(pkt.Op)
-				require.NoError(t, err, tc.name)
-
 				opPubKey, err := op.PublicKey(context.Background(), nil)
 				require.NoError(t, err, tc.name)
 
 				sv, err := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
 				require.NoError(t, err, tc.name)
 
-				ok := sv.VerifyJWT(idt)
+				ok := sv.VerifyJWT(pkt.OpToken)
 				if !ok {
 					t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
 				}

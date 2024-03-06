@@ -184,24 +184,6 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 	return alg.(jwa.SignatureAlgorithm), true
 }
 
-// Deprecated: The PK Token now stores the signed tokens such as OpToken,
-// CicToken, etc.... removing the need for this function. Instead of
-// calling Compact, just get the token directly from the PK Token.
-// Do `pkt.OpToken` instead of `opToken, err := pkt.Compact(pkt.Op)`
-func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
-	sigType := SignatureType(sig.ProtectedHeaders().Type())
-	switch sigType {
-	case OIDC:
-		return p.OpToken, nil
-	case CIC:
-		return p.CicToken, nil
-	case COS:
-		return p.CosToken, nil
-	default:
-		return nil, fmt.Errorf("unrecognized signature type: %s", string(sigType))
-	}
-}
-
 func (p *PKToken) Hash() (string, error) {
 	/*
 		We set the raw variable when unmarshaling from json (the only current string representation of a

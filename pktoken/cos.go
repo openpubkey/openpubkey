@@ -91,13 +91,8 @@ func (p *PKToken) VerifyCosSig() error {
 		return fmt.Errorf("no cosigner signature")
 	}
 
-	cosToken, err := p.Compact(p.Cos)
-	if err != nil {
-		return err
-	}
-
 	// Parse our header
-	rawHeader, _, _, err := jws.SplitCompact(cosToken)
+	rawHeader, _, _, err := jws.SplitCompact(p.CosToken)
 	if err != nil {
 		return err
 	}
@@ -133,7 +128,7 @@ func (p *PKToken) VerifyCosSig() error {
 		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", key.KeyID(), key.Algorithm(), header.Algorithm)
 	}
 
-	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
+	_, err = jws.Verify(p.CosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
 
 	return err
 }

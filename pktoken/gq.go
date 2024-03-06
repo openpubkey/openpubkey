@@ -8,16 +8,11 @@ import (
 )
 
 func (p *PKToken) VerifyGQSig(pubKey *rsa.PublicKey, gqSecurityParameter int) error {
-	token, err := p.Compact(p.Op)
-	if err != nil {
-		return err
-	}
-
 	sv, err := gq.NewSignerVerifier(pubKey, gqSecurityParameter)
 	if err != nil {
 		return err
 	}
-	ok := sv.VerifyJWT(token)
+	ok := sv.VerifyJWT(p.OpToken)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}

@@ -150,12 +150,7 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 		return err
 	}
 
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
-	issuer, err := ExtractClaim(idt, "iss")
+	issuer, err := ExtractClaim(pkt.OpToken, "iss")
 	if err != nil {
 		return err
 	}
@@ -171,7 +166,7 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 
 	switch alg {
 	case gq.GQ256:
-		origHeadersB64, err := gq.OriginalJWTHeaders(idt)
+		origHeadersB64, err := gq.OriginalJWTHeaders(pkt.OpToken)
 		if err != nil {
 			return err
 		}
@@ -203,12 +198,12 @@ func (v PKTokenVerifier) Verify(ctx context.Context, pkt *pktoken.PKToken) error
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 
-		err = provider.VerifyCICHash(ctx, idt, string(commitment))
+		err = provider.VerifyCICHash(ctx, pkt.OpToken, string(commitment))
 		if err != nil {
 			return fmt.Errorf("failed to verify CIC hash: %w", err)
 		}
 	case jwa.RS256:
-		err = provider.VerifyNonGQSig(ctx, idt, string(commitment))
+		err = provider.VerifyNonGQSig(ctx, pkt.OpToken, string(commitment))
 		if err != nil {
 			if err == ErrNonGQUnsupported {
 				return fmt.Errorf("oidc provider doesn't support non-GQ signatures")
