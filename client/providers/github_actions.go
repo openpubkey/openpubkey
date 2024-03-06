@@ -71,7 +71,7 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 }
 
 func (g *GithubOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true})
+	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
 func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {

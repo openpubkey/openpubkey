@@ -44,6 +44,7 @@ var (
 )
 
 const googleIssuer = "https://accounts.google.com"
+const googleAudience = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
 
 type GoogleOp struct {
 	ClientID        string
@@ -151,7 +152,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 }
 
 func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{})
+	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
 }
 
 func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {

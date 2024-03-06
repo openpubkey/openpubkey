@@ -115,7 +115,6 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	return claimStr, nil
 }
 
-// Deprecated:
 func parseJWTSegment(segment []byte, v any) error {
 	segmentJSON, err := util.Base64DecodeForJWT(segment)
 	if err != nil {
