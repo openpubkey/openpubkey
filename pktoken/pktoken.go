@@ -28,6 +28,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/pktoken/simplejws"
 	"github.com/openpubkey/openpubkey/util"
 
 	_ "golang.org/x/crypto/sha3"
@@ -50,6 +51,11 @@ type PKToken struct {
 	Op      *Signature // Provider Signature
 	Cic     *Signature // Client Signature
 	Cos     *Signature // Cosigner Signature
+
+	// We keep the tokens around as  unmarshalled values can no longer be verified
+	OpToken  []byte // Base64 encoded ID Token signed by the OP
+	CicToken []byte // Base64 encoded Token signed by the Client
+	CosToken []byte // Base64 encoded Token signed by the Cosigner
 }
 
 // kid isn't always present, and is only guaranteed to be unique within a given key set,
@@ -167,10 +173,13 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	switch sigType {
 	case OIDC:
 		p.Op = signature
+		p.OpToken = token
 	case CIC:
 		p.Cic = signature
+		p.CicToken = token
 	case COS:
 		p.Cos = signature
+		p.CosToken = token
 	default:
 		return fmt.Errorf("unrecognized signature type: %s", string(sigType))
 	}
@@ -195,11 +204,22 @@ func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
 	return clientinstance.ParseClaims(cicPH)
 }
 
+// Deprecated: The PK Token now stores the signed tokens such as OpToken,
+// CicToken, etc.... removing the need for this function. Instead of
+// calling Compact, just get the token directly from the PK Token.
+// Do `pkt.OpToken` instead of `opToken, err := pkt.Compact(pkt.Op)`
 func (p *PKToken) Compact(sig *Signature) ([]byte, error) {
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(sig)
-	return jws.Compact(message)
+	sigType := SignatureType(sig.ProtectedHeaders().Type())
+	switch sigType {
+	case OIDC:
+		return p.OpToken, nil
+	case CIC:
+		return p.CicToken, nil
+	case COS:
+		return p.CosToken, nil
+	default:
+		return nil, fmt.Errorf("unrecognized signature type: %s", string(sigType))
+	}
 }
 
 func (p *PKToken) Hash() (string, error) {
@@ -223,19 +243,36 @@ func (p *PKToken) Hash() (string, error) {
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {
-	message := jws.NewMessage().
-		SetPayload(p.Payload).
-		AppendSignature(p.Op).
-		AppendSignature(p.Cic)
-
-	if p.Cos != nil {
-		message.AppendSignature(p.Cos)
+	rawJws := simplejws.Jws{
+		Payload:    string(util.Base64EncodeForJWT(p.Payload)),
+		Signatures: []simplejws.Signature{},
 	}
-
-	return json.Marshal(message)
+	var opPublicHeader map[string]any
+	var err error
+	if p.Op.PublicHeaders() != nil {
+		if opPublicHeader, err = p.Op.PublicHeaders().AsMap(context.Background()); err != nil {
+			return nil, err
+		}
+	}
+	if err = rawJws.AddSignature(p.OpToken, simplejws.WithPublicHeader(opPublicHeader)); err != nil {
+		return nil, err
+	}
+	if err = rawJws.AddSignature(p.CicToken); err != nil {
+		return nil, err
+	}
+	if p.CosToken != nil {
+		if err = rawJws.AddSignature(p.CosToken); err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(rawJws)
 }
 
 func (p *PKToken) UnmarshalJSON(data []byte) error {
+	var rawJws simplejws.Jws
+	if err := json.Unmarshal(data, &rawJws); err != nil {
+		return err
+	}
 	var parsed jws.Message
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		return err
@@ -246,7 +283,7 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 	opCount := 0
 	cicCount := 0
 	cosCount := 0
-	for _, signature := range parsed.Signatures() {
+	for i, signature := range parsed.Signatures() {
 		// for some reason the unmarshaled signatures have empty non-nil
 		// public headers. set them to nil instead.
 		public := signature.PublicHeaders()
@@ -275,12 +312,15 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		case OIDC:
 			opCount += 1
 			p.Op = signature
+			p.OpToken = []byte(rawJws.Signatures[i].Protected + "." + rawJws.Payload + "." + rawJws.Signatures[i].Signature)
 		case CIC:
 			cicCount += 1
 			p.Cic = signature
+			p.CicToken = []byte(rawJws.Signatures[i].Protected + "." + rawJws.Payload + "." + rawJws.Signatures[i].Signature)
 		case COS:
 			cosCount += 1
 			p.Cos = signature
+			p.CosToken = []byte(rawJws.Signatures[i].Protected + "." + rawJws.Payload + "." + rawJws.Signatures[i].Signature)
 		default:
 			return fmt.Errorf("unrecognized signature type: %s", sigType)
 		}

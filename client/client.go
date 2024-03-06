@@ -243,20 +243,24 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
-	// Use the commitment to complete the OIDC flow and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(ctx, string(commitment))
+	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
+	idTokenLB, err := o.Op.RequestTokens(ctx, string(commitment))
+	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
+	// because the ID Token contains the OPs RSA signature which is a secret
+	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
+	// a public value.
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-	defer idToken.Destroy()
+	defer idTokenLB.Destroy()
 
 	// Sign over the payload from the ID token and client instance claims
-	cicToken, err := cic.Sign(signer, alg, idToken.Bytes())
+	cicToken, err := cic.Sign(signer, alg, idTokenLB.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	headersB64, _, _, err := jws.SplitCompact(idToken.Bytes())
+	headersB64, _, _, err := jws.SplitCompact(idTokenLB.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("error getting original headers: %w", err)
 	}
@@ -283,18 +287,23 @@ func (o *OpkClient) OidcAuth(
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signer: %w", err)
 		}
-		gqToken, err := sv.SignJWT(idToken.Bytes())
+		gqToken, err := sv.SignJWT(idTokenLB.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
-		idToken = memguard.NewBufferFromBytes(gqToken)
+		idTokenLB = memguard.NewBufferFromBytes(gqToken)
 
 		// Make sure we force the check for GQ during verification
 		verifierChecks = append(verifierChecks, verifier.GQOnly())
 	}
 
+	// We are now past the point where the ID Token should be treated
+	// like a secret. Let's copy it out of the LockedBuffer
+	idToken := make([]byte, len(idTokenLB.Bytes()))
+	copy(idToken, idTokenLB.Bytes())
+
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(idToken.Bytes(), cicToken)
+	pkt, err := pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
