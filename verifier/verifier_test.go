@@ -2,6 +2,7 @@ package verifier_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
@@ -91,7 +92,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// Specify a custom public key discoverer that returns the incorrect key and check that verification fails
-	customKeyDiscoverer := func(ctx context.Context, header jws.Headers, issuer string) (verifier.JSONWebKey, error) {
+	customKeyDiscoverer := func(ctx context.Context, header jws.Headers, issuer string) (crypto.PublicKey, error) {
 		alg := jwa.RS256
 		signer, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {

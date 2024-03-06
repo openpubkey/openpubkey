@@ -2,6 +2,7 @@ package verifier
 
 import (
 	"context"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -29,7 +30,7 @@ type ProviderVerifierOpts struct {
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
-	DiscoverPublicKey func(ctx context.Context, headers jws.Headers, issuer string) (JSONWebKey, error)
+	DiscoverPublicKey func(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error)
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
 	// Only allows GQ signatures
@@ -110,7 +111,7 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (JSONWebKey, error) {
+func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (crypto.PublicKey, error) {
 	message, err := jws.Parse(token)
 	if err != nil {
 		return nil, err
@@ -211,22 +212,16 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
-	if jwkKey.Algorithm() != jwa.RS256 {
-		return fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", origHeaders.KeyID(), issuer, jwkKey.Algorithm())
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = jwkKey.Raw(pubKey)
-	if err != nil {
-		return fmt.Errorf("failed to decode public key: %w", err)
-	}
-
 	token, err := pkt.Compact(pkt.Op)
 	if err != nil {
 		return err
 	}
 
-	sv, err := gq.New256SignerVerifier(pubKey)
+	rsaKey, ok := jwkKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("jwk is not an RSA key")
+	}
+	sv, err := gq.New256SignerVerifier(rsaKey)
 	if err != nil {
 		return err
 	}
@@ -283,7 +278,7 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 	return nil
 }
 
-func DiscoverProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (JSONWebKey, error) {
+func DiscoverProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
@@ -300,5 +295,15 @@ func DiscoverProviderPublicKey(ctx context.Context, headers jws.Headers, issuer 
 		return nil, fmt.Errorf("key %s isn't in JWKS", kid)
 	}
 
-	return key, err
+	if key.Algorithm() != jwa.RS256 {
+		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
+	}
+
+	pubKey := new(rsa.PublicKey)
+	err = key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return pubKey, err
 }

@@ -2,6 +2,7 @@ package verifier
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,8 +14,6 @@ import (
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
-type JSONWebKey = jwk.Key
-
 type DefaultCosignerVerifier struct {
 	issuer  string
 	options CosignerVerifierOpts
@@ -25,7 +24,7 @@ type CosignerVerifierOpts struct {
 	// Defaults to true.
 	Strict *bool
 	// Allows users to set custom function for discovering public key of Cosigner
-	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (JSONWebKey, error)
+	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (crypto.PublicKey, error)
 }
 
 func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCosignerVerifier {
@@ -80,16 +79,12 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return fmt.Errorf("cosigner signature expired")
 	}
 
-	if header.Algorithm != key.Algorithm().String() {
-		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", key.KeyID(), key.Algorithm(), header.Algorithm)
-	}
-
-	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
+	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(jwa.RS256), key))
 
 	return err
 }
 
-func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (JSONWebKey, error) {
+func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (crypto.PublicKey, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)

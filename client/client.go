@@ -261,11 +261,9 @@ func (o *OpkClient) OidcAuth(
 
 	// sign GQ256
 	if signGQ {
-		// GQ signatures require original provider to have signed with an RSA key
-		rsaKey := new(rsa.PublicKey)
-		err = opKey.Raw(rsaKey)
-		if err != nil {
-			return nil, fmt.Errorf("GQ signatures require RSA key but got %T", opKey)
+		rsaKey, ok := opKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 		}
 
 		sv, err := gq.New256SignerVerifier(rsaKey)
@@ -288,12 +286,7 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	var pubKey any
-	if err := opKey.Raw(&pubKey); err != nil {
-		return nil, err
-	}
-
-	if err := pkt.AddJKTHeader(pubKey); err != nil {
+	if err := pkt.AddJKTHeader(opKey); err != nil {
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 

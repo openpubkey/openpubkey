@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers/mocks"
 	"github.com/openpubkey/openpubkey/gq"
@@ -110,7 +111,10 @@ func TestClient(t *testing.T) {
 			pubkey, err := op.Verifier().ProviderPublicKey(context.Background(), opToken)
 			require.NoError(t, err, tc.name)
 
-			thumbprint, err := pubkey.Thumbprint(crypto.SHA256)
+			pub, err := jwk.FromRaw(pubkey)
+			require.NoError(t, err, tc.name)
+
+			thumbprint, err := pub.Thumbprint(crypto.SHA256)
 			require.NoError(t, err, tc.name)
 
 			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
@@ -128,17 +132,16 @@ func TestClient(t *testing.T) {
 				idt, err := pkt.Compact(pkt.Op)
 				require.NoError(t, err, tc.name)
 
-				opPubKey, err := op.Verifier().ProviderPublicKey(context.Background(), nil)
+				opPubKey, err := op.Verifier().ProviderPublicKey(context.Background(), idt)
 				require.NoError(t, err, tc.name)
 
-				rsaKey := new(rsa.PublicKey)
-				err = opPubKey.Raw(rsaKey)
-				require.NoError(t, err, tc.name)
+				rsaKey, ok := opPubKey.(*rsa.PublicKey)
+				require.Equal(t, true, ok)
 
 				sv, err := gq.New256SignerVerifier(rsaKey)
 				require.NoError(t, err, tc.name)
 
-				ok := sv.VerifyJWT(idt)
+				ok = sv.VerifyJWT(idt)
 				if !ok {
 					t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
 				}
