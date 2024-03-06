@@ -17,8 +17,12 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
+
+	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 type OidcClaims struct {
@@ -63,4 +67,14 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+// Deprecated: please use the verifier package directly as shown in function
+func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
+	pktVerifier, err := verifier.New(provider.Verifier())
+	if err != nil {
+		return err
+	}
+
+	return pktVerifier.VerifyPKToken(ctx, pkt)
 }
