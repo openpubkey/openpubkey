@@ -116,13 +116,13 @@ func TestClient(t *testing.T) {
 			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
 			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
-			providerKeyAlgorithm, ok := pkt.ProviderAlgorithm()
+			providerAlg, ok := pkt.ProviderAlgorithm()
 			if !ok {
 				t.Fatal(fmt.Errorf("missing algorithm"))
 			}
 
 			if tc.gq {
-				require.Equal(t, gq.GQ256, providerKeyAlgorithm, tc.name)
+				require.Equal(t, gq.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
 				idt, err := pkt.Compact(pkt.Op)
@@ -144,7 +144,7 @@ func TestClient(t *testing.T) {
 				}
 			} else {
 				// Expect alg to be RS256 alg when not signing with GQ
-				require.Equal(t, jwa.RS256, providerKeyAlgorithm, tc.name)
+				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
 		})
 	}
