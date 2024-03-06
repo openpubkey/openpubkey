@@ -105,10 +105,7 @@ func TestClient(t *testing.T) {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
 			}
 
-			opToken, err := pkt.Compact(pkt.Op)
-			require.NoError(t, err, tc.name)
-
-			pubkey, err := op.Verifier().ProviderPublicKey(context.Background(), opToken)
+			pubkey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
 			require.NoError(t, err, tc.name)
 
 			pub, err := jwk.FromRaw(pubkey)
@@ -132,7 +129,7 @@ func TestClient(t *testing.T) {
 				idt, err := pkt.Compact(pkt.Op)
 				require.NoError(t, err, tc.name)
 
-				opPubKey, err := op.Verifier().ProviderPublicKey(context.Background(), idt)
+				opPubKey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
 				require.NoError(t, err, tc.name)
 
 				rsaKey, ok := opPubKey.(*rsa.PublicKey)

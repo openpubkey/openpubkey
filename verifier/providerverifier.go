@@ -6,15 +6,13 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type DefaultProviderVerifier struct {
@@ -50,7 +48,7 @@ func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifie
 
 	// If no custom DiscoverPublicKey function is set, set default
 	if v.options.DiscoverPublicKey == nil {
-		v.options.DiscoverPublicKey = DiscoverProviderPublicKey
+		v.options.DiscoverPublicKey = discover.ProviderPublicKey
 	}
 
 	return v
@@ -207,7 +205,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("missing issuer: %w", err)
 	}
 
-	jwkKey, err := DiscoverProviderPublicKey(ctx, origHeaders, issuer)
+	jwkKey, err := discover.ProviderPublicKey(ctx, origHeaders, issuer)
 	if err != nil {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
@@ -276,34 +274,4 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 		return fmt.Errorf("missing audience claim")
 	}
 	return nil
-}
-
-func DiscoverProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
-	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	kid := headers.KeyID()
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key %s isn't in JWKS", kid)
-	}
-
-	if key.Algorithm() != jwa.RS256 {
-		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
 }

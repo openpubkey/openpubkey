@@ -4,6 +4,7 @@ package mocks
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -35,6 +36,35 @@ func (_m *OpenIdProvider) Verifier() verifier.ProviderVerifier {
 	}
 
 	return r0
+}
+
+// PublicKey provides a mock function with given fields: ctx, headers
+
+func (_m *OpenIdProvider) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+	ret := _m.Called(ctx, headers)
+	var r0 crypto.PublicKey
+	var r1 error
+
+	if rf, ok := ret.Get(0).(func(context.Context, jws.Headers) (crypto.PublicKey, error)); ok {
+		return rf(ctx, headers)
+	}
+
+	if rf, ok := ret.Get(0).(func(context.Context, jws.Headers) crypto.PublicKey); ok {
+		r0 = rf(ctx, headers)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(crypto.PublicKey)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, jws.Headers) error); ok {
+		r1 = rf(ctx, headers)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+
 }
 
 // RequestTokens provides a mock function with given fields: ctx, cicHash
@@ -106,6 +136,7 @@ func NewMockOpenIdProvider(
 
 	provider := NewOpenIdProvider(t)
 	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{SkipClientIDCheck: true}))
+	provider.On("PublicKey", mock.Anything, mock.Anything).Return(signingKey.Public(), nil)
 	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)

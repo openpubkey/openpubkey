@@ -26,6 +26,7 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -37,6 +38,7 @@ import (
 // Interface for interacting with the OP (OpenID Provider)
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
+	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
 	Verifier() verifier.ProviderVerifier
 }
 
@@ -254,7 +256,18 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	opKey, err := o.Op.Verifier().ProviderPublicKey(ctx, idToken.Bytes())
+	headersB64, _, _, err := jws.SplitCompact(idToken.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("error getting original headers: %w", err)
+	}
+
+	headers := jws.NewHeaders()
+	err = parseJWTSegment(headersB64, &headers)
+	if err != nil {
+		return nil, err
+	}
+
+	opKey, err := o.Op.PublicKey(ctx, headers)
 	if err != nil {
 		return nil, err
 	}

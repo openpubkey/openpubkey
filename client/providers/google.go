@@ -18,6 +18,7 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net/http"
 
@@ -25,7 +26,9 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
@@ -149,6 +152,10 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{})
+}
+
+func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+	return discover.ProviderPublicKey(ctx, headers, googleIssuer)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,9 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -69,6 +72,10 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 
 func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true})
+}
+
+func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+	return discover.ProviderPublicKey(ctx, headers, githubIssuer)
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
