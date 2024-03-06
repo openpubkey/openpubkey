@@ -141,16 +141,11 @@ func (v *Verifier) VerifyPKToken(
 }
 
 func VerifyCicSignature(pkt *pktoken.PKToken) error {
-	token, err := pkt.Compact(pkt.Cic)
-	if err != nil {
-		return err
-	}
-
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return err
 	}
 
-	_, err = jws.Verify(token, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
 	return err
 }
