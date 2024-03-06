@@ -26,7 +26,9 @@ type VerifierOpts func(*Verifier) error
 func WithCosignerVerifiers(verifiers ...*DefaultCosignerVerifier) VerifierOpts {
 	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
-			fmt.Println(verifier.issuer)
+			if _, ok := v.cosigners[verifier.Issuer()]; ok {
+				return fmt.Errorf("cosigner verifier found with duplicate issuer: %s", verifier.Issuer())
+			}
 			v.cosigners[verifier.issuer] = verifier
 		}
 		return nil
