@@ -77,6 +77,8 @@ func main() {
 	switch command {
 	case "download":
 		suiClient := reader.NewSuiJwksArchive("https://fullnode.mainnet.sui.io:443")
+		// suiClient := reader.NewSuiJwksArchive("https://fullnode.testnet.sui.io:443")
+		// suiClient := reader.NewSuiJwksArchive("https://fullnode.devnet.sui.io:443")
 		// jwksMap, err := suiClient.GetLatestJwks(context.TODO())
 		// if err != nil {
 		// 	panic(err)
