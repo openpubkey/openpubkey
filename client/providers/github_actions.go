@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,16 +101,19 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, fmt.Errorf("received non-200 from jwt api: %s", http.StatusText(response.StatusCode))
 	}
 
-	rawBody, err := io.ReadAll(response.Body)
+	rawBody, err := memguard.NewBufferFromEntireReader(response.Body)
 	if err != nil {
 		return nil, err
 	}
+	defer rawBody.Destroy()
 
 	var jwt struct {
-		Value *memguard.LockedBuffer
+		Value json.RawMessage
 	}
-	err = json.Unmarshal(rawBody, &jwt)
-	memguard.WipeBytes(rawBody)
-
-	return jwt.Value, err
+	err = json.Unmarshal(rawBody.Bytes(), &jwt)
+	if err != nil {
+		return nil, err
+	}
+	defer memguard.WipeBytes([]byte(jwt.Value))
+	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
