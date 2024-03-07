@@ -1,6 +1,7 @@
 package sshcert
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -9,9 +10,11 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/openpubkey/openpubkey/client"
+	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -84,26 +87,34 @@ func TestCASignerCreation(t *testing.T) {
 }
 
 func TestSshCertCreation(t *testing.T) {
-	caSigner, err := newSshSignerFromPem(caSecretKey)
-	if err != nil {
-		t.Error(err)
-	}
-
-	principals := []string{"guest", "dev"}
-
 	alg := jwa.ES256
-
 	signingKey, err := util.GenKeyPair(alg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(signingKey, alg, email)
-	if err != nil {
-		t.Fatal(err)
+
+	// extra ID token payload claims
+	mockEmail := "arthur.aardvark@example.com"
+	extraClaims := map[string]any{
+		"email": mockEmail,
 	}
 
+	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
+	require.NoError(t, err)
+
+	client, err := client.New(op, client.WithSigner(signingKey, alg))
+	require.NoError(t, err)
+
+	pkt, err := client.Auth(context.Background())
+	require.NoError(t, err)
+
+	principals := []string{"guest", "dev"}
 	cert, err := New(pkt, principals)
+	if err != nil {
+		t.Error(err)
+	}
+
+	caSigner, err := newSshSignerFromPem(caSecretKey)
 	if err != nil {
 		t.Error(err)
 	}
@@ -122,8 +133,8 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	if sshCert.KeyId != email {
-		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", email, sshCert.KeyId))
+	if sshCert.KeyId != mockEmail {
+		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId))
 	}
 
 	pktB64, ok := sshCert.Extensions["openpubkey-pkt"]
@@ -131,6 +142,9 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 	pktExtJson, err := util.Base64DecodeForJWT([]byte(pktB64))
+	if err != nil {
+		t.Error(err)
+	}
 
 	var pktExt *pktoken.PKToken
 	err = json.Unmarshal(pktExtJson, &pktExt)

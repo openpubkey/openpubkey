@@ -17,17 +17,8 @@
 package pktoken
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"time"
-
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/util"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type CosignerClaims struct {
@@ -43,7 +34,12 @@ type CosignerClaims struct {
 	Typ         string `json:"typ"`
 }
 
-func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
+func (p *PKToken) ParseCosignerClaims() (*CosignerClaims, error) {
+	protected, err := json.Marshal(p.Cos.ProtectedHeaders())
+	if err != nil {
+		return nil, err
+	}
+
 	var claims CosignerClaims
 	if err := json.Unmarshal(protected, &claims); err != nil {
 		return nil, err
@@ -84,51 +80,4 @@ func ParseCosignerClaims(protected []byte) (*CosignerClaims, error) {
 	}
 
 	return &claims, nil
-}
-
-func (p *PKToken) VerifyCosSig() error {
-	if p.Cos == nil {
-		return fmt.Errorf("no cosigner signature")
-	}
-
-	// Parse our header
-	rawHeader, _, _, err := jws.SplitCompact(p.CosToken)
-	if err != nil {
-		return err
-	}
-	decodedHeader, err := util.Base64DecodeForJWT(rawHeader)
-	if err != nil {
-		return err
-	}
-	header, err := ParseCosignerClaims(decodedHeader)
-	if err != nil {
-		return err
-	}
-
-	// Check if it's expired
-	if time.Now().After(time.Unix(header.Expiration, 0)) {
-		return fmt.Errorf("cosigner signature expired")
-	}
-
-	discConf, err := oidcclient.Discover(header.Issuer, http.DefaultClient)
-	if err != nil {
-		return fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
-	if err != nil {
-		return fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
-	}
-
-	key, ok := set.LookupKeyID(header.KeyID)
-	if !ok {
-		return fmt.Errorf("missing key id (kid)")
-	}
-
-	if header.Algorithm != key.Algorithm().String() {
-		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", key.KeyID(), key.Algorithm(), header.Algorithm)
-	}
-
-	_, err = jws.Verify(p.CosToken, jws.WithKey(jwa.KeyAlgorithmFrom(key.Algorithm()), key))
-
-	return err
 }

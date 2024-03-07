@@ -13,6 +13,8 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -68,25 +70,12 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-func (g *GithubOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	cicHash, err := client.ExtractClaim(idt, "aud")
-	if err != nil {
-		return err
-	}
-
-	if cicHash != expectedCICHash {
-		return fmt.Errorf("aud claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
-	}
-
-	return nil
-}
-
-func (g *GithubOp) Issuer() string {
-	return githubIssuer
+func (g *GithubOp) Verifier() verifier.ProviderVerifier {
+	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
 func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headers, githubIssuer)
+	return discover.ProviderPublicKey(ctx, headers, githubIssuer)
 }
 
 func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
@@ -125,8 +114,4 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	memguard.WipeBytes(rawBody)
 
 	return jwt.Value, err
-}
-
-func (*GithubOp) VerifyNonGQSig(context.Context, []byte, string) error {
-	return client.ErrNonGQUnsupported
 }

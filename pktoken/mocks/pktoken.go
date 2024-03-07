@@ -19,19 +19,20 @@ package mocks
 import (
 	"context"
 	"crypto"
+	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
-func GenerateMockPKToken(signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithEmail(signingKey, alg, "")
+func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
+	return GenerateMockPKTokenWithEmail(t, signingKey, alg, "")
 }
 
-func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
+func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -61,7 +62,7 @@ func GenerateMockPKTokenWithEmail(signingKey crypto.Signer, alg jwa.KeyAlgorithm
 	}
 
 	// Generate mock id token
-	op, err := providers.NewMockOpenIdProvider()
+	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
 	if err != nil {
 		return nil, err
 	}

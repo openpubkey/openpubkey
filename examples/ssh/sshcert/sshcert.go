@@ -12,6 +12,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -109,9 +110,12 @@ func (s *SshCertSmuggler) VerifySshPktCert(op client.OpenIdProvider) (*pktoken.P
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	err = client.VerifyPKToken(context.Background(), pkt, op)
+	verifier, err := verifier.New(op.Verifier())
 	if err != nil {
 		return nil, err
+	}
+	if err := verifier.VerifyPKToken(context.TODO(), pkt); err != nil {
+		return nil, fmt.Errorf("failed to verify PK token: %w", err)
 	}
 
 	cic, err := pkt.GetCicValues()

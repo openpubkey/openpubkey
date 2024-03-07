@@ -26,7 +26,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -38,31 +38,33 @@ func TestClient(t *testing.T) {
 		name        string
 		gq          bool
 		signer      bool
-		alg         jwa.KeyAlgorithm
+		signerAlg   jwa.KeyAlgorithm
 		extraClaims map[string]string
 	}{
 		{name: "without GQ", gq: false, signer: false},
 		{name: "with GQ", gq: true, signer: false},
-		{name: "with GQ, with signer", gq: true, signer: true, alg: jwa.RS256},
-		{name: "with GQ, with signer, with empty extraClaims ", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]string{}},
-		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, alg: jwa.ES256, extraClaims: map[string]string{"extra": "yes"}},
+		{name: "with GQ, with signer", gq: true, signer: true, signerAlg: jwa.RS256},
+		{name: "with GQ, with signer, with empty extraClaims", gq: true, signer: true, signerAlg: jwa.ES256, extraClaims: map[string]string{}},
+		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, signerAlg: jwa.ES256, extraClaims: map[string]string{"extra": "yes"}},
 		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
-	op, err := providers.NewMockOpenIdProvider()
-	require.NoError(t, err, "failed to create mock OpenIdProvider")
+	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
 			if tc.signer {
-				signer, err := util.GenKeyPair(tc.alg)
+				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
-				c, err = client.New(op, client.WithSignGQ(tc.gq), client.WithSigner(signer, tc.alg))
+				c, err = client.New(op, client.WithSignGQ(tc.gq), client.WithSigner(signer, tc.signerAlg))
 				require.NoError(t, err, tc.name)
 				require.Equal(t, signer, c.GetSigner(), tc.name)
-				require.Equal(t, tc.alg, c.GetAlg(), tc.name)
+				require.Equal(t, tc.signerAlg, c.GetAlg(), tc.name)
 			} else if tc.gq {
 				c, err = client.New(op, client.WithSignGQ(tc.gq))
 				require.NoError(t, err, tc.name)
@@ -103,7 +105,7 @@ func TestClient(t *testing.T) {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
 			}
 
-			pubkey, err := op.PublicKey(context.Background(), nil)
+			pubkey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
 			require.NoError(t, err, tc.name)
 
 			pub, err := jwk.FromRaw(pubkey)
@@ -115,28 +117,31 @@ func TestClient(t *testing.T) {
 			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
 			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
-			alg, ok := pkt.ProviderAlgorithm()
+			providerAlg, ok := pkt.ProviderAlgorithm()
 			if !ok {
 				t.Fatal(fmt.Errorf("missing algorithm"))
 			}
 
 			if tc.gq {
-				require.Equal(t, gq.GQ256, alg, tc.name)
+				require.Equal(t, gq.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
-				opPubKey, err := op.PublicKey(context.Background(), nil)
+				opPubKey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
 				require.NoError(t, err, tc.name)
 
-				sv, err := gq.NewSignerVerifier(opPubKey.(*rsa.PublicKey), client.GQSecurityParameter)
+				rsaKey, ok := opPubKey.(*rsa.PublicKey)
+				require.Equal(t, true, ok)
+
+				sv, err := gq.New256SignerVerifier(rsaKey)
 				require.NoError(t, err, tc.name)
 
-				ok := sv.VerifyJWT(pkt.OpToken)
+				ok = sv.VerifyJWT(pkt.OpToken)
 				if !ok {
 					t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
 				}
 			} else {
 				// Expect alg to be RS256 alg when not signing with GQ
-				require.Equal(t, jwa.RS256, alg, tc.name)
+				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
 		})
 	}

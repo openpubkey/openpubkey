@@ -40,7 +40,7 @@ func TestPkToken(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signingKey, alg)
 	require.NoError(t, err)
 
 	testPkTokenMessageSigning(t, pkt, signingKey)
@@ -210,7 +210,7 @@ func TestThumprintCalculation(t *testing.T) {
 
 }
 
-func TestJktInPublicHEader(t *testing.T) {
+func TestJktInPublicHeader(t *testing.T) {
 	fromRfc := "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
 
 	// Add create thumbprint
@@ -226,7 +226,7 @@ func TestJktInPublicHEader(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	pkt, err := mocks.GenerateMockPKToken(signingKey, alg)
+	pkt, err := mocks.GenerateMockPKToken(t, signingKey, alg)
 	require.NoError(t, err)
 
 	// Add to public header
