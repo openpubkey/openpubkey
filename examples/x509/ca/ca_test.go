@@ -17,6 +17,7 @@
 package ca
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/json"
@@ -27,13 +28,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/openpubkey/openpubkey/client"
+	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestCACertCreation(t *testing.T) {
-	op, err := providers.NewMockOpenIdProvider()
+	op, err := clientmock.NewMockOpenIdProvider(t, map[string]any{})
 	require.NoError(t, err)
 
 	certAuth, err := New(op)
@@ -45,8 +46,13 @@ func TestCACertCreation(t *testing.T) {
 	userAlg := jwa.ES256
 	userSigningKey, err := util.GenKeyPair(userAlg)
 	require.NoError(t, err)
-	pkt, err := mocks.GenerateMockPKToken(userSigningKey, userAlg)
+
+	client, err := client.New(op, client.WithSigner(userSigningKey, userAlg))
 	require.NoError(t, err)
+
+	pkt, err := client.Auth(context.Background())
+	require.NoError(t, err)
+
 	pktJson, err := json.Marshal(pkt)
 	require.NoError(t, err)
 

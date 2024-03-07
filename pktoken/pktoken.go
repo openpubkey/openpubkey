@@ -27,6 +27,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/pktoken/simplejws"
 	"github.com/openpubkey/openpubkey/util"
 
@@ -95,6 +96,16 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	}
 
 	return pkt, nil
+}
+
+func (p *PKToken) Issuer() (string, error) {
+	var claims struct {
+		Issuer string `json:"iss"`
+	}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return "", fmt.Errorf("malformatted PK token claims: %w", err)
+	}
+	return claims.Issuer, nil
 }
 
 // Signs PK Token and then returns only the payload, header and signature as a JWT
@@ -182,6 +193,15 @@ func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
 	}
 
 	return alg.(jwa.SignatureAlgorithm), true
+}
+
+func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
+	cicPH, err := p.Cic.ProtectedHeaders().AsMap(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	return clientinstance.ParseClaims(cicPH)
 }
 
 // Deprecated: The PK Token now stores the signed tokens such as OpToken,

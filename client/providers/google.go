@@ -28,7 +28,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
@@ -42,6 +44,7 @@ var (
 )
 
 const googleIssuer = "https://accounts.google.com"
+const googleAudience = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
 
 type GoogleOp struct {
 	ClientID        string
@@ -68,7 +71,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	options = append(options, rp.WithPKCE(cookieHandler))
 
 	provider, err := rp.NewRelyingPartyOIDC(
-		g.Issuer(), g.ClientID, g.ClientSecret, g.RedirectURI,
+		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI,
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -148,46 +151,12 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 }
 
-func (g *GoogleOp) VerifyCICHash(ctx context.Context, idt []byte, expectedCICHash string) error {
-	cicHash, err := client.ExtractClaim(idt, "nonce")
-	if err != nil {
-		return err
-	}
-
-	if cicHash != expectedCICHash {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", cicHash, expectedCICHash)
-	}
-
-	return nil
-}
-
-func (g *GoogleOp) Issuer() string {
-	return googleIssuer
+func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
+	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
 }
 
 func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return client.DiscoverPublicKey(ctx, headers, googleIssuer)
-}
-
-func (g *GoogleOp) VerifyNonGQSig(ctx context.Context, idt []byte, expectedNonce string) error {
-	options := []rp.Option{
-		rp.WithVerifierOpts(rp.WithIssuedAtOffset(issuedAtOffset), rp.WithNonce(func(ctx context.Context) string { return expectedNonce })),
-	}
-
-	googleRP, err := rp.NewRelyingPartyOIDC(
-		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI, g.Scopes,
-		options...)
-
-	if err != nil {
-		return fmt.Errorf("failed to create RP to verify token: %w", err)
-	}
-
-	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(idt), googleRP.IDTokenVerifier())
-	if err != nil {
-		return fmt.Errorf("error verifying OP signature on PK Token (ID Token invalid): %w", err)
-	}
-
-	return nil
+	return discover.ProviderPublicKey(ctx, headers, googleIssuer)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

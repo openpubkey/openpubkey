@@ -32,15 +32,32 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
-// OpkClient is the OpenPubkey client
+// Interface for interacting with the OP (OpenID Provider)
+type OpenIdProvider interface {
+	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
+	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
+	Verifier() verifier.ProviderVerifier
+}
+
+type BrowserOpenIdProvider interface {
+	OpenIdProvider
+	HookHTTPSession(h http.HandlerFunc)
+}
+
+type PKTokenVerifier interface {
+	VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, extraChecks ...verifier.Check) error
+}
+
 type OpkClient struct {
-	Op     OpenIdProvider
-	cosP   *CosignerProvider
-	signer crypto.Signer
-	alg    jwa.KeyAlgorithm
-	signGQ bool // Default is false
+	Op       OpenIdProvider
+	cosP     *CosignerProvider
+	signer   crypto.Signer
+	alg      jwa.KeyAlgorithm
+	signGQ   bool // Default is false
+	verifier PKTokenVerifier
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -78,6 +95,13 @@ func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	}
 }
 
+// WithCustomVerifier specifies a custom verifier to use instead of default
+func WithCustomVerifier(verifier PKTokenVerifier) ClientOpts {
+	return func(o *OpkClient) {
+		o.verifier = verifier
+	}
+}
+
 // New returns a new client.OpkClient. The op argument should be the
 // OpenID Provider you want to authenticate against.
 func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
@@ -107,6 +131,23 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 			return nil, fmt.Errorf("failed to create key pair for client: %w ", err)
 		}
 		client.signer = signer
+	}
+
+	// If there is no provided client verifier, create our default
+	if client.verifier == nil {
+		var pktVerifier *verifier.Verifier
+		var err error
+		if client.cosP != nil {
+			cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
+			pktVerifier, err = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
+		} else {
+			pktVerifier, err = verifier.New(op.Verifier())
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		client.verifier = pktVerifier
 	}
 
 	return client, nil
@@ -177,7 +218,10 @@ func (o *OpkClient) OidcAuth(
 	extraClaims map[string]any,
 	signGQ bool,
 ) (*pktoken.PKToken, error) {
-	// Use our signing key to generate a JWK key with the alg header set
+	// keep track of any additional verifierChecks for the verifier
+	verifierChecks := []verifier.Check{}
+
+	// Use our signing key to generate a JWK key and set the "alg" header
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	if err != nil {
 		return nil, err
@@ -193,14 +237,14 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	// Define our OIDC nonce as a commitment to the client instance claims
-	nonce, err := cic.Hash()
+	// Define our commitment as the hash of the client instance claims
+	commitment, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error getting nonce: %w", err)
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idTokenLB, err := o.Op.RequestTokens(ctx, string(nonce))
+	idTokenLB, err := o.Op.RequestTokens(ctx, string(commitment))
 	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
 	// because the ID Token contains the OPs RSA signature which is a secret
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
@@ -229,13 +273,17 @@ func (o *OpkClient) OidcAuth(
 
 	opKey, err := o.Op.PublicKey(ctx, headers)
 	if err != nil {
-		return nil, fmt.Errorf("error getting OP public key: %w", err)
+		return nil, err
 	}
 
+	// sign GQ256
 	if signGQ {
-		rsaPubKey := opKey.(*rsa.PublicKey)
+		rsaKey, ok := opKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
+		}
 
-		sv, err := gq.NewSignerVerifier(rsaPubKey, GQSecurityParameter)
+		sv, err := gq.New256SignerVerifier(rsaKey)
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signer: %w", err)
 		}
@@ -244,6 +292,9 @@ func (o *OpkClient) OidcAuth(
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
 		idTokenLB = memguard.NewBufferFromBytes(gqToken)
+
+		// Make sure we force the check for GQ during verification
+		verifierChecks = append(verifierChecks, verifier.GQOnly())
 	}
 
 	// We are now past the point where the ID Token should be treated
@@ -257,15 +308,19 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
-	err = VerifyPKToken(ctx, pkt, o.Op)
+	if err := pkt.AddJKTHeader(opKey); err != nil {
+		return nil, fmt.Errorf("error adding JKT header: %w", err)
+	}
+
+	pktVerifier, err := verifier.New(o.Op.Verifier())
 	if err != nil {
+		return nil, err
+	}
+
+	if err := pktVerifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
-	err = pkt.AddJKTHeader(opKey)
-	if err != nil {
-		return nil, fmt.Errorf("error adding JKT header: %w", err)
-	}
 	return pkt, nil
 }
 

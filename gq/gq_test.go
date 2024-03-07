@@ -155,7 +155,7 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 		return nil, err
 	}
 
-	jwt, err := jws.Sign(
+	return jws.Sign(
 		payloadBytes,
 		jws.WithKey(
 			alg,
@@ -163,9 +163,4 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 			jws.WithProtectedHeaders(oidcHeader),
 		),
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	return jwt, nil
 }

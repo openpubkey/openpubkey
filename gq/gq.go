@@ -56,6 +56,11 @@ type signerVerifier struct {
 	t int
 }
 
+// Creates a new SignerVerifier specifically for GQ256, meaning the security parameter is 256.
+func New256SignerVerifier(publicKey *rsa.PublicKey) (SignerVerifier, error) {
+	return NewSignerVerifier(publicKey, 256)
+}
+
 // NewSignerVerifier creates a SignerVerifier from the RSA public key of the trusted third-party which creates
 // the GQ1 private numbers.
 //

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/client"
+	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/stretchr/testify/require"
+
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
 )
@@ -18,24 +21,30 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestAuthorizedKeysCommand(t *testing.T) {
-	op, err := providers.NewMockOpenIdProvider()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	principals := []string{"guest", "dev"}
 	alg := jwa.ES256
-
 	signer, err := util.GenKeyPair(alg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(signer, alg, email)
+
+	// extra ID token payload claims
+	mockEmail := "arthur.aardvark@example.com"
+	extraClaims := map[string]any{
+		"email": mockEmail,
+	}
+
+	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	client, err := client.New(op, client.WithSigner(signer, alg))
+	require.NoError(t, err)
+
+	pkt, err := client.Auth(context.Background())
+	require.NoError(t, err)
+
+	principals := []string{"guest", "dev"}
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		t.Error(err)
