@@ -26,7 +26,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	providermock "github.com/openpubkey/openpubkey/client/providers/mocks"
+	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	wauthnmock "github.com/openpubkey/openpubkey/examples/mfa/mfacosigner/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -41,7 +41,7 @@ func TestFullFlow(t *testing.T) {
 	clientSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	provider, err := providermock.NewMockOpenIdProvider(t, map[string]any{})
+	provider, err := clientmock.NewMockOpenIdProvider(t, map[string]any{})
 	require.NoError(t, err)
 
 	opkClient, err := client.New(provider, client.WithSigner(clientSigner, alg))
@@ -128,7 +128,7 @@ func TestBadCosSigTyp(t *testing.T) {
 	// TODO: This test should eventually be moved into pktoken tests
 	// and cover all possible typ claims and outcomes.
 
-	provider, err := providermock.NewMockOpenIdProvider(t, map[string]any{})
+	provider, err := clientmock.NewMockOpenIdProvider(t, map[string]any{})
 	require.NoError(t, err)
 
 	opkClient, err := client.New(provider)

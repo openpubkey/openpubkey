@@ -11,7 +11,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
-	providermocks "github.com/openpubkey/openpubkey/client/providers/mocks"
+	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -99,7 +99,7 @@ func TestSshCertCreation(t *testing.T) {
 		"email": mockEmail,
 	}
 
-	op, err := providermocks.NewMockOpenIdProvider(t, extraClaims)
+	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
 	require.NoError(t, err)
 
 	client, err := client.New(op, client.WithSigner(signingKey, alg))
