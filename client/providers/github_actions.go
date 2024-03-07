@@ -115,21 +115,5 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, err
 	}
 	defer memguard.WipeBytes([]byte(jwt.Value))
-	return memguard.NewBufferFromBytes(jwt.Value), nil
-
-	// rawBody, err := io.ReadAll(response.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// var jwt struct {
-	// 	Value string
-	// }
-	// err = json.Unmarshal(rawBody, &jwt)
-	// memguard.WipeBytes(rawBody)
-	// lb := memguard.NewBufferFromBytes([]byte(jwt.Value))
-	// memguard.WipeBytes([]byte(jwt.Value))
-
-	// return lb, err
-	// return jwt.Value, err
+	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
