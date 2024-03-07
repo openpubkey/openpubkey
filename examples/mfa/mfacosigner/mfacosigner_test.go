@@ -17,17 +17,20 @@
 package mfacosigner
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
+	providermock "github.com/openpubkey/openpubkey/client/providers/mocks"
 	wauthnmock "github.com/openpubkey/openpubkey/examples/mfa/mfacosigner/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,11 +38,15 @@ func TestFullFlow(t *testing.T) {
 	// Step 0: Setup
 	// Create our PK Token and signer
 	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
+	clientSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
+	provider, err := providermock.NewMockOpenIdProvider(t, map[string]any{})
+	require.NoError(t, err)
+
+	opkClient, err := client.New(provider, client.WithSigner(clientSigner, alg))
+	require.NoError(t, err)
+	pkt, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	// Create our MFA Cosigner
@@ -72,7 +79,9 @@ func TestFullFlow(t *testing.T) {
 	redirectURI := fmt.Sprintf("%s%s", "http://localhost:5555", cosP.CallbackPath)
 
 	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
-	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
+	require.NoError(t, err)
+	sig, err := pkt.NewSignedMessage(initAuthMsgJson, clientSigner)
+	require.NoError(t, err)
 	authID, err := cos.InitAuth(pkt, sig)
 	require.NoError(t, err)
 
@@ -101,7 +110,7 @@ func TestFullFlow(t *testing.T) {
 
 	// Sign the authcode
 	// and exchange it with the Cosigner to get the PK Token cosigned
-	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), signer)
+	authcodeSig, err := pkt.NewSignedMessage([]byte(authcode), clientSigner)
 	require.NoError(t, err)
 
 	cosSig, err := cos.RedeemAuthcode(authcodeSig)
@@ -119,16 +128,16 @@ func TestBadCosSigTyp(t *testing.T) {
 	// TODO: This test should eventually be moved into pktoken tests
 	// and cover all possible typ claims and outcomes.
 
-	// Create our PK Token and signer
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
+	provider, err := providermock.NewMockOpenIdProvider(t, map[string]any{})
 	require.NoError(t, err)
 
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
+	opkClient, err := client.New(provider)
+	require.NoError(t, err)
+	pkt, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	// Create our MFA Cosigner
+	alg := jwa.ES256
 	cosSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
@@ -176,6 +185,21 @@ func TestBadCosSigTyp(t *testing.T) {
 		require.NoError(t, err)
 
 		err = pkt.AddSignature(cosSig, pktoken.COS)
+		require.NoError(t, err)
+
+		// Verify generated PK token
+		cosVerifier := verifier.NewCosignerVerifier(cos.Issuer, verifier.CosignerVerifierOpts{})
+		verifier, err := verifier.New(provider.Verifier(), verifier.WithCosignerVerifiers(cosVerifier))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if err := verifier.VerifyPKToken(context.TODO(), pkt); err != nil {
+			fmt.Println("Failed to verify PK token:", err)
+			os.Exit(1)
+		} else {
+			fmt.Println("PK token verified successfully!")
+		}
 
 		if tc.wantError {
 			require.ErrorContains(t, err, "incorrect 'typ' claim in protected, expected (COS)",

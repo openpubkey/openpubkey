@@ -78,7 +78,8 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		verifier, err := verifier.New(provider.Verifier())
+		cosVerifier := verifier.NewCosignerVerifier(cosignerProvider.Issuer, verifier.CosignerVerifierOpts{})
+		verifier, err := verifier.New(provider.Verifier(), verifier.WithCosignerVerifiers(cosVerifier))
 		if err != nil {
 			fmt.Println(err)
 			return
