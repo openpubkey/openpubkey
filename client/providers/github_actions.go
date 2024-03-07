@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,18 +101,31 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, fmt.Errorf("received non-200 from jwt api: %s", http.StatusText(response.StatusCode))
 	}
 
-	rawBody, err := io.ReadAll(response.Body)
+	rawBody, err := memguard.NewBufferFromEntireReader(response.Body)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
+	defer rawBody.Destroy()
 
 	var jwt struct {
-		Value string
+		Value *memguard.LockedBuffer
 	}
-	err = json.Unmarshal(rawBody, &jwt)
-	memguard.WipeBytes(rawBody)
-	lb := memguard.NewBufferFromBytes([]byte(jwt.Value))
-	memguard.WipeBytes([]byte(jwt.Value))
+	err = json.Unmarshal(rawBody.Bytes(), &jwt)
+	fmt.Println(jwt.Value)
 
-	return lb, err
+	// rawBody, err := io.ReadAll(response.Body)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// var jwt struct {
+	// 	Value string
+	// }
+	// err = json.Unmarshal(rawBody, &jwt)
+	// memguard.WipeBytes(rawBody)
+	// lb := memguard.NewBufferFromBytes([]byte(jwt.Value))
+	// memguard.WipeBytes([]byte(jwt.Value))
+
+	// return lb, err
+	return jwt.Value, err
 }
