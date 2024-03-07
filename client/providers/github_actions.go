@@ -108,10 +108,12 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	}
 
 	var jwt struct {
-		Value *memguard.LockedBuffer
+		Value string
 	}
 	err = json.Unmarshal(rawBody, &jwt)
 	memguard.WipeBytes(rawBody)
+	lb := memguard.NewBufferFromBytes([]byte(jwt.Value))
+	memguard.WipeBytes([]byte(jwt.Value))
 
-	return jwt.Value, err
+	return lb, err
 }
