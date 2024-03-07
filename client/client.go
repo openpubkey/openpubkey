@@ -312,7 +312,12 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	if err := o.verifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
+	pktVerifier, err := verifier.New(o.Op.Verifier())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := pktVerifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
 
