@@ -80,22 +80,12 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 	case jwa.RS256:
-		opToken, err := pkt.Compact(pkt.Op)
-		if err != nil {
-			return err
-		}
-
-		pubKey, err := v.ProviderPublicKey(ctx, opToken)
+		pubKey, err := v.providerPublicKey(ctx, pkt)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		token, err := pkt.Compact(pkt.Op)
-		if err != nil {
-			return err
-		}
-
-		if _, err := jws.Verify(token, jws.WithKey(alg, pubKey)); err != nil {
+		if _, err := jws.Verify(pkt.OpToken, jws.WithKey(alg, pubKey)); err != nil {
 			return err
 		}
 	}
@@ -109,14 +99,9 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token []byte) (crypto.PublicKey, error) {
-	message, err := jws.Parse(token)
-	if err != nil {
-		return nil, err
-	}
-
+func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, pkt *pktoken.PKToken) (crypto.PublicKey, error) {
 	// a JWT is guaranteed to have exactly one signature
-	headers := message.Signatures()[0].ProtectedHeaders()
+	headers := pkt.Op.ProtectedHeaders()
 
 	alg, ok := headers.Get(jws.AlgorithmKey)
 	if !ok {
@@ -125,7 +110,7 @@ func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token [
 
 	var providerHeaders jws.Headers
 	if alg == gq.GQ256 {
-		origHeaders, err := originalTokenHeaders(token)
+		origHeaders, err := originalTokenHeaders(pkt.OpToken)
 		if err != nil {
 			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
 		}
@@ -143,7 +128,7 @@ func (v *DefaultProviderVerifier) ProviderPublicKey(ctx context.Context, token [
 	var claims struct {
 		Issuer string `json:"iss"`
 	}
-	if err := json.Unmarshal(message.Payload(), &claims); err != nil {
+	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return nil, err
 	}
 

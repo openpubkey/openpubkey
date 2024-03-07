@@ -2,7 +2,6 @@ package verifier
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -15,7 +14,6 @@ var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	ProviderPublicKey(ctx context.Context, token []byte) (crypto.PublicKey, error)
 	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
 }
 
