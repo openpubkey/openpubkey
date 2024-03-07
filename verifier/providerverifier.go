@@ -31,7 +31,8 @@ type ProviderVerifierOpts struct {
 	DiscoverPublicKey func(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error)
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
-	// Only allows GQ signatures
+	// Only allows GQ signatures, a provider signature under any other algorithm
+	// is seen as an error
 	GQOnly bool
 }
 

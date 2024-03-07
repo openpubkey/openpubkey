@@ -38,7 +38,9 @@ func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCo
 		v.options.DiscoverPublicKey = discoverCosignerPublicKey
 	}
 
+	// If strict is not set, then default it to true
 	if v.options.Strict == nil {
+		v.options.Strict = new(bool)
 		*v.options.Strict = true
 	}
 
@@ -58,11 +60,6 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return fmt.Errorf("no cosigner signature")
 	}
 
-	cosToken, err := pkt.Compact(pkt.Cos)
-	if err != nil {
-		return err
-	}
-
 	// Parse our header
 	header, err := pkt.ParseCosignerClaims()
 	if err != nil {
@@ -79,7 +76,7 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return fmt.Errorf("cosigner signature expired")
 	}
 
-	_, err = jws.Verify(cosToken, jws.WithKey(jwa.KeyAlgorithmFrom(jwa.RS256), key))
+	_, err = jws.Verify(pkt.CosToken, jws.WithKey(jwa.KeyAlgorithmFrom(jwa.RS256), key))
 
 	return err
 }
