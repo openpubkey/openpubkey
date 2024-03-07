@@ -103,15 +103,19 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 	rawBody, err := memguard.NewBufferFromEntireReader(response.Body)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer rawBody.Destroy()
 
 	var jwt struct {
-		Value *memguard.LockedBuffer
+		Value json.RawMessage
 	}
 	err = json.Unmarshal(rawBody.Bytes(), &jwt)
-	fmt.Println(jwt.Value)
+	if err != nil {
+		return nil, err
+	}
+	defer memguard.WipeBytes([]byte(jwt.Value))
+	return memguard.NewBufferFromBytes(jwt.Value), nil
 
 	// rawBody, err := io.ReadAll(response.Body)
 	// if err != nil {
@@ -127,5 +131,5 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 	// memguard.WipeBytes([]byte(jwt.Value))
 
 	// return lb, err
-	return jwt.Value, err
+	// return jwt.Value, err
 }
