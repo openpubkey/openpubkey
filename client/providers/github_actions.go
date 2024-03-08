@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package providers
 
 import (
@@ -5,7 +21,6 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,16 +117,21 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, fmt.Errorf("received non-200 from jwt api: %s", http.StatusText(response.StatusCode))
 	}
 
-	rawBody, err := io.ReadAll(response.Body)
+	rawBody, err := memguard.NewBufferFromEntireReader(response.Body)
 	if err != nil {
 		return nil, err
 	}
+	defer rawBody.Destroy()
 
 	var jwt struct {
-		Value *memguard.LockedBuffer
+		Value json.RawMessage
 	}
-	err = json.Unmarshal(rawBody, &jwt)
-	memguard.WipeBytes(rawBody)
+	err = json.Unmarshal(rawBody.Bytes(), &jwt)
+	if err != nil {
+		return nil, err
+	}
+	defer memguard.WipeBytes([]byte(jwt.Value))
 
-	return jwt.Value, err
+	// json.RawMessage leaves the " (quotes) on the string. We need to remove the quotes
+	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
