@@ -24,7 +24,7 @@ type CosignerVerifierOpts struct {
 	// Defaults to true.
 	Strict *bool
 	// Allows users to set custom function for discovering public key of Cosigner
-	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (crypto.PublicKey, error)
+	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (crypto.PublicKey, string, error)
 }
 
 func NewCosignerVerifier(issuer string, options CosignerVerifierOpts) *DefaultCosignerVerifier {
@@ -66,7 +66,7 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return err
 	}
 
-	key, err := v.options.DiscoverPublicKey(ctx, header.KeyID, header.Issuer)
+	key, alg, err := v.options.DiscoverPublicKey(ctx, header.KeyID, header.Issuer)
 	if err != nil {
 		return err
 	}
@@ -75,26 +75,29 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 	if time.Now().After(time.Unix(header.Expiration, 0)) {
 		return fmt.Errorf("cosigner signature expired")
 	}
-
-	_, err = jws.Verify(pkt.CosToken, jws.WithKey(jwa.KeyAlgorithmFrom(jwa.RS256), key))
+	if header.Algorithm != alg {
+		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", header.KeyID, alg, header.Algorithm)
+	}
+	jwsPubkey := jws.WithKey(jwa.KeyAlgorithmFrom(alg), key)
+	_, err = jws.Verify(pkt.CosToken, jwsPubkey)
 
 	return err
 }
 
-func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (crypto.PublicKey, error) {
+func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (crypto.PublicKey, string, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
+		return nil, "", fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
 	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
+		return nil, "", fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
 	}
 
 	key, ok := set.LookupKeyID(kid)
 	if !ok {
-		return nil, fmt.Errorf("missing key id (kid)")
+		return nil, "", fmt.Errorf("missing key id (kid)")
 	}
 
-	return key, nil
+	return key, key.Algorithm().String(), nil
 }
