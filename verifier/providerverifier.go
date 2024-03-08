@@ -199,6 +199,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	if err != nil {
 		return err
 	}
+
 	ok = sv.VerifyJWT(pkt.OpToken)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
