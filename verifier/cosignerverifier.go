@@ -24,7 +24,6 @@ type CosignerVerifierOpts struct {
 	// Defaults to true.
 	Strict *bool
 	// Allows users to set custom function for discovering public key of Cosigner
-
 	DiscoverPublicKey func(ctx context.Context, kid string, issuer string) (crypto.PublicKey, string, error)
 }
 
@@ -76,7 +75,6 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 	if time.Now().After(time.Unix(header.Expiration, 0)) {
 		return fmt.Errorf("cosigner signature expired")
 	}
-
 	if header.Algorithm != alg {
 		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", header.KeyID, alg, header.Algorithm)
 	}
