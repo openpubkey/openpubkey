@@ -115,5 +115,7 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		return nil, err
 	}
 	defer memguard.WipeBytes([]byte(jwt.Value))
+
+	// json.RawMessage leaves the " (quotes) on the string. We need to remove the quotes
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
