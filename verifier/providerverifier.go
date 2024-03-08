@@ -171,12 +171,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
-	opToken, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
-	origHeaders, err := originalTokenHeaders(opToken)
+	origHeaders, err := originalTokenHeaders(pkt.OpToken)
 	if err != nil {
 		return fmt.Errorf("malformatted PK token headers: %w", err)
 	}
@@ -196,11 +191,6 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
-	token, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
 	rsaKey, ok := jwkKey.(*rsa.PublicKey)
 	if !ok {
 		return fmt.Errorf("jwk is not an RSA key")
@@ -209,7 +199,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	if err != nil {
 		return err
 	}
-	ok = sv.VerifyJWT(token)
+	ok = sv.VerifyJWT(pkt.OpToken)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}
