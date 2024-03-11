@@ -65,10 +65,7 @@ func TestCACertCreation(t *testing.T) {
 
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
 
-	sigma, err := pkt.Compact(pkt.Cic)
-	require.NoError(t, err)
-
-	_, err = jws.Verify(sigma, jws.WithKey(jwa.ES256, certPubkey))
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwa.ES256, certPubkey))
 	require.NoError(t, err)
 
 	err = certAuth.VerifyPktCert(pemSubCert)

@@ -97,9 +97,7 @@ func TestClient(t *testing.T) {
 			}
 
 			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			if !ok {
-				t.Fatal("missing jkt header")
-			}
+			require.True(t, ok, "missing jkt header")
 			jktstr, ok := jkt.(string)
 			if !ok {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
@@ -126,9 +124,6 @@ func TestClient(t *testing.T) {
 				require.Equal(t, gq.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
-				idt, err := pkt.Compact(pkt.Op)
-				require.NoError(t, err, tc.name)
-
 				opPubKey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
 				require.NoError(t, err, tc.name)
 
@@ -138,10 +133,8 @@ func TestClient(t *testing.T) {
 				sv, err := gq.New256SignerVerifier(rsaKey)
 				require.NoError(t, err, tc.name)
 
-				ok = sv.VerifyJWT(idt)
-				if !ok {
-					t.Fatal(fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)"))
-				}
+				ok = sv.VerifyJWT(pkt.OpToken)
+				require.True(t, ok, "error verifying OP GQ signature on PK Token (ID Token invalid)")
 			} else {
 				// Expect alg to be RS256 alg when not signing with GQ
 				require.Equal(t, jwa.RS256, providerAlg, tc.name)

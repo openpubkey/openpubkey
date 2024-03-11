@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package verifier
 
 import (
@@ -171,12 +187,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
-	opToken, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
-	origHeaders, err := originalTokenHeaders(opToken)
+	origHeaders, err := originalTokenHeaders(pkt.OpToken)
 	if err != nil {
 		return fmt.Errorf("malformatted PK token headers: %w", err)
 	}
@@ -196,11 +207,6 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
-	token, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
-
 	rsaKey, ok := jwkKey.(*rsa.PublicKey)
 	if !ok {
 		return fmt.Errorf("jwk is not an RSA key")
@@ -209,7 +215,7 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	if err != nil {
 		return err
 	}
-	ok = sv.VerifyJWT(token)
+	ok = sv.VerifyJWT(pkt.OpToken)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}

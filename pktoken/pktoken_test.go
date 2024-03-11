@@ -130,9 +130,7 @@ func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader
 	require.NoError(t, err)
 
 	// Check that Compact does not change original OP Token
-	opTokenOut, err := pkt.Compact(pkt.Op)
-	require.NoError(t, err)
-	require.EqualValues(t, string(opTokenOriginal), string(opTokenOut), "danger, signed values in OP Token being changed")
+	require.EqualValues(t, string(opTokenOriginal), string(pkt.OpToken), "danger, signed values in OP Token being changed")
 
 	// Build CIC Token and add it to PK Token
 	cicTokenOriginal := BuildToken(cicPheader, payload, "fakeSignature")
@@ -140,9 +138,7 @@ func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader
 	require.NoError(t, err)
 
 	// Check that Compact does not change original CIC Token
-	cicTokenCompact, err := pkt.Compact(pkt.Cic)
-	require.NoError(t, err)
-	require.EqualValues(t, string(cicTokenOriginal), string(cicTokenCompact), "danger, signed values in CIC Token being changed")
+	require.EqualValues(t, string(cicTokenOriginal), string(pkt.CicToken), "danger, signed values in CIC Token being changed")
 
 	// Build COS Token and add it to PK Token
 	cosTokenOriginal := BuildToken(cosPheader, payload, "fakeSignature")
@@ -150,9 +146,7 @@ func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader
 	require.NoError(t, err)
 
 	// Check that Compact does not change original COS Token
-	cosTokenCompact, err := pkt.Compact(pkt.Cos)
-	require.NoError(t, err)
-	require.EqualValues(t, string(cosTokenOriginal), string(cosTokenCompact), "danger, signed values in COS Token being changed")
+	require.EqualValues(t, string(cosTokenOriginal), string(pkt.CosToken), "danger, signed values in COS Token being changed")
 }
 
 func testUnchangedAfterMarshalling(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
