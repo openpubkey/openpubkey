@@ -45,6 +45,9 @@ jobs:
   gotest:
     name: Run Tests
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -56,3 +59,4 @@ jobs:
 
     - name: Test
       run: go test ./...
+
