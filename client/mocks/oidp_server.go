@@ -20,8 +20,8 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -35,11 +35,11 @@ const (
 )
 
 type OIDPServer struct {
-	listener  net.Listener
-	Server    *http.ServeMux
-	uri       string
-	kid       string
-	jwksBytes []byte
+	mux        *http.ServeMux
+	testServer *httptest.Server
+	uri        string
+	kid        string
+	jwksBytes  []byte
 }
 
 // A very simple JWKS server for our MFA Cosigner example code.
@@ -65,37 +65,26 @@ func NewOIDPServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*OIDPServe
 	}
 
 	s := &OIDPServer{
-		Server:    http.NewServeMux(),
+		mux:       http.NewServeMux(),
 		jwksBytes: keySetBytes,
 		kid:       kid,
 	}
 
 	// Host our JWKS at a localhost url
-	s.Server.HandleFunc(jwksEndpoint, s.printJWKS)
-	s.Server.HandleFunc(wellKnownConfigEndpoint, s.printWellKnownConfig)
+	s.mux.HandleFunc(jwksEndpoint, s.printJWKS)
+	s.mux.HandleFunc(wellKnownConfigEndpoint, s.printWellKnownConfig)
 
 	return s, nil
 }
 
 func (s *OIDPServer) Serve() error {
-	// Find an empty port
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return fmt.Errorf("failed to bind to an available port: %w", err)
-	}
-
-	s.listener = listener
-	s.uri = fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-
-	go func() {
-		http.Serve(listener, s.Server)
-	}()
-
+	s.testServer = httptest.NewServer(s.mux)
+	s.uri = s.testServer.URL
 	return nil
 }
 
-func (s *OIDPServer) Shutdown() error {
-	return s.listener.Close()
+func (s *OIDPServer) Shutdown() {
+	s.testServer.Close()
 }
 
 func (s *OIDPServer) KID() string {
