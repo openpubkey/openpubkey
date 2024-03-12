@@ -124,7 +124,6 @@ func TestBadCosSigTyp(t *testing.T) {
 	require.NoError(t, err)
 
 	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
-
 	require.NoError(t, err)
 
 	// Create our MFA Cosigner

@@ -33,8 +33,10 @@ import (
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
+type OpenIdProvider = providers.OpenIdProvider
+
 type BrowserOpenIdProvider interface {
-	providers.OpenIdProvider
+	OpenIdProvider
 	HookHTTPSession(h http.HandlerFunc)
 }
 
@@ -43,7 +45,7 @@ type PKTokenVerifier interface {
 }
 
 type OpkClient struct {
-	Op       providers.OpenIdProvider
+	Op       OpenIdProvider
 	cosP     *CosignerProvider
 	signer   crypto.Signer
 	alg      jwa.KeyAlgorithm
@@ -86,7 +88,7 @@ func WithCustomVerifier(verifier PKTokenVerifier) ClientOpts {
 
 // New returns a new client.OpkClient. The op argument should be the
 // OpenID Provider you want to authenticate against.
-func New(op providers.OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
+func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	client := &OpkClient{
 		Op:     op,
 		signer: nil,
@@ -269,7 +271,7 @@ func (o *OpkClient) oidcAuth(
 }
 
 // GetOp returns the OpenID Provider the OpkClient has been configured to use
-func (o *OpkClient) GetOp() providers.OpenIdProvider {
+func (o *OpkClient) GetOp() OpenIdProvider {
 	return o.Op
 }
 

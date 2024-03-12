@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -76,7 +75,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 }
 
 // Deprecated: please use the verifier package directly as shown in function
-func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider providers.OpenIdProvider) error {
+func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
 	pktVerifier, err := verifier.New(provider.Verifier())
 	if err != nil {
 		return err
