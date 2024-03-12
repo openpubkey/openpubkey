@@ -41,7 +41,8 @@ func TestSimpleCosigner(t *testing.T) {
 	}
 
 	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
+	signGQ := false
+	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, signGQ, email)
 	require.NoError(t, err, "failed to generate key pair")
 
 	cosignerClaims := pktoken.CosignerClaims{

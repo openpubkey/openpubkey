@@ -8,11 +8,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"time"
 
-	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/mock"
 )
@@ -68,19 +70,26 @@ func (_m *OpenIdProvider) PublicKey(ctx context.Context, headers jws.Headers) (c
 }
 
 // RequestTokens provides a mock function with given fields: ctx, cicHash
-func (_m *OpenIdProvider) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+func (_m *OpenIdProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+	// Define our commitment as the hash of the client instance claims
+	cicHashBytes, err := cic.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+	}
+	cicHash := string(cicHashBytes)
+
 	ret := _m.Called(ctx, cicHash)
 
-	var r0 *memguard.LockedBuffer
+	var r0 []byte
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*memguard.LockedBuffer, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]byte, error)); ok {
 		return rf(ctx, cicHash)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *memguard.LockedBuffer); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []byte); ok {
 		r0 = rf(ctx, cicHash)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*memguard.LockedBuffer)
+			r0 = ret.Get(0).([]byte)
 		}
 	}
 
@@ -105,6 +114,20 @@ func NewOpenIdProvider(t interface {
 	return mock
 }
 
+type MockProviderOpts struct {
+	GQSign bool
+}
+type Opts func(a *MockProviderOpts)
+
+// Example use:
+//
+//	UseGQSign(true)
+func UseGQSign(gqSign bool) Opts {
+	return func(m *MockProviderOpts) {
+		m.GQSign = gqSign
+	}
+}
+
 // This function creates a new, correctly functioning Provider that can be used for test purposes, for finer grain control
 // or error testing, please use the function above.
 //
@@ -115,7 +138,15 @@ func NewMockOpenIdProvider(
 		Cleanup(func())
 	},
 	extraClaims map[string]any,
+	opts ...Opts,
 ) (*OpenIdProvider, error) {
+	providerOpts := &MockProviderOpts{
+		GQSign: false,
+	}
+	for _, applyOpt := range opts {
+		applyOpt(providerOpts)
+	}
+
 	alg := jwa.RS256
 	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -137,7 +168,7 @@ func NewMockOpenIdProvider(
 	provider := NewOpenIdProvider(t)
 	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{SkipClientIDCheck: true}))
 	provider.On("PublicKey", mock.Anything, mock.Anything).Return(signingKey.Public(), nil)
-	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) ([]byte, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)
 		headers.Set(jws.KeyIDKey, oidpServer.KID())
@@ -170,7 +201,11 @@ func NewMockOpenIdProvider(
 			),
 		)
 
-		return memguard.NewBufferFromBytes(token), err
+		if providerOpts.GQSign {
+			return providers.CreateGQToken(ctx, token, provider)
+		}
+
+		return token, err
 	})
 
 	return provider, nil

@@ -33,7 +33,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 
 	"github.com/openpubkey/openpubkey/cert"
-	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/verifier"
 )
@@ -43,10 +43,10 @@ type Ca struct {
 	Alg  jwa.KeyAlgorithm
 	// CaCertBytes []byte
 	RootCertPem []byte
-	op          client.OpenIdProvider
+	op          providers.OpenIdProvider
 }
 
-func New(op client.OpenIdProvider) (*Ca, error) {
+func New(op providers.OpenIdProvider) (*Ca, error) {
 	ca := Ca{
 		op: op,
 	}

@@ -19,31 +19,22 @@ package client
 import (
 	"context"
 	"crypto"
-	"crypto/rsa"
 	"fmt"
 	"net/http"
 
-	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
-// Interface for interacting with the OP (OpenID Provider)
-type OpenIdProvider interface {
-	RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error)
-	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
-	Verifier() verifier.ProviderVerifier
-}
-
 type BrowserOpenIdProvider interface {
-	OpenIdProvider
+	providers.OpenIdProvider
 	HookHTTPSession(h http.HandlerFunc)
 }
 
@@ -52,11 +43,10 @@ type PKTokenVerifier interface {
 }
 
 type OpkClient struct {
-	Op       OpenIdProvider
+	Op       providers.OpenIdProvider
 	cosP     *CosignerProvider
 	signer   crypto.Signer
 	alg      jwa.KeyAlgorithm
-	signGQ   bool // Default is false
 	verifier PKTokenVerifier
 }
 
@@ -78,14 +68,6 @@ func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
 	}
 }
 
-// WithSignGQ specifies if the OPs signature on the ID Token should be replaced
-// with a GQ signature by the client.
-func WithSignGQ(signGQ bool) ClientOpts {
-	return func(o *OpkClient) {
-		o.signGQ = signGQ
-	}
-}
-
 // WithCosignerProvider specifies what cosigner provider should be used to
 // cosign the PK Token. If this is not specified then the cosigning setup
 // is skipped.
@@ -104,12 +86,11 @@ func WithCustomVerifier(verifier PKTokenVerifier) ClientOpts {
 
 // New returns a new client.OpkClient. The op argument should be the
 // OpenID Provider you want to authenticate against.
-func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
+func New(op providers.OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	client := &OpkClient{
 		Op:     op,
 		signer: nil,
 		alg:    nil,
-		signGQ: false,
 	}
 
 	for _, applyOpt := range opts {
@@ -188,7 +169,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 
 	// If no Cosigner is set then do standard OIDC authentication
 	if o.cosP == nil {
-		return o.OidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims, o.signGQ)
+		return o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -202,7 +183,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 		})
 
-		pkt, err := o.OidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims, o.signGQ)
+		pkt, err := o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
 		if err != nil {
 			return nil, err
 		}
@@ -210,13 +191,12 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 	}
 }
 
-// OidcAuth exists only for backwards compatibility. Use Auth instead.
-func (o *OpkClient) OidcAuth(
+// oidcAuth exists only for backwards compatibility. Use Auth instead.
+func (o *OpkClient) oidcAuth(
 	ctx context.Context,
 	signer crypto.Signer,
 	alg jwa.KeyAlgorithm,
 	extraClaims map[string]any,
-	signGQ bool,
 ) (*pktoken.PKToken, error) {
 	// keep track of any additional verifierChecks for the verifier
 	verifierChecks := []verifier.Check{}
@@ -237,30 +217,20 @@ func (o *OpkClient) OidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	// Define our commitment as the hash of the client instance claims
-	commitment, err := cic.Hash()
-	if err != nil {
-		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
-	}
+	// Send the CIC to the OpenIdProvider and get an ID token from the provider
+	idToken, err := o.Op.RequestTokens(ctx, cic)
 
-	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
-	idTokenLB, err := o.Op.RequestTokens(ctx, string(commitment))
-	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
-	// because the ID Token contains the OPs RSA signature which is a secret
-	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
-	// a public value.
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-	defer idTokenLB.Destroy()
 
 	// Sign over the payload from the ID token and client instance claims
-	cicToken, err := cic.Sign(signer, alg, idTokenLB.Bytes())
+	cicToken, err := cic.Sign(signer, alg, idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	headersB64, _, _, err := jws.SplitCompact(idTokenLB.Bytes())
+	headersB64, _, _, err := jws.SplitCompact(idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error getting original headers: %w", err)
 	}
@@ -275,32 +245,6 @@ func (o *OpkClient) OidcAuth(
 	if err != nil {
 		return nil, err
 	}
-
-	// sign GQ256
-	if signGQ {
-		rsaKey, ok := opKey.(*rsa.PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
-		}
-
-		sv, err := gq.New256SignerVerifier(rsaKey)
-		if err != nil {
-			return nil, fmt.Errorf("error creating GQ signer: %w", err)
-		}
-		gqToken, err := sv.SignJWT(idTokenLB.Bytes())
-		if err != nil {
-			return nil, fmt.Errorf("error creating GQ signature: %w", err)
-		}
-		idTokenLB = memguard.NewBufferFromBytes(gqToken)
-
-		// Make sure we force the check for GQ during verification
-		verifierChecks = append(verifierChecks, verifier.GQOnly())
-	}
-
-	// We are now past the point where the ID Token should be treated
-	// like a secret. Let's copy it out of the LockedBuffer
-	idToken := make([]byte, len(idTokenLB.Bytes()))
-	copy(idToken, idTokenLB.Bytes())
 
 	// Combine our ID token and signature over the cic to create our PK Token
 	pkt, err := pktoken.New(idToken, cicToken)
@@ -325,7 +269,7 @@ func (o *OpkClient) OidcAuth(
 }
 
 // GetOp returns the OpenID Provider the OpkClient has been configured to use
-func (o *OpkClient) GetOp() OpenIdProvider {
+func (o *OpkClient) GetOp() providers.OpenIdProvider {
 	return o.Op
 }
 
@@ -344,10 +288,4 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 // (Public Key, Signing Key)
 func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
 	return o.alg
-}
-
-// GetSignGQ returns if the client is using GQ signatures to hide the OPs
-// signature on the ID Token in this PK Token.
-func (o *OpkClient) GetSignGQ() bool {
-	return o.signGQ
 }

@@ -9,7 +9,7 @@ import (
 	// "github.com/openpubkey/openpubkey/parties"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
@@ -104,7 +104,7 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(op client.OpenIdProvider) (*pktoken.PKToken, error) {
+func (s *SshCertSmuggler) VerifySshPktCert(op providers.OpenIdProvider) (*pktoken.PKToken, error) {
 	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)

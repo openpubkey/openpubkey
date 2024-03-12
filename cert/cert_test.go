@@ -37,10 +37,10 @@ func TestCreateX509Cert(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
+	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(true))
 	require.NoError(t, err)
 
-	opkClient, err := client.New(op, client.WithSigner(signer, alg), client.WithSignGQ(true))
+	opkClient, err := client.New(op, client.WithSigner(signer, alg))
 	require.NoError(t, err)
 
 	pkToken, err := opkClient.Auth(context.Background())

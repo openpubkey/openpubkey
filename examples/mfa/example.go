@@ -46,6 +46,7 @@ func main() {
 		RedirURIPort: redirURIPort,
 		CallbackPath: callbackPath,
 		RedirectURI:  redirectURI,
+		SignGQ:       false,
 	}
 
 	cosignerProvider := client.CosignerProvider{
@@ -64,7 +65,7 @@ func main() {
 
 		opk, err := client.New(provider,
 			client.WithCosignerProvider(&cosignerProvider),
-			client.WithSignGQ(false))
+		)
 		if err != nil {
 			fmt.Println(err)
 			return

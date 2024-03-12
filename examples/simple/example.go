@@ -27,7 +27,7 @@ import (
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
-func Sign(op client.OpenIdProvider) ([]byte, []byte, error) {
+func Sign(op providers.OpenIdProvider) ([]byte, []byte, error) {
 	// Create a OpenPubkey client, this automatically generates a fresh
 	// key pair (public key, signing key). The public key is added to any
 	// PK Tokens the client generates
@@ -59,7 +59,7 @@ func Sign(op client.OpenIdProvider) ([]byte, []byte, error) {
 	return pktJson, signedMsg, nil
 }
 
-func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
+func Verify(op providers.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 	// Create a PK Token object from the PK Token JSON
 	pkt := new(pktoken.PKToken)
 	err := json.Unmarshal(pktJson, &pkt)

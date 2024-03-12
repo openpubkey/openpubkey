@@ -29,10 +29,16 @@ import (
 )
 
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithEmail(t, signingKey, alg, "")
+	signGQ := false
+	return GenerateMockPKTokenWithEmail(t, signingKey, alg, signGQ, "")
 }
 
-func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
+func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
+	signGQ := true
+	return GenerateMockPKTokenWithEmail(t, signingKey, alg, signGQ, "")
+}
+
+func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, signGQ bool, email string) (*pktoken.PKToken, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -55,12 +61,6 @@ func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jw
 		return nil, err
 	}
 
-	// Calculate our nonce from our cic values
-	nonce, err := cic.Hash()
-	if err != nil {
-		return nil, err
-	}
-
 	// Generate mock id token
 	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
 	if err != nil {
@@ -68,16 +68,10 @@ func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jw
 	}
 
 	// idToken in memguard LockedBuffer
-	idTokenLB, err := op.RequestTokens(context.Background(), string(nonce))
+	idToken, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
 		return nil, err
 	}
-	defer idTokenLB.Destroy()
-
-	// Make a copy of the bytes in the LockedBuffer as we no longer
-	// need the protection of LockedBuffer at this stage.
-	idToken := make([]byte, len(idTokenLB.Bytes()))
-	copy(idToken, idTokenLB.Bytes())
 
 	// Sign mock id token payload with cic headers
 	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
