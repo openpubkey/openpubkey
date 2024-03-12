@@ -31,19 +31,15 @@ func TestSimpleCosigner(t *testing.T) {
 	// Generate the key pair for our cosigner
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err, "failed to generate key pair")
 
 	cos := &Cosigner{
 		Alg:    alg,
 		Signer: signer,
 	}
 
-	email := "arthur.aardvark@example.com"
-	signGQ := false
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, signGQ, email)
-	require.NoError(t, err, "failed to generate key pair")
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
+	require.NoError(t, err)
 
 	cosignerClaims := pktoken.CosignerClaims{
 		Issuer:      "example.com",

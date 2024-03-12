@@ -30,15 +30,15 @@ import (
 
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
 	signGQ := false
-	return GenerateMockPKTokenWithEmail(t, signingKey, alg, signGQ, "")
+	return GenerateMockPKTokenWithOpts(t, signingKey, alg, signGQ)
 }
 
 func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
 	signGQ := true
-	return GenerateMockPKTokenWithEmail(t, signingKey, alg, signGQ, "")
+	return GenerateMockPKTokenWithOpts(t, signingKey, alg, signGQ)
 }
 
-func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, signGQ bool, email string) (*pktoken.PKToken, error) {
+func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, signGQ bool) (*pktoken.PKToken, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -47,13 +47,6 @@ func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jw
 	err = jwkKey.Set(jwk.AlgorithmKey, alg)
 	if err != nil {
 		return nil, err
-	}
-
-	if email != "" {
-		err = jwkKey.Set("email", email)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
