@@ -38,8 +38,7 @@ func TestFullFlow(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err)
 
 	// Create our MFA Cosigner
@@ -124,8 +123,7 @@ func TestBadCosSigTyp(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(t, signer, alg, email)
+	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err)
 
 	// Create our MFA Cosigner

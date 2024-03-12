@@ -29,11 +29,6 @@ import (
 )
 
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithEmail(t, signingKey, alg, "")
-}
-
-func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, email string) (*pktoken.PKToken, error) {
-
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
 		return nil, err
@@ -41,13 +36,6 @@ func GenerateMockPKTokenWithEmail(t *testing.T, signingKey crypto.Signer, alg jw
 	err = jwkKey.Set(jwk.AlgorithmKey, alg)
 	if err != nil {
 		return nil, err
-	}
-
-	if email != "" {
-		err = jwkKey.Set("email", email)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
