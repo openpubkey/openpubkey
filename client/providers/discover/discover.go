@@ -10,22 +10,33 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/util"
 
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
+	// If GQ then pull the kid from the original headers
+	if headers.Algorithm() == gq.GQ256 {
+		origHeadersB64 := []byte(headers.KeyID())
+		err := util.ParseJWTSegment(origHeadersB64, &headers)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
-
 	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
 
 	kid := headers.KeyID()
+
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
 		return nil, fmt.Errorf("key %s isn't in JWKS", kid)

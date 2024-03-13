@@ -97,7 +97,7 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	}
 
 	payload := make(map[string]any)
-	err = parseJWTSegment(payloadB64, &payload)
+	err = util.ParseJWTSegment(payloadB64, &payload)
 	if err != nil {
 		return "", err
 	}
@@ -113,18 +113,4 @@ func ExtractClaim(idt []byte, claimName string) (string, error) {
 	}
 
 	return claimStr, nil
-}
-
-func parseJWTSegment(segment []byte, v any) error {
-	segmentJSON, err := util.Base64DecodeForJWT(segment)
-	if err != nil {
-		return fmt.Errorf("error decoding segment: %w", err)
-	}
-
-	err = json.Unmarshal(segmentJSON, v)
-	if err != nil {
-		return fmt.Errorf("error parsing segment: %w", err)
-	}
-
-	return nil
 }

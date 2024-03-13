@@ -7,6 +7,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]byte, error) {
@@ -16,7 +17,7 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 	}
 
 	headers := jws.NewHeaders()
-	err = parseJWTSegment(headersB64, &headers)
+	err = util.ParseJWTSegment(headersB64, &headers)
 	if err != nil {
 		return nil, err
 	}

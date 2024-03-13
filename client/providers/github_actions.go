@@ -29,7 +29,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -157,18 +156,4 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
 
 	return gqToken, err
-}
-
-func parseJWTSegment(segment []byte, v any) error {
-	segmentJSON, err := util.Base64DecodeForJWT(segment)
-	if err != nil {
-		return fmt.Errorf("error decoding segment: %w", err)
-	}
-
-	err = json.Unmarshal(segmentJSON, v)
-	if err != nil {
-		return fmt.Errorf("error parsing segment: %w", err)
-	}
-
-	return nil
 }
