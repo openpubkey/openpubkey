@@ -36,6 +36,7 @@ func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
+
 	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)

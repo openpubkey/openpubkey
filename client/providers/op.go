@@ -21,3 +21,7 @@ type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	HookHTTPSession(h http.HandlerFunc)
 }
+
+// We use this to inject our own publicKeyFunc for testing and extensibility.
+// For an example of how this works see github_actions_test
+type PublicKeyFunc = func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)

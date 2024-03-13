@@ -18,6 +18,7 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -83,7 +84,8 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 }
 
 func TestGithubOpFullGQ(t *testing.T) {
-	cic := NewCIC(t)
+
+	cic := genCIC(t)
 
 	// Setup expected test data
 	expProtected := []byte(`{"alg":"RS256","kid":"1F2AB83404C08EC9EA0BB99DAED02186B091DBF4","typ":"JWT","x5t":"Hyq4NATAjsnqC7mdrtAhhrCR2_Q"}`)
@@ -108,7 +110,6 @@ func TestGithubOpFullGQ(t *testing.T) {
 	require.NoError(t, err)
 
 	expResponseBody := fmt.Sprintf(`{"count":1857,"value":"%s"}`, expIdToken)
-
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		res.Write([]byte(expResponseBody))
@@ -117,7 +118,14 @@ func TestGithubOpFullGQ(t *testing.T) {
 
 	tokenRequestURL := testServer.URL
 	authToken := "fakeAuthToken"
-	op := NewGithubOp(tokenRequestURL, authToken)
+
+	op := &GithubOp{
+		rawTokenRequestURL:    tokenRequestURL,
+		tokenRequestAuthToken: authToken,
+		publicKeyFunc: func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+			return signingKey.Public(), nil
+		},
+	}
 
 	idToken, err := op.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
@@ -125,6 +133,9 @@ func TestGithubOpFullGQ(t *testing.T) {
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)
 	require.NoError(t, err)
+
+	headers := extractHeaders(t, idToken)
+	require.Equal(t, gq.GQ256, headers.Algorithm(), "github must only return GQ signed ID Tokens but we got (%s)", headers.Algorithm())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
 	require.NoError(t, err)
@@ -136,6 +147,13 @@ func TestGithubOpFullGQ(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, string(expPayload), string(payload))
 
+	// Check that GQ Signature verifies
+	rsaKey, ok := signingKey.Public().(*rsa.PublicKey)
+	require.True(t, ok)
+	sv, err := gq.New256SignerVerifier(rsaKey)
+	require.NoError(t, err)
+	ok = sv.VerifyJWT(idToken)
+	require.True(t, ok)
 }
 
 // Simple test to ensure we don't accidentally break this simple function
@@ -148,7 +166,7 @@ func TestBuildTokenURL(t *testing.T) {
 	require.Equal(t, "http://example.com/token-request?audience=fakeAudience", tokenURL)
 }
 
-func NewCIC(t *testing.T) *clientinstance.Claims {
+func genCIC(t *testing.T) *clientinstance.Claims {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
@@ -159,4 +177,15 @@ func NewCIC(t *testing.T) *clientinstance.Claims {
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
 	require.NoError(t, err)
 	return cic
+}
+
+func extractHeaders(t *testing.T, idToken []byte) jws.Headers {
+	headersB64, _, _, err := jws.SplitCompact(idToken)
+	require.NoError(t, err)
+	headersJson, err := util.Base64DecodeForJWT(headersB64)
+	require.NoError(t, err)
+	headers := jws.NewHeaders()
+	err = json.Unmarshal(headersJson, &headers)
+	require.NoError(t, err)
+	return headers
 }

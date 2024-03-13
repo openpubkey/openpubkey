@@ -60,7 +60,6 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		return nil, err
 	}
 
-	// idToken in memguard LockedBuffer
 	idToken, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
 		return nil, err

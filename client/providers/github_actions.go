@@ -37,6 +37,7 @@ const githubIssuer = "https://token.actions.githubusercontent.com"
 type GithubOp struct {
 	rawTokenRequestURL    string
 	tokenRequestAuthToken string
+	publicKeyFunc         PublicKeyFunc
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -63,10 +64,14 @@ func getEnvVar(name string) (string, error) {
 }
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
-	return &GithubOp{
+	op := &GithubOp{
 		rawTokenRequestURL:    tokenURL,
 		tokenRequestAuthToken: token,
 	}
+	op.publicKeyFunc = func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+		return discover.ProviderPublicKey(ctx, headers, githubIssuer)
+	}
+	return op
 }
 
 func buildTokenURL(rawTokenURL, audience string) (string, error) {
@@ -90,7 +95,7 @@ func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 }
 
 func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return discover.ProviderPublicKey(ctx, headers, githubIssuer)
+	return g.publicKeyFunc(ctx, headers)
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
