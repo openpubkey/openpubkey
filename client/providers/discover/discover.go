@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -20,9 +21,14 @@ func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) 
 	// If GQ then pull the kid from the original headers
 	if headers.Algorithm() == gq.GQ256 {
 		origHeadersB64 := []byte(headers.KeyID())
-		err := util.ParseJWTSegment(origHeadersB64, &headers)
+		origHeadersJson, err := util.Base64DecodeForJWT(origHeadersB64)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+		}
+
+		err = json.Unmarshal(origHeadersJson, &headers)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 		}
 	}
 
@@ -36,7 +42,6 @@ func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) 
 	}
 
 	kid := headers.KeyID()
-
 	key, ok := jwks.LookupKeyID(kid)
 	if !ok {
 		return nil, fmt.Errorf("key %s isn't in JWKS", kid)

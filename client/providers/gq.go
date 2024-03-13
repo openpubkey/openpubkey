@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -16,10 +17,15 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 		return nil, fmt.Errorf("error getting original headers: %w", err)
 	}
 
-	headers := jws.NewHeaders()
-	err = util.ParseJWTSegment(headersB64, &headers)
+	// TODO: We should create a util function for extracting headers from tokens
+	headersJson, err := util.Base64DecodeForJWT(headersB64)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+	}
+	headers := jws.NewHeaders()
+	err = json.Unmarshal(headersJson, &headers)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 	}
 
 	opKey, err := op.PublicKey(ctx, headers)
