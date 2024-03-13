@@ -80,7 +80,7 @@ func main() {
 		}
 	case "sign":
 		message := "sign me!!"
-		if err := sign(message, outputDir, signGQ); err != nil {
+		if err := sign(message, outputDir); err != nil {
 			fmt.Println("Failed to sign test message:", err)
 		}
 	default:
@@ -121,7 +121,7 @@ func login(outputDir string, signGQ bool) error {
 	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
 }
 
-func sign(message string, outputDir string, signGq bool) error {
+func sign(message string, outputDir string) error {
 	signer, pkt, err := loadLogin(outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to load client state: %w", err)

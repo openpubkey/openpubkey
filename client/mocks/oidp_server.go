@@ -59,7 +59,7 @@ func NewOIDPServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*OIDPServe
 	keySet.AddKey(jwkKey)
 
 	// Now convert our key set into the raw bytes for printing later
-	keySetBytes, _ := json.MarshalIndent(keySet, "", "  ")
+	keySetBytes, err := json.MarshalIndent(keySet, "", "  ")
 	if err != nil {
 		return nil, err
 	}
