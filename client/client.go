@@ -35,10 +35,7 @@ import (
 
 type OpenIdProvider = providers.OpenIdProvider
 
-type BrowserOpenIdProvider interface {
-	OpenIdProvider
-	HookHTTPSession(h http.HandlerFunc)
-}
+type BrowserOpenIdProvider = providers.BrowserOpenIdProvider
 
 type PKTokenVerifier interface {
 	VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, extraChecks ...verifier.Check) error
@@ -193,7 +190,8 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 	}
 }
 
-// oidcAuth exists only for backwards compatibility. Use Auth instead.
+// oidcAuth performs the OpenIdConnect part of the protocol.
+// Auth is the exposed function that should be called.
 func (o *OpkClient) oidcAuth(
 	ctx context.Context,
 	signer crypto.Signer,

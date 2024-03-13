@@ -58,6 +58,7 @@ type GoogleOp struct {
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
+var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	cookieHandler :=
