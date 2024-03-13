@@ -282,12 +282,7 @@ func (o *OpkClient) OidcAuth(
 		if !ok {
 			return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 		}
-
-		sv, err := gq.New256SignerVerifier(rsaKey)
-		if err != nil {
-			return nil, fmt.Errorf("error creating GQ signer: %w", err)
-		}
-		gqToken, err := sv.SignJWT(idTokenLB.Bytes())
+		gqToken, err := gq.GQ256SignJWT(rsaKey, idTokenLB.Bytes())
 		if err != nil {
 			return nil, fmt.Errorf("error creating GQ signature: %w", err)
 		}
