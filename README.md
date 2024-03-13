@@ -54,7 +54,7 @@ To verify a signed message, we first verify that the PK Token `pkt` is issued by
 ```golang
 pktVerifier, err := verifier.New(provider.Verifier())
 err = pktVerifier.VerifyPKToken(context.Background(), pkt)
-msg, err := pkt.VerifySignedMessage(osm)
+msg, err := pkt.VerifySignedMessage(signedMsg)
 ```
 
 To run this example type: `go run .\examples\simple\example.go`.
