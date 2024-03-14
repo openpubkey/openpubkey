@@ -49,30 +49,23 @@ func TestClient(t *testing.T) {
 		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
-	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
+			op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(tc.gq))
+			require.NoError(t, err, tc.name)
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
-				c, err = client.New(op, client.WithSignGQ(tc.gq), client.WithSigner(signer, tc.signerAlg))
+				c, err = client.New(op, client.WithSigner(signer, tc.signerAlg))
 				require.NoError(t, err, tc.name)
 				require.Equal(t, signer, c.GetSigner(), tc.name)
 				require.Equal(t, tc.signerAlg, c.GetAlg(), tc.name)
-			} else if tc.gq {
-				c, err = client.New(op, client.WithSignGQ(tc.gq))
-				require.NoError(t, err, tc.name)
 			} else {
 				c, err = client.New(op)
 				require.NoError(t, err, tc.name)
 			}
-			require.Equal(t, tc.gq, c.GetSignGQ(), tc.name)
 
 			var pkt *pktoken.PKToken
 			if tc.extraClaims != nil {

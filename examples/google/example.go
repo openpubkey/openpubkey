@@ -97,8 +97,8 @@ func login(outputDir string, signGQ bool) error {
 			RedirURIPort: redirURIPort,
 			CallbackPath: callbackPath,
 			RedirectURI:  redirectURI,
+			SignGQ:       signGQ,
 		},
-		client.WithSignGQ(signGQ),
 	)
 	if err != nil {
 		return err

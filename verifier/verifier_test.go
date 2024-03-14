@@ -24,6 +24,11 @@ func TestVerifier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	providerGQ, err := mocks.NewMockOpenIdProvider(t, map[string]any{
+		"aud": clientID,
+	}, mocks.UseGQSign(true))
+	require.NoError(t, err)
+
 	opkClient, err := client.New(provider)
 	require.NoError(t, err)
 	pkt, err := opkClient.Auth(context.Background())
@@ -127,12 +132,12 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// When the PK token has a GQ signature and only GQ signatures are allowed, check that verification succeeds
-	opkClient, err = client.New(provider, client.WithSignGQ(true))
+	opkClient, err = client.New(providerGQ)
 	require.NoError(t, err)
 	pkt, err = opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
-	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{ClientID: clientID})
+	providerVerifier = verifier.NewProviderVerifier(providerGQ.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{ClientID: clientID})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())

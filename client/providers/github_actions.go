@@ -27,8 +27,8 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -37,9 +37,10 @@ const githubIssuer = "https://token.actions.githubusercontent.com"
 type GithubOp struct {
 	rawTokenRequestURL    string
 	tokenRequestAuthToken string
+	publicKeyFunc         PublicKeyFunc
 }
 
-var _ client.OpenIdProvider = (*GithubOp)(nil)
+var _ OpenIdProvider = (*GithubOp)(nil)
 
 func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	tokenURL, err := getEnvVar("ACTIONS_ID_TOKEN_REQUEST_URL")
@@ -63,10 +64,14 @@ func getEnvVar(name string) (string, error) {
 }
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
-	return &GithubOp{
+	op := &GithubOp{
 		rawTokenRequestURL:    tokenURL,
 		tokenRequestAuthToken: token,
 	}
+	op.publicKeyFunc = func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
+		return discover.ProviderPublicKey(ctx, headers, githubIssuer)
+	}
+	return op
 }
 
 func buildTokenURL(rawTokenURL, audience string) (string, error) {
@@ -90,10 +95,10 @@ func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 }
 
 func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return discover.ProviderPublicKey(ctx, headers, githubIssuer)
+	return g.publicKeyFunc(ctx, headers)
 }
 
-func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {
 		return nil, err
@@ -134,4 +139,26 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 
 	// json.RawMessage leaves the " (quotes) on the string. We need to remove the quotes
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
+}
+
+func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+	// Define our commitment as the hash of the client instance claims
+	commitment, err := cic.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+	}
+
+	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
+	idTokenLB, err := g.requestTokens(ctx, string(commitment))
+	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
+	// because the ID Token contains the OPs RSA signature which is a secret
+	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
+	// a public value.
+	if err != nil {
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
+	}
+	defer idTokenLB.Destroy()
+	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
+
+	return gqToken, err
 }

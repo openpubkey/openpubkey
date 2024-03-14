@@ -78,11 +78,11 @@ func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 		RedirURIPort: redirURIPort,
 		CallbackPath: callbackPath,
 		RedirectURI:  redirectURI,
+		SignGQ:       signGQ,
 	}
 
 	opkClient, err := client.New(
 		op,
-		client.WithSignGQ(signGQ),
 	)
 	if err != nil {
 		return err

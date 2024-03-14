@@ -4,17 +4,34 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/util"
 
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
+	// If GQ then pull the kid from the original headers
+	if headers.Algorithm() == gq.GQ256 {
+		origHeadersB64 := []byte(headers.KeyID())
+		origHeadersJson, err := util.Base64DecodeForJWT(origHeadersB64)
+		if err != nil {
+			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+		}
+
+		err = json.Unmarshal(origHeadersJson, &headers)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
+		}
+	}
+
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
