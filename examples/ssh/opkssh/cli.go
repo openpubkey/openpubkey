@@ -59,6 +59,7 @@ func main() {
 		RedirURIPort: redirURIPort,
 		CallbackPath: callbackPath,
 		RedirectURI:  redirectURI,
+		SignGQ:       false,
 	}
 
 	switch command {
@@ -83,7 +84,6 @@ func main() {
 			opkClient, err := client.New(
 				&op,
 				client.WithSigner(signer, alg),
-				client.WithSignGQ(false),
 			)
 
 			certBytes, seckeySshPem, err := createSSHCert(context.Background(), opkClient, principals)

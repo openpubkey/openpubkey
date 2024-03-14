@@ -24,11 +24,10 @@ import (
 
 	"time"
 
-	"github.com/awnumar/memguard"
 	"github.com/google/uuid"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
@@ -53,13 +52,15 @@ type GoogleOp struct {
 	RedirURIPort    string
 	CallbackPath    string
 	RedirectURI     string
+	SignGQ          bool
 	server          *http.Server
 	httpSessionHook http.HandlerFunc
 }
 
-var _ client.OpenIdProvider = (*GoogleOp)(nil)
+var _ OpenIdProvider = (*GoogleOp)(nil)
+var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -147,8 +148,24 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cicHash string) (*memguard
 		}
 		return nil, err
 	case token := <-ch:
-		return memguard.NewBufferFromBytes(token), nil
+		return token, nil
 	}
+}
+
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+	// Define our commitment as the hash of the client instance claims
+	cicHash, err := cic.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+	}
+	idToken, err := g.requestTokens(ctx, string(cicHash))
+	if err != nil {
+		return nil, err
+	}
+	if g.SignGQ {
+		return CreateGQToken(ctx, idToken, g)
+	}
+	return idToken, nil
 }
 
 func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
