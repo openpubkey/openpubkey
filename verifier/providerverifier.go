@@ -211,11 +211,10 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	if !ok {
 		return fmt.Errorf("jwk is not an RSA key")
 	}
-	sv, err := gq.New256SignerVerifier(rsaKey)
+	ok, err = gq.GQ256VerifyJWT(rsaKey, pkt.OpToken)
 	if err != nil {
 		return err
 	}
-	ok = sv.VerifyJWT(pkt.OpToken)
 	if !ok {
 		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}
