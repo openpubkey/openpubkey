@@ -172,6 +172,10 @@ func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
 }
 
+func (g *GoogleOp) FindPublicKey(ctx context.Context, q discover.Query) (crypto.PublicKey, error) {
+	return nil, nil
+}
+
 func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	return discover.ProviderPublicKey(ctx, headers, googleIssuer)
 }
