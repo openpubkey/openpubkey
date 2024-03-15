@@ -5,6 +5,10 @@ on:
     paths:
       - '**.go'
 
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   gofmt:
     name: Check Code Formatting
@@ -56,3 +60,5 @@ jobs:
 
     - name: Test
       run: go test ./...
+
+
