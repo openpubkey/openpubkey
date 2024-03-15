@@ -1,5 +1,5 @@
 # OpenPubkey
-[![Go Coverage](https://github.com/ethanheilman/openpubkey/wiki/coverage.svg)](https://raw.githack.com/wiki/ethanheilman/openpubkey/coverage.html)
+[![Go Coverage](https://github.com/openpubkey/openpubkey/wiki/coverage.svg)](https://raw.githack.com/wiki/openpubkey/openpubkey/coverage.html)
 
 ## Overview
 
