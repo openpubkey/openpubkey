@@ -172,12 +172,21 @@ func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
 }
 
-func (g *GoogleOp) FindPublicKey(ctx context.Context, q discover.Query) (crypto.PublicKey, error) {
-	return nil, nil
-}
-
 func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	return discover.ProviderPublicKey(ctx, headers, googleIssuer)
+}
+
+func (g *GoogleOp) PublicKeyByKeyId(ctx context.Context, issuer string, keyID []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, googleIssuer, keyID)
+}
+
+func (g *GoogleOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByJTK(ctx, googleIssuer, jtk)
+
+}
+
+func (g *GoogleOp) PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, googleIssuer, token)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

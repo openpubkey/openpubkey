@@ -98,6 +98,18 @@ func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.P
 	return g.publicKeyFunc(ctx, headers)
 }
 
+func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, issuer string, keyID []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, googleIssuer, keyID)
+}
+
+func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByJTK(ctx, googleIssuer, jtk)
+}
+
+func (g *GithubOp) PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, googleIssuer, token)
+}
+
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {

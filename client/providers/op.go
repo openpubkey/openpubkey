@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/verifier"
 )
@@ -14,6 +15,10 @@ import (
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error)
 	PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error)
+
+	PublicKeyByKeyId(ctx context.Context, issuer string, keyID []byte) (*discover.PublicKeyRecord, error)
+	PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error)
+	PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*discover.PublicKeyRecord, error)
 	Verifier() verifier.ProviderVerifier
 }
 

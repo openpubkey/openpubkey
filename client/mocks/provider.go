@@ -14,6 +14,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/mock"
@@ -41,7 +42,6 @@ func (_m *OpenIdProvider) Verifier() verifier.ProviderVerifier {
 }
 
 // PublicKey provides a mock function with given fields: ctx, headers
-
 func (_m *OpenIdProvider) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
 	ret := _m.Called(ctx, headers)
 	var r0 crypto.PublicKey
@@ -67,6 +67,18 @@ func (_m *OpenIdProvider) PublicKey(ctx context.Context, headers jws.Headers) (c
 
 	return r0, r1
 
+}
+
+func (_m *OpenIdProvider) PublicKeyByKeyId(ctx context.Context, issuer string, keyID []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, "", keyID)
+}
+
+func (_m *OpenIdProvider) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByJTK(ctx, "", jtk)
+}
+
+func (_m *OpenIdProvider) PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*discover.PublicKeyRecord, error) {
+	return discover.PublicKeyByToken(ctx, "", token)
 }
 
 // RequestTokens provides a mock function with given fields: ctx, cicHash
