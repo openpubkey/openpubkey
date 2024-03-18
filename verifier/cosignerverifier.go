@@ -2,17 +2,13 @@ package verifier
 
 import (
 	"context"
-	"crypto"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
 type DefaultCosignerVerifier struct {
@@ -89,22 +85,4 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 	_, err = jws.Verify(pkt.CosToken, jwsPubkey)
 
 	return err
-}
-
-func discoverCosignerPublicKey(ctx context.Context, kid string, issuer string) (crypto.PublicKey, string, error) {
-	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-	set, err := jwk.Fetch(context.Background(), discConf.JwksURI)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to fetch public keys from Cosigner JWKS endpoint: %w", err)
-	}
-
-	key, ok := set.LookupKeyID(kid)
-	if !ok {
-		return nil, "", fmt.Errorf("missing key id (kid)")
-	}
-
-	return key, key.Algorithm().String(), nil
 }

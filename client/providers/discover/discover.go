@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
@@ -17,51 +16,6 @@ import (
 
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
-
-// TODO: Delete this
-func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
-	// If GQ then pull the kid from the original headers
-	if headers.Algorithm() == gq.GQ256 {
-		origHeadersB64 := []byte(headers.KeyID())
-		origHeadersJson, err := util.Base64DecodeForJWT(origHeadersB64)
-		if err != nil {
-			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
-		}
-
-		err = json.Unmarshal(origHeadersJson, &headers)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
-		}
-	}
-
-	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
-	}
-
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-
-	kid := headers.KeyID()
-	key, ok := jwks.LookupKeyID(kid)
-	if !ok {
-		return nil, fmt.Errorf("key %s isn't in JWKS", kid)
-	}
-
-	if key.Algorithm() != jwa.RS256 {
-		return nil, fmt.Errorf("expected alg to be RS256 in JWK with kid %q for OP %q, got %q", kid, issuer, key.Algorithm())
-	}
-
-	pubKey := new(rsa.PublicKey)
-	err = key.Raw(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
-	}
-
-	return pubKey, err
-}
 
 type PublicKeyRecord struct {
 	PublicKey crypto.PublicKey
@@ -81,6 +35,18 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 		Alg:       key.Algorithm().String(),
 		Issuer:    issuer,
 	}, nil
+}
+
+func DefaultPubkeyFinder() *PublicKeyFinder {
+	return &PublicKeyFinder{
+		JwksFunc: GetJwksByIssuer,
+	}
+}
+
+type JwksFetchFunc func(ctx context.Context, issuer string) ([]byte, error)
+
+type PublicKeyFinder struct {
+	JwksFunc JwksFetchFunc
 }
 
 // GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the issuer's well-known
@@ -113,19 +79,7 @@ func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func DefaultPubkeyFinder() *PublicKeyFinder {
-	return &PublicKeyFinder{
-		JwksFunc: GetJwksByIssuer,
-	}
-}
-
-type JwksFunc func(ctx context.Context, issuer string) ([]byte, error)
-
-type PublicKeyFinder struct {
-	JwksFunc JwksFunc
-}
-
-func (f *PublicKeyFinder) getAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {
+func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {
 	jwksJson, err := f.JwksFunc(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to fetch JWKS: %w`, err)
@@ -138,7 +92,7 @@ func (f *PublicKeyFinder) getAndParseJwks(ctx context.Context, issuer string) (j
 }
 
 func (f *PublicKeyFinder) ByKeyId(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
-	jwks, err := f.getAndParseJwks(ctx, issuer)
+	jwks, err := f.fetchAndParseJwks(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
@@ -176,7 +130,7 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 }
 
 func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {
-	jwks, err := f.getAndParseJwks(ctx, issuer)
+	jwks, err := f.fetchAndParseJwks(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}

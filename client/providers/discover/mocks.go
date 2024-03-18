@@ -8,7 +8,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
-func MockGetJwksByIssuer(publicKey crypto.PublicKey, keyID string, alg string) (JwksFunc, error) {
+func MockGetJwksByIssuer(publicKey crypto.PublicKey, keyID string, alg string) (JwksFetchFunc, error) {
 	// Create JWKS (JWK Set)
 	jwkKey, err := jwk.PublicKeyOf(publicKey)
 	if err != nil {

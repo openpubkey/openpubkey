@@ -18,13 +18,11 @@ package client
 
 import (
 	"context"
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
@@ -82,11 +80,6 @@ func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdPro
 	}
 
 	return pktVerifier.VerifyPKToken(ctx, pkt)
-}
-
-// Deprecated: please use function in discover package
-func DiscoverPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
-	return discover.ProviderPublicKey(ctx, headers, issuer)
 }
 
 // Deprecated: unused internally
