@@ -153,9 +153,8 @@ func TestGithubOpFullGQ(t *testing.T) {
 	// Check that GQ Signature verifies
 	rsaKey, ok := signingKey.Public().(*rsa.PublicKey)
 	require.True(t, ok)
-	sv, err := gq.New256SignerVerifier(rsaKey)
+	ok, err = gq.GQ256VerifyJWT(rsaKey, idToken)
 	require.NoError(t, err)
-	ok = sv.VerifyJWT(idToken)
 	require.True(t, ok)
 }
 
