@@ -94,14 +94,17 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 }
 
 func main() {
-	op := &providers.GoogleOp{
-		ClientID:     "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
-		ClientSecret: "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", // The client secret is a public value
-		Scopes:       []string{"openid profile email"},
-		RedirURIPort: "3000",
-		CallbackPath: "/login-callback",
-		RedirectURI:  "http://localhost:3000/login-callback",
-	}
+
+	clientID := "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
+	clientSecret := "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" // The client secret is a public value
+	scopes := []string{"openid profile email"}
+	redirURIPort := "3000"
+	callbackPath := "/login-callback"
+	redirectURI := "http://localhost:3000/login-callback"
+	signGQ := false
+
+	op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
+
 	pktJson, signedMsg, err := Sign(op)
 	if err != nil {
 		fmt.Println("Failed to sign message:", err)

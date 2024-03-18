@@ -18,7 +18,6 @@ package providers
 
 import (
 	"context"
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,7 +25,6 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/verifier"
@@ -35,9 +33,11 @@ import (
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
+	issuer                string // Change issuer to can point this to a test issuer
 	rawTokenRequestURL    string
 	tokenRequestAuthToken string
 	publicKeyFunc         PublicKeyFunc
+	publicKeyFinder       discover.PublicKeyFinder
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -65,11 +65,12 @@ func getEnvVar(name string) (string, error) {
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
 	op := &GithubOp{
+		issuer:                githubIssuer,
 		rawTokenRequestURL:    tokenURL,
 		tokenRequestAuthToken: token,
-	}
-	op.publicKeyFunc = func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-		return discover.ProviderPublicKey(ctx, headers, githubIssuer)
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: discover.GetJwksByIssuer,
+		},
 	}
 	return op
 }
@@ -94,20 +95,16 @@ func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
-func (g *GithubOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return g.publicKeyFunc(ctx, headers)
-}
-
-func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, issuer string, keyID []byte) (*discover.PublicKeyRecord, error) {
-	return discover.PublicKeyByToken(ctx, googleIssuer, keyID)
+func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByKeyId(ctx, g.issuer, keyID)
 }
 
 func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return discover.PublicKeyByJTK(ctx, googleIssuer, jtk)
+	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
 }
 
-func (g *GithubOp) PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*discover.PublicKeyRecord, error) {
-	return discover.PublicKeyByToken(ctx, googleIssuer, token)
+func (g *GithubOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

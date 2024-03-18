@@ -24,7 +24,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -230,21 +229,11 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	headersB64, _, _, err := jws.SplitCompact(idToken)
-	if err != nil {
-		return nil, fmt.Errorf("error getting original headers: %w", err)
-	}
-
-	headers := jws.NewHeaders()
-	err = parseJWTSegment(headersB64, &headers)
+	opKeyRecord, err := o.Op.PublicKeyByToken(ctx, idToken)
 	if err != nil {
 		return nil, err
 	}
-
-	opKey, err := o.Op.PublicKey(ctx, headers)
-	if err != nil {
-		return nil, err
-	}
+	opKey := opKeyRecord.PublicKey
 
 	// Combine our ID token and signature over the cic to create our PK Token
 	pkt, err := pktoken.New(idToken, cicToken)

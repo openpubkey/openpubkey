@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -17,6 +18,7 @@ import (
 	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
 )
 
+// TODO: Delete this
 func ProviderPublicKey(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error) {
 	// If GQ then pull the kid from the original headers
 	if headers.Algorithm() == gq.GQ256 {
@@ -65,42 +67,85 @@ type PublicKeyRecord struct {
 	PublicKey crypto.PublicKey
 	Alg       string
 	Issuer    string
-	JwkJson   []byte
 }
 
-func getJwks(ctx context.Context, issuer string) (jwk.Set, error) {
+func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
+	pubKey := new(rsa.PublicKey)
+	err := key.Raw(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+
+	return &PublicKeyRecord{
+		PublicKey: pubKey,
+		Alg:       key.Algorithm().String(),
+		Issuer:    issuer,
+	}, nil
+}
+
+// GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the issuer's well-known
+// configuration. It doesn't attempt to parse the response but instead returns the JSON bytes of
+// the JWKS.
+func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
 	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
 
-	jwks, err := jwk.Fetch(ctx, discConf.JwksURI)
+	request, err := http.NewRequestWithContext(ctx, "GET", discConf.JwksURI, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	resp, err := http.DefaultClient.Get(discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received non-200 from JWKS URI: %s", http.StatusText(response.StatusCode))
+	}
+	return io.ReadAll(resp.Body)
+}
+
+type JwksFunc func(ctx context.Context, issuer string) ([]byte, error)
+
+type PublicKeyFinder struct {
+	JwksFunc JwksFunc
+}
+
+func (f *PublicKeyFinder) getAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {
+	jwksJson, err := f.JwksFunc(ctx, issuer)
+	if err != nil {
+		return nil, fmt.Errorf(`failed to fetch JWKS: %w`, err)
+	}
+	jwks := jwk.NewSet()
+	if err := json.Unmarshal(jwksJson, jwks); err != nil {
+		return nil, fmt.Errorf(`failed to unmarshal JWKS: %w`, err)
 	}
 	return jwks, nil
 }
 
-func publicKeyByKeyId(jwks jwk.Set, keyID string) (*PublicKeyRecord, error) {
+func (f *PublicKeyFinder) ByKeyId(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
+	jwks, err := f.getAndParseJwks(ctx, issuer)
+	if err != nil {
+		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
+	}
+
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
-		record := &PublicKeyRecord{PublicKey: key}
-		return record, nil
+		return NewPublicKeyRecord(key, issuer)
 	}
+
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
 }
 
-type PublicKeyFinder struct{}
-
-func PublicKeyByKeyId(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
-	jwks, err := getJwks(ctx, issuer)
-	if err != nil {
-		return nil, err
-	}
-	return publicKeyByKeyId(jwks, keyID)
-}
-
-func PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
+func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
 	jwt, err := jws.Parse(token)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing JWK in JWKS: %w", err)
@@ -121,11 +166,11 @@ func PublicKeyByToken(ctx context.Context, issuer string, token []byte) (*Public
 		}
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return PublicKeyByKeyId(ctx, issuer, headers.KeyID())
+	return f.ByKeyId(ctx, issuer, headers.KeyID())
 }
 
-func PublicKeyByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {
-	jwks, err := getJwks(ctx, issuer)
+func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {
+	jwks, err := f.getAndParseJwks(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -133,16 +178,15 @@ func PublicKeyByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyR
 	it := jwks.Keys(ctx)
 	for it.Next(ctx) {
 		key := it.Pair().Value.(jwk.Key)
-		jtkOfKey, err := key.Thumbprint(crypto.SHA256)
+		jktOfKey, err := key.Thumbprint(crypto.SHA256)
 		if err != nil {
 			return nil, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)
 		}
-		jtkOfKeyB64 := util.Base64EncodeForJWT(jtkOfKey)
+		jtkOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
 		if jtk == string(jtkOfKeyB64) {
-			record := &PublicKeyRecord{PublicKey: key}
-			return record, nil
+			return NewPublicKeyRecord(key, issuer)
 		}
 	}
 
-	return nil, fmt.Errorf("no matching public key found: %w", err)
+	return nil, fmt.Errorf("no matching public key found for jtk %s", jtk)
 }

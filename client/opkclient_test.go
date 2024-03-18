@@ -96,10 +96,10 @@ func TestClient(t *testing.T) {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
 			}
 
-			pubkey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
+			pubkeyRecord, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
 			require.NoError(t, err, tc.name)
 
-			pub, err := jwk.FromRaw(pubkey)
+			pub, err := jwk.FromRaw(pubkeyRecord.PublicKey)
 			require.NoError(t, err, tc.name)
 
 			thumbprint, err := pub.Thumbprint(crypto.SHA256)
@@ -117,10 +117,10 @@ func TestClient(t *testing.T) {
 				require.Equal(t, gq.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
-				opPubKey, err := op.PublicKey(context.Background(), pkt.Op.PublicHeaders())
+				opPubKey, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
 				require.NoError(t, err, tc.name)
 
-				rsaKey, ok := opPubKey.(*rsa.PublicKey)
+				rsaKey, ok := opPubKey.PublicKey.(*rsa.PublicKey)
 				require.Equal(t, true, ok)
 
 				sv, err := gq.New256SignerVerifier(rsaKey)

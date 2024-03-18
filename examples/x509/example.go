@@ -71,16 +71,7 @@ func main() {
 
 func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 
-	op := &providers.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-		SignGQ:       signGQ,
-	}
-
+	op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
 	opkClient, err := client.New(
 		op,
 	)
@@ -89,6 +80,9 @@ func login(alg jwa.KeyAlgorithm, signGQ bool) error {
 	}
 
 	pkt, err := opkClient.Auth(context.Background())
+	if err != nil {
+		return err
+	}
 
 	// Pretty print our json token
 	pktJson, err := json.MarshalIndent(pkt, "", "  ")

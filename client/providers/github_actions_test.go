@@ -18,7 +18,6 @@ package providers
 
 import (
 	"context"
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -30,6 +29,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -119,11 +119,14 @@ func TestGithubOpFullGQ(t *testing.T) {
 	tokenRequestURL := testServer.URL
 	authToken := "fakeAuthToken"
 
+	jwksFunc, err := discover.MockGetJwksByIssuer(signingKey.Public(), "1F2AB83404C08EC9EA0BB99DAED02186B091DBF4", string(algOp))
+	require.NoError(t, err)
+
 	op := &GithubOp{
 		rawTokenRequestURL:    tokenRequestURL,
 		tokenRequestAuthToken: authToken,
-		publicKeyFunc: func(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-			return signingKey.Public(), nil
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: jwksFunc,
 		},
 	}
 
