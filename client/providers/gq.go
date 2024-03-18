@@ -41,15 +41,5 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 	if !ok {
 		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 	}
-
-	sv, err := gq.New256SignerVerifier(rsaKey)
-	if err != nil {
-		return nil, fmt.Errorf("error creating GQ signer: %w", err)
-	}
-	gqToken, err := sv.SignJWT(idToken)
-	if err != nil {
-		return nil, fmt.Errorf("error creating GQ signature: %w", err)
-	}
-
-	return gqToken, nil
+	return gq.GQ256SignJWT(rsaKey, idToken)
 }

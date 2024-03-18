@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package gq
 
 import (
@@ -16,6 +32,36 @@ var GQ256 = jwa.SignatureAlgorithm("GQ256")
 
 func init() {
 	jwa.RegisterSignatureAlgorithm(GQ256)
+}
+
+// GQ256SignJWT takes a rsaPublicKey and signed JWT and computes a GQ1 signature
+// on the JWT. It returns a JWT whose RSA signature has been replaced by
+// the GQ signature. It is wrapper around SignerVerifier.SignJWT
+// an additional check that the correct rsa public key has been supplied.
+// Use this instead of SignerVerifier.SignJWT.
+func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte) ([]byte, error) {
+	_, err := jws.Verify(jwt, jws.WithKey(jwa.RS256, rsaPublicKey))
+	if err != nil {
+		return nil, fmt.Errorf("incorrect public key supplied when GQ signing jwt: %w", err)
+	}
+	sv, err := New256SignerVerifier(rsaPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("error creating GQ signer: %w", err)
+	}
+	gqJWT, err := sv.SignJWT(jwt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating GQ signature: %w", err)
+	}
+	return gqJWT, nil
+}
+
+// GQ256VerifyJWT verifies a GQ1 signature over GQ signed JWT
+func GQ256VerifyJWT(rsaPublicKey *rsa.PublicKey, gqToken []byte) (bool, error) {
+	sv, err := New256SignerVerifier(rsaPublicKey)
+	if err != nil {
+		return false, fmt.Errorf("error creating GQ signer: %w", err)
+	}
+	return sv.VerifyJWT(gqToken), nil
 }
 
 // Signer allows for creating GQ1 signatures messages.
