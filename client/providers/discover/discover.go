@@ -113,6 +113,12 @@ func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+func DefaultPubkeyFinder() *PublicKeyFinder {
+	return &PublicKeyFinder{
+		JwksFunc: GetJwksByIssuer,
+	}
+}
+
 type JwksFunc func(ctx context.Context, issuer string) ([]byte, error)
 
 type PublicKeyFinder struct {

@@ -68,9 +68,7 @@ func NewGithubOp(tokenURL string, token string) *GithubOp {
 		issuer:                githubIssuer,
 		rawTokenRequestURL:    tokenURL,
 		tokenRequestAuthToken: token,
-		publicKeyFinder: discover.PublicKeyFinder{
-			JwksFunc: discover.GetJwksByIssuer,
-		},
+		publicKeyFinder:       *discover.DefaultPubkeyFinder(),
 	}
 	return op
 }

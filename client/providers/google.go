@@ -60,17 +60,15 @@ type GoogleOp struct {
 func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) *GoogleOp {
 
 	return &GoogleOp{
-		ClientID:     ClientID,
-		ClientSecret: ClientSecret,
-		Scopes:       Scopes,
-		RedirURIPort: RedirURIPort,
-		CallbackPath: CallbackPath,
-		RedirectURI:  RedirectURI,
-		SignGQ:       SignGQ,
-		issuer:       googleIssuer,
-		publicKeyFinder: discover.PublicKeyFinder{
-			JwksFunc: discover.GetJwksByIssuer,
-		},
+		ClientID:        ClientID,
+		ClientSecret:    ClientSecret,
+		Scopes:          Scopes,
+		RedirURIPort:    RedirURIPort,
+		CallbackPath:    CallbackPath,
+		RedirectURI:     RedirectURI,
+		SignGQ:          SignGQ,
+		issuer:          googleIssuer,
+		publicKeyFinder: *discover.DefaultPubkeyFinder(),
 	}
 }
 
