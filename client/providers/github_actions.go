@@ -94,7 +94,7 @@ func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 }
 
 func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByKeyId(ctx, g.issuer, keyID)
+	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
 func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {

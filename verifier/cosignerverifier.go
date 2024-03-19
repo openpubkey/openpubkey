@@ -67,7 +67,7 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return fmt.Errorf("cosigner issuer (%s) doesn't match expected issuer (%s)", header.Issuer, v.issuer)
 	}
 
-	keyRecord, err := v.options.DiscoverPublicKey.ByKeyId(ctx, v.issuer, header.KeyID)
+	keyRecord, err := v.options.DiscoverPublicKey.ByKeyID(ctx, v.issuer, header.KeyID)
 	if err != nil {
 		return err
 	}

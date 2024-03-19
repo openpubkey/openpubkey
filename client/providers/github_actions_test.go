@@ -119,7 +119,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 	tokenRequestURL := testServer.URL
 	authToken := "fakeAuthToken"
 
-	jwksFunc, err := discover.MockGetJwksByIssuer(signingKey.Public(), "1F2AB83404C08EC9EA0BB99DAED02186B091DBF4", string(algOp))
+	jwksFunc, err := discover.MockGetJwksByIssuerSingle(signingKey.Public(), "1F2AB83404C08EC9EA0BB99DAED02186B091DBF4", string(algOp))
 	require.NoError(t, err)
 
 	op := &GithubOp{

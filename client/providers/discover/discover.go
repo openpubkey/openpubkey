@@ -3,12 +3,14 @@ package discover
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
@@ -24,7 +26,13 @@ type PublicKeyRecord struct {
 }
 
 func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
-	pubKey := new(rsa.PublicKey)
+	var pubKey interface{}
+	if key.Algorithm() == jwa.RS256 {
+		pubKey = new(rsa.PublicKey)
+	}
+	if key.Algorithm() == jwa.ES256 {
+		pubKey = new(ecdsa.PublicKey)
+	}
 	err := key.Raw(pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
@@ -91,12 +99,32 @@ func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) 
 	return jwks, nil
 }
 
-func (f *PublicKeyFinder) ByKeyId(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
+// ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
+// If no KeyID (kid) exists in the header and there is only one key in the JWKS,
+// that key is returned. This  is useful for cases where an OP may not set a KeyID
+// (kid) in the JWT header.
+//
+// The JWT RFC states that it is acceptable to not use a KeyID (kid) if there is
+// only one key in the JWKS:
+// "The "kid" (key ID) parameter is used to match a specific key.  This is used,
+// for instance, to choose among a set of keys within a JWK Set
+// during key rollover.  The structure of the "kid" value is
+// unspecified.  When "kid" values are used within a JWK Set, different
+// keys within the JWK Set SHOULD use distinct "kid" values.  (One
+// example in which different keys might use the same "kid" value is if
+// they have different "kty" (key type) values but are considered to be
+// equivalent alternatives by the application using them.)  The "kid"
+// value is a case-sensitive string.  Use of this member is OPTIONAL.
+// When used with JWS or JWE, the "kid" value is used to match a JWS or
+// JWE "kid" Header Parameter value." - RFC 7517
+// https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
+func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
 	jwks, err := f.fetchAndParseJwks(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
 
+	// If keyID is blank and there is only one key in the JWKS, return that key
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
 		return NewPublicKeyRecord(key, issuer)
@@ -105,6 +133,8 @@ func (f *PublicKeyFinder) ByKeyId(ctx context.Context, issuer string, keyID stri
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
 }
 
+// ByToken looks up an OP public key in the JWKS using the KeyID (kid) in the
+// protected header from the supplied token.
 func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
 	jwt, err := jws.Parse(token)
 	if err != nil {
@@ -126,7 +156,7 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 		}
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyId(ctx, issuer, headers.KeyID())
+	return f.ByKeyID(ctx, issuer, headers.KeyID())
 }
 
 func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {

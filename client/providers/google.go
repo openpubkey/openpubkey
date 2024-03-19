@@ -188,7 +188,7 @@ func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 }
 
 func (g *GoogleOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByKeyId(ctx, g.issuer, keyID)
+	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
 func (g *GoogleOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
