@@ -98,7 +98,7 @@ func TestVerifier(t *testing.T) {
 	alg := jwa.RS256
 	signer, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	jwksFunc, err := discover.MockGetJwksByIssuerSingle(signer.Public(), pkt.Op.ProtectedHeaders().KeyID(), string(alg))
+	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signer.Public(), pkt.Op.ProtectedHeaders().KeyID(), string(alg))
 	require.NoError(t, err)
 
 	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{

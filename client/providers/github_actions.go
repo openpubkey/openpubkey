@@ -93,16 +93,16 @@ func (g *GithubOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
+func (g *GithubOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
+}
+
 func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
 func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
-}
-
-func (g *GithubOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {

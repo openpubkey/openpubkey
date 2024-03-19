@@ -99,6 +99,32 @@ func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) 
 	return jwks, nil
 }
 
+// ByToken looks up an OP public key in the JWKS using the KeyID (kid) in the
+// protected header from the supplied token.
+func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
+	jwt, err := jws.Parse(token)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing JWK in JWKS: %w", err)
+	}
+	// a JWT is guaranteed to have exactly one signature
+	headers := jwt.Signatures()[0].ProtectedHeaders()
+
+	if headers.Algorithm() == gq.GQ256 {
+		origHeadersJson, err := util.Base64DecodeForJWT([]byte(headers.KeyID()))
+		if err != nil {
+			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+		}
+
+		// If GQ then replace the GQ headers with the original headers
+		err = json.Unmarshal(origHeadersJson, &headers)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
+		}
+	}
+	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
+	return f.ByKeyID(ctx, issuer, headers.KeyID())
+}
+
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
 // If no KeyID (kid) exists in the header and there is only one key in the JWKS,
 // that key is returned. This  is useful for cases where an OP may not set a KeyID
@@ -131,32 +157,6 @@ func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID stri
 	}
 
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
-}
-
-// ByToken looks up an OP public key in the JWKS using the KeyID (kid) in the
-// protected header from the supplied token.
-func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
-	jwt, err := jws.Parse(token)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing JWK in JWKS: %w", err)
-	}
-	// a JWT is guaranteed to have exactly one signature
-	headers := jwt.Signatures()[0].ProtectedHeaders()
-
-	if headers.Algorithm() == gq.GQ256 {
-		origHeadersJson, err := util.Base64DecodeForJWT([]byte(headers.KeyID()))
-		if err != nil {
-			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
-		}
-
-		// If GQ then replace the GQ headers with the original headers
-		err = json.Unmarshal(origHeadersJson, &headers)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
-		}
-	}
-	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyID(ctx, issuer, headers.KeyID())
 }
 
 func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {

@@ -53,7 +53,7 @@ func MockGetJwksByIssuer(publicKeys []crypto.PublicKey, keyIDs []string, algs []
 	}, nil
 }
 
-func MockGetJwksByIssuerSingle(publicKey crypto.PublicKey, keyID string, alg string) (JwksFetchFunc, error) {
+func MockGetJwksByIssuerOneKey(publicKey crypto.PublicKey, keyID string, alg string) (JwksFetchFunc, error) {
 	// Create JWKS (JWK Set)
 	jwkKey, err := jwk.PublicKeyOf(publicKey)
 	if err != nil {

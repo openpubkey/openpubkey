@@ -163,7 +163,7 @@ func NewMockOpenIdProvider(
 
 	// Use our OIDP server uri as the mock issuer
 	issuer := oidpServer.URI()
-	jwksFunc, err := discover.MockGetJwksByIssuerSingle(signingKey.Public(), oidpServer.KID(), string(alg))
+	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signingKey.Public(), oidpServer.KID(), string(alg))
 	if err != nil {
 		return nil, err
 	}
