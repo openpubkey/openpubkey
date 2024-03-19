@@ -173,7 +173,6 @@ func NewMockOpenIdProvider(
 	provider.Issuer = issuer
 
 	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{SkipClientIDCheck: true}))
-	// provider.On("PublicKey", mock.Anything, mock.Anything).Return(signingKey.Public(), nil)
 	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) ([]byte, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)
