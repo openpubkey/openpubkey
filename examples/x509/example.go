@@ -23,7 +23,6 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/providers"
@@ -54,12 +53,10 @@ func main() {
 	}
 
 	signGQ := true
-	keyAlgorithm := jwa.ES256
-
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(keyAlgorithm, signGQ); err != nil {
+		if err := login(signGQ); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login and X509 issuance successful!")
@@ -69,7 +66,7 @@ func main() {
 	}
 }
 
-func login(alg jwa.KeyAlgorithm, signGQ bool) error {
+func login(signGQ bool) error {
 
 	op := &providers.GoogleOp{
 		ClientID:     clientID,
