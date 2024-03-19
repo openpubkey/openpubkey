@@ -31,13 +31,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPublicKeyFinder(t *testing.T) {
 	ctx := context.Background()
-
 	issuer := "testIssuer"
 
 	publicKeys := []crypto.PublicKey{}
@@ -103,6 +103,28 @@ func TestPublicKeyFinder(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
+	// Test failure cases
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "not-a-key-id")
+	require.Error(t, err)
+	require.Nil(t, pubkeyRecord)
+
+	wrongSigner, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	wrongIdToken := CreateIDToken(t, issuer, wrongSigner, "RS256", "not-a-key-id")
+	pubkeyRecord, err = finder.ByToken(ctx, issuer, wrongIdToken)
+	require.EqualError(t, err, "no matching public key found for kid not-a-key-id")
+	require.Nil(t, pubkeyRecord)
+
+	// Tests we don't return the wrong Public Key even if not kid is supplied
+	wrongIdToken2 := CreateIDToken(t, issuer, wrongSigner, "RS256", "")
+	pubkeyRecord, err = finder.ByToken(ctx, issuer, wrongIdToken2)
+	require.EqualError(t, err, "no matching public key found for kid ")
+	require.Nil(t, pubkeyRecord)
+
+	wrongJTK := "not-a-jkt"
+	pubkeyRecord, err = finder.ByJTK(ctx, issuer, wrongJTK)
+	require.EqualError(t, err, "no matching public key found for jtk not-a-jkt")
+	require.Nil(t, pubkeyRecord)
 }
 
 func TestByTokenWhenOnePublicKey(t *testing.T) {
@@ -134,6 +156,72 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "1234")
 		require.EqualError(t, err, "no matching public key found for kid 1234", "no kid (keyID) ByKeyID should return nothing")
 		require.Nil(t, pubkeyRecord)
+	}
+
+	for i := 0; i < len(publicKeys); i++ {
+		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
+		require.NoError(t, err)
+		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
+		require.Equal(t, algs[i], pubkeyRecord.Alg)
+		require.Equal(t, issuer, pubkeyRecord.Issuer)
+	}
+
+	for i := 0; i < len(publicKeys); i++ {
+		jwk, err := jwk.FromRaw(publicKeys[i])
+		require.NoError(t, err)
+		jkt, err := jwk.Thumbprint(crypto.SHA256)
+		require.NoError(t, err)
+		jktB64 := util.Base64EncodeForJWT(jkt)
+
+		pubkeyRecord, err := finder.ByJTK(ctx, issuer, string(jktB64))
+		require.NoError(t, err)
+		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
+		require.Equal(t, algs[i], pubkeyRecord.Alg)
+		require.Equal(t, issuer, pubkeyRecord.Issuer)
+	}
+}
+
+func TestGQTokens(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+
+	publicKeys := []crypto.PublicKey{}
+	keyIDs := []string{}
+	algs := []string{}
+	idTokens := [][]byte{}
+
+	for i := 0; i < 4; i++ {
+		algOp := "RS256"
+		signer, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		publicKeys = append(publicKeys, signer.Public())
+		keyIDs = append(keyIDs, fmt.Sprintf("%d", i))
+		algs = append(algs, algOp)
+
+		idToken := CreateIDToken(t, issuer, signer, algOp, keyIDs[i])
+
+		rsaKey, ok := signer.Public().(*rsa.PublicKey)
+		require.True(t, ok)
+
+		gqToken, err := gq.GQ256SignJWT(rsaKey, idToken)
+		require.NoError(t, err)
+
+		idTokens = append(idTokens, gqToken)
+	}
+
+	mockJwks, err := MockGetJwksByIssuer(publicKeys, keyIDs, algs)
+	require.NoError(t, err)
+
+	finder := &PublicKeyFinder{
+		JwksFunc: mockJwks,
+	}
+
+	for i := 0; i < len(publicKeys); i++ {
+		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, keyIDs[i])
+		require.NoError(t, err)
+		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
+		require.Equal(t, algs[i], pubkeyRecord.Alg)
+		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
 	for i := 0; i < len(publicKeys); i++ {
