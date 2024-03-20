@@ -33,10 +33,9 @@ import (
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
-	issuer                string // Change issuer to can point this to a test issuer
+	issuer                string // Change issuer to point this to a test issuer
 	rawTokenRequestURL    string
 	tokenRequestAuthToken string
-	publicKeyFunc         PublicKeyFunc
 	publicKeyFinder       discover.PublicKeyFinder
 }
 
@@ -90,7 +89,7 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 }
 
 func (g *GithubOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(githubIssuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
+	return verifier.NewProviderVerifier(g.issuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
 func (g *GithubOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
