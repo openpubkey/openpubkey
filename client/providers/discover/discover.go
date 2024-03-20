@@ -33,7 +33,7 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	if key.Algorithm() == jwa.ES256 {
 		pubKey = new(ecdsa.PublicKey)
 	}
-	err := key.Raw(pubKey)
+	err := key.Raw(&pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
