@@ -12,6 +12,11 @@ import (
 )
 
 func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]byte, error) {
+	return CreateGQBoundToken(ctx, idToken, op, "")
+}
+
+// TODO: I don't like this pattern, it is confusing the CreateGQToken calls CreateGQBoundToken even not doing a GQ Binding
+func CreateGQBoundToken(ctx context.Context, idToken []byte, op OpenIdProvider, cicHash string) ([]byte, error) {
 	headersB64, _, _, err := jws.SplitCompact(idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error getting original headers: %w", err)
@@ -41,5 +46,9 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 	if !ok {
 		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 	}
-	return gq.GQ256SignJWT(rsaKey, idToken)
+	if cicHash == "" {
+		return gq.GQ256SignJWT(rsaKey, idToken)
+	} else {
+		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("cic", cicHash))
+	}
 }

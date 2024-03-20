@@ -3,6 +3,7 @@ package gq
 import (
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"math/big"
 
 	"filippo.io/bigmod"
@@ -71,7 +72,18 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	return encodeProof(R, S), nil
 }
 
-func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
+func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
+	options := &OptsStruct{}
+	for _, applyOpt := range opts {
+		applyOpt(options)
+	}
+	// Ensure that someone doesn't use a reserved protected header claim name
+	for _, reserved := range []string{"alg", "typ", "kid"} {
+		if _, ok := options.extraClaims[reserved]; ok {
+			return nil, fmt.Errorf("use of reserved header name, %s, in additional headers", reserved)
+		}
+	}
+
 	origHeaders, payload, signature, err := jws.SplitCompact(jwt)
 	if err != nil {
 		return nil, err
@@ -91,6 +103,12 @@ func (sv *signerVerifier) SignJWT(jwt []byte) ([]byte, error) {
 	err = headers.Set(jws.KeyIDKey, string(origHeaders))
 	if err != nil {
 		return nil, err
+	}
+
+	for k, v := range options.extraClaims {
+		if err = headers.Set(k, v); err != nil {
+			return nil, err
+		}
 	}
 
 	headersJSON, err := json.Marshal(headers)

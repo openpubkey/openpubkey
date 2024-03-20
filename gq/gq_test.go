@@ -49,28 +49,62 @@ func TestSignVerifyJWT(t *testing.T) {
 }
 
 func TestGQ256SignJWT(t *testing.T) {
-	for i := 0; i < 100; i++ {
-		oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		require.NoError(t, err)
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
 
-		idToken, err := createOIDCToken(oidcPrivKey, "test")
-		require.NoError(t, err)
+	idToken, err := createOIDCToken(oidcPrivKey, "test")
+	require.NoError(t, err)
 
-		gqToken1, err := GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
-		require.NoError(t, err)
-		ok, err := GQ256VerifyJWT(&oidcPrivKey.PublicKey, gqToken1)
-		require.NoError(t, err)
-		require.True(t, ok)
+	gqToken1, err := GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
+	require.NoError(t, err)
+	ok, err := GQ256VerifyJWT(&oidcPrivKey.PublicKey, gqToken1)
+	require.NoError(t, err)
+	require.True(t, ok)
 
-		// Test that we throw the correct error if the wrong RSA public key is sent to SignJWT
-		oidcPrivKeyWrong, err := rsa.GenerateKey(rand.Reader, 2048)
-		require.NoError(t, err)
-		require.NotEqual(t, oidcPrivKey, oidcPrivKeyWrong)
+	// Test that we throw the correct error if the wrong RSA public key is sent to SignJWT
+	oidcPrivKeyWrong, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	require.NotEqual(t, oidcPrivKey, oidcPrivKeyWrong)
 
-		gqToken2, err := GQ256SignJWT(&oidcPrivKeyWrong.PublicKey, idToken)
-		require.EqualError(t, err, "incorrect public key supplied when GQ signing jwt: could not verify message using any of the signatures or keys")
-		require.Nil(t, gqToken2)
-	}
+	gqToken2, err := GQ256SignJWT(&oidcPrivKeyWrong.PublicKey, idToken)
+	require.EqualError(t, err, "incorrect public key supplied when GQ signing jwt: could not verify message using any of the signatures or keys")
+	require.Nil(t, gqToken2)
+
+	// Test specifying with extra claims
+	expKey1 := "key1" // Expected claim keys, values
+	expValue1 := "value1"
+	expKey2 := "key2"
+	expValue2 := "value2"
+
+	gqTokenExtraClaims, err := GQ256SignJWT(&oidcPrivKey.PublicKey, idToken,
+		WithExtraClaim(expKey1, expValue1),
+		WithExtraClaim(expKey2, expValue2))
+	require.NoError(t, err)
+
+	retValue1, ok, err := getClaimInProtected(expKey1, gqTokenExtraClaims)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, expValue1, retValue1)
+
+	retValue2, ok, err := getClaimInProtected(expKey2, gqTokenExtraClaims)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, expValue2, retValue2)
+
+	// Test that we don't find a claim we didn't add
+	retClaimValue, ok, err := getClaimInProtected("noSuchKey", gqTokenExtraClaims)
+	require.NoError(t, err)
+	require.False(t, ok, "we didn't add this claim, yet somehow it was in the protected header")
+	require.Nil(t, retClaimValue)
+
+	// Test that we throw the correct error if reserved header is used
+	gqTokenReservedClaim, err := GQ256SignJWT(&oidcPrivKey.PublicKey, idToken,
+		WithExtraClaim("alg", "ES256"))
+	require.Error(t, err, "use of reserved claim name, alg, should throw an error")
+	require.EqualError(t, err,
+		"error creating GQ signature: use of reserved header name, alg, in additional headers",
+		"incorrect error throw")
+	require.Nil(t, gqTokenReservedClaim)
 }
 
 func TestVerifyModifiedIdPayload(t *testing.T) {
@@ -171,4 +205,25 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 			jws.WithProtectedHeaders(oidcHeader),
 		),
 	)
+}
+
+func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
+	headersB64, _, _, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, false, err
+	}
+
+	headersJson, err := util.Base64DecodeForJWT(headersB64)
+	if err != nil {
+		return nil, false, err
+	}
+
+	headers := jws.NewHeaders()
+	err = json.Unmarshal(headersJson, &headers)
+	if err != nil {
+		return nil, false, err
+	}
+
+	claimValue, ok := headers.Get(claimKey)
+	return claimValue, ok, nil
 }

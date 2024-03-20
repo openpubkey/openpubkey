@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -29,6 +30,8 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
+
+const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
 
 type DefaultProviderVerifier struct {
 	issuer          string
@@ -49,6 +52,8 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
+	// The commitmentClaim is bound to the ID Token using only the GQ signature
+	GQCommitment bool
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -75,6 +80,24 @@ func (v *DefaultProviderVerifier) Issuer() string {
 }
 
 func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+	// Sanity check that if GQCommitment is enabled then the other options
+	// are set correctly for doing GQ commitment verification. The intention is
+	// to catch misconfigurations early and provide meaningful error messages.
+	if v.options.GQCommitment {
+		if !v.options.GQOnly {
+			return fmt.Errorf("GQCommitment requires that GQOnly is true, but GQOnly is (%t)", v.options.GQOnly)
+		}
+		if v.commitmentClaim != "" {
+			return fmt.Errorf("GQCommitment requires that commitmentClaim is empty but commitmentClaim is (%s)", v.commitmentClaim)
+		}
+		if !v.options.SkipClientIDCheck {
+			// When we bind the commitment to the ID Token using GQ Signatures,
+			// We require that the audience is prefixed with
+			// "OPENPUBKEY-PKTOKEN:". Thus, the audience can't be the client-id
+			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id (%s)", v.commitmentClaim)
+		}
+	}
+
 	// Check whether Audience claim matches provided Client ID
 	// No error is thrown if option is set to skip client ID check
 	if err := verifyAudience(pkt, v.options.ClientID); err != nil && !v.options.SkipClientIDCheck {
@@ -135,13 +158,42 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 	if err != nil {
 		return err
 	}
-	commitment, ok := claims[v.commitmentClaim]
-	if !ok {
-		return fmt.Errorf("missing commitment claim %s", v.commitmentClaim)
+
+	var commitment any
+	var commitmentFound bool
+	if v.options.GQCommitment {
+		aud, ok := claims[v.commitmentClaim]
+		if !ok {
+			return fmt.Errorf("audience claim missing in PK Token's GQCommitment")
+		}
+
+		// To prevent attacks where a attacker takes someone else's ID Token
+		// and turns it into a PK Token using a GQCommitment, we require that
+		// all GQ commitments explicitly signal they want to be used as
+		// PK Tokens. To signal this, they prefix the audience (aud)
+		// claim with the string "OPENPUBKEY-PKTOKEN:".
+		// We reject all GQ commitment PK Tokens that don't have this prefix
+		// in the aud claim.
+		if _, ok := strings.CutPrefix(AudPrefixForGQCommitment, aud.(string)); !ok {
+			return fmt.Errorf("audience claim in  PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
+				AudPrefixForGQCommitment, aud.(string))
+		}
+
+		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token
+		commitment, commitmentFound = pkt.Op.ProtectedHeaders().Get("cic")
+		if !commitmentFound {
+			return fmt.Errorf("missing GQ commitment")
+		}
+	} else {
+
+		commitment, commitmentFound = claims[v.commitmentClaim]
+		if !commitmentFound {
+			return fmt.Errorf("missing commitment claim %s", v.commitmentClaim)
+		}
 	}
 
 	if commitment != string(expectedCommitment) {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %s", commitment, string(expectedCommitment))
+		return fmt.Errorf("commitment claim doesn't match, got %q, expected %s", commitment, string(expectedCommitment))
 	}
 	return nil
 }
