@@ -39,15 +39,8 @@ var (
 
 func main() {
 
-	provider := &providers.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-		SignGQ:       false,
-	}
+	signGQ := false
+	provider := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
 
 	cosignerProvider := client.CosignerProvider{
 		Issuer:       "http://localhost:3003",

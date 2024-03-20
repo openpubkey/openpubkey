@@ -89,16 +89,9 @@ func main() {
 }
 
 func login(outputDir string, signGQ bool) error {
+
 	opkClient, err := client.New(
-		&providers.GoogleOp{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Scopes:       scopes,
-			RedirURIPort: redirURIPort,
-			CallbackPath: callbackPath,
-			RedirectURI:  redirectURI,
-			SignGQ:       signGQ,
-		},
+		providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ),
 	)
 	if err != nil {
 		return err

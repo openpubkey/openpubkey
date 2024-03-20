@@ -18,7 +18,6 @@ package verifier
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -44,7 +43,7 @@ type ProviderVerifierOpts struct {
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
-	DiscoverPublicKey func(ctx context.Context, headers jws.Headers, issuer string) (crypto.PublicKey, error)
+	DiscoverPublicKey *discover.PublicKeyFinder
 	// Allows for successful verification of expired tokens
 	SkipExpirationCheck bool
 	// Only allows GQ signatures, a provider signature under any other algorithm
@@ -65,7 +64,7 @@ func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifie
 
 	// If no custom DiscoverPublicKey function is set, set default
 	if v.options.DiscoverPublicKey == nil {
-		v.options.DiscoverPublicKey = discover.ProviderPublicKey
+		v.options.DiscoverPublicKey = discover.DefaultPubkeyFinder()
 	}
 
 	return v
@@ -93,16 +92,16 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 	switch alg {
 	case gq.GQ256:
-		if err := VerifyGQSig(ctx, pkt); err != nil {
+		if err := v.verifyGQSig(ctx, pkt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 	case jwa.RS256:
-		pubKey, err := v.providerPublicKey(ctx, pkt)
+		pubKeyRecord, err := v.providerPublicKey(ctx, pkt)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		if _, err := jws.Verify(pkt.OpToken, jws.WithKey(alg, pubKey)); err != nil {
+		if _, err := jws.Verify(pkt.OpToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
 	}
@@ -116,40 +115,10 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, pkt *pktoken.PKToken) (crypto.PublicKey, error) {
-	// a JWT is guaranteed to have exactly one signature
-	headers := pkt.Op.ProtectedHeaders()
-
-	alg, ok := headers.Get(jws.AlgorithmKey)
-	if !ok {
-		return nil, fmt.Errorf("missing algorithm header")
-	}
-
-	var providerHeaders jws.Headers
-	if alg == gq.GQ256 {
-		origHeaders, err := originalTokenHeaders(pkt.OpToken)
-		if err != nil {
-			return nil, fmt.Errorf("malformatted PK token headers: %w", err)
-		}
-
-		if origHeaders.Algorithm() != jwa.RS256 {
-			return nil, fmt.Errorf("expected original headers to contain RS256 alg, got %s", headers.Algorithm())
-		}
-
-		providerHeaders = origHeaders
-	} else {
-		providerHeaders = headers
-	}
-
-	// Extract our issuer from the payload claims
-	var claims struct {
-		Issuer string `json:"iss"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return nil, err
-	}
-
-	return v.options.DiscoverPublicKey(ctx, providerHeaders, claims.Issuer)
+func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, pkt *pktoken.PKToken) (*discover.PublicKeyRecord, error) {
+	// TODO: We should support verifying by JKT if not kid exists in the header
+	// Created issue https://github.com/openpubkey/openpubkey/issues/137 to track this
+	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), pkt.OpToken)
 }
 
 func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
@@ -177,7 +146,10 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 	return nil
 }
 
-func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
+// verifyGQSig verifies the signature of a PK token with a GQ signature. The
+// parameter issuer should be the issuer of the ProviderVerifier not the
+// issuer of the PK Token
+func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 	alg, ok := pkt.ProviderAlgorithm()
 	if !ok {
 		return fmt.Errorf("missing provider algorithm header")
@@ -197,17 +169,20 @@ func VerifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
 		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
 	}
 
-	issuer, err := pkt.Issuer()
+	pktIssuer, err := pkt.Issuer()
 	if err != nil {
 		return fmt.Errorf("missing issuer: %w", err)
 	}
+	if pktIssuer != v.issuer {
+		return fmt.Errorf("issuer of PK token (%s) doesn't match expected issuer (%s)", pktIssuer, v.issuer)
+	}
 
-	jwkKey, err := discover.ProviderPublicKey(ctx, origHeaders, issuer)
+	publicKeyRecord, err := v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), pkt.OpToken)
 	if err != nil {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
-	rsaKey, ok := jwkKey.(*rsa.PublicKey)
+	rsaKey, ok := publicKeyRecord.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return fmt.Errorf("jwk is not an RSA key")
 	}

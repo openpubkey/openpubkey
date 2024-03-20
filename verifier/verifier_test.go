@@ -2,16 +2,14 @@ package verifier_test
 
 import (
 	"context"
-	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/mocks"
+	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
@@ -97,27 +95,17 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// Specify a custom public key discoverer that returns the incorrect key and check that verification fails
-	customKeyDiscoverer := func(ctx context.Context, header jws.Headers, issuer string) (crypto.PublicKey, error) {
-		alg := jwa.RS256
-		signer, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			return nil, err
-		}
+	alg := jwa.RS256
+	signer, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signer.Public(), pkt.Op.ProtectedHeaders().KeyID(), string(alg))
+	require.NoError(t, err)
 
-		jwkKey, err := jwk.PublicKeyOf(signer)
-		if err != nil {
-			return nil, err
-		}
-		jwkKey.Set(jwk.AlgorithmKey, alg)
-
-		kid := header.KeyID()
-		jwkKey.Set(jwk.KeyIDKey, kid)
-
-		return jwkKey, nil
-	}
 	providerVerifier = verifier.NewProviderVerifier(provider.Verifier().Issuer(), commitmentClaim, verifier.ProviderVerifierOpts{
-		ClientID:          clientID,
-		DiscoverPublicKey: customKeyDiscoverer,
+		ClientID: clientID,
+		DiscoverPublicKey: &discover.PublicKeyFinder{
+			JwksFunc: jwksFunc,
+		},
 	})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)

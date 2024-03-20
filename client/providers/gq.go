@@ -28,12 +28,16 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 		return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 	}
 
-	opKey, err := op.PublicKey(ctx, headers)
+	opKey, err := op.PublicKeyByToken(ctx, idToken)
 	if err != nil {
 		return nil, err
 	}
 
-	rsaKey, ok := opKey.(*rsa.PublicKey)
+	if opKey.Alg != "RS256" {
+		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key, jWK.alg was (%s)", opKey.Alg)
+	}
+
+	rsaKey, ok := opKey.PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 	}

@@ -52,15 +52,7 @@ func main() {
 	}
 	command := os.Args[1]
 
-	op := providers.GoogleOp{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       scopes,
-		RedirURIPort: redirURIPort,
-		CallbackPath: callbackPath,
-		RedirectURI:  redirectURI,
-		SignGQ:       false,
-	}
+	op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, false)
 
 	switch command {
 	case "login":
@@ -82,7 +74,7 @@ func main() {
 			}
 
 			opkClient, err := client.New(
-				&op,
+				op,
 				client.WithSigner(signer, alg),
 			)
 
@@ -115,7 +107,7 @@ func main() {
 			certB64Arg := os.Args[3]
 			typArg := os.Args[4]
 
-			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.checkPolicy, &op)
+			authKey, err := authorizedKeysCommand(userArg, typArg, certB64Arg, policyEnforcer.checkPolicy, op)
 			if err != nil {
 				log(fmt.Sprint(err))
 				os.Exit(1)

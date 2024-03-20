@@ -18,14 +18,12 @@ package providers
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"net/http"
 
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -53,8 +51,25 @@ type GoogleOp struct {
 	CallbackPath    string
 	RedirectURI     string
 	SignGQ          bool
+	issuer          string
 	server          *http.Server
+	publicKeyFinder discover.PublicKeyFinder
 	httpSessionHook http.HandlerFunc
+}
+
+func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) *GoogleOp {
+
+	return &GoogleOp{
+		ClientID:        ClientID,
+		ClientSecret:    ClientSecret,
+		Scopes:          Scopes,
+		RedirURIPort:    RedirURIPort,
+		CallbackPath:    CallbackPath,
+		RedirectURI:     RedirectURI,
+		SignGQ:          SignGQ,
+		issuer:          googleIssuer,
+		publicKeyFinder: *discover.DefaultPubkeyFinder(),
+	}
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
@@ -172,8 +187,16 @@ func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
 	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
 }
 
-func (g *GoogleOp) PublicKey(ctx context.Context, headers jws.Headers) (crypto.PublicKey, error) {
-	return discover.ProviderPublicKey(ctx, headers, googleIssuer)
+func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
+}
+
+func (g *GoogleOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
+}
+
+func (g *GoogleOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

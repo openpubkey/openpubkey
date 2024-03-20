@@ -155,6 +155,16 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	return bytes, nil
 }
 
+func IsGQ(jwt []byte) (bool, error) {
+	token, err := jws.Parse(jwt)
+	if err != nil {
+		return false, err
+	}
+	// a JWT is guaranteed to have exactly one signature
+	headers := token.Signatures()[0].ProtectedHeaders()
+	return headers.Algorithm() == GQ256, nil
+}
+
 func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
 	token, err := jws.Parse(jwt)
 	if err != nil {
