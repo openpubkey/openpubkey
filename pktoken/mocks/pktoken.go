@@ -26,19 +26,80 @@ import (
 	"github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 )
 
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	signGQ := false
-	return GenerateMockPKTokenWithOpts(t, signingKey, alg, signGQ)
+	return GenerateMockPKTokenWithOpts(t, signingKey, alg, map[string]any{})
 }
 
 func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	signGQ := true
-	return GenerateMockPKTokenWithOpts(t, signingKey, alg, signGQ)
+	return GenerateMockPKTokenWithOpts(t, signingKey, alg, map[string]any{}, UseGQSign(true))
 }
 
-func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm, signGQ bool) (*pktoken.PKToken, error) {
+type MockPKTokenOpts struct {
+	GQSign         bool
+	GQCommitment   bool
+	GQOnly         bool
+	CorrectCicHash bool
+	CorrectCicSig  bool
+}
+type Opts func(a *MockPKTokenOpts)
+
+// Example use:
+//
+//	UseGQSign(true)
+func UseGQSign(gqSign bool) Opts {
+	return func(m *MockPKTokenOpts) {
+		m.GQSign = gqSign
+	}
+}
+
+// UseGQCommitment specifies whether the commitment binding should be a GQ
+// binding or a claim based binding.
+// Example use:
+//
+//	UseGQCommitment(true)
+func UseGQCommitment(gqCommitment bool) Opts {
+	return func(m *MockPKTokenOpts) {
+		m.GQCommitment = gqCommitment
+	}
+}
+
+// Example use:
+//
+//	UseGQOnly(true)
+func UseGQOnly(gqOnly bool) Opts {
+	return func(m *MockPKTokenOpts) {
+		m.GQOnly = gqOnly
+	}
+}
+
+func CorrectCicHash(correctCicHash bool) Opts {
+	return func(m *MockPKTokenOpts) {
+		m.CorrectCicHash = correctCicHash
+	}
+}
+
+func CorrectCicSig(correctCicSig bool) Opts {
+	return func(m *MockPKTokenOpts) {
+		m.CorrectCicSig = correctCicSig
+	}
+}
+
+func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
+	extraClaims map[string]any, opts ...Opts) (*pktoken.PKToken, error) {
+
+	options := &MockPKTokenOpts{
+		GQSign:         false,
+		GQCommitment:   false,
+		CorrectCicHash: true,
+		CorrectCicSig:  true,
+	}
+	for _, applyOpt := range opts {
+		applyOpt(options)
+	}
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -54,8 +115,14 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		return nil, err
 	}
 
+	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
+	gqOnly := options.GQCommitment
+
 	// Generate mock id token
-	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{})
+	op, err := mocks.NewMockOpenIdProvider(t, extraClaims,
+		mocks.UseGQSign(options.GQSign),
+		mocks.UseGQCommitment(options.GQCommitment),
+		mocks.UseGQOnly(gqOnly))
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +130,31 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	idToken, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
 		return nil, err
+	}
+
+	// Return a PK Token where the CIC which doesn't match the commitment
+	if !options.CorrectCicHash {
+		// overwrite the cic with a new cic with a different hash
+		cic, err = clientinstance.NewClaims(jwkKey, map[string]any{"cause": "differentCicHash"})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Return a PK Token where the CIC that is signed by the wrong key
+	if !options.CorrectCicSig {
+		// overwrite the signkey with a new key
+		signingKey, err = util.GenKeyPair(alg)
+		require.NoError(t, err)
+
+		jwkKey, err = jwk.PublicKeyOf(signingKey)
+		if err != nil {
+			return nil, err
+		}
+		err = jwkKey.Set(jwk.AlgorithmKey, alg)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Sign mock id token payload with cic headers

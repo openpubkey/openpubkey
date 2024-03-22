@@ -68,17 +68,13 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 
 	idToken, err := g.getTokensFunc("OPENPUBKEY-JWT")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
-
 	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
 	// because the ID Token contains the OPs RSA signature which is a secret
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
 	// a public value.
-	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
-	}
+	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
 

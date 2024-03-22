@@ -31,6 +31,8 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
+// TODO: This should live in providers, but due to circular dependencies we must
+// keep it here for now. When we merge the verifier package with providers we can put this in the correct location.
 const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
 
 type DefaultProviderVerifier struct {
@@ -94,7 +96,8 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 			// When we bind the commitment to the ID Token using GQ Signatures,
 			// We require that the audience is prefixed with
 			// "OPENPUBKEY-PKTOKEN:". Thus, the audience can't be the client-id
-			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id (%s)", v.commitmentClaim)
+			// If you are hitting this error of set SkipClientIDCheck to true
+			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id")
 		}
 	}
 
@@ -133,6 +136,10 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 		return err
 	}
 
+	if err := VerifyCicSignature(pkt); err != nil {
+		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
+	}
+
 	return nil
 }
 
@@ -162,9 +169,9 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 	var commitment any
 	var commitmentFound bool
 	if v.options.GQCommitment {
-		aud, ok := claims[v.commitmentClaim]
+		aud, ok := claims["aud"]
 		if !ok {
-			return fmt.Errorf("audience claim missing in PK Token's GQCommitment")
+			return fmt.Errorf("require audience claim prefix missing in PK Token's GQCommitment")
 		}
 
 		// To prevent attacks where a attacker takes someone else's ID Token
@@ -175,7 +182,7 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
 		if _, ok := strings.CutPrefix(AudPrefixForGQCommitment, aud.(string)); !ok {
-			return fmt.Errorf("audience claim in  PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
+			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
 				AudPrefixForGQCommitment, aud.(string))
 		}
 
@@ -292,4 +299,14 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 		return fmt.Errorf("missing audience claim")
 	}
 	return nil
+}
+
+func VerifyCicSignature(pkt *pktoken.PKToken) error {
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
+	}
+
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	return err
 }
