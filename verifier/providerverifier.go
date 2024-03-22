@@ -181,7 +181,7 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 		// claim with the string "OPENPUBKEY-PKTOKEN:".
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
-		if _, ok := strings.CutPrefix(AudPrefixForGQCommitment, aud.(string)); !ok {
+		if _, ok := strings.CutPrefix(aud.(string), AudPrefixForGQCommitment); !ok {
 			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
 				AudPrefixForGQCommitment, aud.(string))
 		}

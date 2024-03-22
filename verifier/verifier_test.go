@@ -162,6 +162,8 @@ func TestVerifier(t *testing.T) {
 
 func TestGQCommitment(t *testing.T) {
 
+	gqBindingAud := verifier.AudPrefixForGQCommitment + "1234"
+
 	testCases := []struct {
 		name         string
 		aud          string
@@ -170,7 +172,7 @@ func TestGQCommitment(t *testing.T) {
 		gqCommitment bool
 		gqOnly       bool
 	}{
-		{name: "happy case", aud: verifier.AudPrefixForGQCommitment, expError: "",
+		{name: "happy case", aud: gqBindingAud, expError: "",
 			gqSign: true, gqCommitment: true, gqOnly: true},
 		{name: "wrong aud prefix", aud: "bad value", expError: "error verifying PK Token: audience claim in PK Token's GQCommitment must be prefixed by",
 			gqSign: true, gqCommitment: true, gqOnly: true},

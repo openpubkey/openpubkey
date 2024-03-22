@@ -32,13 +32,19 @@ type GitlabOp struct {
 	issuer          string // Change issuer to point this to a test issuer
 	publicKeyFinder discover.PublicKeyFinder
 	getTokensFunc   func(string) (string, error)
+	tokenEnvVar     string
 }
 
-func NewGitlabOpFromEnvironment() (*GitlabOp, error) {
+func NewGitlabOpFromEnvironmentDefault() (*GitlabOp, error) {
+	return NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+}
+
+func NewGitlabOpFromEnvironment(tokenEnvVar string) (*GitlabOp, error) {
 	op := &GitlabOp{
 		issuer:          gitlabIssuer,
 		publicKeyFinder: *discover.DefaultPubkeyFinder(),
 		getTokensFunc:   getEnvVar,
+		tokenEnvVar:     tokenEnvVar,
 	}
 	return op, nil
 }
@@ -66,7 +72,7 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
-	idToken, err := g.getTokensFunc("OPENPUBKEY-JWT")
+	idToken, err := g.getTokensFunc(g.tokenEnvVar)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}

@@ -31,7 +31,6 @@ func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]by
 	return createGQTokenAllParams(ctx, idToken, op, "", false)
 }
 
-// TODO: I don't like this pattern, it is confusing the CreateGQToken calls CreateGQBoundToken even not doing a GQ Binding
 func CreateGQBoundToken(ctx context.Context, idToken []byte, op OpenIdProvider, cicHash string) ([]byte, error) {
 	return createGQTokenAllParams(ctx, idToken, op, cicHash, true)
 }

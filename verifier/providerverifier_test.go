@@ -82,7 +82,7 @@ func TestProviderVerifier(t *testing.T) {
 			tokenGQSign: true, tokenGQCommitment: true, pvGQOnly: true, pvGQCommitment: true,
 			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
 		{name: "GQ Commitment wrong aud prefix", aud: "bad value",
-			expError:    "audience claim in PK Token's GQCommitment must be prefixed by (OPENPUBKEY-PKTOKEN:)",
+			expError:    "audience claim in PK Token's GQCommitment must be prefixed by",
 			tokenGQSign: true, tokenGQCommitment: true, pvGQOnly: true, pvGQCommitment: true,
 			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
 		{name: "GQ Commitment providerVerifier not using GQ Commitment", aud: correctAud,

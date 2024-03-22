@@ -115,12 +115,12 @@ func (v *Verifier) VerifyPKToken(
 		return err
 	}
 
-	providerVerfier, ok := v.providers[issuer]
+	providerVerifier, ok := v.providers[issuer]
 	if !ok {
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	if err := providerVerfier.VerifyProvider(ctx, pkt); err != nil {
+	if err := providerVerifier.VerifyProvider(ctx, pkt); err != nil {
 		return err
 	}
 
