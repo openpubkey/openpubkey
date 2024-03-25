@@ -32,15 +32,25 @@ type GitlabOp struct {
 	issuer          string // Change issuer to point this to a test issuer
 	publicKeyFinder discover.PublicKeyFinder
 	getTokensFunc   func(string) (string, error)
+	tokenEnvVar     string
 }
 
-func NewGitlabOpFromEnvironment() (*GitlabOp, error) {
+func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
+	return NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+}
+
+func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabOp {
+	return NewGitlabOp(gitlabIssuer, tokenEnvVar)
+}
+
+func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 	op := &GitlabOp{
-		issuer:          gitlabIssuer,
+		issuer:          issuer,
 		publicKeyFinder: *discover.DefaultPubkeyFinder(),
 		getTokensFunc:   getEnvVar,
+		tokenEnvVar:     tokenEnvVar,
 	}
-	return op, nil
+	return op
 }
 
 func (g *GitlabOp) Verifier() verifier.ProviderVerifier {
@@ -66,19 +76,16 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
-	idToken, err := g.getTokensFunc("OPENPUBKEY-JWT")
+	idToken, err := g.getTokensFunc(g.tokenEnvVar)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
 
 	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
 	// because the ID Token contains the OPs RSA signature which is a secret
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
 	// a public value.
-	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
-	}
+	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
 

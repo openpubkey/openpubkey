@@ -29,18 +29,31 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	var pubKey interface{}
 	if key.Algorithm() == jwa.RS256 {
 		pubKey = new(rsa.PublicKey)
-	}
-	if key.Algorithm() == jwa.ES256 {
+	} else if key.Algorithm() == jwa.ES256 {
 		pubKey = new(ecdsa.PublicKey)
+	} else if key.Algorithm().String() == "" {
+		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
+		// handle this case, assume no alg in JWKS means RSA as OIDC requires
+		// OPs use RSA.
+		pubKey = new(rsa.PublicKey)
+	} else {
+		return nil, fmt.Errorf("JWK has unsupported alg (%s)", key.Algorithm())
 	}
-	err := key.Raw(pubKey)
+	err := key.Raw(&pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
+	var alg string
+	if key.Algorithm().String() == "" {
+		alg = jwa.RS256.String()
+	} else {
+		alg = key.Algorithm().String()
+	}
+
 	return &PublicKeyRecord{
 		PublicKey: pubKey,
-		Alg:       key.Algorithm().String(),
+		Alg:       alg,
 		Issuer:    issuer,
 	}, nil
 }

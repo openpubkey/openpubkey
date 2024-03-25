@@ -36,6 +36,81 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewPublicKeyRecord(t *testing.T) {
+	commonIssuer := "https://example.com"
+	tests := []struct {
+		name        string
+		keyJson     map[string]string
+		expectedAlg string
+		shouldError bool
+	}{
+		{
+			name: "alg=RS256",
+			keyJson: map[string]string{
+				jwk.AlgorithmKey: "RS256",
+				jwk.KeyTypeKey:   "RSA",
+				jwk.RSAEKey:      "AQAB",
+				jwk.RSANKey:      "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+			},
+			expectedAlg: jwa.RS256.String(),
+		},
+		{
+			name: "alg=ES256",
+			keyJson: map[string]string{
+				jwk.AlgorithmKey: "ES256",
+				jwk.KeyTypeKey:   "EC",
+				jwk.ECDSACrvKey:  "P-256",
+				jwk.ECDSAXKey:    "MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4",
+				jwk.ECDSAYKey:    "4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
+				jwk.ECDSADKey:    "870MB6gfuTJ4HtUnUvYMyJpr5eUZNP4Bk43bVdj3eAE",
+			},
+			expectedAlg: jwa.ES256.String(),
+		},
+		{
+			name: "alg is missing",
+			keyJson: map[string]string{
+				jwk.KeyTypeKey:  "RSA",
+				jwk.KeyUsageKey: "sig",
+				jwk.RSANKey:     "vRIL3aZt-xVqOZgMOr71ltWe9YY2Wf_B28C4Jl2nBSTEcFnf_eqOHZ8yzUBbLc4Nti2_ETcCsTUNuzS368BWkSgxc45JBH1wFSoWNFUSXaPt8mRwJYTF0H32iNhw_tBb9mvdQVgVs4Ci0dVJRYiz-ilk3PeO8wzlwRuwWIsaKFYlMyOKG9DVFbg93DmP5Tjq3C3oJlATyhAiJJc1T2trEP8960an33dDEaWwVAHh3c_34meAO4R6kLzIq0JnSsZMYB9O_6bMyIlzxmdZ8F442SynCUHxhnIh3yZew-xDdeHr6Ofl7KeVUcvSiZP9X44CaVJvknXQbBYNl-H7YF5RgQ",
+				jwk.RSAEKey:     "AQAB",
+			},
+			// If "alg" key is missing, code assumes algorithm is RSA/RS256
+			expectedAlg: jwa.RS256.String(),
+		},
+		{
+			name: "alg is unknown",
+			keyJson: map[string]string{
+				jwk.AlgorithmKey: "RS512",
+				jwk.KeyTypeKey:   "RSA",
+				jwk.KeyUsageKey:  "sig",
+				jwk.RSANKey:      "vRIL3aZt-xVqOZgMOr71ltWe9YY2Wf_B28C4Jl2nBSTEcFnf_eqOHZ8yzUBbLc4Nti2_ETcCsTUNuzS368BWkSgxc45JBH1wFSoWNFUSXaPt8mRwJYTF0H32iNhw_tBb9mvdQVgVs4Ci0dVJRYiz-ilk3PeO8wzlwRuwWIsaKFYlMyOKG9DVFbg93DmP5Tjq3C3oJlATyhAiJJc1T2trEP8960an33dDEaWwVAHh3c_34meAO4R6kLzIq0JnSsZMYB9O_6bMyIlzxmdZ8F442SynCUHxhnIh3yZew-xDdeHr6Ofl7KeVUcvSiZP9X44CaVJvknXQbBYNl-H7YF5RgQ",
+				jwk.RSAEKey:      "AQAB",
+			},
+			shouldError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("TestNewPublicKeyRecord: keyJson: %#v", tt.keyJson)
+			keyJsonBytes, err := json.Marshal(tt.keyJson)
+			require.NoError(t, err, "failed to marshal keyJson map into JSON")
+			key, err := jwk.ParseKey(keyJsonBytes)
+			require.NoError(t, err, "jwk.ParseKey failed to parse keyJsonBytes")
+
+			gotPublicKeyRecord, err := NewPublicKeyRecord(key, commonIssuer)
+
+			if tt.shouldError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err, "NewPublicKeyRecord should succeed")
+				require.Equal(t, tt.expectedAlg, gotPublicKeyRecord.Alg)
+				require.Equal(t, commonIssuer, gotPublicKeyRecord.Issuer)
+				require.NotNil(t, gotPublicKeyRecord.PublicKey)
+			}
+		})
+	}
+}
+
 func TestPublicKeyFinder(t *testing.T) {
 	ctx := context.Background()
 	issuer := "testIssuer"

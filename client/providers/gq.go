@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package providers
 
 import (
@@ -12,11 +28,20 @@ import (
 )
 
 func CreateGQToken(ctx context.Context, idToken []byte, op OpenIdProvider) ([]byte, error) {
-	return CreateGQBoundToken(ctx, idToken, op, "")
+	return createGQTokenAllParams(ctx, idToken, op, "", false)
 }
 
-// TODO: I don't like this pattern, it is confusing the CreateGQToken calls CreateGQBoundToken even not doing a GQ Binding
 func CreateGQBoundToken(ctx context.Context, idToken []byte, op OpenIdProvider, cicHash string) ([]byte, error) {
+	return createGQTokenAllParams(ctx, idToken, op, cicHash, true)
+}
+
+func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvider, cicHash string, gqCommitment bool) ([]byte, error) {
+	if cicHash != "" && !gqCommitment {
+		// If gqCommitment is false, we will ignore the cicHash. This is a
+		// misconfiguration, and we should fail because the caller is likely
+		// expecting the cicHash to be included in the token.
+		return nil, fmt.Errorf("misconfiguration, cicHash is set but gqCommitment is false, set gqCommitment to true to include cicHash in the gq signature")
+	}
 	headersB64, _, _, err := jws.SplitCompact(idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error getting original headers: %w", err)

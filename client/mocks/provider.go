@@ -114,7 +114,9 @@ func NewOpenIdProvider(t interface {
 }
 
 type MockProviderOpts struct {
-	GQSign bool
+	GQSign       bool
+	GQCommitment bool
+	GQOnly       bool
 }
 type Opts func(a *MockProviderOpts)
 
@@ -124,6 +126,26 @@ type Opts func(a *MockProviderOpts)
 func UseGQSign(gqSign bool) Opts {
 	return func(m *MockProviderOpts) {
 		m.GQSign = gqSign
+	}
+}
+
+// UseGQCommitment specifies whether the commitment binding should be a GQ
+// binding or a claim based binding.
+// Example use:
+//
+//	UseGQCommitment(true)
+func UseGQCommitment(gqCommitment bool) Opts {
+	return func(m *MockProviderOpts) {
+		m.GQCommitment = gqCommitment
+	}
+}
+
+// Example use:
+//
+//	UseGQOnly(true)
+func UseGQOnly(gqOnly bool) Opts {
+	return func(m *MockProviderOpts) {
+		m.GQOnly = gqOnly
 	}
 }
 
@@ -140,7 +162,9 @@ func NewMockOpenIdProvider(
 	opts ...Opts,
 ) (*OpenIdProvider, error) {
 	providerOpts := &MockProviderOpts{
-		GQSign: false,
+		GQSign:       false,
+		GQCommitment: false,
+		GQOnly:       false,
 	}
 	for _, applyOpt := range opts {
 		applyOpt(providerOpts)
@@ -172,7 +196,21 @@ func NewMockOpenIdProvider(
 	provider.PublicKeyFinder.JwksFunc = jwksFunc
 	provider.Issuer = issuer
 
-	provider.On("Verifier").Return(verifier.NewProviderVerifier(issuer, "nonce", verifier.ProviderVerifierOpts{SkipClientIDCheck: true}))
+	commitmentClaim := "nonce"
+	if providerOpts.GQCommitment {
+		commitmentClaim = ""
+	}
+
+	provider.On("Verifier").Return(
+		verifier.NewProviderVerifier(
+			issuer, commitmentClaim,
+			verifier.ProviderVerifierOpts{
+				GQCommitment: providerOpts.GQCommitment,
+				GQOnly:       providerOpts.GQOnly,
+				// TODO: The default should be false
+				// Tracking this issue in https://github.com/openpubkey/openpubkey/issues/147
+				SkipClientIDCheck: true}),
+	)
 	provider.On("RequestTokens", mock.Anything, mock.Anything).Return(func(ctx context.Context, cicHash string) ([]byte, error) {
 		headers := jws.NewHeaders()
 		headers.Set(jws.AlgorithmKey, alg)
@@ -181,11 +219,17 @@ func NewMockOpenIdProvider(
 
 		// Default, minimum viable claims for functional id token payload
 		payload := map[string]any{
-			"sub":   "me",
-			"aud":   "also me",
-			"iss":   issuer,
-			"iat":   time.Now().Unix(),
-			"nonce": cicHash,
+			"sub": "me",
+			"aud": "also me",
+			"iss": issuer,
+			"iat": time.Now().Unix(),
+		}
+
+		// Don't set a claim commitment if we are using a GQ commitment
+		if !providerOpts.GQCommitment {
+			// TODO: Handle the case where we are using a different claim, e.g. aud
+			// Tracking this issue in https://github.com/openpubkey/openpubkey/issues/146
+			payload["nonce"] = cicHash
 		}
 		// Add/replace values in payload map with those provided
 		for k, v := range extraClaims {
@@ -206,8 +250,16 @@ func NewMockOpenIdProvider(
 			),
 		)
 
+		if providerOpts.GQCommitment && !providerOpts.GQSign {
+			// Catch misconfigurations
+			return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
+		}
 		if providerOpts.GQSign {
-			return providers.CreateGQToken(ctx, token, provider)
+			if providerOpts.GQCommitment {
+				return providers.CreateGQBoundToken(ctx, token, provider, cicHash)
+			} else {
+				return providers.CreateGQToken(ctx, token, provider)
+			}
 		}
 
 		return token, err
