@@ -1,10 +1,25 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package verifier
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -100,12 +115,12 @@ func (v *Verifier) VerifyPKToken(
 		return err
 	}
 
-	providerVerfier, ok := v.providers[issuer]
+	providerVerifier, ok := v.providers[issuer]
 	if !ok {
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	if err := providerVerfier.VerifyProvider(ctx, pkt); err != nil {
+	if err := providerVerifier.VerifyProvider(ctx, pkt); err != nil {
 		return err
 	}
 
@@ -142,11 +157,6 @@ func (v *Verifier) VerifyPKToken(
 			}
 		}
 	}
-
-	if err := VerifyCicSignature(pkt); err != nil {
-		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
-	}
-
 	// Cycles through any provided additional checks and returns the first error, if any.
 	for _, check := range extraChecks {
 		if err := check(v, pkt); err != nil {
@@ -155,14 +165,4 @@ func (v *Verifier) VerifyPKToken(
 	}
 
 	return nil
-}
-
-func VerifyCicSignature(pkt *pktoken.PKToken) error {
-	cic, err := pkt.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
-	return err
 }

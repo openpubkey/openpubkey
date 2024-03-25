@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package verifier_test
 
 import (
@@ -36,6 +52,18 @@ func TestVerifier(t *testing.T) {
 	pktVerifier, err := verifier.New(provider.Verifier())
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+	require.NoError(t, err)
+
+	// Check if it handles more than one verifier
+	pktVerifierTwoProviders, err := verifier.New(provider.Verifier(), verifier.AddProviderVerifiers(providerGQ.Verifier()))
+	require.NoError(t, err)
+
+	opkClient, err = client.New(providerGQ)
+	require.NoError(t, err)
+	pktGQ, err := opkClient.Auth(context.Background())
+	require.NoError(t, err)
+
+	err = pktVerifierTwoProviders.VerifyPKToken(context.Background(), pktGQ)
 	require.NoError(t, err)
 
 	// Check if verification fails with incorrect issuer
@@ -130,4 +158,70 @@ func TestVerifier(t *testing.T) {
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())
 	require.NoError(t, err)
+}
+
+func TestGQCommitment(t *testing.T) {
+
+	gqBindingAud := verifier.AudPrefixForGQCommitment + "1234"
+
+	testCases := []struct {
+		name         string
+		aud          string
+		expError     string
+		gqSign       bool
+		gqCommitment bool
+		gqOnly       bool
+	}{
+		{name: "happy case", aud: gqBindingAud, expError: "",
+			gqSign: true, gqCommitment: true, gqOnly: true},
+		{name: "wrong aud prefix", aud: "bad value", expError: "error verifying PK Token: audience claim in PK Token's GQCommitment must be prefixed by",
+			gqSign: true, gqCommitment: true, gqOnly: true},
+		{name: "gqSign is false", aud: verifier.AudPrefixForGQCommitment, expError: "error requesting ID Token: if GQCommitment is true then GQSign must also be true",
+			gqSign: false, gqCommitment: true, gqOnly: true},
+		{name: "gqCommitment is false", aud: verifier.AudPrefixForGQCommitment, expError: "",
+			gqSign: true, gqCommitment: false, gqOnly: true},
+		{name: "gqOnly is false", aud: verifier.AudPrefixForGQCommitment, expError: "error verifying PK Token: GQCommitment requires that GQOnly is true, but GQOnly is (false)",
+			gqSign: true, gqCommitment: true, gqOnly: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			provider, err := mocks.NewMockOpenIdProvider(t, map[string]any{
+				"aud": tc.aud,
+			}, mocks.UseGQSign(tc.gqSign), mocks.UseGQCommitment(tc.gqCommitment), mocks.UseGQOnly(tc.gqOnly))
+
+			require.NoError(t, err)
+
+			opkClient, err := client.New(provider)
+			require.NoError(t, err)
+			pkt, err := opkClient.Auth(context.Background())
+
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+			} else {
+				cicHash, ok := pkt.Op.ProtectedHeaders().Get("cic")
+				if tc.gqCommitment == false {
+					require.False(t, ok)
+					require.Nil(t, cicHash)
+				} else {
+					require.True(t, ok)
+					require.NotNil(t, cicHash)
+
+					cic, err := pkt.GetCicValues()
+					require.NoError(t, err)
+					require.NotNil(t, cic)
+					cicHashFromCIC, err := cic.Hash()
+					require.NoError(t, err)
+					require.Equal(t, string(cicHashFromCIC), cicHash, "CIC does not match cicHash in GQ commitment")
+				}
+
+				require.NoError(t, err)
+				pktVerifier, err := verifier.New(provider.Verifier())
+				require.NoError(t, err)
+				err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+				require.NoError(t, err)
+			}
+		})
+	}
 }

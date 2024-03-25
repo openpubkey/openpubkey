@@ -34,12 +34,32 @@ func init() {
 	jwa.RegisterSignatureAlgorithm(GQ256)
 }
 
+type OptsStruct struct {
+	extraClaims map[string]any
+}
+type Opts func(a *OptsStruct)
+
+// WithExtraClaim specifies additional values to be included in the
+// GQ signed JWT. These claims will be included in the protected header
+// of the JWT
+// Example use:
+//
+//	WithExtraClaim("claimKey", "claimValue")
+func WithExtraClaim(k string, v string) Opts {
+	return func(a *OptsStruct) {
+		if a.extraClaims == nil {
+			a.extraClaims = map[string]any{}
+		}
+		a.extraClaims[k] = v
+	}
+}
+
 // GQ256SignJWT takes a rsaPublicKey and signed JWT and computes a GQ1 signature
 // on the JWT. It returns a JWT whose RSA signature has been replaced by
 // the GQ signature. It is wrapper around SignerVerifier.SignJWT
 // an additional check that the correct rsa public key has been supplied.
 // Use this instead of SignerVerifier.SignJWT.
-func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte) ([]byte, error) {
+func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte, opts ...Opts) ([]byte, error) {
 	_, err := jws.Verify(jwt, jws.WithKey(jwa.RS256, rsaPublicKey))
 	if err != nil {
 		return nil, fmt.Errorf("incorrect public key supplied when GQ signing jwt: %w", err)
@@ -48,7 +68,7 @@ func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating GQ signer: %w", err)
 	}
-	gqJWT, err := sv.SignJWT(jwt)
+	gqJWT, err := sv.SignJWT(jwt, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating GQ signature: %w", err)
 	}
@@ -71,7 +91,7 @@ type Signer interface {
 	// SignJWT creates a GQ1 signature over the JWT token's header/payload with a GQ1 private number derived from the JWT signature.
 	//
 	// This works because a GQ1 private number can be calculated as the inverse mod n of an RSA signature, where n is the public RSA modulus.
-	SignJWT(jwt []byte) ([]byte, error)
+	SignJWT(jwt []byte, opts ...Opts) ([]byte, error)
 }
 
 // Signer allows for verifying GQ1 signatures.
@@ -153,16 +173,6 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	}
 
 	return bytes, nil
-}
-
-func IsGQ(jwt []byte) (bool, error) {
-	token, err := jws.Parse(jwt)
-	if err != nil {
-		return false, err
-	}
-	// a JWT is guaranteed to have exactly one signature
-	headers := token.Signatures()[0].ProtectedHeaders()
-	return headers.Algorithm() == GQ256, nil
 }
 
 func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
