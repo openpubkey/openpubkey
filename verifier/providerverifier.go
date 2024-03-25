@@ -31,7 +31,6 @@ import (
 	"github.com/openpubkey/openpubkey/util"
 )
 
-
 // TODO: This should live in providers, but due to circular dependencies we must
 // keep it here for now. When we merge the verifier package with providers we can put this in the correct location.
 const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
@@ -99,7 +98,6 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 			// "OPENPUBKEY-PKTOKEN:". Thus, the audience can't be the client-id
 			// If you are hitting this error of set SkipClientIDCheck to true
 			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id")
-
 		}
 	}
 

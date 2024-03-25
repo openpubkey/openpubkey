@@ -80,7 +80,6 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	if err != nil {
 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
-
 	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
 	// because the ID Token contains the OPs RSA signature which is a secret
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
