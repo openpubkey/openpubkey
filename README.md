@@ -53,7 +53,7 @@ signedMsg, err := pkt.NewSignedMessage(msg, opkClient.GetSigner())
 To verify a signed message, we first verify that the PK Token `pkt` is issued by the OP (Google). Then we use the PK Token to verify the signed message.
 
 ```golang
-pktVerifier, err := verifier.New(provider.Verifier())
+pktVerifier, err := verifier.New(provider)
 err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 msg, err := pkt.VerifySignedMessage(signedMsg)
 ```

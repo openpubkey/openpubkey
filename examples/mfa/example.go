@@ -73,7 +73,7 @@ func main() {
 
 		// Verify our pktoken including the cosigner signature
 		cosVerifier := verifier.NewCosignerVerifier(cosignerProvider.Issuer, verifier.CosignerVerifierOpts{})
-		verifier, err := verifier.New(provider.Verifier(), verifier.WithCosignerVerifiers(cosVerifier))
+		verifier, err := verifier.New(provider, verifier.WithCosignerVerifiers(cosVerifier))
 		if err != nil {
 			fmt.Println(err)
 			return

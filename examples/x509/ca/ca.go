@@ -107,7 +107,7 @@ func (a *Ca) CheckPKToken(pktJson []byte) (*pktoken.PKToken, error) {
 		return nil, err
 	}
 
-	verifier, err := verifier.New(a.op.Verifier())
+	verifier, err := verifier.New(a.op)
 	if err != nil {
 		return nil, err
 	}

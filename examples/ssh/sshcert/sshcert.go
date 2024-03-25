@@ -110,7 +110,7 @@ func (s *SshCertSmuggler) VerifySshPktCert(op client.OpenIdProvider) (*pktoken.P
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	verifier, err := verifier.New(op.Verifier())
+	verifier, err := verifier.New(op)
 	if err != nil {
 		return nil, err
 	}

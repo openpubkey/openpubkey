@@ -118,9 +118,9 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 		var err error
 		if client.cosP != nil {
 			cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
-			pktVerifier, err = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
+			pktVerifier, err = verifier.New(op, verifier.WithCosignerVerifiers(cosignerVerifier))
 		} else {
-			pktVerifier, err = verifier.New(op.Verifier())
+			pktVerifier, err = verifier.New(op)
 		}
 
 		if err != nil {
@@ -245,7 +245,7 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	pktVerifier, err := verifier.New(o.Op.Verifier())
+	pktVerifier, err := verifier.New(o.Op)
 	if err != nil {
 		return nil, err
 	}
