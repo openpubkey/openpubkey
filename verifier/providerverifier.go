@@ -301,7 +301,7 @@ func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
 	return nil
 }
 
-func VerifyCicSignature(pkt *pktoken.PKToken) error {
+func verifyCicSignature(pkt *pktoken.PKToken) error {
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return err
