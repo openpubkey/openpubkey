@@ -25,8 +25,8 @@ import (
 	"github.com/awnumar/memguard"
 
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/examples/x509/ca"
+	"github.com/openpubkey/openpubkey/providers"
 )
 
 // Variables for building our google provider

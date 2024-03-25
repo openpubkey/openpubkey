@@ -1,4 +1,4 @@
-package verifier
+package cosigner
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers/discover"
 )
 
 type DefaultCosignerVerifier struct {

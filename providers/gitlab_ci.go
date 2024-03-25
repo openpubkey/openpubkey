@@ -21,10 +21,9 @@ import (
 	"fmt"
 
 	"github.com/awnumar/memguard"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
+	"github.com/openpubkey/openpubkey/providers/discover"
 )
 
 const gitlabIssuer = "https://gitlab.com"
@@ -93,8 +92,8 @@ func (g *GitlabOp) Issuer() string {
 }
 
 func (g *GitlabOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := verifier.NewProviderVerifier(g.issuer, "",
-		verifier.ProviderVerifierOpts{GQOnly: true, GQCommitment: true, SkipClientIDCheck: true},
+	vp := NewProviderVerifier(g.issuer, "",
+		ProviderVerifierOpts{GQOnly: true, GQCommitment: true, SkipClientIDCheck: true},
 	)
 	return vp.VerifyProvider(ctx, pkt)
 }

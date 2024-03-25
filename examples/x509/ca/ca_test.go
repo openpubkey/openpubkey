@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/client"
-	clientmock "github.com/openpubkey/openpubkey/client/mocks"
+	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 )
 

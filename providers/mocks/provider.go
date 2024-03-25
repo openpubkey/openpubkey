@@ -26,10 +26,10 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/discover"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/mock"
 )
@@ -195,9 +195,9 @@ func NewMockOpenIdProvider(
 		commitmentClaim = ""
 	}
 
-	provider.verifier = verifier.NewProviderVerifier(
+	provider.verifier = providers.NewProviderVerifier(
 		issuer, commitmentClaim,
-		verifier.ProviderVerifierOpts{
+		providers.ProviderVerifierOpts{
 			GQCommitment: providerOpts.GQCommitment,
 			GQOnly:       providerOpts.GQOnly,
 			// TODO: The default should be false

@@ -22,8 +22,8 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 

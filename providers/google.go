@@ -24,11 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers/discover"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
@@ -201,7 +200,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
+	vp := NewProviderVerifier(googleIssuer, "nonce", ProviderVerifierOpts{ClientID: googleAudience})
 	return vp.VerifyProvider(ctx, pkt)
 }
 

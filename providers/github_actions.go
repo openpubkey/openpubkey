@@ -25,10 +25,9 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
+	"github.com/openpubkey/openpubkey/providers/discover"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -171,6 +170,6 @@ func (g *GithubOp) Issuer() string {
 }
 
 func (g *GithubOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := verifier.NewProviderVerifier(g.issuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
+	vp := NewProviderVerifier(g.issuer, "aud", ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 	return vp.VerifyProvider(ctx, pkt)
 }
