@@ -27,42 +27,56 @@ import (
 
 func SignWithGitlab() error {
 
-	op, err := providers.NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
-	if err != nil {
-		return err
-	}
+	// Creates OpenID Provider (OP) configuration, this will be used to request the ID Token from Gitlab
+	op := providers.NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+
+	// Creates a new OpenPubkey client
 	opkClient, err := client.New(op)
 	if err != nil {
 		return err
 	}
 
+	// Generates a PK Token by authorizing to the OpenID Provider
 	pkt, err := opkClient.Auth(context.Background())
 	if err != nil {
 		return err
 	}
 
+	// Serialize the PK Token to JSON so we can print it. Typically this
+	// serialization of the PK Token would be sent with the signed message
 	pktJson, err := pkt.MarshalJSON()
 	if err != nil {
 		return err
 	}
 	fmt.Println("pkt:", pktJson)
 
+	// Create a verifier to check that the PK Token is well formed
+	// The OPK client does this as well, but for the purposes of the
+	// example we show how a relying party might verify a PK Token
 	verifier, err := verifier.New(op.Verifier())
 	if err != nil {
 		return err
 	}
 
+	// Verify the PK Token. We supply the OP (gitlab) we wish to verify against
 	err = verifier.VerifyPKToken(context.Background(), pkt)
 	if err != nil {
 		return err
 	}
 
+	// Sign a message over the user's public key in the PK Token
 	msg := []byte("All is discovered - flee at once")
 	signedMsg, err := pkt.NewSignedMessage(msg, opkClient.GetSigner())
 	if err != nil {
 		return err
 	}
 	fmt.Println("signedMsg:", string(signedMsg))
+
+	// Verify the signed message
+	_, err = pkt.VerifySignedMessage(signedMsg)
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Success!")
 	return nil

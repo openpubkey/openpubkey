@@ -35,18 +35,22 @@ type GitlabOp struct {
 	tokenEnvVar     string
 }
 
-func NewGitlabOpFromEnvironmentDefault() (*GitlabOp, error) {
+func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
 	return NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
 }
 
-func NewGitlabOpFromEnvironment(tokenEnvVar string) (*GitlabOp, error) {
+func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabOp {
+	return NewGitlabOp(gitlabIssuer, tokenEnvVar)
+}
+
+func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 	op := &GitlabOp{
-		issuer:          gitlabIssuer,
+		issuer:          issuer,
 		publicKeyFinder: *discover.DefaultPubkeyFinder(),
 		getTokensFunc:   getEnvVar,
 		tokenEnvVar:     tokenEnvVar,
 	}
-	return op, nil
+	return op
 }
 
 func (g *GitlabOp) Verifier() verifier.ProviderVerifier {

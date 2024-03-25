@@ -136,7 +136,7 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 		return err
 	}
 
-	if err := VerifyCicSignature(pkt); err != nil {
+	if err := verifyCicSignature(pkt); err != nil {
 		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
 	}
 
