@@ -21,9 +21,9 @@ import (
 	"fmt"
 
 	"github.com/openpubkey/openpubkey/cosigner"
+	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers"
 )
 
 type ProviderVerifier interface {
@@ -74,7 +74,7 @@ func GQOnly() Check {
 		}
 
 		if alg != gq.GQ256 {
-			return providers.ErrNonGQUnsupported
+			return errors.ErrNonGQUnsupported
 		}
 		return nil
 	}
