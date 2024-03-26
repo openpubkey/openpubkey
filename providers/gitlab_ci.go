@@ -29,10 +29,10 @@ import (
 const gitlabIssuer = "https://gitlab.com"
 
 type GitlabOp struct {
-	issuer          string // Change issuer to point this to a test issuer
-	publicKeyFinder discover.PublicKeyFinder
-	getTokensFunc   func(string) (string, error)
-	tokenEnvVar     string
+	issuer                   string // Change issuer to point this to a test issuer
+	publicKeyFinder          discover.PublicKeyFinder
+	tokenEnvVar              string
+	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
 func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
@@ -45,10 +45,10 @@ func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabOp {
 
 func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 	op := &GitlabOp{
-		issuer:          issuer,
-		publicKeyFinder: *discover.DefaultPubkeyFinder(),
-		getTokensFunc:   getEnvVar,
-		tokenEnvVar:     tokenEnvVar,
+		issuer:                   issuer,
+		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
+		tokenEnvVar:              tokenEnvVar,
+		requestTokenOverrideFunc: nil,
 	}
 	return op
 }
@@ -72,9 +72,18 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
-	idToken, err := g.getTokensFunc(g.tokenEnvVar)
-	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
+	var idToken []byte
+	if g.requestTokenOverrideFunc != nil {
+		noCicHashInIDToken := ""
+		if idToken, err = g.requestTokenOverrideFunc(noCicHashInIDToken); err != nil {
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		}
+	} else {
+		idTokenStr, err := getEnvVar(g.tokenEnvVar)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		}
+		idToken = []byte(idTokenStr)
 	}
 	// idTokenLB is the ID Token in a memguard LockedBuffer, this is done
 	// because the ID Token contains the OPs RSA signature which is a secret

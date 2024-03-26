@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/discover"
@@ -52,14 +51,6 @@ func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	}
 
 	return NewGithubOp(tokenURL, token), nil
-}
-
-func getEnvVar(name string) (string, error) {
-	value, ok := os.LookupEnv(name)
-	if !ok {
-		return "", fmt.Errorf("%q environment variable not set", name)
-	}
-	return value, nil
 }
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
