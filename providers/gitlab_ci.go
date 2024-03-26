@@ -21,9 +21,9 @@ import (
 	"fmt"
 
 	"github.com/awnumar/memguard"
+	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers/discover"
 )
 
 const gitlabIssuer = "https://gitlab.com"

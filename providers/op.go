@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers/discover"
 )
 
 // Interface for interacting with the OP (OpenID Provider)
