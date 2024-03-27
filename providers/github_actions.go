@@ -32,10 +32,11 @@ import (
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
-	issuer                string // Change issuer to point this to a test issuer
-	rawTokenRequestURL    string
-	tokenRequestAuthToken string
-	publicKeyFinder       discover.PublicKeyFinder
+	issuer                   string // Change issuer to point this to a test issuer
+	rawTokenRequestURL       string
+	tokenRequestAuthToken    string
+	publicKeyFinder          discover.PublicKeyFinder
+	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -55,10 +56,11 @@ func NewGithubOpFromEnvironment() (*GithubOp, error) {
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
 	op := &GithubOp{
-		issuer:                githubIssuer,
-		rawTokenRequestURL:    tokenURL,
-		tokenRequestAuthToken: token,
-		publicKeyFinder:       *discover.DefaultPubkeyFinder(),
+		issuer:                   githubIssuer,
+		rawTokenRequestURL:       tokenURL,
+		tokenRequestAuthToken:    token,
+		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
+		requestTokenOverrideFunc: nil,
 	}
 	return op
 }
@@ -92,6 +94,14 @@ func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+	if g.requestTokenOverrideFunc != nil {
+		jwt, err := g.requestTokenOverrideFunc(cicHash)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		}
+		return memguard.NewBufferFromBytes(jwt), nil
+	}
+
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {
 		return nil, err

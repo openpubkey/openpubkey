@@ -30,10 +30,85 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
+func TestGithubOpTableTest(t *testing.T) {
+	issuer := githubIssuer
+	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
+	require.NoError(t, err)
+
+	op := &GithubOp{
+		issuer:                   githubIssuer,
+		rawTokenRequestURL:       "fakeTokenURL",
+		tokenRequestAuthToken:    "fakeToken",
+		publicKeyFinder:          providerOverride.PublicKeyFinder,
+		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
+	}
+
+	cic := genCIC(t)
+
+	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
+	idTokenTemplate := override.IDTokenTemplate{
+		Issuer:      issuer,
+		Nonce:       "empty",
+		NoNonce:     false,
+		Aud:         "empty",
+		KeyID:       expKeyID,
+		NoKeyID:     false,
+		Alg:         expRecord.Alg,
+		NoAlg:       false,
+		ExtraClaims: map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
+		SigningKey:  expSigningKey,
+	}
+	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
+
+	idToken, err := op.RequestTokens(context.TODO(), cic)
+	require.NoError(t, err)
+	require.NotNil(t, idToken)
+
+	_, payloadB64, _, err := jws.SplitCompact(idToken)
+	require.NoError(t, err)
+
+	headers := extractHeaders(t, idToken)
+	require.Equal(t, gq.GQ256, headers.Algorithm(), "github must only return GQ signed ID Tokens but we got (%s)", headers.Algorithm())
+
+	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
+	require.NoError(t, err)
+	origHeaders, err := util.Base64DecodeForJWT(origHeadersB64)
+	require.NoError(t, err)
+	require.Contains(t, string(origHeaders), "RS256")
+
+	payload, err := util.Base64DecodeForJWT(payloadB64)
+	require.NoError(t, err)
+
+	payloadClaims := struct {
+		Issuer   string `json:"iss"`
+		Subject  string `json:"sub"`
+		Audience string `json:"aud"`
+		Nonce    string `json:"nonce,omitempty"`
+	}{}
+	err = json.Unmarshal(payload, &payloadClaims)
+	require.NoError(t, err)
+	pkRecord, err := op.PublicKeyByToken(context.Background(), idToken)
+	require.NoError(t, err)
+
+	// Check that GQ Signature verifies
+	rsaKey, ok := pkRecord.PublicKey.(*rsa.PublicKey)
+
+	require.True(t, ok)
+	ok, err = gq.GQ256VerifyJWT(rsaKey, idToken)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+// These two tests are regression tests for  deserialization bug
+// that broke our ability to read the ID Token directly from the HTTP
+// response. To ensure we don't break this again this test stands up a server
+// so that all of the RequestTokens code is tested. For all the other tests
+// we just use the standard override functions.
 func TestGithubOpSimpleRequest(t *testing.T) {
 	expCicHash := "LJJfahE5cC1AgAWrMkUDL85d0oSSBcP6FJVSulzojds"
 
@@ -82,7 +157,6 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 }
 
 func TestGithubOpFullGQ(t *testing.T) {
-
 	cic := genCIC(t)
 
 	// Setup expected test data
