@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openpubkey/openpubkey/cosigner"
+	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
-
-var ErrNonGQUnsupported = fmt.Errorf("non-GQ signatures are not supported")
 
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
@@ -40,13 +40,13 @@ type CosignerVerifier interface {
 
 type VerifierOpts func(*Verifier) error
 
-func WithCosignerVerifiers(verifiers ...*DefaultCosignerVerifier) VerifierOpts {
+func WithCosignerVerifiers(verifiers ...*cosigner.DefaultCosignerVerifier) VerifierOpts {
 	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
 			if _, ok := v.cosigners[verifier.Issuer()]; ok {
 				return fmt.Errorf("cosigner verifier found with duplicate issuer: %s", verifier.Issuer())
 			}
-			v.cosigners[verifier.issuer] = verifier
+			v.cosigners[verifier.Issuer()] = verifier
 		}
 		return nil
 	}
@@ -74,7 +74,7 @@ func GQOnly() Check {
 		}
 
 		if alg != gq.GQ256 {
-			return ErrNonGQUnsupported
+			return errors.ErrNonGQUnsupported
 		}
 		return nil
 	}

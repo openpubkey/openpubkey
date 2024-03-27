@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -53,7 +53,7 @@ func SignWithGitlab() error {
 	// Create a verifier to check that the PK Token is well formed
 	// The OPK client does this as well, but for the purposes of the
 	// example we show how a relying party might verify a PK Token
-	verifier, err := verifier.New(op.Verifier())
+	verifier, err := verifier.New(op)
 	if err != nil {
 		return err
 	}

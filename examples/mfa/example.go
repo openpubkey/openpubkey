@@ -22,8 +22,9 @@ import (
 	"os"
 
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -72,8 +73,8 @@ func main() {
 		fmt.Println("New PK token generated")
 
 		// Verify our pktoken including the cosigner signature
-		cosVerifier := verifier.NewCosignerVerifier(cosignerProvider.Issuer, verifier.CosignerVerifierOpts{})
-		verifier, err := verifier.New(provider.Verifier(), verifier.WithCosignerVerifiers(cosVerifier))
+		cosVerifier := cosigner.NewCosignerVerifier(cosignerProvider.Issuer, cosigner.CosignerVerifierOpts{})
+		verifier, err := verifier.New(provider, verifier.WithCosignerVerifiers(cosVerifier))
 		if err != nil {
 			fmt.Println(err)
 			return

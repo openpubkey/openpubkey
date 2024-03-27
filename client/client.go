@@ -25,9 +25,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 
-	"github.com/openpubkey/openpubkey/client/providers"
+	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 )
@@ -117,10 +118,10 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 		var pktVerifier *verifier.Verifier
 		var err error
 		if client.cosP != nil {
-			cosignerVerifier := verifier.NewCosignerVerifier(client.cosP.Issuer, verifier.CosignerVerifierOpts{})
-			pktVerifier, err = verifier.New(op.Verifier(), verifier.WithCosignerVerifiers(cosignerVerifier))
+			cosignerVerifier := cosigner.NewCosignerVerifier(client.cosP.Issuer, cosigner.CosignerVerifierOpts{})
+			pktVerifier, err = verifier.New(op, verifier.WithCosignerVerifiers(cosignerVerifier))
 		} else {
-			pktVerifier, err = verifier.New(op.Verifier())
+			pktVerifier, err = verifier.New(op)
 		}
 
 		if err != nil {
@@ -245,7 +246,7 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
-	pktVerifier, err := verifier.New(o.Op.Verifier())
+	pktVerifier, err := verifier.New(o.Op)
 	if err != nil {
 		return nil, err
 	}

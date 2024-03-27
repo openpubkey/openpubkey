@@ -21,9 +21,9 @@ import (
 	"fmt"
 
 	"github.com/awnumar/memguard"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 const gitlabIssuer = "https://gitlab.com"
@@ -51,10 +51,6 @@ func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 		tokenEnvVar:     tokenEnvVar,
 	}
 	return op
-}
-
-func (g *GitlabOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(g.issuer, "", verifier.ProviderVerifierOpts{GQOnly: true, GQCommitment: true, SkipClientIDCheck: true})
 }
 
 func (g *GitlabOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -89,4 +85,15 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
 
 	return gqToken, err
+}
+
+func (g *GitlabOp) Issuer() string {
+	return g.issuer
+}
+
+func (g *GitlabOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+	vp := NewProviderVerifier(g.issuer, "",
+		ProviderVerifierOpts{GQOnly: true, GQCommitment: true, SkipClientIDCheck: true},
+	)
+	return vp.VerifyProvider(ctx, pkt)
 }

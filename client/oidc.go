@@ -74,7 +74,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 
 // Deprecated: please use the verifier package directly as shown in function
 func VerifyPKToken(ctx context.Context, pkt *pktoken.PKToken, provider OpenIdProvider) error {
-	pktVerifier, err := verifier.New(provider.Verifier())
+	pktVerifier, err := verifier.New(provider)
 	if err != nil {
 		return err
 	}

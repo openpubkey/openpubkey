@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package verifier_test
+package providers_test
 
 import (
 	"context"
@@ -23,13 +23,13 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProviderVerifier(t *testing.T) {
-	correctAud := verifier.AudPrefixForGQCommitment
+	correctAud := providers.AudPrefixForGQCommitment
 	clientID := "test-client-id"
 
 	testCases := []struct {
@@ -126,8 +126,8 @@ func TestProviderVerifier(t *testing.T) {
 
 			issuer, err := pkt.Issuer()
 			require.NoError(t, err)
-			pv := verifier.NewProviderVerifier(issuer, tc.commitmentClaim,
-				verifier.ProviderVerifierOpts{GQOnly: tc.pvGQOnly, GQCommitment: tc.pvGQCommitment, ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
+			pv := providers.NewProviderVerifier(issuer, tc.commitmentClaim,
+				providers.ProviderVerifierOpts{GQOnly: tc.pvGQOnly, GQCommitment: tc.pvGQCommitment, ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
 			err = pv.VerifyProvider(context.Background(), pkt)
 
 			if tc.expError != "" {

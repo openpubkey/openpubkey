@@ -24,10 +24,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v2/pkg/client/rp"
 	"github.com/zitadel/oidc/v2/pkg/oidc"
@@ -57,7 +57,7 @@ type GoogleOp struct {
 	httpSessionHook http.HandlerFunc
 }
 
-func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) *GoogleOp {
+func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) OpenIdProvider {
 
 	return &GoogleOp{
 		ClientID:        ClientID,
@@ -183,10 +183,6 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	return idToken, nil
 }
 
-func (g *GoogleOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(googleIssuer, "nonce", verifier.ProviderVerifierOpts{ClientID: googleAudience})
-}
-
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
 }
@@ -197,6 +193,15 @@ func (g *GoogleOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discove
 
 func (g *GoogleOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
+}
+
+func (g *GoogleOp) Issuer() string {
+	return g.issuer
+}
+
+func (g *GoogleOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+	vp := NewProviderVerifier(googleIssuer, "nonce", ProviderVerifierOpts{ClientID: googleAudience})
+	return vp.VerifyProvider(ctx, pkt)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

@@ -22,8 +22,8 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
@@ -68,7 +68,7 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use
-	pktVerifier, err := verifier.New(op.Verifier())
+	pktVerifier, err := verifier.New(op)
 	if err != nil {
 		return err
 	}

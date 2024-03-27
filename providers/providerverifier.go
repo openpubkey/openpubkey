@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package verifier
+package providers
 
 import (
 	"context"
@@ -25,14 +25,13 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 )
 
-// TODO: This should live in providers, but due to circular dependencies we must
-// keep it here for now. When we merge the verifier package with providers we can put this in the correct location.
 const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
 
 type DefaultProviderVerifier struct {
@@ -113,7 +112,7 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 	}
 
 	if alg != gq.GQ256 && v.options.GQOnly {
-		return ErrNonGQUnsupported
+		return errors.ErrNonGQUnsupported
 	}
 
 	switch alg {

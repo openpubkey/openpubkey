@@ -7,9 +7,9 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	clientmock "github.com/openpubkey/openpubkey/client/mocks"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
+	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"

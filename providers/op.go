@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 // Interface for interacting with the OP (OpenID Provider)
@@ -17,7 +17,9 @@ type OpenIdProvider interface {
 	PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error)
 	PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error)
 	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
-	Verifier() verifier.ProviderVerifier
+	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
+	Issuer() string
+	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
 }
 
 type BrowserOpenIdProvider interface {

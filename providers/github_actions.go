@@ -25,9 +25,9 @@ import (
 	"os"
 
 	"github.com/awnumar/memguard"
-	"github.com/openpubkey/openpubkey/client/providers/discover"
+	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
@@ -86,10 +86,6 @@ func buildTokenURL(rawTokenURL, audience string) (string, error) {
 	query.Set("audience", audience)
 	parsedURL.RawQuery = query.Encode()
 	return parsedURL.String(), nil
-}
-
-func (g *GithubOp) Verifier() verifier.ProviderVerifier {
-	return verifier.NewProviderVerifier(g.issuer, "aud", verifier.ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
 }
 
 func (g *GithubOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -167,4 +163,13 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
 
 	return gqToken, err
+}
+
+func (g *GithubOp) Issuer() string {
+	return g.issuer
+}
+
+func (g *GithubOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+	vp := NewProviderVerifier(g.issuer, "aud", ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
+	return vp.VerifyProvider(ctx, pkt)
 }
