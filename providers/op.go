@@ -3,7 +3,9 @@ package providers
 import (
 	"context"
 	"crypto"
+	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
@@ -34,3 +36,11 @@ type PublicKeyFunc = func(ctx context.Context, headers jws.Headers) (crypto.Publ
 // We use this to inject our own publicKeyFunc for testing and extensibility.
 // For an example of how this works see github_actions_test
 type JwksGetFunc = func(ctx context.Context, issuer string) ([]byte, error)
+
+func getEnvVar(name string) (string, error) {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return "", fmt.Errorf("%q environment variable not set", name)
+	}
+	return value, nil
+}

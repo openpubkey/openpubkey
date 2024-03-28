@@ -18,37 +18,32 @@ package providers
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"testing"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitlabSimpleRequest(t *testing.T) {
-
-	issuer := gitlabIssuer
+func TestMockOpTableTest(t *testing.T) {
+	issuer := mockOpIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
 
-	op := &GitlabOp{
-		issuer:                   gitlabIssuer,
-		publicKeyFinder:          providerOverride.PublicKeyFinder,
-		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
-	}
-
-	aud := AudPrefixForGQCommitment
+	SignGQ := false
+	op := NewMockOp(SignGQ, providerOverride)
 
 	cic := genCIC(t)
-
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
 		Issuer:      issuer,
 		Nonce:       "empty",
 		NoNonce:     false,
-		Aud:         aud,
+		Aud:         "empty",
 		KeyID:       expKeyID,
 		NoKeyID:     false,
 		Alg:         expRecord.Alg,
@@ -58,22 +53,31 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.Background(), cic)
+	idToken, err := op.RequestTokens(context.TODO(), cic)
+	require.NoError(t, err)
+	require.NotNil(t, idToken)
+
+	_, payloadB64, _, err := jws.SplitCompact(idToken)
 	require.NoError(t, err)
 
-	cicHash, err := cic.Hash()
+	payload, err := util.Base64DecodeForJWT(payloadB64)
 	require.NoError(t, err)
-	require.NotNil(t, cicHash)
 
-	headerB64, _, _, err := jws.SplitCompact(idToken)
+	payloadClaims := struct {
+		Issuer   string `json:"iss"`
+		Subject  string `json:"sub"`
+		Audience string `json:"aud"`
+		Nonce    string `json:"nonce,omitempty"`
+	}{}
+	err = json.Unmarshal(payload, &payloadClaims)
 	require.NoError(t, err)
-	headerJson, err := util.Base64DecodeForJWT(headerB64)
+	pkRecord, err := op.PublicKeyByToken(context.Background(), idToken)
 	require.NoError(t, err)
-	headers := jws.NewHeaders()
-	err = json.Unmarshal(headerJson, &headers)
-	require.NoError(t, err)
-	cicHash2, ok := headers.Get("cic")
-	require.True(t, ok, "cic not found in GQ ID Token")
 
-	require.Equal(t, string(cicHash), cicHash2, "cic hash in jwt header should match cic supplied")
+	// Check that GQ Signature verifies
+	rsaKey, ok := pkRecord.PublicKey.(*rsa.PublicKey)
+
+	require.True(t, ok)
+	_, err = jws.Verify(idToken, jws.WithKey(jwa.RS256, rsaKey))
+	require.NoError(t, err)
 }
