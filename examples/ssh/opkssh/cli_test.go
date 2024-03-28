@@ -9,7 +9,9 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -18,6 +20,49 @@ import (
 
 func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 	return nil
+}
+
+func TestSshCli(t *testing.T) {
+
+	clientID := "mockClient-ID"
+	CommitmentClaimName := "nonce"
+	opOpts := providers.MockOpOpts{
+		SignGQ:              true,
+		ClaimCommitment:     true,
+		CommitmentClaimName: CommitmentClaimName,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			SkipClientIDCheck: false,
+			GQOnly:            true,
+			GQCommitment:      false,
+			ClientID:          clientID,
+		},
+	}
+
+	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentType: &override.CommitmentType{
+			ClaimCommitment: true,
+			ClaimName:       CommitmentClaimName,
+		},
+		Issuer:     op.Issuer(),
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        clientID,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
+	}
+	backend.SetIDTokenTemplate(&idTokenTemplate)
+
+	certBytes, seckeySshPem, err := Login(op)
+	require.NoError(t, err)
+	require.NotNil(t, certBytes)
+	require.NotNil(t, seckeySshPem)
 }
 
 func TestAuthorizedKeysCommand(t *testing.T) {
