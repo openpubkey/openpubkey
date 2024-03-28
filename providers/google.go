@@ -81,6 +81,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 	if g.requestTokenOverrideFunc != nil {
 		return g.requestTokenOverrideFunc(cicHash)
 	}
+
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
