@@ -28,17 +28,35 @@ import (
 
 const mockOpIssuer = "https://accounts.example.com"
 
+type MockOpOpts struct {
+	SignGQ              bool
+	GQCommitment        bool
+	ClaimCommitment     bool
+	CommitmentClaimName string
+	// We keep VerifierOpts as a variable separate to let us test failures
+	// where the mock op does something which causes a verification failure
+	VerifierOpts ProviderVerifierOpts
+}
+
 type MockOp struct {
-	SignGQ                   bool
+	options                  MockOpOpts
 	issuer                   string
 	publicKeyFinder          discover.PublicKeyFinder
 	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
-func NewMockOp(SignGQ bool, opBackend *override.ProviderOverride) OpenIdProvider {
+func NewMockOpAndBackend(opOpts MockOpOpts) (OpenIdProvider, *override.ProviderOverride, error) {
+	mockBackend, err := override.NewMockProviderOverride(mockOpIssuer, 2)
+	if err != nil {
+		return nil, nil, err
+	}
+	return NewMockOp(mockBackend, opOpts), mockBackend, nil
+}
+
+func NewMockOp(opBackend *override.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
 	return &MockOp{
-		SignGQ:                   SignGQ,
-		issuer:                   googleIssuer,
+		options:                  opOpts,
+		issuer:                   opBackend.Issuer,
 		requestTokenOverrideFunc: opBackend.RequestTokenOverrideFunc,
 		publicKeyFinder:          opBackend.PublicKeyFinder,
 	}
@@ -60,7 +78,10 @@ func (m *MockOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) 
 	if err != nil {
 		return nil, err
 	}
-	if m.SignGQ {
+	if m.options.GQCommitment {
+		return CreateGQBoundToken(ctx, idToken, m, string(cicHash))
+	}
+	if m.options.SignGQ {
 		return CreateGQToken(ctx, idToken, m)
 	}
 	return idToken, nil
@@ -81,6 +102,10 @@ func (m *MockOp) Issuer() string {
 }
 
 func (m *MockOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(googleIssuer, "nonce", ProviderVerifierOpts{ClientID: googleAudience})
-	return vp.VerifyProvider(ctx, pkt)
+	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
+	if m.options.GQCommitment {
+		return NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	}
+	claimName := m.options.CommitmentClaimName
+	return NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
 }

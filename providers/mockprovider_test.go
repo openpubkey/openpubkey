@@ -30,16 +30,32 @@ import (
 )
 
 func TestMockOpTableTest(t *testing.T) {
+
+	claimCommitment := true
+	// gqCommitment := false // TODO: Use this when build a table test
+	claimName := "nonce"
+
 	issuer := mockOpIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
 
 	SignGQ := false
-	op := NewMockOp(SignGQ, providerOverride)
+	opOpts := MockOpOpts{
+		SignGQ:       SignGQ,
+		GQCommitment: false,
+		VerifierOpts: ProviderVerifierOpts{
+			ClientID: googleAudience,
+		},
+	}
+
+	op := NewMockOp(providerOverride, opOpts)
 
 	cic := genCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentType: &override.CommitmentType{
+			ClaimCommitment: claimCommitment,
+			ClaimName:       claimName},
 		Issuer:      issuer,
 		Nonce:       "empty",
 		NoNonce:     false,

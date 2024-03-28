@@ -19,13 +19,20 @@ package override
 import (
 	"crypto"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
+type CommitmentType struct {
+	ClaimCommitment bool
+	ClaimName       string
+}
+
 type IDTokenTemplate struct {
+	CommitmentType       *CommitmentType
 	Issuer               string
 	Nonce                string
 	NoNonce              bool
@@ -37,9 +44,11 @@ type IDTokenTemplate struct {
 	ExtraClaims          map[string]any
 	ExtraProtectedClaims map[string]any
 	SigningKey           crypto.Signer // The key we will use to sign the ID Token
+
 }
 
-func (t *IDTokenTemplate) Issue() ([]byte, error) {
+func (t *IDTokenTemplate) Issue(cicHash string) ([]byte, error) {
+
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
 		headers.Set(jws.AlgorithmKey, t.Alg)
@@ -70,6 +79,17 @@ func (t *IDTokenTemplate) Issue() ([]byte, error) {
 		for k, v := range t.ExtraClaims {
 			payloadMap[k] = v
 		}
+	}
+
+	// Set the CIC Commitment in the ID Token
+	if t.CommitmentType == nil {
+		return nil, fmt.Errorf("CommitmentType can't be nil")
+	}
+	if t.CommitmentType.ClaimCommitment {
+		if t.CommitmentType.ClaimName == "" {
+			return nil, fmt.Errorf("ClaimName can't be empty")
+		}
+		payloadMap[t.CommitmentType.ClaimName] = cicHash
 	}
 
 	payloadBytes, err := json.Marshal(payloadMap)

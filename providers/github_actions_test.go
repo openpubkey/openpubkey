@@ -36,6 +36,8 @@ import (
 )
 
 func TestGithubOpTableTest(t *testing.T) {
+	claimCommitment := true
+
 	issuer := githubIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
@@ -52,6 +54,9 @@ func TestGithubOpTableTest(t *testing.T) {
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentType: &override.CommitmentType{
+			ClaimCommitment: claimCommitment,
+			ClaimName:       "aud"},
 		Issuer:      issuer,
 		Nonce:       "empty",
 		NoNonce:     false,

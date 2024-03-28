@@ -29,6 +29,8 @@ import (
 
 func TestGoogleSimpleRequest(t *testing.T) {
 	gqSign := false
+	claimCommitment := true
+
 	issuer := googleIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
@@ -44,6 +46,9 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
 	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentType: &override.CommitmentType{
+			ClaimCommitment: claimCommitment,
+			ClaimName:       "nonce"},
 		Issuer:               issuer,
 		Nonce:                "empty",
 		NoNonce:              false,

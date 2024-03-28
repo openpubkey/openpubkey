@@ -45,6 +45,9 @@ func TestGitlabSimpleRequest(t *testing.T) {
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentType: &override.CommitmentType{
+			ClaimCommitment: false,
+		},
 		Issuer:      issuer,
 		Nonce:       "empty",
 		NoNonce:     false,

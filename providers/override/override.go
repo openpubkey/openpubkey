@@ -87,8 +87,7 @@ func (o *ProviderOverride) SetIDTokenTemplate(template *IDTokenTemplate) {
 }
 
 func (o *ProviderOverride) RequestTokenOverrideFunc(cicHash string) ([]byte, error) {
-	o.IDTokensTemplate.Nonce = cicHash
-	return o.IDTokensTemplate.Issue()
+	return o.IDTokensTemplate.Issue(cicHash)
 }
 
 func (o *ProviderOverride) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRecord) {
