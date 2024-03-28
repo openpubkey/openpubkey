@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -28,12 +27,18 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClient(t *testing.T) {
+
+	clientID := "test-client-id"
+	commitmentClaimName := "nonce"
+	ClaimCommitment := true
+
 	testCases := []struct {
 		name        string
 		gq          bool
@@ -53,7 +58,38 @@ func TestClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
-			op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(tc.gq))
+			opOpts := providers.MockOpOpts{
+				SignGQ:              tc.gq,
+				ClaimCommitment:     ClaimCommitment,
+				CommitmentClaimName: commitmentClaimName,
+				GQCommitment:        false,
+				VerifierOpts: providers.ProviderVerifierOpts{
+					SkipClientIDCheck: false,
+					GQOnly:            false,
+					GQCommitment:      false,
+					ClientID:          clientID,
+				},
+			}
+
+			op, backend, err := providers.NewMockOpAndBackend(opOpts)
+			require.NoError(t, err)
+
+			expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+			idTokenTemplate := override.IDTokenTemplate{
+				CommitmentType: &override.CommitmentType{
+					ClaimCommitment: ClaimCommitment,
+					ClaimName:       commitmentClaimName,
+				},
+				Issuer:     op.Issuer(),
+				Aud:        clientID,
+				KeyID:      expKeyID,
+				NoKeyID:    false,
+				Alg:        expRecord.Alg,
+				NoAlg:      false,
+				SigningKey: expSigningKey,
+			}
+			backend.SetIDTokenTemplate(&idTokenTemplate)
+
 			require.NoError(t, err, tc.name)
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
@@ -90,7 +126,7 @@ func TestClient(t *testing.T) {
 			}
 
 			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			require.True(t, ok, "missing jkt header")
+			require.True(t, ok, tc.name+", missing jkt header")
 			jktstr, ok := jkt.(string)
 			if !ok {
 				t.Fatalf("expected jkt header to be a string, got %T", jkt)
@@ -109,9 +145,7 @@ func TestClient(t *testing.T) {
 			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
 			providerAlg, ok := pkt.ProviderAlgorithm()
-			if !ok {
-				t.Fatal(fmt.Errorf("missing algorithm"))
-			}
+			require.True(t, ok, "missing algorithm", tc.name)
 
 			if tc.gq {
 				require.Equal(t, gq.GQ256, providerAlg, tc.name)
@@ -130,6 +164,9 @@ func TestClient(t *testing.T) {
 				// Expect alg to be RS256 alg when not signing with GQ
 				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
+
+			err = op.VerifyProvider(context.Background(), pkt)
+			require.NoError(t, err, tc.name)
 		})
 	}
 }
