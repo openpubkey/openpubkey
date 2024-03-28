@@ -32,7 +32,6 @@ import (
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
-
 	issuer                   string // Change issuer to point this to a test issuer
 	rawTokenRequestURL       string
 	tokenRequestAuthToken    string

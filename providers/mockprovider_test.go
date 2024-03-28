@@ -30,7 +30,7 @@ import (
 )
 
 func TestMockOpTableTest(t *testing.T) {
-	issuer := githubIssuer
+	issuer := mockOpIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
 

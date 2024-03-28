@@ -23,6 +23,11 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGitlabSimpleRequest(t *testing.T) {
 
 	issuer := gitlabIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)

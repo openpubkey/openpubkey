@@ -240,7 +240,6 @@ func TestBuildTokenURL(t *testing.T) {
 	require.Equal(t, "http://example.com/token-request?audience=fakeAudience", tokenURL)
 }
 
-
 func extractHeaders(t *testing.T, idToken []byte) jws.Headers {
 	headersB64, _, _, err := jws.SplitCompact(idToken)
 	require.NoError(t, err)

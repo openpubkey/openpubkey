@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 
-
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -45,4 +44,3 @@ func getEnvVar(name string) (string, error) {
 	}
 	return value, nil
 }
-

@@ -46,7 +46,7 @@ func NewMockOp(SignGQ bool, opBackend *override.ProviderOverride) OpenIdProvider
 
 var _ OpenIdProvider = (*MockOp)(nil)
 
-func (m *MockOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+func (m *MockOp) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
 	return m.requestTokenOverrideFunc(cicHash)
 }
 
