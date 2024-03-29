@@ -33,6 +33,7 @@ type CommitmentType struct {
 
 type IDTokenTemplate struct {
 	CommitmentType       *CommitmentType
+	CommitmentFunc       func(*IDTokenTemplate, string) error
 	Issuer               string
 	Nonce                string
 	NoNonce              bool
@@ -47,7 +48,15 @@ type IDTokenTemplate struct {
 
 }
 
-func (t *IDTokenTemplate) Issue(cicHash string) ([]byte, error) {
+// AddCommit adds the commitment to the CIC to the ID Token. The
+// CommitmentFunc is specifed allowing custom commitment functions to be specified
+func (t *IDTokenTemplate) AddCommit(cicHash string) error {
+	return t.CommitmentFunc(t, cicHash)
+}
+
+// TODO: rename t as it is confusing with t being used in tests
+
+func (t *IDTokenTemplate) IssueToken(cicHash string) ([]byte, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
@@ -105,4 +114,17 @@ func (t *IDTokenTemplate) Issue(cicHash string) ([]byte, error) {
 			jws.WithProtectedHeaders(headers),
 		),
 	)
+}
+
+func AddNonceCommit(idtTemp *IDTokenTemplate, cicHash string) {
+	idtTemp.Nonce = cicHash
+	idtTemp.NoNonce = false
+}
+
+func AddAudCommit(idtTemp *IDTokenTemplate, cicHash string) {
+	idtTemp.Aud = cicHash
+}
+
+func NoClaimCommit(idtTemp *IDTokenTemplate, cicHash string) {
+	// Do nothing
 }
