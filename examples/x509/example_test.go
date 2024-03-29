@@ -43,18 +43,15 @@ func TestSimpleExample(t *testing.T) {
 
 	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentType: &override.CommitmentType{
-			ClaimCommitment: true,
-			ClaimName:       CommitmentClaimName,
-		},
-		Issuer:     op.Issuer(),
-		Nonce:      "empty",
-		NoNonce:    false,
-		KeyID:      expKeyID,
-		NoKeyID:    false,
-		Alg:        expRecord.Alg,
-		NoAlg:      false,
-		SigningKey: expSigningKey,
+		CommitmentFunc: override.AddAudCommit,
+		Issuer:         op.Issuer(),
+		Nonce:          "empty",
+		NoNonce:        false,
+		KeyID:          expKeyID,
+		NoKeyID:        false,
+		Alg:            expRecord.Alg,
+		NoAlg:          false,
+		SigningKey:     expSigningKey,
 	}
 	backend.SetIDTokenTemplate(&idTokenTemplate)
 

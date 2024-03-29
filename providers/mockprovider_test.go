@@ -31,10 +31,6 @@ import (
 
 func TestMockOpTableTest(t *testing.T) {
 
-	claimCommitment := true
-	// gqCommitment := false // TODO: Use this when build a table test
-	claimName := "nonce"
-
 	issuer := mockOpIssuer
 	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
@@ -53,19 +49,17 @@ func TestMockOpTableTest(t *testing.T) {
 	cic := genCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentType: &override.CommitmentType{
-			ClaimCommitment: claimCommitment,
-			ClaimName:       claimName},
-		Issuer:      issuer,
-		Nonce:       "empty",
-		NoNonce:     false,
-		Aud:         "empty",
-		KeyID:       expKeyID,
-		NoKeyID:     false,
-		Alg:         expRecord.Alg,
-		NoAlg:       false,
-		ExtraClaims: map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
-		SigningKey:  expSigningKey,
+		CommitmentFunc: override.AddNonceCommit,
+		Issuer:         issuer,
+		Nonce:          "empty",
+		NoNonce:        false,
+		Aud:            "empty",
+		KeyID:          expKeyID,
+		NoKeyID:        false,
+		Alg:            expRecord.Alg,
+		NoAlg:          false,
+		ExtraClaims:    map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
+		SigningKey:     expSigningKey,
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 

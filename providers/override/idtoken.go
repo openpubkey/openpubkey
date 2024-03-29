@@ -19,7 +19,6 @@ package override
 import (
 	"crypto"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -32,8 +31,7 @@ type CommitmentType struct {
 }
 
 type IDTokenTemplate struct {
-	CommitmentType       *CommitmentType
-	CommitmentFunc       func(*IDTokenTemplate, string) error
+	CommitmentFunc       func(*IDTokenTemplate, string)
 	Issuer               string
 	Nonce                string
 	NoNonce              bool
@@ -50,13 +48,13 @@ type IDTokenTemplate struct {
 
 // AddCommit adds the commitment to the CIC to the ID Token. The
 // CommitmentFunc is specifed allowing custom commitment functions to be specified
-func (t *IDTokenTemplate) AddCommit(cicHash string) error {
-	return t.CommitmentFunc(t, cicHash)
+func (t *IDTokenTemplate) AddCommit(cicHash string) {
+	t.CommitmentFunc(t, cicHash)
 }
 
 // TODO: rename t as it is confusing with t being used in tests
 
-func (t *IDTokenTemplate) IssueToken(cicHash string) ([]byte, error) {
+func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
@@ -88,17 +86,6 @@ func (t *IDTokenTemplate) IssueToken(cicHash string) ([]byte, error) {
 		for k, v := range t.ExtraClaims {
 			payloadMap[k] = v
 		}
-	}
-
-	// Set the CIC Commitment in the ID Token
-	if t.CommitmentType == nil {
-		return nil, fmt.Errorf("CommitmentType can't be nil")
-	}
-	if t.CommitmentType.ClaimCommitment {
-		if t.CommitmentType.ClaimName == "" {
-			return nil, fmt.Errorf("ClaimName can't be empty")
-		}
-		payloadMap[t.CommitmentType.ClaimName] = cicHash
 	}
 
 	payloadBytes, err := json.Marshal(payloadMap)

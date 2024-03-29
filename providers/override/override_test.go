@@ -31,9 +31,6 @@ import (
 )
 
 func TestSimpleOverride(t *testing.T) {
-	// gqCommitment := false // TODO: Use this when turning this into a table test
-	claimCommitment := true
-	commitmentClaimName := "aud"
 
 	issuer := "https://accounts.example.com/"
 	override, err := NewMockProviderOverride(issuer, 3)
@@ -42,9 +39,7 @@ func TestSimpleOverride(t *testing.T) {
 	expSigningKey, expKeyID, expRecord := override.RandomSigningKey()
 
 	idTokenTemplate := IDTokenTemplate{
-		CommitmentType: &CommitmentType{
-			ClaimCommitment: claimCommitment,
-			ClaimName:       commitmentClaimName},
+		CommitmentFunc:       AddAudCommit,
 		Issuer:               issuer,
 		Nonce:                "empty",
 		NoNonce:              false,

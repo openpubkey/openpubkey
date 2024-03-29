@@ -45,19 +45,16 @@ func TestGitlabExample(t *testing.T) {
 
 	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
 	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentType: &override.CommitmentType{
-			ClaimCommitment: true,
-			ClaimName:       CommitmentClaimName,
-		},
-		Issuer:     op.Issuer(),
-		Nonce:      "empty",
-		NoNonce:    false,
-		Aud:        clientID,
-		KeyID:      expKeyID,
-		NoKeyID:    false,
-		Alg:        expRecord.Alg,
-		NoAlg:      false,
-		SigningKey: expSigningKey,
+		CommitmentFunc: override.AddNonceCommit,
+		Issuer:         op.Issuer(),
+		Nonce:          "empty",
+		NoNonce:        false,
+		Aud:            clientID,
+		KeyID:          expKeyID,
+		NoKeyID:        false,
+		Alg:            expRecord.Alg,
+		NoAlg:          false,
+		SigningKey:     expSigningKey,
 	}
 	backend.SetIDTokenTemplate(&idTokenTemplate)
 
