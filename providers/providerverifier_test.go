@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -114,20 +114,46 @@ func TestProviderVerifier(t *testing.T) {
 			signingKey, err := util.GenKeyPair(alg)
 			require.NoError(t, err)
 
-			var pkt *pktoken.PKToken
-			extraClaims := map[string]any{}
-			if tc.aud != "" {
-				extraClaims = map[string]any{
-					"aud": tc.aud,
-				}
+			idtTemplate := override.IDTokenTemplate{
+				CommitmentFunc: override.AddNonceCommit,
+				Issuer:         "mockIssuer",
+				Nonce:          "empty",
+				NoNonce:        false,
+				Aud:            "empty",
+				Alg:            "RS256",
+				NoAlg:          false,
 			}
-			pkt, err = mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, extraClaims, mocks.UseGQSign(tc.tokenGQSign), mocks.UseGQCommitment(tc.tokenGQCommitment), mocks.CorrectCicHash(tc.correctCicHash), mocks.CorrectCicSig(tc.correctCicSig))
+
+			if tc.commitmentClaim == "nonce" {
+				idtTemplate.CommitmentFunc = override.AddNonceCommit
+			} else if tc.commitmentClaim == "aud" {
+				idtTemplate.CommitmentFunc = override.AddAudCommit
+			} else {
+				idtTemplate.CommitmentFunc = override.NoClaimCommit
+			}
+
+			if tc.aud != "" {
+				idtTemplate.Aud = tc.aud
+			}
+
+			options := &mocks.MockPKTokenOpts{
+				GQSign:         tc.tokenGQSign,
+				GQCommitment:   tc.tokenGQCommitment,
+				CorrectCicHash: tc.correctCicHash,
+				CorrectCicSig:  tc.correctCicSig,
+			}
+
+			// TODO: Once provider RequestTokens returns an ID token instead of a PK Token, replace this with a mock provider
+			pkt, backend, err := mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, idtTemplate, options)
 			require.NoError(t, err)
 
 			issuer, err := pkt.Issuer()
 			require.NoError(t, err)
 			pv := providers.NewProviderVerifier(issuer, tc.commitmentClaim,
-				providers.ProviderVerifierOpts{GQOnly: tc.pvGQOnly, GQCommitment: tc.pvGQCommitment, ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
+				providers.ProviderVerifierOpts{
+					DiscoverPublicKey: &backend.PublicKeyFinder,
+					GQOnly:            tc.pvGQOnly, GQCommitment: tc.pvGQCommitment,
+					ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
 			err = pv.VerifyProvider(context.Background(), pkt)
 
 			if tc.expError != "" {

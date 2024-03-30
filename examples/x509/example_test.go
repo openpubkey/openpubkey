@@ -29,7 +29,6 @@ func TestSimpleExample(t *testing.T) {
 	CommitmentClaimName := "aud"
 	opOpts := providers.MockOpOpts{
 		SignGQ:              true,
-		ClaimCommitment:     false,
 		CommitmentClaimName: CommitmentClaimName,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: true,

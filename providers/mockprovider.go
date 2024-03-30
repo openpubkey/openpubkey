@@ -31,7 +31,6 @@ const mockOpIssuer = "https://accounts.example.com"
 type MockOpOpts struct {
 	SignGQ              bool
 	GQCommitment        bool
-	ClaimCommitment     bool
 	CommitmentClaimName string
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure

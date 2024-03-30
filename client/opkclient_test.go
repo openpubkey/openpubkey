@@ -37,7 +37,6 @@ func TestClient(t *testing.T) {
 
 	clientID := "test-client-id"
 	commitmentClaimName := "nonce"
-	ClaimCommitment := true
 
 	testCases := []struct {
 		name        string
@@ -60,7 +59,6 @@ func TestClient(t *testing.T) {
 			var c *client.OpkClient
 			opOpts := providers.MockOpOpts{
 				SignGQ:              tc.gq,
-				ClaimCommitment:     ClaimCommitment,
 				CommitmentClaimName: commitmentClaimName,
 				GQCommitment:        false,
 				VerifierOpts: providers.ProviderVerifierOpts{

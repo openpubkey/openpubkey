@@ -30,7 +30,6 @@ func TestGitlabExample(t *testing.T) {
 	CommitmentClaimName := "nonce"
 	opOpts := providers.MockOpOpts{
 		SignGQ:              true,
-		ClaimCommitment:     true,
 		CommitmentClaimName: CommitmentClaimName,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: false,

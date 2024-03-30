@@ -25,17 +25,46 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithOpts(t, signingKey, alg, map[string]any{})
+	options := &MockPKTokenOpts{
+		GQSign:         false,
+		GQCommitment:   false,
+		CorrectCicHash: true,
+		CorrectCicSig:  true,
+	}
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	return pkt, err
 }
 
 func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
-	return GenerateMockPKTokenWithOpts(t, signingKey, alg, map[string]any{}, UseGQSign(true))
+	options := &MockPKTokenOpts{
+		GQSign:         true,
+		GQCommitment:   false,
+		CorrectCicHash: true,
+		CorrectCicSig:  true,
+	}
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	return pkt, err
+}
+
+func DefaultIDTokenTemplate() override.IDTokenTemplate {
+	return override.IDTokenTemplate{
+		CommitmentFunc: override.AddAudCommit,
+		Issuer:         "mockIssuer",
+		Nonce:          "empty",
+		NoNonce:        false,
+		Aud:            "empty",
+		KeyID:          "mockKeyID",
+		NoKeyID:        false,
+		Alg:            "RS256",
+		NoAlg:          false,
+	}
 }
 
 type MockPKTokenOpts struct {
@@ -45,91 +74,48 @@ type MockPKTokenOpts struct {
 	CorrectCicHash bool
 	CorrectCicSig  bool
 }
-type Opts func(a *MockPKTokenOpts)
-
-// Example use:
-//
-//	UseGQSign(true)
-func UseGQSign(gqSign bool) Opts {
-	return func(m *MockPKTokenOpts) {
-		m.GQSign = gqSign
-	}
-}
-
-// UseGQCommitment specifies whether the commitment binding should be a GQ
-// binding or a claim based binding.
-// Example use:
-//
-//	UseGQCommitment(true)
-func UseGQCommitment(gqCommitment bool) Opts {
-	return func(m *MockPKTokenOpts) {
-		m.GQCommitment = gqCommitment
-	}
-}
-
-// Example use:
-//
-//	UseGQOnly(true)
-func UseGQOnly(gqOnly bool) Opts {
-	return func(m *MockPKTokenOpts) {
-		m.GQOnly = gqOnly
-	}
-}
-
-func CorrectCicHash(correctCicHash bool) Opts {
-	return func(m *MockPKTokenOpts) {
-		m.CorrectCicHash = correctCicHash
-	}
-}
-
-func CorrectCicSig(correctCicSig bool) Opts {
-	return func(m *MockPKTokenOpts) {
-		m.CorrectCicSig = correctCicSig
-	}
-}
 
 func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
-	extraClaims map[string]any, opts ...Opts) (*pktoken.PKToken, error) {
-
-	options := &MockPKTokenOpts{
-		GQSign:         false,
-		GQCommitment:   false,
-		CorrectCicHash: true,
-		CorrectCicSig:  true,
-	}
-	for _, applyOpt := range opts {
-		applyOpt(options)
-	}
+	idtTemplate override.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *override.ProviderOverride, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	err = jwkKey.Set(jwk.AlgorithmKey, alg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 	gqOnly := options.GQCommitment
 
-	// Generate mock id token
-	op, err := mocks.NewMockOpenIdProvider(t, extraClaims,
-		mocks.UseGQSign(options.GQSign),
-		mocks.UseGQCommitment(options.GQCommitment),
-		mocks.UseGQOnly(gqOnly))
-	if err != nil {
-		return nil, err
+	opOpts := providers.MockOpOpts{
+		SignGQ:              options.GQSign,
+		CommitmentClaimName: "nonce",
+		GQCommitment:        options.GQCommitment,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			SkipClientIDCheck: false,
+			GQOnly:            gqOnly,
+			GQCommitment:      options.GQCommitment,
+			ClientID:          "mockClient-ID",
+		},
 	}
+
+	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	require.NoError(t, err)
+	opSignKey, keyID, _ := backend.RandomSigningKey()
+	idtTemplate.KeyID = keyID
+	idtTemplate.SigningKey = opSignKey
+
+	backend.SetIDTokenTemplate(&idtTemplate)
 
 	idToken, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Return a PK Token where the CIC which doesn't match the commitment
@@ -137,7 +123,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		// overwrite the cic with a new cic with a different hash
 		cic, err = clientinstance.NewClaims(jwkKey, map[string]any{"cause": "differentCicHash"})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -149,20 +135,24 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 
 		jwkKey, err = jwk.PublicKeyOf(signingKey)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		err = jwkKey.Set(jwk.AlgorithmKey, alg)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	// Sign mock id token payload with cic headers
 	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Combine two tokens into a PK Token
-	return pktoken.New(idToken, cicToken)
+	pkt, err := pktoken.New(idToken, cicToken)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pkt, backend, nil
 }
