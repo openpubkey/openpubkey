@@ -119,6 +119,9 @@ func Login(op providers.OpenIdProvider) ([]byte, []byte, error) {
 		op,
 		client.WithSigner(signer, alg),
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return createSSHCert(context.Background(), opkClient, principals)
 }

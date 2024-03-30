@@ -68,6 +68,11 @@ func (m *MockOp) requestTokens(_ context.Context, cicHash string) ([]byte, error
 }
 
 func (m *MockOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+	if m.options.GQCommitment && !m.options.SignGQ {
+		// Catch misconfigurations in tests
+		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
+	}
+
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {

@@ -14,8 +14,6 @@ require (
 	golang.org/x/crypto v0.21.0
 )
 
-require github.com/stretchr/objx v0.5.2 // indirect
-
 require (
 	github.com/awnumar/memcall v0.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

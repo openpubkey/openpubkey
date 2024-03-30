@@ -10,7 +10,6 @@ import (
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/stretchr/testify/require"
 
@@ -64,9 +63,7 @@ func TestSshCli(t *testing.T) {
 func TestAuthorizedKeysCommand(t *testing.T) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// extra ID token payload claims
 	mockEmail := "arthur.aardvark@example.com"
@@ -74,10 +71,33 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		"email": mockEmail,
 	}
 
-	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
-	if err != nil {
-		t.Fatal(err)
+	opOpts := providers.MockOpOpts{
+		SignGQ:              false,
+		CommitmentClaimName: "nonce",
+		GQCommitment:        false,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			SkipClientIDCheck: false,
+			GQOnly:            false,
+			GQCommitment:      false,
+			ClientID:          clientID,
+		},
 	}
+
+	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+
+	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentFunc: override.AddNonceCommit,
+		Issuer:         op.Issuer(),
+		Aud:            clientID,
+		KeyID:          expKeyID,
+		Alg:            expRecord.Alg,
+		SigningKey:     expSigningKey,
+		ExtraClaims:    extraClaims,
+	}
+	backend.SetIDTokenTemplate(&idTokenTemplate)
 
 	client, err := client.New(op, client.WithSigner(signer, alg))
 	require.NoError(t, err)

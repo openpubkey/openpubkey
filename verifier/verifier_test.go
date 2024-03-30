@@ -20,28 +20,67 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
+func NewMockOpenIdProvider(signGQ bool, extraClaims map[string]any) (providers.OpenIdProvider, error) {
+	clientID := "test_client_id"
+	opOpts := providers.MockOpOpts{
+		SignGQ:              signGQ,
+		CommitmentClaimName: "nonce",
+		GQCommitment:        false,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			SkipClientIDCheck: false,
+			GQOnly:            false,
+			GQCommitment:      false,
+			ClientID:          clientID,
+		},
+	}
+
+	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+
+	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentFunc: override.AddNonceCommit,
+		Issuer:         op.Issuer(),
+		Aud:            clientID,
+		KeyID:          expKeyID,
+		Alg:            expRecord.Alg,
+		ExtraClaims:    extraClaims,
+		SigningKey:     expSigningKey,
+	}
+	backend.SetIDTokenTemplate(&idTokenTemplate)
+
+	return op, nil
+}
+
 func TestVerifier(t *testing.T) {
 	clientID := "verifier"
 	commitmentClaim := "nonce"
-	provider, err := mocks.NewMockOpenIdProvider(t, map[string]any{
+
+	noSignGQ := false
+	signGQ := true
+	provider, err := NewMockOpenIdProvider(noSignGQ, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
 
-	providerGQ, err := mocks.NewMockOpenIdProvider(t, map[string]any{
+	providerGQ, err := NewMockOpenIdProvider(signGQ, map[string]any{
 		"aud": clientID,
-	}, mocks.UseGQSign(true))
+	})
 	require.NoError(t, err)
 
 	opkClient, err := client.New(provider)
@@ -99,7 +138,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// If audience is a list of strings, make sure verification holds
-	provider, err = mocks.NewMockOpenIdProvider(t, map[string]any{
+	provider, err = NewMockOpenIdProvider(noSignGQ, map[string]any{
 		"aud": []string{clientID},
 	})
 	require.NoError(t, err)
@@ -187,10 +226,35 @@ func TestGQCommitment(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			skipClientIDCheck := true
 
-			provider, err := mocks.NewMockOpenIdProvider(t, map[string]any{
-				"aud": tc.aud,
-			}, mocks.UseGQSign(tc.gqSign), mocks.UseGQCommitment(tc.gqCommitment), mocks.UseGQOnly(tc.gqOnly))
+			clientID := "test_client_id"
+			opOpts := providers.MockOpOpts{
+				SignGQ:              tc.gqSign,
+				CommitmentClaimName: "nonce",
+				GQCommitment:        tc.gqCommitment,
+				VerifierOpts: providers.ProviderVerifierOpts{
+					SkipClientIDCheck: skipClientIDCheck,
+					GQOnly:            tc.gqOnly,
+					GQCommitment:      tc.gqCommitment,
+					ClientID:          clientID,
+				},
+			}
+
+			provider, backend, err := providers.NewMockOpAndBackend(opOpts)
+			require.NoError(t, err)
+
+			expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+
+			idTokenTemplate := override.IDTokenTemplate{
+				CommitmentFunc: override.AddNonceCommit,
+				Issuer:         provider.Issuer(),
+				Aud:            tc.aud,
+				KeyID:          expKeyID,
+				Alg:            expRecord.Alg,
+				SigningKey:     expSigningKey,
+			}
+			backend.SetIDTokenTemplate(&idTokenTemplate)
 
 			require.NoError(t, err)
 
@@ -199,6 +263,10 @@ func TestGQCommitment(t *testing.T) {
 			pkt, err := opkClient.Auth(context.Background())
 
 			if tc.expError != "" {
+				// ~ERH: breaks here, not sure why
+				fmt.Println(tc.name)
+				fmt.Println(err)
+				fmt.Println(tc.expError)
 				require.ErrorContains(t, err, tc.expError)
 			} else {
 				cicHash, ok := pkt.Op.ProtectedHeaders().Get("cic")

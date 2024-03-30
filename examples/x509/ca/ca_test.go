@@ -29,13 +29,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/client"
-	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/override"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestCACertCreation(t *testing.T) {
-	op, err := clientmock.NewMockOpenIdProvider(t, map[string]any{})
+	clientID := "test_client_id"
+	opOpts := providers.MockOpOpts{
+		SignGQ:              false,
+		CommitmentClaimName: "nonce",
+		GQCommitment:        false,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			SkipClientIDCheck: false,
+			GQOnly:            false,
+			GQCommitment:      false,
+			ClientID:          clientID,
+		},
+	}
+
+	op, backend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+
+	idTokenTemplate := override.IDTokenTemplate{
+		CommitmentFunc: override.AddNonceCommit,
+		Issuer:         op.Issuer(),
+		Aud:            clientID,
+		KeyID:          expKeyID,
+		Alg:            expRecord.Alg,
+		SigningKey:     expSigningKey,
+	}
+	backend.SetIDTokenTemplate(&idTokenTemplate)
 
 	certAuth, err := New(op)
 	require.NoError(t, err)
