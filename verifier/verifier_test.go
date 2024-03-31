@@ -46,7 +46,7 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, opBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, opBackend, err := providers.NewMockProviderAndBackend(opOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -231,6 +231,7 @@ func TestGQCommitment(t *testing.T) {
 
 			clientID := "test_client_id"
 			opOpts := providers.MockOpOpts{
+				ClientID:            clientID,
 				SignGQ:              tc.gqSign,
 				CommitmentClaimName: "nonce",
 				GQCommitment:        tc.gqCommitment,
@@ -241,21 +242,21 @@ func TestGQCommitment(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-
-			provider, opBackend, err := providers.NewMockOpAndBackend(opOpts)
+			provider, _, idtTemplate, err := providers.NewMockProvider(opOpts)
+			// provider, opBackend, err := providers.NewMockProviderAndBackend(opOpts)
 			require.NoError(t, err)
 
-			expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
-
-			idTokenTemplate := backend.IDTokenTemplate{
-				CommitmentFunc: backend.AddNonceCommit,
-				Issuer:         provider.Issuer(),
-				Aud:            tc.aud,
-				KeyID:          expKeyID,
-				Alg:            expRecord.Alg,
-				SigningKey:     expSigningKey,
-			}
-			opBackend.SetIDTokenTemplate(&idTokenTemplate)
+			// expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
+			idtTemplate.Aud = tc.aud
+			// idTokenTemplate := backend.IDTokenTemplate{
+			// 	CommitmentFunc: backend.AddNonceCommit,
+			// 	Issuer:         provider.Issuer(),
+			// 	Aud:            tc.aud,
+			// 	KeyID:          expKeyID,
+			// 	Alg:            expRecord.Alg,
+			// 	SigningKey:     expSigningKey,
+			// }
+			// opBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 			require.NoError(t, err)
 

@@ -48,7 +48,7 @@ func TestCACertCreation(t *testing.T) {
 		},
 	}
 
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockProviderAndBackend(opOpts)
 	require.NoError(t, err)
 
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()

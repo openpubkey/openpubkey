@@ -30,7 +30,7 @@ import (
 func TestGitlabSimpleRequest(t *testing.T) {
 
 	issuer := gitlabIssuer
-	providerOverride, err := backend.NewMockProviderOverride(issuer, 2)
+	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GitlabOp{

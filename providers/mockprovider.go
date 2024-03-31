@@ -30,6 +30,7 @@ const mockOpIssuer = "https://accounts.example.com"
 
 type MockOpOpts struct {
 	Issuer              string
+	ClientID            string
 	SignGQ              bool
 	GQCommitment        bool
 	CommitmentClaimName string
@@ -45,17 +46,64 @@ type MockOp struct {
 	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
-func NewMockOpAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, error) {
+// NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
+// the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
+// Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
+func NewMockProvider(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, *backend.IDTokenTemplate, error) {
 	if opOpts.Issuer == "" {
 		opOpts.Issuer = mockOpIssuer
 	}
-	mockBackend, err := backend.NewMockProviderOverride(opOpts.Issuer, 2)
+	provider, mockBackend, err := NewMockProviderAndBackend(opOpts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	providerSigner, keyID, record := mockBackend.RandomSigningKey()
+	commitmentFunc := backend.NoClaimCommit
+	if opOpts.CommitmentClaimName == "nonce" {
+		commitmentFunc = backend.AddNonceCommit
+	} else if opOpts.CommitmentClaimName == "aud" {
+		commitmentFunc = backend.AddAudCommit
+	}
+	idTokenTemplate := &backend.IDTokenTemplate{
+		CommitmentFunc: commitmentFunc,
+		Issuer:         provider.Issuer(),
+		Nonce:          "empty",
+		NoNonce:        false,
+		Aud:            opOpts.ClientID,
+		KeyID:          keyID,
+		NoKeyID:        false,
+		Alg:            record.Alg,
+		NoAlg:          false,
+		SigningKey:     providerSigner,
+	}
+	if opOpts.GQCommitment {
+		idTokenTemplate.Aud = AudPrefixForGQCommitment
+	}
+
+	mockBackend.SetIDTokenTemplate(idTokenTemplate)
+	return provider, mockBackend, idTokenTemplate, nil
+}
+
+func NewMockProviderAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, error) {
+	if opOpts.Issuer == "" {
+		opOpts.Issuer = mockOpIssuer
+	}
+	numKeys := 2
+	mockBackend, err := backend.NewMockProviderBackend(opOpts.Issuer, numKeys)
 	if err != nil {
 		return nil, nil, err
 	}
-	return NewMockOp(mockBackend, opOpts), mockBackend, nil
+	mockProvider := &MockOp{
+		options:                  opOpts,
+		issuer:                   mockBackend.Issuer,
+		requestTokenOverrideFunc: mockBackend.RequestTokenOverrideFunc,
+		publicKeyFinder:          mockBackend.PublicKeyFinder,
+	}
+	return mockProvider, mockBackend, nil
 }
 
+// TODO: Delete this function once all tests are using NewMockProvider
 func NewMockOp(opBackend *backend.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
 	return &MockOp{
 		options:                  opOpts,

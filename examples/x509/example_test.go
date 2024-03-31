@@ -20,39 +20,22 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSimpleExample(t *testing.T) {
 
-	CommitmentClaimName := "aud"
 	opOpts := providers.MockOpOpts{
+		Issuer:              "mockIssuer",
 		SignGQ:              true,
-		CommitmentClaimName: CommitmentClaimName,
+		CommitmentClaimName: "aud",
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: true,
 			GQOnly:            true,
-			GQCommitment:      false,
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, _, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddAudCommit,
-		Issuer:         op.Issuer(),
-		Nonce:          "empty",
-		NoNonce:        false,
-		KeyID:          expKeyID,
-		NoKeyID:        false,
-		Alg:            expRecord.Alg,
-		NoAlg:          false,
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	err = login(op)
 	require.NoError(t, err)

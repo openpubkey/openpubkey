@@ -20,42 +20,24 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGitlabExample(t *testing.T) {
-
-	clientID := "mockClient-ID"
-	CommitmentClaimName := "nonce"
 	opOpts := providers.MockOpOpts{
+		Issuer:              "mockIssuer",
+		ClientID:            "mockClient-ID",
 		SignGQ:              true,
-		CommitmentClaimName: CommitmentClaimName,
+		CommitmentClaimName: "nonce",
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: false,
 			GQOnly:            true,
 			GQCommitment:      false,
-			ClientID:          clientID,
+			ClientID:          "mockClient-ID",
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, _, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Nonce:          "empty",
-		NoNonce:        false,
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		NoKeyID:        false,
-		Alg:            expRecord.Alg,
-		NoAlg:          false,
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	pktJson, signedMsg, err := Sign(op)
 	require.NoError(t, err)

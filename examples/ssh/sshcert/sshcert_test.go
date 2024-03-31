@@ -13,7 +13,6 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -87,35 +86,19 @@ func TestSshCertCreation(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	clientID := "test_client_id"
 	opOpts := providers.MockOpOpts{
-		SignGQ:              false,
+		Issuer:              "mockIssuer",
+		ClientID:            "mockClient-ID",
 		CommitmentClaimName: "nonce",
-		GQCommitment:        false,
 		VerifierOpts: providers.ProviderVerifierOpts{
-			SkipClientIDCheck: false,
-			GQOnly:            false,
-			GQCommitment:      false,
-			ClientID:          clientID,
+			ClientID: "mockClient-ID",
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, idtTemplate, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-
 	mockEmail := "arthur.aardvark@example.com"
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		Alg:            expRecord.Alg,
-		ExtraClaims:    map[string]any{"email": mockEmail},
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
+	idtTemplate.ExtraClaims = map[string]any{"email": mockEmail}
 
 	client, err := client.New(op, client.WithSigner(signingKey, alg))
 	require.NoError(t, err)
@@ -158,6 +141,7 @@ func TestSshCertCreation(t *testing.T) {
 
 	cryptoCertKey := (sshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
+	require.NoError(t, err)
 	if !jwk.Equal(upk, jwkCertKey) {
 		t.Error(fmt.Errorf("expected upk to be equal to the value in sshCert.Key"))
 	}

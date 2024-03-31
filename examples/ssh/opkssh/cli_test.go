@@ -10,7 +10,6 @@ import (
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -22,37 +21,18 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestSshCli(t *testing.T) {
-
-	clientID := "mockClient-ID"
-	CommitmentClaimName := "nonce"
 	opOpts := providers.MockOpOpts{
+		Issuer:              "mockIssuer",
+		ClientID:            "mockClient-ID",
 		SignGQ:              true,
-		CommitmentClaimName: CommitmentClaimName,
+		CommitmentClaimName: "nonce",
 		VerifierOpts: providers.ProviderVerifierOpts{
-			SkipClientIDCheck: false,
-			GQOnly:            true,
-			GQCommitment:      false,
-			ClientID:          clientID,
+			ClientID: "mockClient-ID",
+			GQOnly:   true,
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, _, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Nonce:          "empty",
-		NoNonce:        false,
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		NoKeyID:        false,
-		Alg:            expRecord.Alg,
-		NoAlg:          false,
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	certBytes, seckeySshPem, err := Login(op)
 	require.NoError(t, err)
@@ -65,39 +45,21 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	// extra ID token payload claims
-	mockEmail := "arthur.aardvark@example.com"
-	extraClaims := map[string]any{
-		"email": mockEmail,
-	}
-
 	opOpts := providers.MockOpOpts{
-		SignGQ:              false,
+		Issuer:              "mockIssuer",
+		ClientID:            "mockClient-ID",
 		CommitmentClaimName: "nonce",
-		GQCommitment:        false,
 		VerifierOpts: providers.ProviderVerifierOpts{
-			SkipClientIDCheck: false,
-			GQOnly:            false,
-			GQCommitment:      false,
-			ClientID:          clientID,
+			ClientID: "mockClient-ID",
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, idtTemplate, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		Alg:            expRecord.Alg,
-		SigningKey:     expSigningKey,
-		ExtraClaims:    extraClaims,
+	mockEmail := "arthur.aardvark@example.com"
+	idtTemplate.ExtraClaims = map[string]any{
+		"email": mockEmail,
 	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	client, err := client.New(op, client.WithSigner(signer, alg))
 	require.NoError(t, err)

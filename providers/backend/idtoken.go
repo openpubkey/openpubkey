@@ -30,6 +30,12 @@ type CommitmentType struct {
 	ClaimName       string
 }
 
+// TODO: Not sure if I should make IDTokenTemplate a generator
+type IDTokenTemplate2 interface {
+	AddCommit(cicHash string)
+	IssueToken() ([]byte, error)
+}
+
 type IDTokenTemplate struct {
 	CommitmentFunc       func(*IDTokenTemplate, string)
 	Issuer               string

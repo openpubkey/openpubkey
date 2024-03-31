@@ -105,7 +105,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, backend, err := providers.NewMockProviderAndBackend(opOpts)
 	require.NoError(t, err)
 	opSignKey, keyID, _ := backend.RandomSigningKey()
 	idtTemplate.KeyID = keyID

@@ -20,15 +20,14 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGitlabExample(t *testing.T) {
-	SignGQ := true
-
 	opOpts := providers.MockOpOpts{
-		SignGQ:       SignGQ,
+		Issuer:       "mockIssuer",
+		ClientID:     "mockClient-ID",
+		SignGQ:       true,
 		GQCommitment: true,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: true,
@@ -36,25 +35,8 @@ func TestGitlabExample(t *testing.T) {
 			GQCommitment:      true,
 		},
 	}
-
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, _, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.NoClaimCommit,
-		Issuer:         op.Issuer(),
-		Nonce:          "empty",
-		NoNonce:        false,
-		Aud:            providers.AudPrefixForGQCommitment,
-		KeyID:          expKeyID,
-		NoKeyID:        false,
-		Alg:            expRecord.Alg,
-		NoAlg:          false,
-		ExtraClaims:    map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	opts := Opts{
 		altOp: op,

@@ -32,7 +32,7 @@ import (
 func TestMockOpTableTest(t *testing.T) {
 
 	issuer := mockOpIssuer
-	providerOverride, err := backend.NewMockProviderOverride(issuer, 2)
+	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
 	SignGQ := false

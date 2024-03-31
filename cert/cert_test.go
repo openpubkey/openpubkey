@@ -26,7 +26,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +39,7 @@ func TestCreateX509Cert(t *testing.T) {
 
 	clientID := "test_client_id"
 	opOpts := providers.MockOpOpts{
+		ClientID:            clientID,
 		SignGQ:              true,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        false,
@@ -51,23 +51,8 @@ func TestCreateX509Cert(t *testing.T) {
 		},
 	}
 
-	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
+	op, _, _, err := providers.NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
-
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		Alg:            expRecord.Alg,
-		SigningKey:     expSigningKey,
-	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
-
-	// op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(true))
-	// require.NoError(t, err)
 
 	opkClient, err := client.New(op, client.WithSigner(signer, alg))
 	require.NoError(t, err)

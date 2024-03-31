@@ -40,7 +40,7 @@ type ProviderOverride struct {
 	IDTokensTemplate      *IDTokenTemplate
 }
 
-func NewMockProviderOverride(issuer string, numKeys int) (*ProviderOverride, error) {
+func NewMockProviderBackend(issuer string, numKeys int) (*ProviderOverride, error) {
 	providerSigningKeySet, providerPublicKeySet, err := CreateRS256KeySet(issuer, numKeys)
 	if err != nil {
 		return nil, err

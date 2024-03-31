@@ -33,7 +33,7 @@ import (
 func TestSimpleOverride(t *testing.T) {
 
 	issuer := "https://accounts.example.com/"
-	override, err := NewMockProviderOverride(issuer, 3)
+	override, err := NewMockProviderBackend(issuer, 3)
 	require.NoError(t, err)
 
 	expSigningKey, expKeyID, expRecord := override.RandomSigningKey()

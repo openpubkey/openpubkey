@@ -37,7 +37,7 @@ import (
 
 func TestGithubOpTableTest(t *testing.T) {
 	issuer := githubIssuer
-	providerOverride, err := backend.NewMockProviderOverride(issuer, 2)
+	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GithubOp{
