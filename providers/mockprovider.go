@@ -29,6 +29,7 @@ import (
 const mockOpIssuer = "https://accounts.example.com"
 
 type MockOpOpts struct {
+	Issuer              string
 	SignGQ              bool
 	GQCommitment        bool
 	CommitmentClaimName string
@@ -45,7 +46,10 @@ type MockOp struct {
 }
 
 func NewMockOpAndBackend(opOpts MockOpOpts) (OpenIdProvider, *override.ProviderOverride, error) {
-	mockBackend, err := override.NewMockProviderOverride(mockOpIssuer, 2)
+	if opOpts.Issuer == "" {
+		opOpts.Issuer = mockOpIssuer
+	}
+	mockBackend, err := override.NewMockProviderOverride(opOpts.Issuer, 2)
 	if err != nil {
 		return nil, nil, err
 	}

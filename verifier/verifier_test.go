@@ -32,9 +32,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewMockOpenIdProvider(signGQ bool, extraClaims map[string]any) (providers.OpenIdProvider, error) {
-	clientID := "test_client_id"
+func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *override.ProviderOverride, error) {
 	opOpts := providers.MockOpOpts{
+		Issuer:              issuer,
 		SignGQ:              signGQ,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        false,
@@ -48,7 +48,7 @@ func NewMockOpenIdProvider(signGQ bool, extraClaims map[string]any) (providers.O
 
 	op, backend, err := providers.NewMockOpAndBackend(opOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
@@ -64,21 +64,22 @@ func NewMockOpenIdProvider(signGQ bool, extraClaims map[string]any) (providers.O
 	}
 	backend.SetIDTokenTemplate(&idTokenTemplate)
 
-	return op, nil
+	return op, backend, nil
 }
 
 func TestVerifier(t *testing.T) {
+	issuer := "issuer-provider"
 	clientID := "verifier"
 	commitmentClaim := "nonce"
 
 	noSignGQ := false
 	signGQ := true
-	provider, err := NewMockOpenIdProvider(noSignGQ, map[string]any{
+	provider, backend, err := NewMockOpenIdProvider(noSignGQ, issuer, clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
 
-	providerGQ, err := NewMockOpenIdProvider(signGQ, map[string]any{
+	providerGQ, backendGQ, err := NewMockOpenIdProvider(signGQ, issuer+"-gq", clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
@@ -123,7 +124,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// When "aud" claim is a single string, check that Client ID is verified when specified correctly
-	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID})
+	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID, DiscoverPublicKey: &backend.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
@@ -131,14 +132,14 @@ func TestVerifier(t *testing.T) {
 
 	// When "aud" claim is a single string, check that an incorrect Client ID when specified, fails
 	wrongClientID := "super_evil"
-	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: wrongClientID})
+	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: wrongClientID, DiscoverPublicKey: &backend.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	require.Error(t, err)
 
 	// If audience is a list of strings, make sure verification holds
-	provider, err = NewMockOpenIdProvider(noSignGQ, map[string]any{
+	provider, backend, err = NewMockOpenIdProvider(noSignGQ, issuer, clientID, map[string]any{
 		"aud": []string{clientID},
 	})
 	require.NoError(t, err)
@@ -149,14 +150,14 @@ func TestVerifier(t *testing.T) {
 	require.NoError(t, err)
 
 	// When "aud" claim is a list of strings, check that Client ID is verified when specified correctly
-	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID})
+	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID, DiscoverPublicKey: &backend.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	require.NoError(t, err)
 
 	// When "aud" claim is a list of strings, check that an incorrect Client ID when specified, fails
-	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: wrongClientID})
+	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: wrongClientID, DiscoverPublicKey: &backend.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
@@ -181,7 +182,7 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// When the PK token does not have a GQ signature but only GQ signatures are allowed, check that verification fails
-	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{})
+	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{DiscoverPublicKey: &backend.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())
@@ -193,7 +194,7 @@ func TestVerifier(t *testing.T) {
 	pkt, err = opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
-	providerVerifier = providers.NewProviderVerifier(providerGQ.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID})
+	providerVerifier = providers.NewProviderVerifier(providerGQ.Issuer(), commitmentClaim, providers.ProviderVerifierOpts{ClientID: clientID, DiscoverPublicKey: &backendGQ.PublicKeyFinder})
 	pktVerifier, err = verifier.New(providerVerifier)
 	require.NoError(t, err)
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt, verifier.GQOnly())

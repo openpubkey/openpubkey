@@ -114,8 +114,8 @@ func TestPkTokenJwsUnchanged(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			testUnchangedByCompact(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected)
-			testUnchangedAfterMarshalling(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected)
+			testUnchangedByCompact(t, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+			testUnchangedAfterMarshalling(t, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
 		})
 	}
 }
