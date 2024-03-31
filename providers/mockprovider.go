@@ -23,7 +23,7 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 )
 
 const mockOpIssuer = "https://accounts.example.com"
@@ -45,18 +45,18 @@ type MockOp struct {
 	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
-func NewMockOpAndBackend(opOpts MockOpOpts) (OpenIdProvider, *override.ProviderOverride, error) {
+func NewMockOpAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, error) {
 	if opOpts.Issuer == "" {
 		opOpts.Issuer = mockOpIssuer
 	}
-	mockBackend, err := override.NewMockProviderOverride(opOpts.Issuer, 2)
+	mockBackend, err := backend.NewMockProviderOverride(opOpts.Issuer, 2)
 	if err != nil {
 		return nil, nil, err
 	}
 	return NewMockOp(mockBackend, opOpts), mockBackend, nil
 }
 
-func NewMockOp(opBackend *override.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
+func NewMockOp(opBackend *backend.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
 	return &MockOp{
 		options:                  opOpts,
 		issuer:                   opBackend.Issuer,

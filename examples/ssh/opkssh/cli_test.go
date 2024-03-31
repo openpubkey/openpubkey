@@ -10,7 +10,7 @@ import (
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -36,12 +36,12 @@ func TestSshCli(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddNonceCommit,
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Nonce:          "empty",
 		NoNonce:        false,
@@ -52,7 +52,7 @@ func TestSshCli(t *testing.T) {
 		NoAlg:          false,
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	certBytes, seckeySshPem, err := Login(op)
 	require.NoError(t, err)
@@ -83,13 +83,13 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddNonceCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Aud:            clientID,
 		KeyID:          expKeyID,
@@ -97,7 +97,7 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 		SigningKey:     expSigningKey,
 		ExtraClaims:    extraClaims,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	client, err := client.New(op, client.WithSigner(signer, alg))
 	require.NoError(t, err)

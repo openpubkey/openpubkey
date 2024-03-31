@@ -13,7 +13,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -100,14 +100,14 @@ func TestSshCertCreation(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	mockEmail := "arthur.aardvark@example.com"
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddNonceCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Aud:            clientID,
 		KeyID:          expKeyID,
@@ -115,7 +115,7 @@ func TestSshCertCreation(t *testing.T) {
 		ExtraClaims:    map[string]any{"email": mockEmail},
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	client, err := client.New(op, client.WithSigner(signingKey, alg))
 	require.NoError(t, err)

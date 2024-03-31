@@ -23,7 +23,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -114,8 +114,8 @@ func TestProviderVerifier(t *testing.T) {
 			signingKey, err := util.GenKeyPair(alg)
 			require.NoError(t, err)
 
-			idtTemplate := override.IDTokenTemplate{
-				CommitmentFunc: override.AddNonceCommit,
+			idtTemplate := backend.IDTokenTemplate{
+				CommitmentFunc: backend.AddNonceCommit,
 				Issuer:         "mockIssuer",
 				Nonce:          "empty",
 				NoNonce:        false,
@@ -125,11 +125,11 @@ func TestProviderVerifier(t *testing.T) {
 			}
 
 			if tc.commitmentClaim == "nonce" {
-				idtTemplate.CommitmentFunc = override.AddNonceCommit
+				idtTemplate.CommitmentFunc = backend.AddNonceCommit
 			} else if tc.commitmentClaim == "aud" {
-				idtTemplate.CommitmentFunc = override.AddAudCommit
+				idtTemplate.CommitmentFunc = backend.AddAudCommit
 			} else {
-				idtTemplate.CommitmentFunc = override.NoClaimCommit
+				idtTemplate.CommitmentFunc = backend.NoClaimCommit
 			}
 
 			if tc.aud != "" {
@@ -144,14 +144,14 @@ func TestProviderVerifier(t *testing.T) {
 			}
 
 			// TODO: Once provider RequestTokens returns an ID token instead of a PK Token, replace this with a mock provider
-			pkt, backend, err := mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, idtTemplate, options)
+			pkt, backendMock, err := mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, idtTemplate, options)
 			require.NoError(t, err)
 
 			issuer, err := pkt.Issuer()
 			require.NoError(t, err)
 			pv := providers.NewProviderVerifier(issuer, tc.commitmentClaim,
 				providers.ProviderVerifierOpts{
-					DiscoverPublicKey: &backend.PublicKeyFinder,
+					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly, GQCommitment: tc.pvGQCommitment,
 					ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
 			err = pv.VerifyProvider(context.Background(), pkt)

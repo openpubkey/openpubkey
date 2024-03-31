@@ -26,7 +26,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -53,9 +53,9 @@ func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAl
 	return pkt, err
 }
 
-func DefaultIDTokenTemplate() override.IDTokenTemplate {
-	return override.IDTokenTemplate{
-		CommitmentFunc: override.AddAudCommit,
+func DefaultIDTokenTemplate() backend.IDTokenTemplate {
+	return backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddAudCommit,
 		Issuer:         "mockIssuer",
 		Nonce:          "empty",
 		NoNonce:        false,
@@ -76,7 +76,7 @@ type MockPKTokenOpts struct {
 }
 
 func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
-	idtTemplate override.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *override.ProviderOverride, error) {
+	idtTemplate backend.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *backend.ProviderOverride, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {

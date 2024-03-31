@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,12 +37,12 @@ func TestSimpleExample(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddAudCommit,
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddAudCommit,
 		Issuer:         op.Issuer(),
 		Nonce:          "empty",
 		NoNonce:        false,
@@ -52,7 +52,7 @@ func TestSimpleExample(t *testing.T) {
 		NoAlg:          false,
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	err = login(op)
 	require.NoError(t, err)

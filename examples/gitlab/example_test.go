@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,12 +37,12 @@ func TestGitlabExample(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.NoClaimCommit,
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.NoClaimCommit,
 		Issuer:         op.Issuer(),
 		Nonce:          "empty",
 		NoNonce:        false,
@@ -54,7 +54,7 @@ func TestGitlabExample(t *testing.T) {
 		ExtraClaims:    map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	opts := Opts{
 		altOp: op,

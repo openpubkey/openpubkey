@@ -30,14 +30,14 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGithubOpTableTest(t *testing.T) {
 	issuer := githubIssuer
-	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
+	providerOverride, err := backend.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GithubOp{
@@ -51,8 +51,8 @@ func TestGithubOpTableTest(t *testing.T) {
 	cic := genCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddAudCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddAudCommit,
 		Issuer:         issuer,
 		Nonce:          "empty",
 		NoNonce:        false,

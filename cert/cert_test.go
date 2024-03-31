@@ -26,7 +26,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -51,20 +51,20 @@ func TestCreateX509Cert(t *testing.T) {
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, mockBackend, err := providers.NewMockOpAndBackend(opOpts)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddNonceCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Aud:            clientID,
 		KeyID:          expKeyID,
 		Alg:            expRecord.Alg,
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	// op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(true))
 	// require.NoError(t, err)

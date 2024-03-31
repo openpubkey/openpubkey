@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ import (
 func TestGitlabSimpleRequest(t *testing.T) {
 
 	issuer := gitlabIssuer
-	providerOverride, err := override.NewMockProviderOverride(issuer, 2)
+	providerOverride, err := backend.NewMockProviderOverride(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GitlabOp{
@@ -44,8 +44,8 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	cic := genCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.NoClaimCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.NoClaimCommit,
 		Issuer:         issuer,
 		Nonce:          "empty",
 		NoNonce:        false,

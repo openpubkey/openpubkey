@@ -27,12 +27,12 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/override"
+	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
-func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *override.ProviderOverride, error) {
+func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.ProviderOverride, error) {
 	opOpts := providers.MockOpOpts{
 		Issuer:              issuer,
 		SignGQ:              signGQ,
@@ -46,15 +46,15 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, backend, err := providers.NewMockOpAndBackend(opOpts)
+	op, opBackend, err := providers.NewMockOpAndBackend(opOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
 
-	idTokenTemplate := override.IDTokenTemplate{
-		CommitmentFunc: override.AddNonceCommit,
+	idTokenTemplate := backend.IDTokenTemplate{
+		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Aud:            clientID,
 		KeyID:          expKeyID,
@@ -62,9 +62,9 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		ExtraClaims:    extraClaims,
 		SigningKey:     expSigningKey,
 	}
-	backend.SetIDTokenTemplate(&idTokenTemplate)
+	opBackend.SetIDTokenTemplate(&idTokenTemplate)
 
-	return op, backend, nil
+	return op, opBackend, nil
 }
 
 func TestVerifier(t *testing.T) {
@@ -242,20 +242,20 @@ func TestGQCommitment(t *testing.T) {
 				},
 			}
 
-			provider, backend, err := providers.NewMockOpAndBackend(opOpts)
+			provider, opBackend, err := providers.NewMockOpAndBackend(opOpts)
 			require.NoError(t, err)
 
-			expSigningKey, expKeyID, expRecord := backend.RandomSigningKey()
+			expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
 
-			idTokenTemplate := override.IDTokenTemplate{
-				CommitmentFunc: override.AddNonceCommit,
+			idTokenTemplate := backend.IDTokenTemplate{
+				CommitmentFunc: backend.AddNonceCommit,
 				Issuer:         provider.Issuer(),
 				Aud:            tc.aud,
 				KeyID:          expKeyID,
 				Alg:            expRecord.Alg,
 				SigningKey:     expSigningKey,
 			}
-			backend.SetIDTokenTemplate(&idTokenTemplate)
+			opBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 			require.NoError(t, err)
 
