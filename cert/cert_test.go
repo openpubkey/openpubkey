@@ -25,7 +25,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -38,19 +37,8 @@ func TestCreateX509Cert(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	clientID := "test_client_id"
-	opOpts := mocks.MockProviderOpts{
-		ClientID:            clientID,
-		SignGQ:              true,
-		CommitmentClaimName: "nonce",
-		GQCommitment:        false,
-		VerifierOpts: providers.ProviderVerifierOpts{
-			SkipClientIDCheck: false,
-			GQOnly:            false,
-			GQCommitment:      false,
-			ClientID:          clientID,
-		},
-	}
+	opOpts := mocks.DefaultMockProviderOpts()
+	opOpts.SignGQ = true
 
 	op, _, _, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)

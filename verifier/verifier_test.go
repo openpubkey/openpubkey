@@ -47,12 +47,12 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, opBackend, err := mocks.NewMockProviderAndBackend(opOpts)
+	op, mockBackend, err := mocks.NewMockProviderAndBackend(opOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	idTokenTemplate := backend.IDTokenTemplate{
 		CommitmentFunc: backend.AddNonceCommit,
@@ -63,9 +63,9 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		ExtraClaims:    extraClaims,
 		SigningKey:     expSigningKey,
 	}
-	opBackend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
-	return op, opBackend, nil
+	return op, mockBackend, nil
 }
 
 func TestVerifier(t *testing.T) {

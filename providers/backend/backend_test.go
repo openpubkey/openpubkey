@@ -30,13 +30,13 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-func TestSimpleOverride(t *testing.T) {
+func TestSimpleBackendOverride(t *testing.T) {
 
 	issuer := "https://accounts.example.com/"
-	override, err := NewMockProviderBackend(issuer, 3)
+	mockBackend, err := NewMockProviderBackend(issuer, 3)
 	require.NoError(t, err)
 
-	expSigningKey, expKeyID, expRecord := override.RandomSigningKey()
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	idTokenTemplate := IDTokenTemplate{
 		CommitmentFunc:       AddAudCommit,
@@ -52,14 +52,14 @@ func TestSimpleOverride(t *testing.T) {
 		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
 		SigningKey:           expSigningKey,
 	}
-	override.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	cicHash := util.Base64EncodeForJWT([]byte("0123456789ABCDEF0123456789ABCDEF"))
-	idt, err := override.RequestTokenOverrideFunc(string(cicHash))
+	idt, err := mockBackend.RequestTokenOverrideFunc(string(cicHash))
 	require.NoError(t, err)
 	require.NotNil(t, idt)
 
-	record, err := override.GetPublicKeyFinder().ByToken(context.Background(), issuer, idt)
+	record, err := mockBackend.GetPublicKeyFinder().ByToken(context.Background(), issuer, idt)
 	require.NoError(t, err)
 
 	payload, err := jws.Verify(idt, jws.WithKey(jwa.KeyAlgorithmFrom(record.Alg), record.PublicKey))

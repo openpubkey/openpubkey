@@ -109,11 +109,9 @@ func TestClient(t *testing.T) {
 			}
 
 			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			require.True(t, ok, tc.name+", missing jkt header")
+			require.True(t, ok, "missing jkt header")
 			jktstr, ok := jkt.(string)
-			if !ok {
-				t.Fatalf("expected jkt header to be a string, got %T", jkt)
-			}
+			require.True(t, ok, "expected jkt header to be a string, got %T", jkt)
 
 			pubkeyRecord, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
 			require.NoError(t, err, tc.name)
