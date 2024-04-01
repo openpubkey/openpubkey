@@ -77,7 +77,7 @@ type MockPKTokenOpts struct {
 }
 
 func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
-	idtTemplate backend.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *backend.ProviderOverride, error) {
+	idtTemplate backend.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *backend.MockProviderBackend, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -94,7 +94,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 	gqOnly := options.GQCommitment
 
-	opOpts := mocks.MockOpOpts{
+	opOpts := mocks.MockProviderOpts{
 		SignGQ:              options.GQSign,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        options.GQCommitment,

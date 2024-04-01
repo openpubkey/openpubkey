@@ -26,7 +26,7 @@ import (
 
 func TestSimpleExample(t *testing.T) {
 
-	opOpts := mocks.MockOpOpts{
+	opOpts := mocks.MockProviderOpts{
 		Issuer:              "mockIssuer",
 		SignGQ:              true,
 		CommitmentClaimName: "aud",

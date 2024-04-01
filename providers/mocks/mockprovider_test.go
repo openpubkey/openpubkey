@@ -30,9 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMockOpTableTest(t *testing.T) {
+func TestMockProviderTest(t *testing.T) {
 
-	opOpts := DefaultMockOpOpts()
+	opOpts := DefaultMockProviderOpts()
 
 	op, _, idtTemplate, err := NewMockProvider(opOpts)
 	require.NoError(t, err)

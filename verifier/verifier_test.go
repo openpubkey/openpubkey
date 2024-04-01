@@ -33,8 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.ProviderOverride, error) {
-	opOpts := mocks.MockOpOpts{
+func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
+	opOpts := mocks.MockProviderOpts{
 		Issuer:              issuer,
 		SignGQ:              signGQ,
 		CommitmentClaimName: "nonce",
@@ -231,7 +231,7 @@ func TestGQCommitment(t *testing.T) {
 			skipClientIDCheck := true
 
 			clientID := "test_client_id"
-			opOpts := mocks.MockOpOpts{
+			opOpts := mocks.MockProviderOpts{
 				ClientID:            clientID,
 				SignGQ:              tc.gqSign,
 				CommitmentClaimName: "nonce",

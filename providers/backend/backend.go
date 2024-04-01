@@ -32,7 +32,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-type ProviderOverride struct {
+type MockProviderBackend struct {
 	Issuer                string
 	PublicKeyFinder       discover.PublicKeyFinder
 	ProviderSigningKeySet map[string]crypto.Signer            // kid (keyId) -> signing key
@@ -40,13 +40,13 @@ type ProviderOverride struct {
 	IDTokensTemplate      *IDTokenTemplate
 }
 
-func NewMockProviderBackend(issuer string, numKeys int) (*ProviderOverride, error) {
+func NewMockProviderBackend(issuer string, numKeys int) (*MockProviderBackend, error) {
 	providerSigningKeySet, providerPublicKeySet, err := CreateRS256KeySet(issuer, numKeys)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ProviderOverride{
+	return &MockProviderBackend{
 		Issuer: issuer,
 		PublicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -70,28 +70,28 @@ func NewMockProviderBackend(issuer string, numKeys int) (*ProviderOverride, erro
 	}, nil
 }
 
-func (o *ProviderOverride) GetPublicKeyFinder() *discover.PublicKeyFinder {
+func (o *MockProviderBackend) GetPublicKeyFinder() *discover.PublicKeyFinder {
 	return &o.PublicKeyFinder
 }
 
-func (o *ProviderOverride) GetProviderPublicKeySet() map[string]discover.PublicKeyRecord {
+func (o *MockProviderBackend) GetProviderPublicKeySet() map[string]discover.PublicKeyRecord {
 	return o.ProviderPublicKeySet
 }
 
-func (o *ProviderOverride) GetProviderSigningKeySet() map[string]crypto.Signer {
+func (o *MockProviderBackend) GetProviderSigningKeySet() map[string]crypto.Signer {
 	return o.ProviderSigningKeySet
 }
 
-func (o *ProviderOverride) SetIDTokenTemplate(template *IDTokenTemplate) {
+func (o *MockProviderBackend) SetIDTokenTemplate(template *IDTokenTemplate) {
 	o.IDTokensTemplate = template
 }
 
-func (o *ProviderOverride) RequestTokenOverrideFunc(cicHash string) ([]byte, error) {
+func (o *MockProviderBackend) RequestTokenOverrideFunc(cicHash string) ([]byte, error) {
 	o.IDTokensTemplate.AddCommit(cicHash)
 	return o.IDTokensTemplate.IssueToken()
 }
 
-func (o *ProviderOverride) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRecord) {
+func (o *MockProviderBackend) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRecord) {
 	keyIDs := maps.Keys(o.GetProviderPublicKeySet())
 	keyID := keyIDs[mathrand.Intn(len(keyIDs))]
 	return o.GetProviderSigningKeySet()[keyID], keyID, o.GetProviderPublicKeySet()[keyID]

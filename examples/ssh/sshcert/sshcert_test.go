@@ -87,7 +87,7 @@ func TestSshCertCreation(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opOpts := mocks.MockOpOpts{
+	opOpts := mocks.MockProviderOpts{
 		Issuer:              "mockIssuer",
 		ClientID:            "mockClient-ID",
 		CommitmentClaimName: "nonce",

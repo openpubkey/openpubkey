@@ -39,7 +39,7 @@ func TestCreateX509Cert(t *testing.T) {
 	require.NoError(t, err)
 
 	clientID := "test_client_id"
-	opOpts := mocks.MockOpOpts{
+	opOpts := mocks.MockProviderOpts{
 		ClientID:            clientID,
 		SignGQ:              true,
 		CommitmentClaimName: "nonce",

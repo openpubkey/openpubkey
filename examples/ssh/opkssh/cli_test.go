@@ -22,7 +22,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestSshCli(t *testing.T) {
-	opOpts := mocks.MockOpOpts{
+	opOpts := mocks.MockProviderOpts{
 		Issuer:              "mockIssuer",
 		ClientID:            "mockClient-ID",
 		SignGQ:              true,
@@ -46,7 +46,7 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opOpts := mocks.DefaultMockOpOpts()
+	opOpts := mocks.DefaultMockProviderOpts()
 	op, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)
 

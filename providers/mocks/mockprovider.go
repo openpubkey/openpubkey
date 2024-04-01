@@ -27,9 +27,9 @@ import (
 	"github.com/openpubkey/openpubkey/providers/backend"
 )
 
-const mockOpIssuer = "https://accounts.example.com"
+const mockProviderIssuer = "https://accounts.example.com"
 
-type MockOpOpts struct {
+type MockProviderOpts struct {
 	Issuer              string
 	ClientID            string
 	SignGQ              bool
@@ -40,9 +40,9 @@ type MockOpOpts struct {
 	VerifierOpts providers.ProviderVerifierOpts
 }
 
-func DefaultMockOpOpts() MockOpOpts {
+func DefaultMockProviderOpts() MockProviderOpts {
 	clientID := "test_client_id"
-	return MockOpOpts{
+	return MockProviderOpts{
 		Issuer:              "https://accounts.example.com",
 		ClientID:            clientID,
 		SignGQ:              false,
@@ -57,8 +57,8 @@ func DefaultMockOpOpts() MockOpOpts {
 	}
 }
 
-type MockOp struct {
-	options                  MockOpOpts
+type MockProvider struct {
+	options                  MockProviderOpts
 	issuer                   string
 	publicKeyFinder          discover.PublicKeyFinder
 	requestTokenOverrideFunc func(string) ([]byte, error)
@@ -67,20 +67,20 @@ type MockOp struct {
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
 // the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
 // Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
-func NewMockProvider(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.ProviderOverride, *backend.IDTokenTemplate, error) {
-	if opOpts.Issuer == "" {
-		opOpts.Issuer = mockOpIssuer
+func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.MockProviderBackend, *backend.IDTokenTemplate, error) {
+	if opts.Issuer == "" {
+		opts.Issuer = mockProviderIssuer
 	}
-	provider, mockBackend, err := NewMockProviderAndBackend(opOpts)
+	provider, mockBackend, err := NewMockProviderAndBackend(opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
 	commitmentFunc := backend.NoClaimCommit
-	if opOpts.CommitmentClaimName == "nonce" {
+	if opts.CommitmentClaimName == "nonce" {
 		commitmentFunc = backend.AddNonceCommit
-	} else if opOpts.CommitmentClaimName == "aud" {
+	} else if opts.CommitmentClaimName == "aud" {
 		commitmentFunc = backend.AddAudCommit
 	}
 	idTokenTemplate := &backend.IDTokenTemplate{
@@ -88,14 +88,14 @@ func NewMockProvider(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.Prov
 		Issuer:         provider.Issuer(),
 		Nonce:          "empty",
 		NoNonce:        false,
-		Aud:            opOpts.ClientID,
+		Aud:            opts.ClientID,
 		KeyID:          keyID,
 		NoKeyID:        false,
 		Alg:            record.Alg,
 		NoAlg:          false,
 		SigningKey:     providerSigner,
 	}
-	if opOpts.GQCommitment {
+	if opts.GQCommitment {
 		idTokenTemplate.Aud = providers.AudPrefixForGQCommitment
 	}
 
@@ -103,16 +103,16 @@ func NewMockProvider(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.Prov
 	return provider, mockBackend, idTokenTemplate, nil
 }
 
-func NewMockProviderAndBackend(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.ProviderOverride, error) {
+func NewMockProviderAndBackend(opOpts MockProviderOpts) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
 	if opOpts.Issuer == "" {
-		opOpts.Issuer = mockOpIssuer
+		opOpts.Issuer = mockProviderIssuer
 	}
 	numKeys := 2
 	mockBackend, err := backend.NewMockProviderBackend(opOpts.Issuer, numKeys)
 	if err != nil {
 		return nil, nil, err
 	}
-	mockProvider := &MockOp{
+	mockProvider := &MockProvider{
 		options:                  opOpts,
 		issuer:                   mockBackend.Issuer,
 		requestTokenOverrideFunc: mockBackend.RequestTokenOverrideFunc,
@@ -121,13 +121,13 @@ func NewMockProviderAndBackend(opOpts MockOpOpts) (providers.OpenIdProvider, *ba
 	return mockProvider, mockBackend, nil
 }
 
-var _ providers.OpenIdProvider = (*MockOp)(nil)
+var _ providers.OpenIdProvider = (*MockProvider)(nil)
 
-func (m *MockOp) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
+func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
 	return m.requestTokenOverrideFunc(cicHash)
 }
 
-func (m *MockOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
 	if m.options.GQCommitment && !m.options.SignGQ {
 		// Catch misconfigurations in tests
 		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
@@ -150,22 +150,22 @@ func (m *MockOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) 
 	}
 	return idToken, nil
 }
-func (m *MockOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return m.publicKeyFinder.ByToken(ctx, m.issuer, token)
 }
 
-func (m *MockOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
+func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID)
 }
 
-func (m *MockOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+func (m *MockProvider) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
 	return m.publicKeyFinder.ByJTK(ctx, m.issuer, jtk)
 }
-func (m *MockOp) Issuer() string {
+func (m *MockProvider) Issuer() string {
 	return m.issuer
 }
 
-func (m *MockOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (m *MockProvider) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
 	if m.options.GQCommitment {
 		return providers.NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
