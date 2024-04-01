@@ -91,16 +91,16 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 		commitmentFunc = backend.AddAudCommit
 	}
 	idTokenTemplate := &backend.IDTokenTemplate{
-		CommitmentFunc: commitmentFunc,
-		Issuer:         provider.Issuer(),
-		Nonce:          "empty",
-		NoNonce:        false,
-		Aud:            opts.ClientID,
-		KeyID:          keyID,
-		NoKeyID:        false,
-		Alg:            record.Alg,
-		NoAlg:          false,
-		SigningKey:     providerSigner,
+		CommitFunc: commitmentFunc,
+		Issuer:     provider.Issuer(),
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        opts.ClientID,
+		KeyID:      keyID,
+		NoKeyID:    false,
+		Alg:        record.Alg,
+		NoAlg:      false,
+		SigningKey: providerSigner,
 	}
 	if opts.CommitType.GQCommitment {
 		idTokenTemplate.Aud = providers.AudPrefixForGQCommitment

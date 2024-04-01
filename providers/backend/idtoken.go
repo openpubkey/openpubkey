@@ -37,7 +37,7 @@ type IDTokenTemplate2 interface {
 }
 
 type IDTokenTemplate struct {
-	CommitmentFunc       func(*IDTokenTemplate, string)
+	CommitFunc           func(*IDTokenTemplate, string)
 	Issuer               string
 	Nonce                string
 	NoNonce              bool
@@ -55,7 +55,7 @@ type IDTokenTemplate struct {
 // AddCommit adds the commitment to the CIC to the ID Token. The
 // CommitmentFunc is specifed allowing custom commitment functions to be specified
 func (t *IDTokenTemplate) AddCommit(cicHash string) {
-	t.CommitmentFunc(t, cicHash)
+	t.CommitFunc(t, cicHash)
 }
 
 // TODO: rename t as it is confusing with t being used in tests

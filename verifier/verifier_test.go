@@ -54,13 +54,13 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	idTokenTemplate := &backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         op.Issuer(),
-		Aud:            clientID,
-		KeyID:          expKeyID,
-		Alg:            expRecord.Alg,
-		ExtraClaims:    extraClaims,
-		SigningKey:     expSigningKey,
+		CommitFunc:  backend.AddNonceCommit,
+		Issuer:      op.Issuer(),
+		Aud:         clientID,
+		KeyID:       expKeyID,
+		Alg:         expRecord.Alg,
+		ExtraClaims: extraClaims,
+		SigningKey:  expSigningKey,
 	}
 	mockBackend.SetIDTokenTemplate(idTokenTemplate)
 

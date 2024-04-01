@@ -45,7 +45,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
 	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc:       backend.AddNonceCommit,
+		CommitFunc:           backend.AddNonceCommit,
 		Issuer:               issuer,
 		Nonce:                "empty",
 		NoNonce:              false,

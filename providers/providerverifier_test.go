@@ -140,21 +140,21 @@ func TestProviderVerifier(t *testing.T) {
 			require.NoError(t, err)
 
 			idtTemplate := backend.IDTokenTemplate{
-				CommitmentFunc: backend.AddNonceCommit,
-				Issuer:         "mockIssuer",
-				Nonce:          "empty",
-				NoNonce:        false,
-				Aud:            "empty",
-				Alg:            "RS256",
-				NoAlg:          false,
+				CommitFunc: backend.AddNonceCommit,
+				Issuer:     "mockIssuer",
+				Nonce:      "empty",
+				NoNonce:    false,
+				Aud:        "empty",
+				Alg:        "RS256",
+				NoAlg:      false,
 			}
 
 			if tc.tokenCommitType.Claim == "nonce" {
-				idtTemplate.CommitmentFunc = backend.AddNonceCommit
+				idtTemplate.CommitFunc = backend.AddNonceCommit
 			} else if tc.tokenCommitType.Claim == "aud" {
-				idtTemplate.CommitmentFunc = backend.AddAudCommit
+				idtTemplate.CommitFunc = backend.AddAudCommit
 			} else {
-				idtTemplate.CommitmentFunc = backend.NoClaimCommit
+				idtTemplate.CommitFunc = backend.NoClaimCommit
 			}
 
 			if tc.aud != "" {
