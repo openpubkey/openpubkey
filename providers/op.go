@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
@@ -19,7 +18,7 @@ type OpenIdProvider interface {
 	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
+	VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
 type BrowserOpenIdProvider interface {

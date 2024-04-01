@@ -184,7 +184,7 @@ func TestProviderVerifier(t *testing.T) {
 					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly,
 					ClientID:          tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
-			err = pv.VerifyProvider(context.Background(), pkt)
+			err = pv.VerifyProvider(context.Background(), pkt.OpToken)
 
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError)

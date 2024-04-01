@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
@@ -152,7 +151,7 @@ func (m *MockProvider) Issuer() string {
 	return m.issuer
 }
 
-func (m *MockProvider) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (m *MockProvider) VerifyProvider(ctx context.Context, idt []byte) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
-	return providers.NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	return providers.NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, idt)
 }

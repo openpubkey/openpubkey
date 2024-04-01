@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
@@ -205,9 +204,9 @@ func (g *GoogleOp) Issuer() string {
 	return g.issuer
 }
 
-func (g *GoogleOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (g *GoogleOp) VerifyProvider(ctx context.Context, idt []byte) error {
 	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: googleAudience})
-	return vp.VerifyProvider(ctx, pkt)
+	return vp.VerifyProvider(ctx, idt)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

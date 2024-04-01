@@ -29,6 +29,7 @@ import (
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -82,7 +83,7 @@ func (v *DefaultProviderVerifier) Issuer() string {
 	return v.issuer
 }
 
-func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	// Sanity check that if GQCommitment is enabled then the other options
 	// are set correctly for doing GQ commitment verification. The intention is
 	// to catch misconfigurations early and provide meaningful error messages.
@@ -104,11 +105,11 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 
 	// Check whether Audience claim matches provided Client ID
 	// No error is thrown if option is set to skip client ID check
-	if err := verifyAudience(pkt, v.options.ClientID); err != nil && !v.options.SkipClientIDCheck {
+	if err := verifyAudience(idt, v.options.ClientID); err != nil && !v.options.SkipClientIDCheck {
 		return err
 	}
 
-	alg, ok := pkt.ProviderAlgorithm()
+	alg, ok := idt.ProviderAlgorithm()
 	if !ok {
 		return fmt.Errorf("provider algorithm type missing")
 	}

@@ -29,7 +29,7 @@ import (
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
+	VerifyProvider(ctx context.Context, idt []byte) error
 }
 
 type CosignerVerifier interface {
@@ -120,7 +120,7 @@ func (v *Verifier) VerifyPKToken(
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	if err := providerVerifier.VerifyProvider(ctx, pkt); err != nil {
+	if err := providerVerifier.VerifyProvider(ctx, pkt.OpToken); err != nil {
 		return err
 	}
 
