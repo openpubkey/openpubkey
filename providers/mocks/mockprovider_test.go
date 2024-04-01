@@ -34,12 +34,12 @@ func TestMockProviderTest(t *testing.T) {
 
 	providerOpts := DefaultMockProviderOpts()
 
-	op, _, idtTemplate, err := NewMockProvider(providerOpts)
+	provider, _, idtTemplate, err := NewMockProvider(providerOpts)
 	require.NoError(t, err)
 	idtTemplate.ExtraClaims = map[string]interface{}{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"}
 
 	cic := genCIC(t)
-	idToken, err := op.RequestTokens(context.TODO(), cic)
+	idToken, err := provider.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 
@@ -57,7 +57,7 @@ func TestMockProviderTest(t *testing.T) {
 	}{}
 	err = json.Unmarshal(payload, &payloadClaims)
 	require.NoError(t, err)
-	pkRecord, err := op.PublicKeyByToken(context.Background(), idToken)
+	pkRecord, err := provider.PublicKeyByToken(context.Background(), idToken)
 	require.NoError(t, err)
 
 	// Check that GQ Signature verifies

@@ -32,11 +32,11 @@ const mockProviderIssuer = "https://accounts.example.com"
 var _ providers.OpenIdProvider = (*MockProvider)(nil)
 
 type MockProviderOpts struct {
-	Issuer              string
-	ClientID            string
-	SignGQ              bool
-	GQCommitment        bool
-	CommitmentClaimName string
+	Issuer          string
+	ClientID        string
+	SignGQ          bool
+	GQCommitment    bool
+	CommitmentClaim string
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
 	VerifierOpts providers.ProviderVerifierOpts
@@ -45,12 +45,13 @@ type MockProviderOpts struct {
 func DefaultMockProviderOpts() MockProviderOpts {
 	clientID := "test_client_id"
 	return MockProviderOpts{
-		Issuer:              "https://accounts.example.com",
-		ClientID:            clientID,
-		SignGQ:              false,
-		GQCommitment:        false,
-		CommitmentClaimName: "nonce",
+		Issuer:          "https://accounts.example.com",
+		ClientID:        clientID,
+		SignGQ:          false,
+		GQCommitment:    false,
+		CommitmentClaim: "nonce",
 		VerifierOpts: providers.ProviderVerifierOpts{
+			CommitmentClaim:   "nonce",
 			ClientID:          clientID,
 			SkipClientIDCheck: false,
 			GQOnly:            false,
@@ -87,9 +88,9 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
 	commitmentFunc := backend.NoClaimCommit
-	if opts.CommitmentClaimName == "nonce" {
+	if opts.CommitmentClaim == "nonce" {
 		commitmentFunc = backend.AddNonceCommit
-	} else if opts.CommitmentClaimName == "aud" {
+	} else if opts.CommitmentClaim == "aud" {
 		commitmentFunc = backend.AddAudCommit
 	}
 	idTokenTemplate := &backend.IDTokenTemplate{
@@ -156,9 +157,10 @@ func (m *MockProvider) Issuer() string {
 
 func (m *MockProvider) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
-	if m.options.GQCommitment {
-		return providers.NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
-	}
-	claimName := m.options.CommitmentClaimName
-	return providers.NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	return providers.NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	// if m.options.GQCommitment {
+	// 	return providers.NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	// }
+	// claimName := m.options.CommitmentClaimName
+	// return providers.NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
 }

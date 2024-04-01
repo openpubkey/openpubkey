@@ -95,9 +95,9 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	gqOnly := options.GQCommitment
 
 	providerOpts := mocks.MockProviderOpts{
-		SignGQ:              options.GQSign,
-		CommitmentClaimName: "nonce",
-		GQCommitment:        options.GQCommitment,
+		SignGQ:          options.GQSign,
+		CommitmentClaim: "nonce",
+		GQCommitment:    options.GQCommitment,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: false,
 			GQOnly:            gqOnly,

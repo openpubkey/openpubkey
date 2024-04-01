@@ -44,6 +44,8 @@ type ProviderVerifierOpts struct {
 	// If ClientID is specified, then verification will require that the ClientID
 	// be present in the audience ("aud") claim of the PK token payload
 	ClientID string
+	// The ID token payload claim name where the cicHash was stored during issuance
+	CommitmentClaim string
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
@@ -61,10 +63,10 @@ type ProviderVerifierOpts struct {
 //
 // issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
-func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifierOpts) *DefaultProviderVerifier {
+func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultProviderVerifier {
 	v := &DefaultProviderVerifier{
 		issuer:          issuer,
-		commitmentClaim: commitmentClaim,
+		commitmentClaim: options.CommitmentClaim,
 		options:         options,
 	}
 

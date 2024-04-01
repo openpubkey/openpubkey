@@ -149,8 +149,9 @@ func TestProviderVerifier(t *testing.T) {
 
 			issuer, err := pkt.Issuer()
 			require.NoError(t, err)
-			pv := providers.NewProviderVerifier(issuer, tc.commitmentClaim,
+			pv := providers.NewProviderVerifier(issuer,
 				providers.ProviderVerifierOpts{
+					CommitmentClaim:   tc.commitmentClaim,
 					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly, GQCommitment: tc.pvGQCommitment,
 					ClientID: tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})

@@ -206,7 +206,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(googleIssuer, "nonce", ProviderVerifierOpts{ClientID: googleAudience})
+	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitmentClaim: "nonce", ClientID: googleAudience})
 	return vp.VerifyProvider(ctx, pkt)
 }
 

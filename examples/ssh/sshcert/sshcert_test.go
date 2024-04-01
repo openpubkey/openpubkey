@@ -12,7 +12,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -87,14 +86,7 @@ func TestSshCertCreation(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	providerOpts := mocks.MockProviderOpts{
-		Issuer:              "mockIssuer",
-		ClientID:            "mockClient-ID",
-		CommitmentClaimName: "nonce",
-		VerifierOpts: providers.ProviderVerifierOpts{
-			ClientID: "mockClient-ID",
-		},
-	}
+	providerOpts := mocks.DefaultMockProviderOpts()
 	op, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 

@@ -57,11 +57,11 @@ func TestClient(t *testing.T) {
 
 			var c *client.OpkClient
 			providerOpts := mocks.MockProviderOpts{
-				Issuer:              "mockIssuer",
-				ClientID:            clientID,
-				SignGQ:              tc.gq,
-				CommitmentClaimName: commitmentClaimName,
-				GQCommitment:        false,
+				Issuer:          "mockIssuer",
+				ClientID:        clientID,
+				SignGQ:          tc.gq,
+				CommitmentClaim: commitmentClaimName,
+				GQCommitment:    false,
 				VerifierOpts: providers.ProviderVerifierOpts{
 					SkipClientIDCheck: false,
 					GQOnly:            false,

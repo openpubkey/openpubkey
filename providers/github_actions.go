@@ -171,6 +171,6 @@ func (g *GithubOp) Issuer() string {
 }
 
 func (g *GithubOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(g.issuer, "aud", ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitmentClaim: "aud", GQOnly: true, SkipClientIDCheck: true})
 	return vp.VerifyProvider(ctx, pkt)
 }

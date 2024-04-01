@@ -101,8 +101,8 @@ func (g *GitlabOp) Issuer() string {
 }
 
 func (g *GitlabOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(g.issuer, "",
-		ProviderVerifierOpts{GQOnly: true, GQCommitment: true, SkipClientIDCheck: true},
+	vp := NewProviderVerifier(g.issuer,
+		ProviderVerifierOpts{CommitmentClaim: "", GQOnly: true, GQCommitment: true, SkipClientIDCheck: true},
 	)
 	return vp.VerifyProvider(ctx, pkt)
 }

@@ -25,16 +25,17 @@ import (
 )
 
 func TestSimpleExample(t *testing.T) {
-
 	providerOpts := mocks.MockProviderOpts{
-		Issuer:              "mockIssuer",
-		SignGQ:              true,
-		CommitmentClaimName: "aud",
+		Issuer:          "mockIssuer",
+		SignGQ:          true,
+		CommitmentClaim: "aud",
 		VerifierOpts: providers.ProviderVerifierOpts{
+			CommitmentClaim:   "aud",
 			SkipClientIDCheck: true,
 			GQOnly:            true,
 		},
 	}
+
 	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
