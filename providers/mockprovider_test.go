@@ -24,45 +24,19 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMockOpTableTest(t *testing.T) {
 
-	issuer := mockOpIssuer
-	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
+	opOpts := DefaultMockOpOpts()
+
+	op, _, idtTemplate, err := NewMockProvider(opOpts)
 	require.NoError(t, err)
-
-	SignGQ := false
-	opOpts := MockOpOpts{
-		SignGQ:       SignGQ,
-		GQCommitment: false,
-		VerifierOpts: ProviderVerifierOpts{
-			ClientID: googleAudience,
-		},
-	}
-
-	op := NewMockOp(providerOverride, opOpts)
+	idtTemplate.ExtraClaims = map[string]interface{}{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"}
 
 	cic := genCIC(t)
-	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitmentFunc: backend.AddNonceCommit,
-		Issuer:         issuer,
-		Nonce:          "empty",
-		NoNonce:        false,
-		Aud:            "empty",
-		KeyID:          expKeyID,
-		NoKeyID:        false,
-		Alg:            expRecord.Alg,
-		NoAlg:          false,
-		ExtraClaims:    map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
-		SigningKey:     expSigningKey,
-	}
-	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
-
 	idToken, err := op.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)

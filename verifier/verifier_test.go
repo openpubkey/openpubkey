@@ -243,20 +243,9 @@ func TestGQCommitment(t *testing.T) {
 				},
 			}
 			provider, _, idtTemplate, err := providers.NewMockProvider(opOpts)
-			// provider, opBackend, err := providers.NewMockProviderAndBackend(opOpts)
 			require.NoError(t, err)
 
-			// expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
 			idtTemplate.Aud = tc.aud
-			// idTokenTemplate := backend.IDTokenTemplate{
-			// 	CommitmentFunc: backend.AddNonceCommit,
-			// 	Issuer:         provider.Issuer(),
-			// 	Aud:            tc.aud,
-			// 	KeyID:          expKeyID,
-			// 	Alg:            expRecord.Alg,
-			// 	SigningKey:     expSigningKey,
-			// }
-			// opBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 			require.NoError(t, err)
 
@@ -265,7 +254,6 @@ func TestGQCommitment(t *testing.T) {
 			pkt, err := opkClient.Auth(context.Background())
 
 			if tc.expError != "" {
-				// ~ERH: breaks here, not sure why
 				fmt.Println(tc.name)
 				fmt.Println(err)
 				fmt.Println(tc.expError)

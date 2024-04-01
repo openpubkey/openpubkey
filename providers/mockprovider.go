@@ -39,6 +39,23 @@ type MockOpOpts struct {
 	VerifierOpts ProviderVerifierOpts
 }
 
+func DefaultMockOpOpts() MockOpOpts {
+	clientID := "test_client_id"
+	return MockOpOpts{
+		Issuer:              "https://accounts.example.com",
+		ClientID:            clientID,
+		SignGQ:              false,
+		GQCommitment:        false,
+		CommitmentClaimName: "nonce",
+		VerifierOpts: ProviderVerifierOpts{
+			ClientID:          clientID,
+			SkipClientIDCheck: false,
+			GQOnly:            false,
+			GQCommitment:      false,
+		},
+	}
+}
+
 type MockOp struct {
 	options                  MockOpOpts
 	issuer                   string
@@ -104,14 +121,14 @@ func NewMockProviderAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.Prov
 }
 
 // TODO: Delete this function once all tests are using NewMockProvider
-func NewMockOp(opBackend *backend.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
-	return &MockOp{
-		options:                  opOpts,
-		issuer:                   opBackend.Issuer,
-		requestTokenOverrideFunc: opBackend.RequestTokenOverrideFunc,
-		publicKeyFinder:          opBackend.PublicKeyFinder,
-	}
-}
+// func NewMockOp(opBackend *backend.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
+// 	return &MockOp{
+// 		options:                  opOpts,
+// 		issuer:                   opBackend.Issuer,
+// 		requestTokenOverrideFunc: opBackend.RequestTokenOverrideFunc,
+// 		publicKeyFinder:          opBackend.PublicKeyFinder,
+// 	}
+// }
 
 var _ OpenIdProvider = (*MockOp)(nil)
 
