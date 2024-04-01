@@ -35,7 +35,7 @@ import (
 func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
 	options := &MockPKTokenOpts{
 		GQSign:         false,
-		GQCommitment:   false,
+		CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
@@ -46,7 +46,7 @@ func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgo
 func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
 	options := &MockPKTokenOpts{
 		GQSign:         true,
-		GQCommitment:   false,
+		CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
@@ -70,7 +70,7 @@ func DefaultIDTokenTemplate() backend.IDTokenTemplate {
 
 type MockPKTokenOpts struct {
 	GQSign         bool
-	GQCommitment   bool
+	CommitType     providers.CommitType
 	GQOnly         bool
 	CorrectCicHash bool
 	CorrectCicSig  bool
@@ -92,16 +92,16 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	require.NoError(t, err)
 
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
-	gqOnly := options.GQCommitment
+	gqOnly := options.CommitType.GQCommitment
 
 	providerOpts := mocks.MockProviderOpts{
-		SignGQ:          options.GQSign,
-		CommitmentClaim: "nonce",
-		GQCommitment:    options.GQCommitment,
+		SignGQ:     options.GQSign,
+		CommitType: options.CommitType,
+
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: false,
 			GQOnly:            gqOnly,
-			GQCommitment:      options.GQCommitment,
+			CommitType:        options.CommitType,
 			ClientID:          "mockClient-ID",
 		},
 	}

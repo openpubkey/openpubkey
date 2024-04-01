@@ -27,6 +27,21 @@ type BrowserOpenIdProvider interface {
 	HookHTTPSession(h http.HandlerFunc)
 }
 
+type CommitType struct {
+	Claim        string
+	GQCommitment bool
+}
+
+var CommitTypesEnum = struct {
+	NONCE_CLAIM CommitType
+	AUD_CLAIM   CommitType
+	GQ_BOUND    CommitType
+}{
+	NONCE_CLAIM: CommitType{Claim: "nonce", GQCommitment: false},
+	AUD_CLAIM:   CommitType{Claim: "aud", GQCommitment: false},
+	GQ_BOUND:    CommitType{Claim: "", GQCommitment: true}, // The commitmentClaim is bound to the ID Token using only the GQ signature
+}
+
 func getEnvVar(name string) (string, error) {
 	value, ok := os.LookupEnv(name)
 	if !ok {

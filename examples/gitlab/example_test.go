@@ -26,14 +26,14 @@ import (
 
 func TestGitlabExample(t *testing.T) {
 	providerOpts := mocks.MockProviderOpts{
-		Issuer:       "mockIssuer",
-		ClientID:     "mockClient-ID",
-		SignGQ:       true,
-		GQCommitment: true,
+		Issuer:     "mockIssuer",
+		ClientID:   "mockClient-ID",
+		SignGQ:     true,
+		CommitType: providers.CommitTypesEnum.GQ_BOUND,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: true,
 			GQOnly:            true,
-			GQCommitment:      true,
+			CommitType:        providers.CommitTypesEnum.GQ_BOUND,
 		},
 	}
 	op, _, _, err := mocks.NewMockProvider(providerOpts)

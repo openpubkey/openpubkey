@@ -32,11 +32,10 @@ const mockProviderIssuer = "https://accounts.example.com"
 var _ providers.OpenIdProvider = (*MockProvider)(nil)
 
 type MockProviderOpts struct {
-	Issuer          string
-	ClientID        string
-	SignGQ          bool
-	GQCommitment    bool
-	CommitmentClaim string
+	Issuer     string
+	ClientID   string
+	SignGQ     bool
+	CommitType providers.CommitType
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
 	VerifierOpts providers.ProviderVerifierOpts
@@ -45,17 +44,15 @@ type MockProviderOpts struct {
 func DefaultMockProviderOpts() MockProviderOpts {
 	clientID := "test_client_id"
 	return MockProviderOpts{
-		Issuer:          "https://accounts.example.com",
-		ClientID:        clientID,
-		SignGQ:          false,
-		GQCommitment:    false,
-		CommitmentClaim: "nonce",
+		Issuer:     "https://accounts.example.com",
+		ClientID:   clientID,
+		SignGQ:     false,
+		CommitType: providers.CommitTypesEnum.NONCE_CLAIM,
 		VerifierOpts: providers.ProviderVerifierOpts{
-			CommitmentClaim:   "nonce",
+			CommitType:        providers.CommitTypesEnum.NONCE_CLAIM,
 			ClientID:          clientID,
 			SkipClientIDCheck: false,
 			GQOnly:            false,
-			GQCommitment:      false,
 		},
 	}
 }
@@ -88,9 +85,9 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
 	commitmentFunc := backend.NoClaimCommit
-	if opts.CommitmentClaim == "nonce" {
+	if opts.CommitType.Claim == "nonce" {
 		commitmentFunc = backend.AddNonceCommit
-	} else if opts.CommitmentClaim == "aud" {
+	} else if opts.CommitType.Claim == "aud" {
 		commitmentFunc = backend.AddAudCommit
 	}
 	idTokenTemplate := &backend.IDTokenTemplate{
@@ -105,7 +102,7 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 		NoAlg:          false,
 		SigningKey:     providerSigner,
 	}
-	if opts.GQCommitment {
+	if opts.CommitType.GQCommitment {
 		idTokenTemplate.Aud = providers.AudPrefixForGQCommitment
 	}
 
@@ -118,7 +115,7 @@ func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte,
 }
 
 func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
-	if m.options.GQCommitment && !m.options.SignGQ {
+	if m.options.CommitType.GQCommitment && !m.options.SignGQ {
 		// Catch misconfigurations in tests
 		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
 	}
@@ -132,7 +129,7 @@ func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Cl
 	if err != nil {
 		return nil, err
 	}
-	if m.options.GQCommitment {
+	if m.options.CommitType.GQCommitment {
 		return providers.CreateGQBoundToken(ctx, idToken, m, string(cicHash))
 	}
 	if m.options.SignGQ {
@@ -158,9 +155,4 @@ func (m *MockProvider) Issuer() string {
 func (m *MockProvider) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
 	return providers.NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, pkt)
-	// if m.options.GQCommitment {
-	// 	return providers.NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
-	// }
-	// claimName := m.options.CommitmentClaimName
-	// return providers.NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
 }

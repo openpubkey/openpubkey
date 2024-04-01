@@ -35,7 +35,7 @@ import (
 
 func TestClient(t *testing.T) {
 	clientID := "test-client-id"
-	commitmentClaimName := "nonce"
+	commitType := providers.CommitTypesEnum.NONCE_CLAIM
 
 	testCases := []struct {
 		name        string
@@ -57,16 +57,14 @@ func TestClient(t *testing.T) {
 
 			var c *client.OpkClient
 			providerOpts := mocks.MockProviderOpts{
-				Issuer:          "mockIssuer",
-				ClientID:        clientID,
-				SignGQ:          tc.gq,
-				CommitmentClaim: commitmentClaimName,
-				GQCommitment:    false,
+				Issuer:     "mockIssuer",
+				ClientID:   clientID,
+				SignGQ:     tc.gq,
+				CommitType: commitType,
 				VerifierOpts: providers.ProviderVerifierOpts{
-					CommitmentClaim:   commitmentClaimName,
+					CommitType:        commitType,
 					SkipClientIDCheck: false,
 					GQOnly:            false,
-					GQCommitment:      false,
 					ClientID:          clientID,
 				},
 			}

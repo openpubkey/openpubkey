@@ -26,11 +26,11 @@ import (
 
 func TestSimpleExample(t *testing.T) {
 	providerOpts := mocks.MockProviderOpts{
-		Issuer:          "mockIssuer",
-		SignGQ:          true,
-		CommitmentClaim: "aud",
+		Issuer:     "mockIssuer",
+		SignGQ:     true,
+		CommitType: providers.CommitTypesEnum.AUD_CLAIM,
 		VerifierOpts: providers.ProviderVerifierOpts{
-			CommitmentClaim:   "aud",
+			CommitType:        providers.CommitTypesEnum.AUD_CLAIM,
 			SkipClientIDCheck: true,
 			GQOnly:            true,
 		},
