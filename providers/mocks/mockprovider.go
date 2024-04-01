@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package providers
+package mocks
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
 )
 
@@ -36,7 +37,7 @@ type MockOpOpts struct {
 	CommitmentClaimName string
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
-	VerifierOpts ProviderVerifierOpts
+	VerifierOpts providers.ProviderVerifierOpts
 }
 
 func DefaultMockOpOpts() MockOpOpts {
@@ -47,7 +48,7 @@ func DefaultMockOpOpts() MockOpOpts {
 		SignGQ:              false,
 		GQCommitment:        false,
 		CommitmentClaimName: "nonce",
-		VerifierOpts: ProviderVerifierOpts{
+		VerifierOpts: providers.ProviderVerifierOpts{
 			ClientID:          clientID,
 			SkipClientIDCheck: false,
 			GQOnly:            false,
@@ -66,7 +67,7 @@ type MockOp struct {
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
 // the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
 // Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
-func NewMockProvider(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, *backend.IDTokenTemplate, error) {
+func NewMockProvider(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.ProviderOverride, *backend.IDTokenTemplate, error) {
 	if opOpts.Issuer == "" {
 		opOpts.Issuer = mockOpIssuer
 	}
@@ -95,14 +96,14 @@ func NewMockProvider(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverri
 		SigningKey:     providerSigner,
 	}
 	if opOpts.GQCommitment {
-		idTokenTemplate.Aud = AudPrefixForGQCommitment
+		idTokenTemplate.Aud = providers.AudPrefixForGQCommitment
 	}
 
 	mockBackend.SetIDTokenTemplate(idTokenTemplate)
 	return provider, mockBackend, idTokenTemplate, nil
 }
 
-func NewMockProviderAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.ProviderOverride, error) {
+func NewMockProviderAndBackend(opOpts MockOpOpts) (providers.OpenIdProvider, *backend.ProviderOverride, error) {
 	if opOpts.Issuer == "" {
 		opOpts.Issuer = mockOpIssuer
 	}
@@ -120,17 +121,7 @@ func NewMockProviderAndBackend(opOpts MockOpOpts) (OpenIdProvider, *backend.Prov
 	return mockProvider, mockBackend, nil
 }
 
-// TODO: Delete this function once all tests are using NewMockProvider
-// func NewMockOp(opBackend *backend.ProviderOverride, opOpts MockOpOpts) OpenIdProvider {
-// 	return &MockOp{
-// 		options:                  opOpts,
-// 		issuer:                   opBackend.Issuer,
-// 		requestTokenOverrideFunc: opBackend.RequestTokenOverrideFunc,
-// 		publicKeyFinder:          opBackend.PublicKeyFinder,
-// 	}
-// }
-
-var _ OpenIdProvider = (*MockOp)(nil)
+var _ providers.OpenIdProvider = (*MockOp)(nil)
 
 func (m *MockOp) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
 	return m.requestTokenOverrideFunc(cicHash)
@@ -152,10 +143,10 @@ func (m *MockOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) 
 		return nil, err
 	}
 	if m.options.GQCommitment {
-		return CreateGQBoundToken(ctx, idToken, m, string(cicHash))
+		return providers.CreateGQBoundToken(ctx, idToken, m, string(cicHash))
 	}
 	if m.options.SignGQ {
-		return CreateGQToken(ctx, idToken, m)
+		return providers.CreateGQToken(ctx, idToken, m)
 	}
 	return idToken, nil
 }
@@ -177,8 +168,8 @@ func (m *MockOp) Issuer() string {
 func (m *MockOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
 	if m.options.GQCommitment {
-		return NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+		return providers.NewProviderVerifier(m.Issuer(), "", m.options.VerifierOpts).VerifyProvider(ctx, pkt)
 	}
 	claimName := m.options.CommitmentClaimName
-	return NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
+	return providers.NewProviderVerifier(m.Issuer(), claimName, m.options.VerifierOpts).VerifyProvider(ctx, pkt)
 }

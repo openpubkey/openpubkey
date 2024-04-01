@@ -28,6 +28,7 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,7 @@ func TestClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
-			opOpts := providers.MockOpOpts{
+			opOpts := mocks.MockOpOpts{
 				Issuer:              "mockIssuer",
 				ClientID:            clientID,
 				SignGQ:              tc.gq,
@@ -69,7 +70,7 @@ func TestClient(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-			op, _, _, err := providers.NewMockProvider(opOpts)
+			op, _, _, err := mocks.NewMockProvider(opOpts)
 			require.NoError(t, err)
 
 			require.NoError(t, err, tc.name)

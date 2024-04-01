@@ -27,6 +27,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +94,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 	gqOnly := options.GQCommitment
 
-	opOpts := providers.MockOpOpts{
+	opOpts := mocks.MockOpOpts{
 		SignGQ:              options.GQSign,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        options.GQCommitment,
@@ -105,7 +106,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		},
 	}
 
-	op, backend, err := providers.NewMockProviderAndBackend(opOpts)
+	op, backend, err := mocks.NewMockProviderAndBackend(opOpts)
 	require.NoError(t, err)
 	opSignKey, keyID, _ := backend.RandomSigningKey()
 	idtTemplate.KeyID = keyID

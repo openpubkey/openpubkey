@@ -10,6 +10,7 @@ import (
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -21,7 +22,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestSshCli(t *testing.T) {
-	opOpts := providers.MockOpOpts{
+	opOpts := mocks.MockOpOpts{
 		Issuer:              "mockIssuer",
 		ClientID:            "mockClient-ID",
 		SignGQ:              true,
@@ -31,7 +32,7 @@ func TestSshCli(t *testing.T) {
 			GQOnly:   true,
 		},
 	}
-	op, _, _, err := providers.NewMockProvider(opOpts)
+	op, _, _, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
 	certBytes, seckeySshPem, err := Login(op)
@@ -45,15 +46,8 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opOpts := providers.MockOpOpts{
-		Issuer:              "mockIssuer",
-		ClientID:            "mockClient-ID",
-		CommitmentClaimName: "nonce",
-		VerifierOpts: providers.ProviderVerifierOpts{
-			ClientID: "mockClient-ID",
-		},
-	}
-	op, _, idtTemplate, err := providers.NewMockProvider(opOpts)
+	opOpts := mocks.DefaultMockOpOpts()
+	op, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
 	mockEmail := "arthur.aardvark@example.com"

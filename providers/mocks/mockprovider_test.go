@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package providers
+package mocks
 
 import (
 	"context"
@@ -23,7 +23,9 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -64,4 +66,17 @@ func TestMockOpTableTest(t *testing.T) {
 	require.True(t, ok)
 	_, err = jws.Verify(idToken, jws.WithKey(jwa.RS256, rsaKey))
 	require.NoError(t, err)
+}
+
+func genCIC(t *testing.T) *clientinstance.Claims {
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
+	jwkKey, err := jwk.PublicKeyOf(signer)
+	require.NoError(t, err)
+	err = jwkKey.Set(jwk.AlgorithmKey, alg)
+	require.NoError(t, err)
+	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
+	require.NoError(t, err)
+	return cic
 }

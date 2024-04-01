@@ -20,12 +20,13 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSimpleExample(t *testing.T) {
 
-	opOpts := providers.MockOpOpts{
+	opOpts := mocks.MockOpOpts{
 		Issuer:              "mockIssuer",
 		SignGQ:              true,
 		CommitmentClaimName: "aud",
@@ -34,7 +35,7 @@ func TestSimpleExample(t *testing.T) {
 			GQOnly:            true,
 		},
 	}
-	op, _, _, err := providers.NewMockProvider(opOpts)
+	op, _, _, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
 	err = login(op)

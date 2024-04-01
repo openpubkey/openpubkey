@@ -28,12 +28,13 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
 func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.ProviderOverride, error) {
-	opOpts := providers.MockOpOpts{
+	opOpts := mocks.MockOpOpts{
 		Issuer:              issuer,
 		SignGQ:              signGQ,
 		CommitmentClaimName: "nonce",
@@ -46,7 +47,7 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, opBackend, err := providers.NewMockProviderAndBackend(opOpts)
+	op, opBackend, err := mocks.NewMockProviderAndBackend(opOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -230,7 +231,7 @@ func TestGQCommitment(t *testing.T) {
 			skipClientIDCheck := true
 
 			clientID := "test_client_id"
-			opOpts := providers.MockOpOpts{
+			opOpts := mocks.MockOpOpts{
 				ClientID:            clientID,
 				SignGQ:              tc.gqSign,
 				CommitmentClaimName: "nonce",
@@ -242,7 +243,7 @@ func TestGQCommitment(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-			provider, _, idtTemplate, err := providers.NewMockProvider(opOpts)
+			provider, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
 			require.NoError(t, err)
 
 			idtTemplate.Aud = tc.aud

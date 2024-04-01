@@ -13,6 +13,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -86,7 +87,7 @@ func TestSshCertCreation(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opOpts := providers.MockOpOpts{
+	opOpts := mocks.MockOpOpts{
 		Issuer:              "mockIssuer",
 		ClientID:            "mockClient-ID",
 		CommitmentClaimName: "nonce",
@@ -94,7 +95,7 @@ func TestSshCertCreation(t *testing.T) {
 			ClientID: "mockClient-ID",
 		},
 	}
-	op, _, idtTemplate, err := providers.NewMockProvider(opOpts)
+	op, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
 	require.NoError(t, err)
 
 	mockEmail := "arthur.aardvark@example.com"
