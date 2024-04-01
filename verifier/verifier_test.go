@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -36,6 +35,7 @@ import (
 func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
 	providerOpts := mocks.MockProviderOpts{
 		Issuer:              issuer,
+		ClientID:            clientID,
 		SignGQ:              signGQ,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        false,
@@ -139,7 +139,9 @@ func TestVerifier(t *testing.T) {
 	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 	require.Error(t, err)
 
-	// If audience is a list of strings, make sure verification holds
+	// If audience is a list of strings, make sure verification holds. We use
+	// extraClaims because it is resolved just token creation time, allowing
+	// us to bypass the clientID being set by the constructor.
 	provider, backend, err = NewMockOpenIdProvider(noSignGQ, issuer, clientID, map[string]any{
 		"aud": []string{clientID},
 	})
@@ -255,9 +257,6 @@ func TestGQCommitment(t *testing.T) {
 			pkt, err := opkClient.Auth(context.Background())
 
 			if tc.expError != "" {
-				fmt.Println(tc.name)
-				fmt.Println(err)
-				fmt.Println(tc.expError)
 				require.ErrorContains(t, err, tc.expError)
 			} else {
 				cicHash, ok := pkt.Op.ProtectedHeaders().Get("cic")

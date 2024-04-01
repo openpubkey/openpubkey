@@ -34,7 +34,6 @@ import (
 )
 
 func TestClient(t *testing.T) {
-
 	clientID := "test-client-id"
 	commitmentClaimName := "nonce"
 
