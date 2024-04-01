@@ -34,7 +34,7 @@ import (
 )
 
 func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
-	opOpts := mocks.MockProviderOpts{
+	providerOpts := mocks.MockProviderOpts{
 		Issuer:              issuer,
 		SignGQ:              signGQ,
 		CommitmentClaimName: "nonce",
@@ -47,14 +47,14 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, mockBackend, err := mocks.NewMockProviderAndBackend(opOpts)
+	op, mockBackend, _, err := mocks.NewMockProvider(providerOpts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
-	idTokenTemplate := backend.IDTokenTemplate{
+	idTokenTemplate := &backend.IDTokenTemplate{
 		CommitmentFunc: backend.AddNonceCommit,
 		Issuer:         op.Issuer(),
 		Aud:            clientID,
@@ -63,7 +63,7 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		ExtraClaims:    extraClaims,
 		SigningKey:     expSigningKey,
 	}
-	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
+	mockBackend.SetIDTokenTemplate(idTokenTemplate)
 
 	return op, mockBackend, nil
 }
@@ -231,7 +231,7 @@ func TestGQCommitment(t *testing.T) {
 			skipClientIDCheck := true
 
 			clientID := "test_client_id"
-			opOpts := mocks.MockProviderOpts{
+			providerOpts := mocks.MockProviderOpts{
 				ClientID:            clientID,
 				SignGQ:              tc.gqSign,
 				CommitmentClaimName: "nonce",
@@ -243,7 +243,7 @@ func TestGQCommitment(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-			provider, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
+			provider, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
 			require.NoError(t, err)
 
 			idtTemplate.Aud = tc.aud

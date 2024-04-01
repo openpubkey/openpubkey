@@ -32,9 +32,9 @@ import (
 
 func TestMockProviderTest(t *testing.T) {
 
-	opOpts := DefaultMockProviderOpts()
+	providerOpts := DefaultMockProviderOpts()
 
-	op, _, idtTemplate, err := NewMockProvider(opOpts)
+	op, _, idtTemplate, err := NewMockProvider(providerOpts)
 	require.NoError(t, err)
 	idtTemplate.ExtraClaims = map[string]interface{}{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"}
 

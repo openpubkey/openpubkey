@@ -25,7 +25,7 @@ import (
 )
 
 func TestGitlabExample(t *testing.T) {
-	opOpts := mocks.MockProviderOpts{
+	providerOpts := mocks.MockProviderOpts{
 		Issuer:       "mockIssuer",
 		ClientID:     "mockClient-ID",
 		SignGQ:       true,
@@ -36,7 +36,7 @@ func TestGitlabExample(t *testing.T) {
 			GQCommitment:      true,
 		},
 	}
-	op, _, _, err := mocks.NewMockProvider(opOpts)
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	opts := Opts{

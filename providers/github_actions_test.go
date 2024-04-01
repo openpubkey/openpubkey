@@ -158,6 +158,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 }
 
 func TestGithubOpFullGQ(t *testing.T) {
+
 	cic := genCIC(t)
 
 	// Setup expected test data

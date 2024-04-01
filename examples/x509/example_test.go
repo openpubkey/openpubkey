@@ -26,7 +26,7 @@ import (
 
 func TestSimpleExample(t *testing.T) {
 
-	opOpts := mocks.MockProviderOpts{
+	providerOpts := mocks.MockProviderOpts{
 		Issuer:              "mockIssuer",
 		SignGQ:              true,
 		CommitmentClaimName: "aud",
@@ -35,7 +35,7 @@ func TestSimpleExample(t *testing.T) {
 			GQOnly:            true,
 		},
 	}
-	op, _, _, err := mocks.NewMockProvider(opOpts)
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	err = login(op)

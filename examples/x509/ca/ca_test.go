@@ -34,8 +34,8 @@ import (
 )
 
 func TestCACertCreation(t *testing.T) {
-	opOpts := mocks.DefaultMockProviderOpts()
-	op, _, _, err := mocks.NewMockProvider(opOpts)
+	providerOpts := mocks.DefaultMockProviderOpts()
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	certAuth, err := New(op)

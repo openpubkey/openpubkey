@@ -57,7 +57,7 @@ func TestClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
-			opOpts := mocks.MockProviderOpts{
+			providerOpts := mocks.MockProviderOpts{
 				Issuer:              "mockIssuer",
 				ClientID:            clientID,
 				SignGQ:              tc.gq,
@@ -70,7 +70,7 @@ func TestClient(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-			op, _, _, err := mocks.NewMockProvider(opOpts)
+			op, _, _, err := mocks.NewMockProvider(providerOpts)
 			require.NoError(t, err)
 
 			require.NoError(t, err, tc.name)

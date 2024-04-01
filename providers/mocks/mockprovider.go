@@ -29,6 +29,8 @@ import (
 
 const mockProviderIssuer = "https://accounts.example.com"
 
+var _ providers.OpenIdProvider = (*MockProvider)(nil)
+
 type MockProviderOpts struct {
 	Issuer              string
 	ClientID            string
@@ -71,9 +73,16 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
-	provider, mockBackend, err := NewMockProviderAndBackend(opts)
+	numKeys := 2
+	mockBackend, err := backend.NewMockProviderBackend(opts.Issuer, numKeys)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	provider := &MockProvider{
+		options:                  opts,
+		issuer:                   mockBackend.Issuer,
+		requestTokenOverrideFunc: mockBackend.RequestTokenOverrideFunc,
+		publicKeyFinder:          mockBackend.PublicKeyFinder,
 	}
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
@@ -102,26 +111,6 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 	mockBackend.SetIDTokenTemplate(idTokenTemplate)
 	return provider, mockBackend, idTokenTemplate, nil
 }
-
-func NewMockProviderAndBackend(opOpts MockProviderOpts) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
-	if opOpts.Issuer == "" {
-		opOpts.Issuer = mockProviderIssuer
-	}
-	numKeys := 2
-	mockBackend, err := backend.NewMockProviderBackend(opOpts.Issuer, numKeys)
-	if err != nil {
-		return nil, nil, err
-	}
-	mockProvider := &MockProvider{
-		options:                  opOpts,
-		issuer:                   mockBackend.Issuer,
-		requestTokenOverrideFunc: mockBackend.RequestTokenOverrideFunc,
-		publicKeyFinder:          mockBackend.PublicKeyFinder,
-	}
-	return mockProvider, mockBackend, nil
-}
-
-var _ providers.OpenIdProvider = (*MockProvider)(nil)
 
 func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
 	return m.requestTokenOverrideFunc(cicHash)

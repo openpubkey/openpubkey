@@ -94,7 +94,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 	gqOnly := options.GQCommitment
 
-	opOpts := mocks.MockProviderOpts{
+	providerOpts := mocks.MockProviderOpts{
 		SignGQ:              options.GQSign,
 		CommitmentClaimName: "nonce",
 		GQCommitment:        options.GQCommitment,
@@ -106,7 +106,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		},
 	}
 
-	op, backend, err := mocks.NewMockProviderAndBackend(opOpts)
+	op, backend, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 	opSignKey, keyID, _ := backend.RandomSigningKey()
 	idtTemplate.KeyID = keyID

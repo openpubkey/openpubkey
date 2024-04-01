@@ -22,7 +22,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestSshCli(t *testing.T) {
-	opOpts := mocks.MockProviderOpts{
+	providerOpts := mocks.MockProviderOpts{
 		Issuer:              "mockIssuer",
 		ClientID:            "mockClient-ID",
 		SignGQ:              true,
@@ -32,7 +32,7 @@ func TestSshCli(t *testing.T) {
 			GQOnly:   true,
 		},
 	}
-	op, _, _, err := mocks.NewMockProvider(opOpts)
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	certBytes, seckeySshPem, err := Login(op)
@@ -46,8 +46,8 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	opOpts := mocks.DefaultMockProviderOpts()
-	op, _, idtTemplate, err := mocks.NewMockProvider(opOpts)
+	providerOpts := mocks.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	mockEmail := "arthur.aardvark@example.com"
