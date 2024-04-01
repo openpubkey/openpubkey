@@ -9,7 +9,6 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 
@@ -22,16 +21,7 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 }
 
 func TestSshCli(t *testing.T) {
-	providerOpts := mocks.MockProviderOpts{
-		Issuer:          "mockIssuer",
-		ClientID:        "mockClient-ID",
-		SignGQ:          true,
-		CommitmentClaim: "nonce",
-		VerifierOpts: providers.ProviderVerifierOpts{
-			ClientID: "mockClient-ID",
-			GQOnly:   true,
-		},
-	}
+	providerOpts := mocks.DefaultMockProviderOpts()
 	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 

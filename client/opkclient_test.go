@@ -63,6 +63,7 @@ func TestClient(t *testing.T) {
 				CommitmentClaim: commitmentClaimName,
 				GQCommitment:    false,
 				VerifierOpts: providers.ProviderVerifierOpts{
+					CommitmentClaim:   commitmentClaimName,
 					SkipClientIDCheck: false,
 					GQOnly:            false,
 					GQCommitment:      false,
