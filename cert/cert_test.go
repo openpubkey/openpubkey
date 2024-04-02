@@ -37,7 +37,10 @@ func TestCreateX509Cert(t *testing.T) {
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(true))
+	providerOpts := mocks.DefaultMockProviderOpts()
+	providerOpts.SignGQ = true
+
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	opkClient, err := client.New(op, client.WithSigner(signer, alg))

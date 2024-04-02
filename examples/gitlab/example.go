@@ -25,10 +25,21 @@ import (
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
-func SignWithGitlab() error {
+type Opts struct {
+	altOp providers.OpenIdProvider
+}
 
-	// Creates OpenID Provider (OP) configuration, this will be used to request the ID Token from Gitlab
-	op := providers.NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+func SignWithGitlab(opts ...Opts) error {
+	var op providers.OpenIdProvider
+
+	// If an alternative OP is provided, use that instead of the default.
+	// Currently only used for testing where a mockOP is provided.
+	if len(opts) > 0 && opts[0].altOp != nil {
+		op = opts[0].altOp
+	} else {
+		// Creates OpenID Provider (OP) configuration, this will be used to request the ID Token from Gitlab
+		op = providers.NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+	}
 
 	// Creates a new OpenPubkey client
 	opkClient, err := client.New(op)

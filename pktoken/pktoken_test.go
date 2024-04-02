@@ -114,14 +114,14 @@ func TestPkTokenJwsUnchanged(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			testUnchangedByCompact(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
-			testUnchangedAfterMarshalling(t, tc.name, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+			testUnchangedByCompact(t, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
+			testUnchangedAfterMarshalling(t, tc.payload, tc.opProtected, tc.cicProtected, tc.cosProtected)
 		})
 	}
 }
 
 // Once we remove pkt.Compact we can remove this test
-func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
+func testUnchangedByCompact(t *testing.T, payload string, opPheader string, cicPheader string, cosPheader string) {
 	pkt := &pktoken.PKToken{}
 
 	// Build OP Token and add it to PK Token
@@ -149,7 +149,7 @@ func testUnchangedByCompact(t *testing.T, name string, payload string, opPheader
 	require.EqualValues(t, string(cosTokenOriginal), string(pkt.CosToken), "danger, signed values in COS Token being changed")
 }
 
-func testUnchangedAfterMarshalling(t *testing.T, name string, payload string, opPheader string, cicPheader string, cosPheader string) {
+func testUnchangedAfterMarshalling(t *testing.T, payload string, opPheader string, cicPheader string, cosPheader string) {
 	pkt := &pktoken.PKToken{}
 
 	// Build OP Token and add it to PK Token

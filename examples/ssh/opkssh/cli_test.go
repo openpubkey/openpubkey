@@ -9,7 +9,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/examples/ssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
-	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/util"
@@ -20,22 +20,29 @@ func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
 	return nil
 }
 
+func TestSshCli(t *testing.T) {
+	providerOpts := mocks.DefaultMockProviderOpts()
+	op, _, _, err := mocks.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	certBytes, seckeySshPem, err := Login(op)
+	require.NoError(t, err)
+	require.NotNil(t, certBytes)
+	require.NotNil(t, seckeySshPem)
+}
+
 func TestAuthorizedKeysCommand(t *testing.T) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	// extra ID token payload claims
+	providerOpts := mocks.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
 	mockEmail := "arthur.aardvark@example.com"
-	extraClaims := map[string]any{
+	idtTemplate.ExtraClaims = map[string]any{
 		"email": mockEmail,
-	}
-
-	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	client, err := client.New(op, client.WithSigner(signer, alg))

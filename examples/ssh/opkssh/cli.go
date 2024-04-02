@@ -62,28 +62,11 @@ func main() {
 				os.Exit(1)
 			}
 
-			// If principals is empty the server does not enforce any principal.
-			// The OPK verifier should use policy to make this decision.
-			principals := []string{}
-
-			alg := jwa.ES256
-			signer, err := util.GenKeyPair(alg)
+			certBytes, seckeySshPem, err := Login(op)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-
-			opkClient, err := client.New(
-				op,
-				client.WithSigner(signer, alg),
-			)
-
-			certBytes, seckeySshPem, err := createSSHCert(context.Background(), opkClient, principals)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
 			// Write ssh secret key and public key to filesystem
 			err = writeKeysToSSHDir(seckeySshPem, certBytes)
 			if err != nil {
@@ -119,6 +102,28 @@ func main() {
 	default:
 		fmt.Println("Error! Unrecognized command:", command)
 	}
+}
+
+func Login(op providers.OpenIdProvider) ([]byte, []byte, error) {
+	// If principals is empty the server does not enforce any principal.
+	// The OPK verifier should use policy to make this decision.
+	principals := []string{}
+
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	opkClient, err := client.New(
+		op,
+		client.WithSigner(signer, alg),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return createSSHCert(context.Background(), opkClient, principals)
 }
 
 // This function is called by the SSH server as the authorizedKeysCommand:

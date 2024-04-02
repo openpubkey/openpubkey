@@ -29,21 +29,25 @@ import (
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+
 	"github.com/openpubkey/openpubkey/util"
 )
 
 const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
 
 type DefaultProviderVerifier struct {
-	issuer          string
-	commitmentClaim string
-	options         ProviderVerifierOpts
+	issuer     string
+	commitType CommitType
+	options    ProviderVerifierOpts
 }
 
 type ProviderVerifierOpts struct {
 	// If ClientID is specified, then verification will require that the ClientID
 	// be present in the audience ("aud") claim of the PK token payload
 	ClientID string
+	// Describes the place where the cicHash is committed to in the the ID token.
+	// For instance the nonce payload claim name where the cicHash was stored during issuance
+	CommitType CommitType
 	// Specifies whether to skip the Client ID check, defaults to false
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
@@ -53,19 +57,17 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
-	// The commitmentClaim is bound to the ID Token using only the GQ signature
-	GQCommitment bool
 }
 
 // Creates a new ProviderVerifier with required fields
 //
 // issuer: Is the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 // commitmentClaim: the ID token payload claim name where the cicHash was stored during issuance
-func NewProviderVerifier(issuer, commitmentClaim string, options ProviderVerifierOpts) *DefaultProviderVerifier {
+func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultProviderVerifier {
 	v := &DefaultProviderVerifier{
-		issuer:          issuer,
-		commitmentClaim: commitmentClaim,
-		options:         options,
+		issuer:     issuer,
+		commitType: options.CommitType,
+		options:    options,
 	}
 
 	// If no custom DiscoverPublicKey function is set, set default
@@ -84,12 +86,12 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, pkt *pktok
 	// Sanity check that if GQCommitment is enabled then the other options
 	// are set correctly for doing GQ commitment verification. The intention is
 	// to catch misconfigurations early and provide meaningful error messages.
-	if v.options.GQCommitment {
+	if v.options.CommitType.GQCommitment {
 		if !v.options.GQOnly {
 			return fmt.Errorf("GQCommitment requires that GQOnly is true, but GQOnly is (%t)", v.options.GQOnly)
 		}
-		if v.commitmentClaim != "" {
-			return fmt.Errorf("GQCommitment requires that commitmentClaim is empty but commitmentClaim is (%s)", v.commitmentClaim)
+		if v.commitType.Claim != "" {
+			return fmt.Errorf("GQCommitment requires that commitmentClaim is empty but commitmentClaim is (%s)", v.commitType.Claim)
 		}
 		if !v.options.SkipClientIDCheck {
 			// When we bind the commitment to the ID Token using GQ Signatures,
@@ -167,7 +169,7 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 
 	var commitment any
 	var commitmentFound bool
-	if v.options.GQCommitment {
+	if v.options.CommitType.GQCommitment {
 		aud, ok := claims["aud"]
 		if !ok {
 			return fmt.Errorf("require audience claim prefix missing in PK Token's GQCommitment")
@@ -191,10 +193,13 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 			return fmt.Errorf("missing GQ commitment")
 		}
 	} else {
+		if v.commitType.Claim == "" {
+			return fmt.Errorf("verifier configured with empty commitment claim")
+		}
 
-		commitment, commitmentFound = claims[v.commitmentClaim]
+		commitment, commitmentFound = claims[v.commitType.Claim]
 		if !commitmentFound {
-			return fmt.Errorf("missing commitment claim %s", v.commitmentClaim)
+			return fmt.Errorf("missing commitment claim %s", v.commitType.Claim)
 		}
 	}
 

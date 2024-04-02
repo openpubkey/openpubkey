@@ -44,31 +44,33 @@ const googleIssuer = "https://accounts.google.com"
 const googleAudience = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
 
 type GoogleOp struct {
-	ClientID        string
-	ClientSecret    string
-	Scopes          []string
-	RedirURIPort    string
-	CallbackPath    string
-	RedirectURI     string
-	SignGQ          bool
-	issuer          string
-	server          *http.Server
-	publicKeyFinder discover.PublicKeyFinder
-	httpSessionHook http.HandlerFunc
+	ClientID                 string
+	ClientSecret             string
+	Scopes                   []string
+	RedirURIPort             string
+	CallbackPath             string
+	RedirectURI              string
+	SignGQ                   bool
+	issuer                   string
+	server                   *http.Server
+	publicKeyFinder          discover.PublicKeyFinder
+	requestTokenOverrideFunc func(string) ([]byte, error)
+	httpSessionHook          http.HandlerFunc
 }
 
 func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) OpenIdProvider {
 
 	return &GoogleOp{
-		ClientID:        ClientID,
-		ClientSecret:    ClientSecret,
-		Scopes:          Scopes,
-		RedirURIPort:    RedirURIPort,
-		CallbackPath:    CallbackPath,
-		RedirectURI:     RedirectURI,
-		SignGQ:          SignGQ,
-		issuer:          googleIssuer,
-		publicKeyFinder: *discover.DefaultPubkeyFinder(),
+		ClientID:                 ClientID,
+		ClientSecret:             ClientSecret,
+		Scopes:                   Scopes,
+		RedirURIPort:             RedirURIPort,
+		CallbackPath:             CallbackPath,
+		RedirectURI:              RedirectURI,
+		SignGQ:                   SignGQ,
+		issuer:                   googleIssuer,
+		requestTokenOverrideFunc: nil,
+		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
 	}
 }
 
@@ -76,6 +78,10 @@ var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+	if g.requestTokenOverrideFunc != nil {
+		return g.requestTokenOverrideFunc(cicHash)
+	}
+
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -200,7 +206,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(googleIssuer, "nonce", ProviderVerifierOpts{ClientID: googleAudience})
+	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: googleAudience})
 	return vp.VerifyProvider(ctx, pkt)
 }
 

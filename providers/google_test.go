@@ -27,35 +27,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitlabSimpleRequest(t *testing.T) {
+func TestGoogleSimpleRequest(t *testing.T) {
+	gqSign := false
 
-	issuer := gitlabIssuer
+	issuer := googleIssuer
 	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
-	op := &GitlabOp{
-		issuer:                   gitlabIssuer,
+	op := &GoogleOp{
+		issuer:                   googleIssuer,
 		publicKeyFinder:          providerOverride.PublicKeyFinder,
 		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
 	}
 
-	aud := AudPrefixForGQCommitment
-
 	cic := genCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
+
 	idTokenTemplate := backend.IDTokenTemplate{
-		CommitFunc:  backend.NoClaimCommit,
-		Issuer:      issuer,
-		Nonce:       "empty",
-		NoNonce:     false,
-		Aud:         aud,
-		KeyID:       expKeyID,
-		NoKeyID:     false,
-		Alg:         expRecord.Alg,
-		NoAlg:       false,
-		ExtraClaims: map[string]any{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"},
-		SigningKey:  expSigningKey,
+		CommitFunc:           backend.AddNonceCommit,
+		Issuer:               issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  "also me",
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
@@ -66,15 +67,21 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cicHash)
 
-	headerB64, _, _, err := jws.SplitCompact(idToken)
+	headerB64, payloadB64, _, err := jws.SplitCompact(idToken)
 	require.NoError(t, err)
 	headerJson, err := util.Base64DecodeForJWT(headerB64)
 	require.NoError(t, err)
-	headers := jws.NewHeaders()
-	err = json.Unmarshal(headerJson, &headers)
-	require.NoError(t, err)
-	cicHash2, ok := headers.Get("cic")
-	require.True(t, ok, "cic not found in GQ ID Token")
 
-	require.Equal(t, string(cicHash), cicHash2, "cic hash in jwt header should match cic supplied")
+	if gqSign {
+		headers := jws.NewHeaders()
+		err = json.Unmarshal(headerJson, &headers)
+		require.NoError(t, err)
+		cicHash2, ok := headers.Get("cic")
+		require.True(t, ok, "cic not found in GQ ID Token")
+		require.Equal(t, string(cicHash), cicHash2, "cic hash in jwt header should match cic supplied")
+	} else {
+		payload, err := util.Base64DecodeForJWT(payloadB64)
+		require.NoError(t, err)
+		require.Contains(t, string(payload), string(cicHash))
+	}
 }

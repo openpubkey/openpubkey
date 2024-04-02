@@ -70,7 +70,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 				// Get authcode from Cosigner via Cosigner redirecting user's browser window
 				params := r.URL.Query()
 				if _, ok := params["authcode"]; !ok {
-					return nil, fmt.Errorf("Cosigner did not return an authcode in the URI")
+					return nil, fmt.Errorf("cosigner did not return an authcode in the URI")
 				}
 				authcode := params["authcode"][0] // This is the authcode issued by the cosigner not the OP
 

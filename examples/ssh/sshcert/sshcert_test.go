@@ -12,7 +12,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
-	clientmock "github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -72,35 +72,26 @@ func newSshSignerFromPem(pemBytes []byte) (ssh.MultiAlgorithmSigner, error) {
 
 func TestCASignerCreation(t *testing.T) {
 	caSigner, err := newSshSignerFromPem(caSecretKey)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	sshSig, err := caSigner.Sign(rand.Reader, testMsg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
 	err = caPubkey.Verify(badTestMsg, sshSig)
-	if err == nil {
-		t.Error(fmt.Errorf("expected for signature to fail as the wrong message is used"))
-	}
+	require.Error(t, err, "expected for signature to fail as the wrong message is used")
 }
 
 func TestSshCertCreation(t *testing.T) {
 	alg := jwa.ES256
 	signingKey, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// extra ID token payload claims
-	mockEmail := "arthur.aardvark@example.com"
-	extraClaims := map[string]any{
-		"email": mockEmail,
-	}
-
-	op, err := clientmock.NewMockOpenIdProvider(t, extraClaims)
 	require.NoError(t, err)
+
+	providerOpts := mocks.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	mockEmail := "arthur.aardvark@example.com"
+	idtTemplate.ExtraClaims = map[string]any{"email": mockEmail}
 
 	client, err := client.New(op, client.WithSigner(signingKey, alg))
 	require.NoError(t, err)
@@ -110,56 +101,40 @@ func TestSshCertCreation(t *testing.T) {
 
 	principals := []string{"guest", "dev"}
 	cert, err := New(pkt, principals)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	caSigner, err := newSshSignerFromPem(caSecretKey)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	sshCert, err := cert.SignCert(caSigner)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cert.VerifyCaSig(caPubkey); err != nil {
-		t.Error(err)
-	}
+	err = cert.VerifyCaSig(caPubkey)
+	require.NoError(t, err)
 
 	checker := ssh.CertChecker{}
-	if err = checker.CheckCert("guest", sshCert); err != nil {
-		t.Error(err)
-	}
+	err = checker.CheckCert("guest", sshCert)
+	require.NoError(t, err)
 
-	if sshCert.KeyId != mockEmail {
-		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId))
-	}
+	require.Equal(t, sshCert.KeyId, mockEmail, "expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId)
 
 	pktB64, ok := sshCert.Extensions["openpubkey-pkt"]
-	if !ok {
-		t.Error(err)
-	}
+	require.True(t, ok, "expected to find openpubkey-pkt extension in sshCert")
+
 	pktExtJson, err := util.Base64DecodeForJWT([]byte(pktB64))
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	var pktExt *pktoken.PKToken
 	err = json.Unmarshal(pktExtJson, &pktExt)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	cic, err := pktExt.GetCicValues()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 	upk := cic.PublicKey()
 
 	cryptoCertKey := (sshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
+	require.NoError(t, err)
 	if !jwk.Equal(upk, jwkCertKey) {
 		t.Error(fmt.Errorf("expected upk to be equal to the value in sshCert.Key"))
 	}

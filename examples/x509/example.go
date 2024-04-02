@@ -56,7 +56,8 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(signGQ); err != nil {
+		op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
+		if err := login(op); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login and X509 issuance successful!")
@@ -66,9 +67,7 @@ func main() {
 	}
 }
 
-func login(signGQ bool) error {
-
-	op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
+func login(op client.OpenIdProvider) error {
 	opkClient, err := client.New(
 		op,
 	)

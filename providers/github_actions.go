@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/discover"
@@ -33,10 +32,11 @@ import (
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
-	issuer                string // Change issuer to point this to a test issuer
-	rawTokenRequestURL    string
-	tokenRequestAuthToken string
-	publicKeyFinder       discover.PublicKeyFinder
+	issuer                   string // Change issuer to point this to a test issuer
+	rawTokenRequestURL       string
+	tokenRequestAuthToken    string
+	publicKeyFinder          discover.PublicKeyFinder
+	requestTokenOverrideFunc func(string) ([]byte, error)
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -54,20 +54,13 @@ func NewGithubOpFromEnvironment() (*GithubOp, error) {
 	return NewGithubOp(tokenURL, token), nil
 }
 
-func getEnvVar(name string) (string, error) {
-	value, ok := os.LookupEnv(name)
-	if !ok {
-		return "", fmt.Errorf("%q environment variable not set", name)
-	}
-	return value, nil
-}
-
 func NewGithubOp(tokenURL string, token string) *GithubOp {
 	op := &GithubOp{
-		issuer:                githubIssuer,
-		rawTokenRequestURL:    tokenURL,
-		tokenRequestAuthToken: token,
-		publicKeyFinder:       *discover.DefaultPubkeyFinder(),
+		issuer:                   githubIssuer,
+		rawTokenRequestURL:       tokenURL,
+		tokenRequestAuthToken:    token,
+		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
+		requestTokenOverrideFunc: nil,
 	}
 	return op
 }
@@ -101,6 +94,14 @@ func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
+	if g.requestTokenOverrideFunc != nil {
+		jwt, err := g.requestTokenOverrideFunc(cicHash)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		}
+		return memguard.NewBufferFromBytes(jwt), nil
+	}
+
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
 	if err != nil {
 		return nil, err
@@ -170,6 +171,6 @@ func (g *GithubOp) Issuer() string {
 }
 
 func (g *GithubOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
-	vp := NewProviderVerifier(g.issuer, "aud", ProviderVerifierOpts{GQOnly: true, SkipClientIDCheck: true})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.AUD_CLAIM, GQOnly: true, SkipClientIDCheck: true})
 	return vp.VerifyProvider(ctx, pkt)
 }

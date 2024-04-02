@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
-	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -28,12 +27,16 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClient(t *testing.T) {
+	clientID := "test-client-id"
+	commitType := providers.CommitTypesEnum.NONCE_CLAIM
+
 	testCases := []struct {
 		name        string
 		gq          bool
@@ -53,7 +56,21 @@ func TestClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			var c *client.OpkClient
-			op, err := mocks.NewMockOpenIdProvider(t, map[string]any{}, mocks.UseGQSign(tc.gq))
+			providerOpts := mocks.MockProviderOpts{
+				Issuer:     "mockIssuer",
+				ClientID:   clientID,
+				SignGQ:     tc.gq,
+				CommitType: commitType,
+				VerifierOpts: providers.ProviderVerifierOpts{
+					CommitType:        commitType,
+					SkipClientIDCheck: false,
+					GQOnly:            false,
+					ClientID:          clientID,
+				},
+			}
+			op, _, _, err := mocks.NewMockProvider(providerOpts)
+			require.NoError(t, err)
+
 			require.NoError(t, err, tc.name)
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
@@ -92,9 +109,7 @@ func TestClient(t *testing.T) {
 			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
 			require.True(t, ok, "missing jkt header")
 			jktstr, ok := jkt.(string)
-			if !ok {
-				t.Fatalf("expected jkt header to be a string, got %T", jkt)
-			}
+			require.True(t, ok, "expected jkt header to be a string, got %T", jkt)
 
 			pubkeyRecord, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
 			require.NoError(t, err, tc.name)
@@ -109,9 +124,7 @@ func TestClient(t *testing.T) {
 			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
 			providerAlg, ok := pkt.ProviderAlgorithm()
-			if !ok {
-				t.Fatal(fmt.Errorf("missing algorithm"))
-			}
+			require.True(t, ok, "missing algorithm", tc.name)
 
 			if tc.gq {
 				require.Equal(t, gq.GQ256, providerAlg, tc.name)
@@ -130,6 +143,9 @@ func TestClient(t *testing.T) {
 				// Expect alg to be RS256 alg when not signing with GQ
 				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
+
+			err = op.VerifyProvider(context.Background(), pkt)
+			require.NoError(t, err, tc.name)
 		})
 	}
 }
