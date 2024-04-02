@@ -30,7 +30,6 @@ type CommitmentType struct {
 	ClaimName       string
 }
 
-
 type IDTokenTemplate struct {
 	CommitFunc           func(*IDTokenTemplate, string)
 	Issuer               string
@@ -44,7 +43,6 @@ type IDTokenTemplate struct {
 	ExtraClaims          map[string]any
 	ExtraProtectedClaims map[string]any
 	SigningKey           crypto.Signer // The key we will use to sign the ID Token
-
 }
 
 // AddCommit adds the commitment to the CIC to the ID Token. The
