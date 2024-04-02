@@ -144,8 +144,11 @@ func TestClient(t *testing.T) {
 				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
 
-			err = op.VerifyProvider(context.Background(), pkt)
+			cic, err := pkt.GetCicValues()
+			require.NoError(t, err)
+			err = op.VerifyProvider(context.Background(), pkt.OpToken, cic)
 			require.NoError(t, err, tc.name)
+			require.NotNil(t, cic, tc.name)
 		})
 	}
 }

@@ -22,9 +22,11 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
+	provider_mocks "github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +42,10 @@ func TestProviderVerifier(t *testing.T) {
 
 	correctAud := providers.AudPrefixForGQCommitment
 	clientID := "test-client-id"
+	issuer := "mockIssuer"
 
+	// TODO: Check bad OP signature
+	// TODO: Check bad CIC
 	testCases := []struct {
 		name              string
 		aud               string
@@ -53,100 +58,69 @@ func TestProviderVerifier(t *testing.T) {
 		pvCommitType      providers.CommitType
 		SkipClientIDCheck bool
 		correctCicHash    bool
-		correctCicSig     bool
 	}{
 		{name: "Claim Commitment happy case", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
 			expError:       "",
-			correctCicHash: true, correctCicSig: true},
+			correctCicHash: true},
 		{name: "Claim Commitment (aud) happy case",
 			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM,
 			expError:          "",
-			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
+			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "Claim Commitment wrong audience", aud: "wrong clientID", clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
 			expError:       "audience does not contain clientID",
-			correctCicHash: true, correctCicSig: true},
+			correctCicHash: true},
 		{name: "Claim Commitment no commitment claim", aud: clientID, clientID: clientID,
 			tokenCommitType: EMPTY_COMMIT, pvCommitType: EMPTY_COMMIT,
 			expError:    "verifier configured with empty commitment claim",
-			tokenGQSign: false, correctCicHash: true, correctCicSig: true},
+			tokenGQSign: false, correctCicHash: true},
 		{name: "Claim Commitment wrong CIC", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
 			expError:    "commitment claim doesn't match",
-			tokenGQSign: false, correctCicHash: false, correctCicSig: true},
-		{name: "Claim Commitment bad sig on CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError:    "error verifying client signature on PK Token: could not verify message using any of the signatures or keys",
-			tokenGQSign: false, correctCicHash: true, correctCicSig: false},
-		{name: "Claim Commitment bad sig on wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError: "commitment claim doesn't match", tokenGQSign: false, correctCicHash: false, correctCicSig: false},
+			tokenGQSign: false, correctCicHash: false},
 		{name: "Claim Commitment GQ happy case", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError: "", tokenGQSign: true, correctCicHash: true, correctCicSig: true},
+			expError: "", tokenGQSign: true, correctCicHash: true},
 		{name: "Claim Commitment GQ wrong CIC", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError: "commitment claim doesn't match", tokenGQSign: true, correctCicHash: false, correctCicSig: true},
-		{name: "Claim Commitment GQ bad sig on CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError:    "error verifying client signature on PK Token: could not verify message using any of the signatures or keys",
-			tokenGQSign: true, correctCicHash: true, correctCicSig: false},
-		{name: "Claim Commitment GQ bad sig on wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
-			expError: "commitment claim doesn't match", tokenGQSign: true, correctCicHash: false, correctCicSig: false},
+			expError: "commitment claim doesn't match", tokenGQSign: true, correctCicHash: false},
 		{name: "GQ Commitment happy case", aud: correctAud,
 			expError:        "",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
+			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment wrong aud prefix", aud: "bad value",
 			expError:        "audience claim in PK Token's GQCommitment must be prefixed by",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
+			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment providerVerifier not using GQ Commitment", aud: correctAud,
 			expError:        "commitment claim doesn't match",
 			tokenCommitType: GQ_BOUND, pvCommitType: NONCE_CLAIM,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: true},
+			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment wrong CIC", aud: correctAud,
 			expError:        "commitment claim doesn't match",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: false, correctCicSig: true},
-		{name: "GQ Commitment bad sig on CIC", aud: correctAud,
-			expError:        "error verifying client signature on PK Token: could not verify message using any of the signatures or keys",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true, correctCicSig: false},
-		{name: "GQ Commitment bad sig on wrong CIC", aud: correctAud,
-			expError:        "commitment claim doesn't match",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: false, correctCicSig: false},
+			SkipClientIDCheck: true, correctCicHash: false},
 		{name: "GQ Commitment check client id", aud: correctAud,
 			expError:        "GQCommitment requires that audience (aud) is not set to client-id",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: false, correctCicHash: false, correctCicSig: false},
+			SkipClientIDCheck: false, correctCicHash: false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			alg := jwa.ES256
-
-			signingKey, err := util.GenKeyPair(alg)
-			require.NoError(t, err)
-
 			idtTemplate := backend.IDTokenTemplate{
-				CommitFunc: backend.AddNonceCommit,
-				Issuer:     "mockIssuer",
-				Nonce:      "empty",
-				NoNonce:    false,
-				Aud:        "empty",
-				Alg:        "RS256",
-				NoAlg:      false,
+				Issuer:  issuer,
+				Nonce:   "empty",
+				NoNonce: false,
+				Aud:     "empty",
+				Alg:     "RS256",
+				NoAlg:   false,
 			}
 
 			if tc.tokenCommitType.Claim == "nonce" {
@@ -161,21 +135,37 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.Aud = tc.aud
 			}
 
-			options := &mocks.MockPKTokenOpts{
-				GQSign:         tc.tokenGQSign,
-				CommitType:     tc.tokenCommitType,
-				CorrectCicHash: tc.correctCicHash,
-				CorrectCicSig:  tc.correctCicSig,
+			cic := genCIC(t, map[string]any{})
+
+			// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
+			pvGQOnly := tc.tokenCommitType.GQCommitment
+			skipClientIDCheck := false //TODO: This should be taken from the testcase
+
+			providerOpts := provider_mocks.MockProviderOpts{
+				Issuer:     issuer,
+				ClientID:   clientID,
+				SignGQ:     tc.tokenGQSign,
+				CommitType: tc.tokenCommitType,
+				VerifierOpts: providers.ProviderVerifierOpts{
+					CommitType:        tc.pvCommitType,
+					ClientID:          clientID,
+					SkipClientIDCheck: skipClientIDCheck,
+					GQOnly:            pvGQOnly,
+				},
 			}
 
-			// TODO: Once provider RequestTokens returns an ID token instead of a PK Token, replace this with a mock provider
-			pkt, backendMock, err := mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, idtTemplate, options)
+			op, backendMock, _, err := provider_mocks.NewMockProvider(providerOpts)
+			require.NoError(t, err)
+			opSignKey, keyID, _ := backendMock.RandomSigningKey()
+			idtTemplate.KeyID = keyID
+			idtTemplate.SigningKey = opSignKey
+
+			backendMock.SetIDTokenTemplate(&idtTemplate)
+
+			idToken, err := op.RequestTokens(context.Background(), cic)
 			require.NoError(t, err)
 
-			issuer, err := pkt.Issuer()
-			require.NoError(t, err)
-
-			if tc.name == "GQ Commitment providerVerifier not using GQ Commitment" {
+			if tc.name == "GQ Commitment happy case" {
 				fmt.Println("here")
 			}
 			pv := providers.NewProviderVerifier(issuer,
@@ -183,8 +173,16 @@ func TestProviderVerifier(t *testing.T) {
 					CommitType:        tc.pvCommitType,
 					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly,
-					ClientID:          tc.clientID, SkipClientIDCheck: tc.SkipClientIDCheck})
-			err = pv.VerifyProvider(context.Background(), pkt.OpToken)
+					ClientID:          tc.clientID,
+					SkipClientIDCheck: tc.SkipClientIDCheck})
+
+			// Change the CIC we test against so it doesn't match the commitment
+			if !tc.correctCicHash {
+				// overwrite the cic with a new cic with a different hash
+				cic = genCIC(t, map[string]any{"cause": "differentCicHash"})
+			}
+
+			err = pv.VerifyProvider(context.Background(), idToken, cic)
 
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError)
@@ -193,4 +191,19 @@ func TestProviderVerifier(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TODO: This code is duplicated in mocks to avoid circular dependencies. When we solve this circular dependencies remove this and point to mocks.
+// Tracked in: https://github.com/openpubkey/openpubkey/issues/162
+func genCIC(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
+	jwkKey, err := jwk.PublicKeyOf(signer)
+	require.NoError(t, err)
+	err = jwkKey.Set(jwk.AlgorithmKey, alg)
+	require.NoError(t, err)
+	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
+	require.NoError(t, err)
+	return cic
 }

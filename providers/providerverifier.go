@@ -28,9 +28,9 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -83,7 +83,7 @@ func (v *DefaultProviderVerifier) Issuer() string {
 	return v.issuer
 }
 
-func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idToken []byte, cic *clientinstance.Claims) error {
 	// Sanity check that if GQCommitment is enabled then the other options
 	// are set correctly for doing GQ commitment verification. The intention is
 	// to catch misconfigurations early and provide meaningful error messages.
@@ -103,66 +103,70 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idt []byte
 		}
 	}
 
+	idt, err := oidc.NewJwt(idToken)
+	if err != nil {
+		return err
+	}
+
 	// Check whether Audience claim matches provided Client ID
 	// No error is thrown if option is set to skip client ID check
 	if err := verifyAudience(idt, v.options.ClientID); err != nil && !v.options.SkipClientIDCheck {
 		return err
 	}
 
-	alg, ok := idt.ProviderAlgorithm()
-	if !ok {
+	algStr := idt.GetSignature().GetProtectedClaims().Alg
+	if algStr == "" {
 		return fmt.Errorf("provider algorithm type missing")
 	}
-
+	alg := jwa.SignatureAlgorithm(algStr)
 	if alg != gq.GQ256 && v.options.GQOnly {
 		return errors.ErrNonGQUnsupported
 	}
 
 	switch alg {
 	case gq.GQ256:
-		if err := v.verifyGQSig(ctx, pkt); err != nil {
+		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
 	case jwa.RS256:
-		pubKeyRecord, err := v.providerPublicKey(ctx, pkt)
+		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
-		if _, err := jws.Verify(pkt.OpToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
+		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
 	}
 
-	if err := v.verifyCommitment(pkt); err != nil {
+	if err := v.verifyCommitment(idt, cic); err != nil {
 		return err
 	}
 
-	if err := verifyCicSignature(pkt); err != nil {
-		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
-	}
-
+	// if err := verifyCicSignature(pkt); err != nil {
+	// 	return fmt.Errorf("error verifying client signature on PK Token: %w", err)
+	// }
 	return nil
 }
 
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, pkt *pktoken.PKToken) (*discover.PublicKeyRecord, error) {
+func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, idToken []byte) (*discover.PublicKeyRecord, error) {
 	// TODO: We should support verifying by JKT if not kid exists in the header
 	// Created issue https://github.com/openpubkey/openpubkey/issues/137 to track this
-	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), pkt.OpToken)
+	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idToken)
 }
 
-func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
+func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientinstance.Claims) error {
 	var claims map[string]any
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return err
-	}
-
-	cic, err := pkt.GetCicValues()
+	payload, err := util.Base64DecodeForJWT([]byte(idt.GetPayload()))
 	if err != nil {
 		return err
 	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return err
+	}
+
 	expectedCommitment, err := cic.Hash()
 	if err != nil {
 		return err
@@ -189,8 +193,8 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 		}
 
 		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token
-		commitment, commitmentFound = pkt.Op.ProtectedHeaders().Get("cic")
-		if !commitmentFound {
+		commitment = idt.GetSignature().GetProtectedClaims().CIC
+		if commitment == "" {
 			return fmt.Errorf("missing GQ commitment")
 		}
 	} else {
@@ -213,35 +217,33 @@ func (v *DefaultProviderVerifier) verifyCommitment(pkt *pktoken.PKToken) error {
 // verifyGQSig verifies the signature of a PK token with a GQ signature. The
 // parameter issuer should be the issuer of the ProviderVerifier not the
 // issuer of the PK Token
-func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, pkt *pktoken.PKToken) error {
-	alg, ok := pkt.ProviderAlgorithm()
-	if !ok {
+func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt) error {
+	algStr := idt.GetSignature().GetProtectedClaims().Alg
+	if algStr == "" {
 		return fmt.Errorf("missing provider algorithm header")
 	}
-
-	if alg != gq.GQ256 {
+	if algStr != gq.GQ256.String() {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
-	origHeaders, err := originalTokenHeaders(pkt.OpToken)
+	origHeaders, err := originalTokenHeaders(idt.GetRaw())
 	if err != nil {
-		return fmt.Errorf("malformatted PK token headers: %w", err)
+		return fmt.Errorf("malformed ID Token headers: %w", err)
 	}
 
-	alg = origHeaders.Algorithm()
-	if alg != jwa.RS256 {
-		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", alg)
+	origAlg := origHeaders.Algorithm()
+	if origAlg != jwa.RS256 {
+		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", origAlg)
 	}
 
-	pktIssuer, err := pkt.Issuer()
-	if err != nil {
-		return fmt.Errorf("missing issuer: %w", err)
+	if idt.GetClaims().Issuer == "" {
+		return fmt.Errorf("missing issuer in payload: %s", idt.GetPayload())
 	}
-	if pktIssuer != v.issuer {
-		return fmt.Errorf("issuer of PK token (%s) doesn't match expected issuer (%s)", pktIssuer, v.issuer)
+	if idt.GetClaims().Issuer != v.issuer {
+		return fmt.Errorf("issuer of ID Token (%s) doesn't match expected issuer (%s)", idt.GetClaims().Issuer, v.issuer)
 	}
 
-	publicKeyRecord, err := v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), pkt.OpToken)
+	publicKeyRecord, err := v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idt.GetRaw())
 	if err != nil {
 		return fmt.Errorf("failed to get provider public key: %w", err)
 	}
@@ -250,7 +252,7 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, pkt *pktoken.
 	if !ok {
 		return fmt.Errorf("jwk is not an RSA key")
 	}
-	ok, err = gq.GQ256VerifyJWT(rsaKey, pkt.OpToken)
+	ok, err = gq.GQ256VerifyJWT(rsaKey, idt.GetRaw())
 	if err != nil {
 		return err
 	}
@@ -280,30 +282,18 @@ func originalTokenHeaders(token []byte) (jws.Headers, error) {
 	return headers, nil
 }
 
-func verifyAudience(pkt *pktoken.PKToken, clientID string) error {
-	var claims struct {
-		Audience any `json:"aud"`
-	}
-	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
-		return err
-	}
+func verifyAudience(idt *oidc.Jwt, clientID string) error {
 
-	switch aud := claims.Audience.(type) {
-	case string:
-		if aud != clientID {
-			return fmt.Errorf("audience does not contain clientID %s, aud = %s", clientID, aud)
-		}
-	case []any:
-		for _, audience := range aud {
-			if audience.(string) == clientID {
-				return nil
-			}
-		}
-		return fmt.Errorf("audience does not contain clientID %s, aud = %v", clientID, aud)
-	default:
+	if idt.GetClaims().Audience == "" {
 		return fmt.Errorf("missing audience claim")
 	}
-	return nil
+
+	for _, audience := range strings.Split(idt.GetClaims().Audience, ",") {
+		if audience == clientID {
+			return nil
+		}
+	}
+	return fmt.Errorf("audience does not contain clientID %s, aud = %v", clientID, idt.GetClaims().Audience)
 }
 
 func verifyCicSignature(pkt *pktoken.PKToken) error {

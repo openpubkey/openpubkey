@@ -24,12 +24,13 @@ import (
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	VerifyProvider(ctx context.Context, idt []byte) error
+	VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
 type CosignerVerifier interface {
@@ -120,9 +121,15 @@ func (v *Verifier) VerifyPKToken(
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	if err := providerVerifier.VerifyProvider(ctx, pkt.OpToken); err != nil {
+	cic, err := pkt.GetCicValues()
+	if err != nil {
 		return err
 	}
+	if err := providerVerifier.VerifyProvider(ctx, pkt.OpToken, cic); err != nil {
+		return err
+	}
+	// TODO: Check cic signature
+	_ = cic
 
 	if len(v.cosigners) > 0 {
 		if pkt.Cos == nil {

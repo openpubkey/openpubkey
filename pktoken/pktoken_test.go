@@ -24,9 +24,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
-	"github.com/openpubkey/openpubkey/pktoken/simplejws"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -172,7 +172,7 @@ func testUnchangedAfterMarshalling(t *testing.T, payload string, opPheader strin
 	require.NoError(t, err)
 
 	// Unmarshal it into a simple JWS structure to see if the underlying values have changed
-	var simpleJWS simplejws.Jws
+	var simpleJWS oidc.Jws
 	err = json.Unmarshal(pktJson, &simpleJWS)
 	require.NoError(t, err)
 

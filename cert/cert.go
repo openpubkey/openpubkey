@@ -28,7 +28,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
@@ -38,6 +38,9 @@ import (
 //   - Raw PK token is mapped to the SubjectKeyId field
 func CreateX509Cert(pkToken *pktoken.PKToken, signer crypto.Signer) ([]byte, error) {
 	template, err := PktToX509Template(pkToken)
+	if err != nil {
+		return nil, fmt.Errorf("error creating X.509 template: %w", err)
+	}
 
 	// create a self-signed X.509 certificate
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, signer.Public(), signer)
@@ -57,7 +60,7 @@ func PktToX509Template(pkt *pktoken.PKToken) (*x509.Certificate, error) {
 	}
 
 	// get subject identifier from pk token
-	idtClaims := new(client.OidcClaims)
+	idtClaims := new(oidc.OidcClaims)
 	if err := json.Unmarshal(pkt.Payload, idtClaims); err != nil {
 		return nil, err
 	}

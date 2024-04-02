@@ -204,9 +204,9 @@ func (g *GoogleOp) Issuer() string {
 	return g.issuer
 }
 
-func (g *GoogleOp) VerifyProvider(ctx context.Context, idt []byte) error {
+func (g *GoogleOp) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: googleAudience})
-	return vp.VerifyProvider(ctx, idt)
+	return vp.VerifyProvider(ctx, idt, cic)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
