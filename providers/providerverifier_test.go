@@ -42,13 +42,13 @@ func TestProviderVerifier(t *testing.T) {
 	// TODO: Check bad OP signature
 	// TODO: Check bad CIC
 	testCases := []struct {
-		name              string
-		aud               string
-		clientID          string
-		expError          string
-		pvGQSign          bool
-		pvGQOnly          bool
-		tokenGQSign       bool
+		name        string
+		aud         string
+		clientID    string
+		expError    string
+		pvGQSign    bool
+		pvGQOnly    bool
+		tokenGQSign bool
 
 		tokenCommitType   CommitType
 		pvCommitType      CommitType
@@ -104,9 +104,8 @@ func TestProviderVerifier(t *testing.T) {
 		{name: "GQ Commitment check client id", aud: correctAud,
 			expError:        "GQCommitment requires that audience (aud) is not set to client-id",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
-			tokenGQSign: true, pvGQOnly: true,
+			tokenGQSign: true, pvGQOnly: true},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			idtTemplate := backend.IDTokenTemplate{
