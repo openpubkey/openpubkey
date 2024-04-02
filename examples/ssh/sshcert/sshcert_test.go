@@ -12,7 +12,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -86,8 +86,8 @@ func TestSshCertCreation(t *testing.T) {
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
-	providerOpts := mocks.DefaultMockProviderOpts()
-	op, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	mockEmail := "arthur.aardvark@example.com"

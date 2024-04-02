@@ -31,6 +31,7 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,7 @@ func TestGithubOpTableTest(t *testing.T) {
 		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
 	}
 
-	cic := genCIC(t)
+	cic := mocks.GenCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := backend.IDTokenTemplate{
@@ -159,7 +160,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 
 func TestGithubOpFullGQ(t *testing.T) {
 
-	cic := genCIC(t)
+	cic := mocks.GenCIC(t)
 
 	// Setup expected test data
 	expProtected := []byte(`{"alg":"RS256","kid":"1F2AB83404C08EC9EA0BB99DAED02186B091DBF4","typ":"JWT","x5t":"Hyq4NATAjsnqC7mdrtAhhrCR2_Q"}`)

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
@@ -111,6 +112,11 @@ func (v *Verifier) VerifyPKToken(
 	pkt *pktoken.PKToken,
 	extraChecks ...Check,
 ) error {
+	// Don't even bother doing anything if the user's isn't valid
+	if err := verifyCicSignature(pkt); err != nil {
+		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
+	}
+
 	issuer, err := pkt.Issuer()
 	if err != nil {
 		return err
@@ -128,8 +134,6 @@ func (v *Verifier) VerifyPKToken(
 	if err := providerVerifier.VerifyProvider(ctx, pkt.OpToken, cic); err != nil {
 		return err
 	}
-	// TODO: Check cic signature
-	_ = cic
 
 	if len(v.cosigners) > 0 {
 		if pkt.Cos == nil {
@@ -172,4 +176,14 @@ func (v *Verifier) VerifyPKToken(
 	}
 
 	return nil
+}
+
+func verifyCicSignature(pkt *pktoken.PKToken) error {
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
+	}
+
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	return err
 }

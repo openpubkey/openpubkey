@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package mocks
+package providers
 
 import (
 	"context"
@@ -22,22 +22,21 @@ import (
 
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
 )
 
 const mockProviderIssuer = "https://accounts.example.com"
 
-var _ providers.OpenIdProvider = (*MockProvider)(nil)
+var _ OpenIdProvider = (*MockProvider)(nil)
 
 type MockProviderOpts struct {
 	Issuer     string
 	ClientID   string
 	SignGQ     bool
-	CommitType providers.CommitType
+	CommitType CommitType
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
-	VerifierOpts providers.ProviderVerifierOpts
+	VerifierOpts ProviderVerifierOpts
 }
 
 func DefaultMockProviderOpts() MockProviderOpts {
@@ -46,9 +45,9 @@ func DefaultMockProviderOpts() MockProviderOpts {
 		Issuer:     "https://accounts.example.com",
 		ClientID:   clientID,
 		SignGQ:     false,
-		CommitType: providers.CommitTypesEnum.NONCE_CLAIM,
-		VerifierOpts: providers.ProviderVerifierOpts{
-			CommitType:        providers.CommitTypesEnum.NONCE_CLAIM,
+		CommitType: CommitTypesEnum.NONCE_CLAIM,
+		VerifierOpts: ProviderVerifierOpts{
+			CommitType:        CommitTypesEnum.NONCE_CLAIM,
 			ClientID:          clientID,
 			SkipClientIDCheck: false,
 			GQOnly:            false,
@@ -66,7 +65,7 @@ type MockProvider struct {
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
 // the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
 // Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
-func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.MockProviderBackend, *backend.IDTokenTemplate, error) {
+func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *backend.MockProviderBackend, *backend.IDTokenTemplate, error) {
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
@@ -102,7 +101,7 @@ func NewMockProvider(opts MockProviderOpts) (providers.OpenIdProvider, *backend.
 		SigningKey: providerSigner,
 	}
 	if opts.CommitType.GQCommitment {
-		idTokenTemplate.Aud = providers.AudPrefixForGQCommitment
+		idTokenTemplate.Aud = AudPrefixForGQCommitment
 	}
 
 	mockBackend.SetIDTokenTemplate(idTokenTemplate)
@@ -129,10 +128,10 @@ func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Cl
 		return nil, err
 	}
 	if m.options.CommitType.GQCommitment {
-		return providers.CreateGQBoundToken(ctx, idToken, m, string(cicHash))
+		return CreateGQBoundToken(ctx, idToken, m, string(cicHash))
 	}
 	if m.options.SignGQ {
-		return providers.CreateGQToken(ctx, idToken, m)
+		return CreateGQToken(ctx, idToken, m)
 	}
 	return idToken, nil
 }
@@ -153,5 +152,5 @@ func (m *MockProvider) Issuer() string {
 
 func (m *MockProvider) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
-	return providers.NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, idt, cic)
+	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, idt, cic)
 }

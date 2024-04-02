@@ -23,6 +23,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +42,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 
 	aud := AudPrefixForGQCommitment
 
-	cic := genCIC(t)
+	cic := mocks.GenCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := backend.IDTokenTemplate{

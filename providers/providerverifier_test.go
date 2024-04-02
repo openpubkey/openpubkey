@@ -14,33 +14,28 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package providers_test
+package providers
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
-	provider_mocks "github.com/openpubkey/openpubkey/providers/mocks"
-	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProviderVerifier(t *testing.T) {
-	NONCE_CLAIM := providers.CommitTypesEnum.NONCE_CLAIM
-	AUD_CLAIM := providers.CommitTypesEnum.AUD_CLAIM
-	GQ_BOUND := providers.CommitTypesEnum.GQ_BOUND
-	EMPTY_COMMIT := providers.CommitType{
+	NONCE_CLAIM := CommitTypesEnum.NONCE_CLAIM
+	AUD_CLAIM := CommitTypesEnum.AUD_CLAIM
+	GQ_BOUND := CommitTypesEnum.GQ_BOUND
+	EMPTY_COMMIT := CommitType{
 		Claim:        "",
 		GQCommitment: false,
 	}
 
-	correctAud := providers.AudPrefixForGQCommitment
+	correctAud := AudPrefixForGQCommitment
 	clientID := "test-client-id"
 	issuer := "mockIssuer"
 
@@ -54,8 +49,8 @@ func TestProviderVerifier(t *testing.T) {
 		pvGQSign          bool
 		pvGQOnly          bool
 		tokenGQSign       bool
-		tokenCommitType   providers.CommitType
-		pvCommitType      providers.CommitType
+		tokenCommitType   CommitType
+		pvCommitType      CommitType
 		SkipClientIDCheck bool
 		correctCicHash    bool
 	}{
@@ -135,18 +130,18 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.Aud = tc.aud
 			}
 
-			cic := genCIC(t, map[string]any{})
+			cic := mocks.GenCICExtra(t, map[string]any{})
 
 			// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 			pvGQOnly := tc.tokenCommitType.GQCommitment
 			skipClientIDCheck := false //TODO: This should be taken from the testcase
 
-			providerOpts := provider_mocks.MockProviderOpts{
+			providerOpts := MockProviderOpts{
 				Issuer:     issuer,
 				ClientID:   clientID,
 				SignGQ:     tc.tokenGQSign,
 				CommitType: tc.tokenCommitType,
-				VerifierOpts: providers.ProviderVerifierOpts{
+				VerifierOpts: ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,
 					ClientID:          clientID,
 					SkipClientIDCheck: skipClientIDCheck,
@@ -154,7 +149,7 @@ func TestProviderVerifier(t *testing.T) {
 				},
 			}
 
-			op, backendMock, _, err := provider_mocks.NewMockProvider(providerOpts)
+			op, backendMock, _, err := NewMockProvider(providerOpts)
 			require.NoError(t, err)
 			opSignKey, keyID, _ := backendMock.RandomSigningKey()
 			idtTemplate.KeyID = keyID
@@ -168,8 +163,8 @@ func TestProviderVerifier(t *testing.T) {
 			if tc.name == "GQ Commitment happy case" {
 				fmt.Println("here")
 			}
-			pv := providers.NewProviderVerifier(issuer,
-				providers.ProviderVerifierOpts{
+			pv := NewProviderVerifier(issuer,
+				ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,
 					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly,
@@ -179,7 +174,7 @@ func TestProviderVerifier(t *testing.T) {
 			// Change the CIC we test against so it doesn't match the commitment
 			if !tc.correctCicHash {
 				// overwrite the cic with a new cic with a different hash
-				cic = genCIC(t, map[string]any{"cause": "differentCicHash"})
+				cic = mocks.GenCICExtra(t, map[string]any{"cause": "differentCicHash"})
 			}
 
 			err = pv.VerifyProvider(context.Background(), idToken, cic)
@@ -191,19 +186,4 @@ func TestProviderVerifier(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TODO: This code is duplicated in mocks to avoid circular dependencies. When we solve this circular dependencies remove this and point to mocks.
-// Tracked in: https://github.com/openpubkey/openpubkey/issues/162
-func genCIC(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
-	require.NoError(t, err)
-	jwkKey, err := jwk.PublicKeyOf(signer)
-	require.NoError(t, err)
-	err = jwkKey.Set(jwk.AlgorithmKey, alg)
-	require.NoError(t, err)
-	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
-	require.NoError(t, err)
-	return cic
 }

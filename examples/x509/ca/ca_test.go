@@ -29,13 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestCACertCreation(t *testing.T) {
-	providerOpts := mocks.DefaultMockProviderOpts()
-	op, _, _, err := mocks.NewMockProvider(providerOpts)
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	certAuth, err := New(op)

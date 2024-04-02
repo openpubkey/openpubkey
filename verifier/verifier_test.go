@@ -33,7 +33,7 @@ import (
 )
 
 func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
-	providerOpts := mocks.MockProviderOpts{
+	providerOpts := providers.MockProviderOpts{
 		Issuer:     issuer,
 		ClientID:   clientID,
 		SignGQ:     signGQ,
@@ -46,7 +46,7 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 		},
 	}
 
-	op, mockBackend, _, err := mocks.NewMockProvider(providerOpts)
+	op, mockBackend, _, err := providers.NewMockProvider(providerOpts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -204,6 +204,16 @@ func TestVerifier(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCICSignature(t *testing.T) {
+	providerOpts := providers.DefaultMockProviderOpts()
+	provider, _, _, err := providers.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	cic := mocks.GenCIC(t)
+
+	provider.RequestTokens(context.Background(), cic)
+}
+
 func TestGQCommitment(t *testing.T) {
 
 	gqBindingAud := providers.AudPrefixForGQCommitment + "1234"
@@ -237,7 +247,7 @@ func TestGQCommitment(t *testing.T) {
 			}
 
 			clientID := "test_client_id"
-			providerOpts := mocks.MockProviderOpts{
+			providerOpts := providers.MockProviderOpts{
 				ClientID:   clientID,
 				SignGQ:     tc.gqSign,
 				CommitType: commitType,
@@ -248,7 +258,7 @@ func TestGQCommitment(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
-			provider, _, idtTemplate, err := mocks.NewMockProvider(providerOpts)
+			provider, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
 			require.NoError(t, err)
 
 			idtTemplate.Aud = tc.aud

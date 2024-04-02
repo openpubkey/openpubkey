@@ -29,7 +29,6 @@ import (
 	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/oidc"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -143,9 +142,6 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idToken []
 		return err
 	}
 
-	// if err := verifyCicSignature(pkt); err != nil {
-	// 	return fmt.Errorf("error verifying client signature on PK Token: %w", err)
-	// }
 	return nil
 }
 
@@ -294,14 +290,4 @@ func verifyAudience(idt *oidc.Jwt, clientID string) error {
 		}
 	}
 	return fmt.Errorf("audience does not contain clientID %s, aud = %v", clientID, idt.GetClaims().Audience)
-}
-
-func verifyCicSignature(pkt *pktoken.PKToken) error {
-	cic, err := pkt.GetCicValues()
-	if err != nil {
-		return err
-	}
-
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
-	return err
 }
