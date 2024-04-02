@@ -49,6 +49,7 @@ func TestProviderVerifier(t *testing.T) {
 		pvGQSign          bool
 		pvGQOnly          bool
 		tokenGQSign       bool
+
 		tokenCommitType   CommitType
 		pvCommitType      CommitType
 		SkipClientIDCheck bool
@@ -104,7 +105,6 @@ func TestProviderVerifier(t *testing.T) {
 			expError:        "GQCommitment requires that audience (aud) is not set to client-id",
 			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
 			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: false, correctCicHash: false},
 	}
 
 	for _, tc := range testCases {
@@ -176,7 +176,6 @@ func TestProviderVerifier(t *testing.T) {
 				// overwrite the cic with a new cic with a different hash
 				cic = mocks.GenCICExtra(t, map[string]any{"cause": "differentCicHash"})
 			}
-
 			err = pv.VerifyProvider(context.Background(), idToken, cic)
 
 			if tc.expError != "" {

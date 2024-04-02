@@ -50,7 +50,6 @@ func TestGithubOpTableTest(t *testing.T) {
 	}
 
 	cic := mocks.GenCIC(t)
-
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := backend.IDTokenTemplate{
 		CommitFunc:  backend.AddAudCommit,

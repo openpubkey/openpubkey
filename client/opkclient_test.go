@@ -67,6 +67,7 @@ func TestClient(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
+
 			op, _, _, err := providers.NewMockProvider(providerOpts)
 			require.NoError(t, err)
 

@@ -258,6 +258,7 @@ func TestGQCommitment(t *testing.T) {
 					ClientID:          clientID,
 				},
 			}
+
 			provider, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
 			require.NoError(t, err)
 

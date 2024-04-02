@@ -34,7 +34,6 @@ func TestSimpleExample(t *testing.T) {
 			GQOnly:            true,
 		},
 	}
-
 	op, _, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 

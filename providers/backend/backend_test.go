@@ -100,14 +100,16 @@ func TestKeySetCreators(t *testing.T) {
 			},
 		}
 		for _, tc := range testCases {
-			// skSet - set of signingKeys, recordSet - set of publicKeyRecords
-			skSet, recordSet, err := CreateKeySet(tc.issuer, tc.alg, numKeys)
-			if tc.expError != "" {
-				require.ErrorContains(t, err, tc.expError, tc.name)
-			} else {
-				require.NoError(t, err, tc.name)
-			}
-			CheckKeySets(t, tc.name, tc.issuer, tc.alg, skSet, recordSet)
+			t.Run(tc.name, func(t *testing.T) {
+				// skSet - set of signingKeys, recordSet - set of publicKeyRecords
+				skSet, recordSet, err := CreateKeySet(tc.issuer, tc.alg, numKeys)
+				if tc.expError != "" {
+					require.ErrorContains(t, err, tc.expError, tc.name)
+				} else {
+					require.NoError(t, err, tc.name)
+				}
+				CheckKeySets(t, tc.name, tc.issuer, tc.alg, skSet, recordSet)
+			})
 		}
 	}
 
