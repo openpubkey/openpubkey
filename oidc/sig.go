@@ -55,17 +55,3 @@ func (s *Signature) GetTyp() (string, error) {
 func (s *Signature) GetProtectedClaims() *ProtectedClaims {
 	return s.protectedClaims
 }
-
-func (s *Signature) UnmarshalProtected() (*ProtectedClaims, error) {
-	decodedProtected, err := util.Base64DecodeForJWT([]byte(s.Protected))
-	if err != nil {
-		return nil, err
-	}
-
-	var protected *ProtectedClaims
-	err = json.Unmarshal(decodedProtected, protected)
-	if err != nil {
-		return nil, err
-	}
-	return protected, nil
-}

@@ -55,6 +55,14 @@ func TestJwtMarshaling(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, jwt)
 			require.Equal(t, tc.expectedAud, jwt.GetClaims().Audience)
+
+			typ, err := jwt.GetSignature().GetTyp()
+			require.NoError(t, err)
+			require.Equal(t, "JWT", typ)
+
+			pHeader := jwt.GetSignature().GetProtectedClaims()
+			require.NotNil(t, pHeader)
+			require.Equal(t, "RS256", pHeader.Alg)
 		})
 	}
 

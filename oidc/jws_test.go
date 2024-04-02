@@ -44,26 +44,26 @@ func TestJwsMarshaling(t *testing.T) {
 		{name: "with one token",
 			payload: payloadJson,
 			tokens: []string{
-				"eHl6.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ=="},
-			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eHl6","signature":"ZmFrZXNpZ25hdHVyZQ=="}]}`,
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ=="},
+			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ","signature":"ZmFrZXNpZ25hdHVyZQ=="}]}`,
 			publicHeaders: []map[string]any{},
 		},
 		{name: "with two tokens",
 			payload: payloadJson,
 			tokens: []string{
-				"eHl6.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ==",
-				"YWJj.eyJhIjogIjEiLCAiYiI6IDJ9.YW5vdGhlcmZha2VzaWc="},
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ==",
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNJQyIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.YW5vdGhlcmZha2VzaWc="},
 			publicHeaders: []map[string]any{},
-			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eHl6","signature":"ZmFrZXNpZ25hdHVyZQ=="},{"protected":"YWJj","signature":"YW5vdGhlcmZha2VzaWc="}]}`,
+			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ","signature":"ZmFrZXNpZ25hdHVyZQ=="},{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNJQyIsImtpZCI6IjEyMzQifQ","signature":"YW5vdGhlcmZha2VzaWc="}]}`,
 		},
 		{name: "with three tokens and public header",
 			payload: payloadJson,
 			tokens: []string{
-				"eHl6.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ==",
-				"YWJj.eyJhIjogIjEiLCAiYiI6IDJ9.YW5vdGhlcmZha2VzaWc=",
-				"MTIz.eyJhIjogIjEiLCAiYiI6IDJ9.ZXh0cmFmYWtlc2ln"},
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.ZmFrZXNpZ25hdHVyZQ==",
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNJQyIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.YW5vdGhlcmZha2VzaWc=",
+				"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNPUyIsImtpZCI6IjEyMzQifQ.eyJhIjogIjEiLCAiYiI6IDJ9.ZXh0cmFmYWtlc2ln"},
 			publicHeaders: []map[string]any{{"a": "1", "b": 2}, nil, nil},
-			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eHl6","header":{"a":"1","b":2},"signature":"ZmFrZXNpZ25hdHVyZQ=="},{"protected":"YWJj","signature":"YW5vdGhlcmZha2VzaWc="},{"protected":"MTIz","signature":"ZXh0cmFmYWtlc2ln"}]}`,
+			expectedJson:  `{"payload":"eyJhIjogIjEiLCAiYiI6IDJ9","signatures":[{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ","header":{"a":"1","b":2},"signature":"ZmFrZXNpZ25hdHVyZQ=="},{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNJQyIsImtpZCI6IjEyMzQifQ","signature":"YW5vdGhlcmZha2VzaWc="},{"protected":"eyJhbGciOiJSUzI1NiIsInR5cCI6IkNPUyIsImtpZCI6IjEyMzQifQ","signature":"ZXh0cmFmYWtlc2ln"}]}`,
 		},
 	}
 
@@ -85,6 +85,15 @@ func TestJwsMarshaling(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
+			if len(tc.tokens) > 0 {
+				token, err := jwsObj.GetTokenByTyp("JWT")
+				require.NoError(t, err)
+				require.NotNil(t, token)
+
+				token, err = jwsObj.GetToken(0)
+				require.NoError(t, err)
+				require.NotNil(t, token)
+			}
 
 			jwsJson, err := json.Marshal(jwsObj)
 			require.NoError(t, err)
@@ -97,6 +106,7 @@ func TestJwsMarshaling(t *testing.T) {
 			err = json.Unmarshal(jwsJson, &jwsObjUnmarshalled)
 			require.NoError(t, err)
 			JwsEqual(t, jwsObj, jwsObjUnmarshalled)
+
 		})
 	}
 }
