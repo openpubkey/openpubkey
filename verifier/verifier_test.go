@@ -25,9 +25,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/backend"
-	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
@@ -205,17 +206,69 @@ func TestVerifier(t *testing.T) {
 }
 
 func TestCICSignature(t *testing.T) {
-	providerOpts := providers.DefaultMockProviderOpts()
-	provider, _, _, err := providers.NewMockProvider(providerOpts)
+	clientID := "test_client_id"
+	alg := jwa.ES256
+	cicSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
+	sigFailure := "error verifying client signature on PK Token"
 
-	cic := mocks.GenCIC(t)
+	testCases := []struct {
+		name              string
+		expError          string
+		commitType        providers.CommitType
+		correctCicSig     bool
+		skipClientIDCheck bool
+	}{
+		{name: "happy case", expError: "", commitType: providers.CommitTypesEnum.NONCE_CLAIM,
+			correctCicSig: true, skipClientIDCheck: false},
+		{name: "bad sig: nonce", expError: sigFailure, commitType: providers.CommitTypesEnum.NONCE_CLAIM,
+			correctCicSig: false, skipClientIDCheck: false},
+		{name: "bad sig: aud", expError: sigFailure, commitType: providers.CommitTypesEnum.AUD_CLAIM,
+			correctCicSig: false, skipClientIDCheck: true},
+	}
 
-	provider.RequestTokens(context.Background(), cic)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			idtTemplate := backend.DefaultIDTokenTemplate()
+
+			if !tc.skipClientIDCheck {
+				idtTemplate.Aud = clientID
+			}
+
+			tokenOpts := &mocks.MockPKTokenOpts{
+				GQSign:         false,
+				CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
+				CorrectCicHash: true,
+				CorrectCicSig:  tc.correctCicSig,
+			}
+			if tc.commitType.Claim == "nonce" {
+				idtTemplate.CommitFunc = backend.AddNonceCommit
+			} else if tc.commitType.Claim == "aud" {
+				idtTemplate.CommitFunc = backend.AddAudCommit
+			} else {
+				idtTemplate.CommitFunc = backend.NoClaimCommit
+			}
+			pkt, backendMock, err := mocks.GenerateMockPKTokenWithOpts(t, cicSigner, alg, idtTemplate, tokenOpts)
+			require.NoError(t, err)
+			pktVerifier, err := verifier.New(providers.NewProviderVerifier(idtTemplate.Issuer,
+				providers.ProviderVerifierOpts{
+					ClientID:          clientID,
+					CommitType:        tc.commitType,
+					SkipClientIDCheck: tc.skipClientIDCheck,
+					DiscoverPublicKey: &backendMock.PublicKeyFinder,
+				}))
+			require.NoError(t, err)
+			err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestGQCommitment(t *testing.T) {
-
 	gqBindingAud := providers.AudPrefixForGQCommitment + "1234"
 
 	testCases := []struct {

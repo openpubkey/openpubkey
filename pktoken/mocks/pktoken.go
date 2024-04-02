@@ -38,7 +38,7 @@ func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgo
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, backend.DefaultIDTokenTemplate(), options)
 	return pkt, err
 }
 
@@ -49,22 +49,8 @@ func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAl
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, backend.DefaultIDTokenTemplate(), options)
 	return pkt, err
-}
-
-func DefaultIDTokenTemplate() backend.IDTokenTemplate {
-	return backend.IDTokenTemplate{
-		CommitFunc: backend.AddAudCommit,
-		Issuer:     "mockIssuer",
-		Nonce:      "empty",
-		NoNonce:    false,
-		Aud:        "empty",
-		KeyID:      "mockKeyID",
-		NoKeyID:    false,
-		Alg:        "RS256",
-		NoAlg:      false,
-	}
 }
 
 type MockPKTokenOpts struct {

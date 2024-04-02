@@ -45,6 +45,20 @@ type IDTokenTemplate struct {
 	SigningKey           crypto.Signer // The key we will use to sign the ID Token
 }
 
+func DefaultIDTokenTemplate() IDTokenTemplate {
+	return IDTokenTemplate{
+		CommitFunc: AddAudCommit,
+		Issuer:     "mockIssuer",
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        "empty",
+		KeyID:      "mockKeyID",
+		NoKeyID:    false,
+		Alg:        "RS256",
+		NoAlg:      false,
+	}
+}
+
 // AddCommit adds the commitment to the CIC to the ID Token. The
 // CommitmentFunc is specifed allowing custom commitment functions to be specified
 func (t *IDTokenTemplate) AddCommit(cicHash string) {
