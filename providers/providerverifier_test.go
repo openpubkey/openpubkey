@@ -38,8 +38,6 @@ func TestProviderVerifier(t *testing.T) {
 	clientID := "test-client-id"
 	issuer := "mockIssuer"
 
-	// TODO: Check bad OP signature
-	// TODO: Check bad CIC
 	testCases := []struct {
 		name        string
 		aud         string
