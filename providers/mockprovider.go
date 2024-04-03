@@ -22,7 +22,7 @@ import (
 
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 )
 
 const mockProviderIssuer = "https://accounts.example.com"
@@ -65,12 +65,12 @@ type MockProvider struct {
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
 // the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
 // Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
-func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *backend.MockProviderBackend, *backend.IDTokenTemplate, error) {
+func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *mocks.MockProviderBackend, *mocks.IDTokenTemplate, error) {
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
 	numKeys := 2
-	mockBackend, err := backend.NewMockProviderBackend(opts.Issuer, numKeys)
+	mockBackend, err := mocks.NewMockProviderBackend(opts.Issuer, numKeys)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -82,13 +82,13 @@ func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *backend.MockProvid
 	}
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
-	commitmentFunc := backend.NoClaimCommit
+	commitmentFunc := mocks.NoClaimCommit
 	if opts.CommitType.Claim == "nonce" {
-		commitmentFunc = backend.AddNonceCommit
+		commitmentFunc = mocks.AddNonceCommit
 	} else if opts.CommitType.Claim == "aud" {
-		commitmentFunc = backend.AddAudCommit
+		commitmentFunc = mocks.AddAudCommit
 	}
-	idTokenTemplate := &backend.IDTokenTemplate{
+	idTokenTemplate := &mocks.IDTokenTemplate{
 		CommitFunc: commitmentFunc,
 		Issuer:     provider.Issuer(),
 		Nonce:      "empty",

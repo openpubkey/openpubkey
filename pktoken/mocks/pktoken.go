@@ -26,7 +26,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgo
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, backend.DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, mocks.DefaultIDTokenTemplate(), options)
 	return pkt, err
 }
 
@@ -49,7 +49,7 @@ func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAl
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, backend.DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, mocks.DefaultIDTokenTemplate(), options)
 	return pkt, err
 }
 
@@ -62,7 +62,7 @@ type MockPKTokenOpts struct {
 }
 
 func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
-	idtTemplate backend.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *backend.MockProviderBackend, error) {
+	idtTemplate mocks.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *mocks.MockProviderBackend, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {

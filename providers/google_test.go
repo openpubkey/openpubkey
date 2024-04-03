@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	gqSign := false
 
 	issuer := googleIssuer
-	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
+	providerOverride, err := mocks.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GoogleOp{
@@ -44,8 +43,8 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	cic := mocks.GenCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitFunc:           backend.AddNonceCommit,
+	idTokenTemplate := mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
 		Issuer:               issuer,
 		Nonce:                "empty",
 		NoNonce:              false,

@@ -25,15 +25,15 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	pktoken_mocks "github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/stretchr/testify/require"
 )
 
-func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *backend.MockProviderBackend, error) {
+func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *mocks.MockProviderBackend, error) {
 	providerOpts := providers.MockProviderOpts{
 		Issuer:     issuer,
 		ClientID:   clientID,
@@ -54,8 +54,8 @@ func NewMockOpenIdProvider(signGQ bool, issuer string, clientID string, extraCla
 
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
-	idTokenTemplate := &backend.IDTokenTemplate{
-		CommitFunc:  backend.AddNonceCommit,
+	idTokenTemplate := &mocks.IDTokenTemplate{
+		CommitFunc:  mocks.AddNonceCommit,
 		Issuer:      op.Issuer(),
 		Aud:         clientID,
 		KeyID:       expKeyID,
@@ -229,26 +229,26 @@ func TestCICSignature(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			idtTemplate := backend.DefaultIDTokenTemplate()
+			idtTemplate := mocks.DefaultIDTokenTemplate()
 
 			if !tc.skipClientIDCheck {
 				idtTemplate.Aud = clientID
 			}
 
-			tokenOpts := &mocks.MockPKTokenOpts{
+			tokenOpts := &pktoken_mocks.MockPKTokenOpts{
 				GQSign:         false,
 				CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
 				CorrectCicHash: true,
 				CorrectCicSig:  tc.correctCicSig,
 			}
 			if tc.commitType.Claim == "nonce" {
-				idtTemplate.CommitFunc = backend.AddNonceCommit
+				idtTemplate.CommitFunc = mocks.AddNonceCommit
 			} else if tc.commitType.Claim == "aud" {
-				idtTemplate.CommitFunc = backend.AddAudCommit
+				idtTemplate.CommitFunc = mocks.AddAudCommit
 			} else {
-				idtTemplate.CommitFunc = backend.NoClaimCommit
+				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			}
-			pkt, backendMock, err := mocks.GenerateMockPKTokenWithOpts(t, cicSigner, alg, idtTemplate, tokenOpts)
+			pkt, backendMock, err := pktoken_mocks.GenerateMockPKTokenWithOpts(t, cicSigner, alg, idtTemplate, tokenOpts)
 			require.NoError(t, err)
 			pktVerifier, err := verifier.New(providers.NewProviderVerifier(idtTemplate.Issuer,
 				providers.ProviderVerifierOpts{

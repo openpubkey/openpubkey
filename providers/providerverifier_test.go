@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 )
@@ -108,7 +107,7 @@ func TestProviderVerifier(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			idtTemplate := backend.IDTokenTemplate{
+			idtTemplate := mocks.IDTokenTemplate{
 				Issuer:  issuer,
 				Nonce:   "empty",
 				NoNonce: false,
@@ -118,11 +117,11 @@ func TestProviderVerifier(t *testing.T) {
 			}
 
 			if tc.tokenCommitType.Claim == "nonce" {
-				idtTemplate.CommitFunc = backend.AddNonceCommit
+				idtTemplate.CommitFunc = mocks.AddNonceCommit
 			} else if tc.tokenCommitType.Claim == "aud" {
-				idtTemplate.CommitFunc = backend.AddAudCommit
+				idtTemplate.CommitFunc = mocks.AddAudCommit
 			} else {
-				idtTemplate.CommitFunc = backend.NoClaimCommit
+				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			}
 
 			if tc.aud != "" {
