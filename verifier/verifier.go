@@ -22,7 +22,6 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/cosigner"
-	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -76,7 +75,7 @@ func GQOnly() Check {
 		}
 
 		if alg != gq.GQ256 {
-			return errors.ErrNonGQUnsupported
+			return fmt.Errorf("non-GQ signatures are not supported")
 		}
 		return nil
 	}

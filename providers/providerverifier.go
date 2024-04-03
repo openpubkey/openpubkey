@@ -26,7 +26,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -119,7 +118,7 @@ func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idToken []
 	}
 	alg := jwa.SignatureAlgorithm(algStr)
 	if alg != gq.GQ256 && v.options.GQOnly {
-		return errors.ErrNonGQUnsupported
+		return fmt.Errorf("non-GQ signatures are not supported")
 	}
 
 	switch alg {
