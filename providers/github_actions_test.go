@@ -48,7 +48,7 @@ func TestGithubOpTableTest(t *testing.T) {
 		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
 	}
 
-	cic := mocks.GenCIC(t)
+	cic := GenCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := mocks.IDTokenTemplate{
 		CommitFunc:  mocks.AddAudCommit,
@@ -158,7 +158,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 
 func TestGithubOpFullGQ(t *testing.T) {
 
-	cic := mocks.GenCIC(t)
+	cic := GenCIC(t)
 
 	// Setup expected test data
 	expProtected := []byte(`{"alg":"RS256","kid":"1F2AB83404C08EC9EA0BB99DAED02186B091DBF4","typ":"JWT","x5t":"Hyq4NATAjsnqC7mdrtAhhrCR2_Q"}`)

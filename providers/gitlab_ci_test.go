@@ -40,7 +40,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	}
 
 	aud := AudPrefixForGQCommitment
-	cic := mocks.GenCIC(t)
+	cic := GenCIC(t)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 	idTokenTemplate := mocks.IDTokenTemplate{

@@ -40,7 +40,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
 	}
 
-	cic := mocks.GenCIC(t)
+	cic := GenCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
 	idTokenTemplate := mocks.IDTokenTemplate{

@@ -128,7 +128,7 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.Aud = tc.aud
 			}
 
-			cic := mocks.GenCICExtra(t, map[string]any{})
+			cic := GenCICExtra(t, map[string]any{})
 
 			// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 			pvGQOnly := tc.tokenCommitType.GQCommitment
@@ -172,7 +172,7 @@ func TestProviderVerifier(t *testing.T) {
 			// Change the CIC we test against so it doesn't match the commitment
 			if !tc.correctCicHash {
 				// overwrite the cic with a new cic with a different hash
-				cic = mocks.GenCICExtra(t, map[string]any{"cause": "differentCicHash"})
+				cic = GenCICExtra(t, map[string]any{"cause": "differentCicHash"})
 			}
 			err = pv.VerifyProvider(context.Background(), idToken, cic)
 
