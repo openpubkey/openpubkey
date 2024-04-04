@@ -19,6 +19,9 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/url"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -82,5 +85,63 @@ func TestGoogleSimpleRequest(t *testing.T) {
 		payload, err := util.Base64DecodeForJWT(payloadB64)
 		require.NoError(t, err)
 		require.Contains(t, string(payload), string(cicHash))
+	}
+}
+
+func TestFindAvaliablePort(t *testing.T) {
+	redirects := []string{
+		"http://localhost:21111/login-callback",
+		"http://localhost:21012/login-callback",
+		"http://localhost:30125/login-callback",
+	}
+
+	testCases := []struct {
+		name           string
+		expRedirectURI string
+		expError       string
+		portsToBlock   int
+	}{
+		{name: "Happy case", expRedirectURI: "http://localhost:21111/login-callback",
+			expError: "", portsToBlock: 0},
+		{name: "Happy case: first port in use", expRedirectURI: "http://localhost:21012/login-callback",
+			expError: "", portsToBlock: 1},
+		{name: "Happy case: first and second port in use", expRedirectURI: "http://localhost:30125/login-callback",
+			expError: "", portsToBlock: 2},
+		{name: "Check error when all ports in use", expRedirectURI: "",
+			expError: "failed to start a listener for the callback", portsToBlock: len(redirects)},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			blockedPorts := []net.Listener{}
+			// Simulate the case where a port is in use and the provider has to use a different redirect URI
+			for i := 0; i < tc.portsToBlock; i++ {
+				parsedUrl, err := url.Parse(redirects[i])
+				require.NoError(t, err)
+				lnStr := fmt.Sprintf("localhost:%s", parsedUrl.Port())
+				ln, err := net.Listen("tcp", lnStr)
+				require.NoError(t, err)
+				blockedPorts = append(blockedPorts, ln)
+			}
+
+			foundURI, ln, err := FindAvaliablePort(redirects)
+
+			if tc.expError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expError)
+				require.Nil(t, ln)
+				require.Nil(t, foundURI)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expRedirectURI, foundURI.String())
+				require.NotNil(t, ln)
+				err = ln.Close()
+				require.NoError(t, err)
+			}
+
+			for _, lis := range blockedPorts {
+				err := lis.Close()
+				require.NoError(t, err)
+			}
+		})
 	}
 }

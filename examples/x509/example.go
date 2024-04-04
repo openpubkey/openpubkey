@@ -29,17 +29,6 @@ import (
 	"github.com/openpubkey/openpubkey/providers"
 )
 
-// Variables for building our google provider
-var (
-	clientID = "184968138938-g1fddl5tglo7mnlbdak8hbsqhhf79f32.apps.googleusercontent.com"
-	// The clientSecret was intentionally checked in for the purposes of this example,. It holds no power. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
-	scopes       = []string{"openid profile email"}
-	redirURIPort = "3000"
-	callbackPath = "/login-callback"
-	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
-)
-
 func main() {
 	// Safely terminate in case of an interrupt signal
 	memguard.CatchInterrupt()
@@ -52,11 +41,12 @@ func main() {
 		return
 	}
 
-	signGQ := true
 	command := os.Args[1]
 	switch command {
 	case "login":
-		op := providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ)
+		opOpts := providers.GetDefaultGoogleOpOptions()
+		opOpts.SignGQ = true
+		op := providers.NewGoogleOp()
 		if err := login(op); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
