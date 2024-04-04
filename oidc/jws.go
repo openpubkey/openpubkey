@@ -14,40 +14,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package simplejws
+package oidc
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-
-	"github.com/openpubkey/openpubkey/util"
 )
 
 type Jws struct {
 	Payload    string      `json:"payload"`    // Base64 encoded
 	Signatures []Signature `json:"signatures"` // Base64 encoded
-}
-type Signature struct {
-	Protected string                 `json:"protected"` // Base64 encoded
-	Public    map[string]interface{} `json:"header,omitempty"`
-	Signature string                 `json:"signature"` // Base64 encoded
-}
-
-func (s *Signature) GetTyp() (string, error) {
-	decodedProtected, err := util.Base64DecodeForJWT([]byte(s.Protected))
-	if err != nil {
-		return "", err
-	}
-	type protectedTyp struct {
-		Typ string `json:"typ"`
-	}
-	var ph protectedTyp
-	err = json.Unmarshal(decodedProtected, &ph)
-	if err != nil {
-		return "", err
-	}
-	return ph.Typ, nil
 }
 
 type SigOptStruct struct {
@@ -136,16 +111,4 @@ func (j *Jws) GetTokenByTyp(typ string) ([]byte, error) {
 	} else {
 		return []byte(matchingTokens[0].Protected + "." + j.Payload + "." + matchingTokens[0].Signature), nil
 	}
-}
-
-// SplitCompact splits a JWT and returns its three parts
-// separately: protected headers, payload and signature.
-// This is copied from github.com/lestrrat-go/jwx/v2/jws.SplitCompact
-// We include it here so so that jwx is not a dependency of simpleJws
-func SplitCompact(src []byte) ([]byte, []byte, []byte, error) {
-	parts := bytes.Split(src, []byte("."))
-	if len(parts) < 3 {
-		return nil, nil, nil, fmt.Errorf(`invalid number of segments`)
-	}
-	return parts[0], parts[1], parts[2], nil
 }

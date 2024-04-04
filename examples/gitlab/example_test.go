@@ -20,12 +20,11 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGitlabExample(t *testing.T) {
-	providerOpts := mocks.MockProviderOpts{
+	providerOpts := providers.MockProviderOpts{
 		Issuer:     "mockIssuer",
 		ClientID:   "mockClient-ID",
 		SignGQ:     true,
@@ -36,7 +35,7 @@ func TestGitlabExample(t *testing.T) {
 			CommitType:        providers.CommitTypesEnum.GQ_BOUND,
 		},
 	}
-	op, _, _, err := mocks.NewMockProvider(providerOpts)
+	op, _, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
 	opts := Opts{

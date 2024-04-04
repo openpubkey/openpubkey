@@ -25,7 +25,6 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/discover"
-	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
@@ -170,7 +169,7 @@ func (g *GithubOp) Issuer() string {
 	return g.issuer
 }
 
-func (g *GithubOp) VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error {
+func (g *GithubOp) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.AUD_CLAIM, GQOnly: true, SkipClientIDCheck: true})
-	return vp.VerifyProvider(ctx, pkt)
+	return vp.VerifyProvider(ctx, idt, cic)
 }

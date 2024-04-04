@@ -30,14 +30,14 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
-	"github.com/openpubkey/openpubkey/providers/backend"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGithubOpTableTest(t *testing.T) {
 	issuer := githubIssuer
-	providerOverride, err := backend.NewMockProviderBackend(issuer, 2)
+	providerOverride, err := mocks.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
 	op := &GithubOp{
@@ -48,11 +48,10 @@ func TestGithubOpTableTest(t *testing.T) {
 		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
 	}
 
-	cic := genCIC(t)
-
+	cic := GenCIC(t)
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
-	idTokenTemplate := backend.IDTokenTemplate{
-		CommitFunc:  backend.AddAudCommit,
+	idTokenTemplate := mocks.IDTokenTemplate{
+		CommitFunc:  mocks.AddAudCommit,
 		Issuer:      issuer,
 		Nonce:       "empty",
 		NoNonce:     false,
@@ -159,7 +158,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 
 func TestGithubOpFullGQ(t *testing.T) {
 
-	cic := genCIC(t)
+	cic := GenCIC(t)
 
 	// Setup expected test data
 	expProtected := []byte(`{"alg":"RS256","kid":"1F2AB83404C08EC9EA0BB99DAED02186B091DBF4","typ":"JWT","x5t":"Hyq4NATAjsnqC7mdrtAhhrCR2_Q"}`)

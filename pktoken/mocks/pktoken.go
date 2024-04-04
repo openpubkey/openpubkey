@@ -26,7 +26,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/providers/backend"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -39,7 +38,7 @@ func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgo
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, mocks.DefaultIDTokenTemplate(), options)
 	return pkt, err
 }
 
@@ -50,22 +49,8 @@ func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAl
 		CorrectCicHash: true,
 		CorrectCicSig:  true,
 	}
-	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, DefaultIDTokenTemplate(), options)
+	pkt, _, err := GenerateMockPKTokenWithOpts(t, signingKey, alg, mocks.DefaultIDTokenTemplate(), options)
 	return pkt, err
-}
-
-func DefaultIDTokenTemplate() backend.IDTokenTemplate {
-	return backend.IDTokenTemplate{
-		CommitFunc: backend.AddAudCommit,
-		Issuer:     "mockIssuer",
-		Nonce:      "empty",
-		NoNonce:    false,
-		Aud:        "empty",
-		KeyID:      "mockKeyID",
-		NoKeyID:    false,
-		Alg:        "RS256",
-		NoAlg:      false,
-	}
 }
 
 type MockPKTokenOpts struct {
@@ -77,7 +62,7 @@ type MockPKTokenOpts struct {
 }
 
 func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
-	idtTemplate backend.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *backend.MockProviderBackend, error) {
+	idtTemplate mocks.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *mocks.MockProviderBackend, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
 	if err != nil {
@@ -94,7 +79,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 	gqOnly := options.CommitType.GQCommitment
 
-	providerOpts := mocks.MockProviderOpts{
+	providerOpts := providers.MockProviderOpts{
 		SignGQ:     options.GQSign,
 		CommitType: options.CommitType,
 
@@ -106,7 +91,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 		},
 	}
 
-	op, backend, _, err := mocks.NewMockProvider(providerOpts)
+	op, backend, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 	opSignKey, keyID, _ := backend.RandomSigningKey()
 	idtTemplate.KeyID = keyID

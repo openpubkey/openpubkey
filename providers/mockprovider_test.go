@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package mocks
+package providers
 
 import (
 	"context"
@@ -23,9 +23,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +36,7 @@ func TestMockProviderTest(t *testing.T) {
 	require.NoError(t, err)
 	idtTemplate.ExtraClaims = map[string]interface{}{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"}
 
-	cic := genCIC(t)
+	cic := GenCIC(t)
 	idToken, err := provider.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
@@ -66,17 +64,4 @@ func TestMockProviderTest(t *testing.T) {
 	require.True(t, ok)
 	_, err = jws.Verify(idToken, jws.WithKey(jwa.RS256, rsaKey))
 	require.NoError(t, err)
-}
-
-func genCIC(t *testing.T) *clientinstance.Claims {
-	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
-	require.NoError(t, err)
-	jwkKey, err := jwk.PublicKeyOf(signer)
-	require.NoError(t, err)
-	err = jwkKey.Set(jwk.AlgorithmKey, alg)
-	require.NoError(t, err)
-	cic, err := clientinstance.NewClaims(jwkKey, map[string]any{})
-	require.NoError(t, err)
-	return cic
 }

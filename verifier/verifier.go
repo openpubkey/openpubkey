@@ -20,16 +20,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/cosigner"
-	"github.com/openpubkey/openpubkey/errors"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
 type ProviderVerifier interface {
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
-	VerifyProvider(ctx context.Context, pkt *pktoken.PKToken) error
+	VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
 type CosignerVerifier interface {
@@ -74,7 +75,7 @@ func GQOnly() Check {
 		}
 
 		if alg != gq.GQ256 {
-			return errors.ErrNonGQUnsupported
+			return fmt.Errorf("non-GQ signatures are not supported")
 		}
 		return nil
 	}
@@ -110,6 +111,11 @@ func (v *Verifier) VerifyPKToken(
 	pkt *pktoken.PKToken,
 	extraChecks ...Check,
 ) error {
+	// Don't even bother doing anything if the user's isn't valid
+	if err := verifyCicSignature(pkt); err != nil {
+		return fmt.Errorf("error verifying client signature on PK Token: %w", err)
+	}
+
 	issuer, err := pkt.Issuer()
 	if err != nil {
 		return err
@@ -120,7 +126,11 @@ func (v *Verifier) VerifyPKToken(
 		return fmt.Errorf("unrecognized issuer: %s", issuer)
 	}
 
-	if err := providerVerifier.VerifyProvider(ctx, pkt); err != nil {
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
+	}
+	if err := providerVerifier.VerifyProvider(ctx, pkt.OpToken, cic); err != nil {
 		return err
 	}
 
@@ -165,4 +175,14 @@ func (v *Verifier) VerifyPKToken(
 	}
 
 	return nil
+}
+
+func verifyCicSignature(pkt *pktoken.PKToken) error {
+	cic, err := pkt.GetCicValues()
+	if err != nil {
+		return err
+	}
+
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	return err
 }
