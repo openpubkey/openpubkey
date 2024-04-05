@@ -27,7 +27,7 @@ func TestGitlabExample(t *testing.T) {
 	providerOpts := providers.MockProviderOpts{
 		Issuer:     "mockIssuer",
 		ClientID:   "mockClient-ID",
-		SignGQ:     true,
+		GQSign:     true,
 		CommitType: providers.CommitTypesEnum.GQ_BOUND,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			SkipClientIDCheck: true,

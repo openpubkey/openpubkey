@@ -135,7 +135,7 @@ func TestProviderVerifier(t *testing.T) {
 			providerOpts := MockProviderOpts{
 				Issuer:     issuer,
 				ClientID:   clientID,
-				SignGQ:     tc.tokenGQSign,
+				GQSign:     tc.tokenGQSign,
 				CommitType: tc.tokenCommitType,
 				VerifierOpts: ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,

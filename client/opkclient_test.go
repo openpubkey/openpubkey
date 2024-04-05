@@ -58,7 +58,7 @@ func TestClient(t *testing.T) {
 			providerOpts := providers.MockProviderOpts{
 				Issuer:     "mockIssuer",
 				ClientID:   clientID,
-				SignGQ:     tc.gq,
+				GQSign:     tc.gq,
 				CommitType: commitType,
 				VerifierOpts: providers.ProviderVerifierOpts{
 					CommitType:        commitType,

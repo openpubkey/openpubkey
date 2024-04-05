@@ -49,7 +49,7 @@ type GoogleOptions struct {
 	Issuer       string // This should almost always be "https://accounts.google.com"
 	Scopes       []string
 	RedirectURIs []string
-	SignGQ       bool
+	GQSign       bool
 }
 
 type GoogleOp struct {
@@ -57,7 +57,7 @@ type GoogleOp struct {
 	ClientSecret             string
 	Scopes                   []string
 	RedirectURIs             []string
-	SignGQ                   bool
+	GQSign                   bool
 	issuer                   string
 	server                   *http.Server
 	publicKeyFinder          discover.PublicKeyFinder
@@ -79,7 +79,7 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		SignGQ: false,
+		GQSign: false,
 	}
 }
 
@@ -100,7 +100,7 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 		ClientSecret:             opts.ClientSecret,
 		Scopes:                   opts.Scopes,
 		RedirectURIs:             opts.RedirectURIs,
-		SignGQ:                   opts.SignGQ,
+		GQSign:                   opts.GQSign,
 		issuer:                   opts.Issuer,
 		requestTokenOverrideFunc: nil,
 		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
@@ -225,7 +225,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	if err != nil {
 		return nil, err
 	}
-	if g.SignGQ {
+	if g.GQSign {
 		return CreateGQToken(ctx, idToken, g)
 	}
 	return idToken, nil

@@ -45,7 +45,7 @@ func main() {
 	switch command {
 	case "login":
 		opOpts := providers.GetDefaultGoogleOpOptions()
-		opOpts.SignGQ = true
+		opOpts.GQSign = true
 		op := providers.NewGoogleOp()
 		if err := login(op); err != nil {
 			fmt.Println("Error logging in:", err)
