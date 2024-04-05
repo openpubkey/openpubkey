@@ -19,7 +19,9 @@ package providers
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 
 	"time"
 
@@ -40,15 +42,21 @@ var (
 )
 
 const googleIssuer = "https://accounts.google.com"
-const googleAudience = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
+
+type GoogleOptions struct {
+	ClientID     string
+	ClientSecret string
+	Issuer       string // This should almost always be "https://accounts.google.com"
+	Scopes       []string
+	RedirectURIs []string
+	SignGQ       bool
+}
 
 type GoogleOp struct {
 	ClientID                 string
 	ClientSecret             string
 	Scopes                   []string
-	RedirURIPort             string
-	CallbackPath             string
-	RedirectURI              string
+	RedirectURIs             []string
 	SignGQ                   bool
 	issuer                   string
 	server                   *http.Server
@@ -57,17 +65,43 @@ type GoogleOp struct {
 	httpSessionHook          http.HandlerFunc
 }
 
-func NewGoogleOp(ClientID string, ClientSecret string, Scopes []string, RedirURIPort string, CallbackPath string, RedirectURI string, SignGQ bool) OpenIdProvider {
+func GetDefaultGoogleOpOptions() *GoogleOptions {
+	return &GoogleOptions{
+		Issuer: googleIssuer,
 
+		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
+		// Google requires a ClientSecret even if this a public OIDC App
+		ClientSecret: "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", // The client secret is a public value
+		Scopes:       []string{"openid profile email"},
+		RedirectURIs: []string{
+			"http://localhost:3000/login-callback",
+			"http://localhost:10001/login-callback",
+			"http://localhost:11110/login-callback",
+		},
+		SignGQ: false,
+	}
+}
+
+// NewGoogleOp creates a Google OP (OpenID Provider) using the
+// default configurations options. It uses the OIDC Relying Party (Client)
+// setup by the OpenPubkey project.
+func NewGoogleOp() OpenIdProvider {
+	options := GetDefaultGoogleOpOptions()
+	return NewGoogleOpWithOptions(options)
+}
+
+// NewGoogleOpWithOptions creates a Google OP with configuration specified
+// using an options struct. This is useful if you want to use your own OIDC
+// Client or override the configuration.
+func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 	return &GoogleOp{
-		ClientID:                 ClientID,
-		ClientSecret:             ClientSecret,
-		Scopes:                   Scopes,
-		RedirURIPort:             RedirURIPort,
-		CallbackPath:             CallbackPath,
-		RedirectURI:              RedirectURI,
-		SignGQ:                   SignGQ,
-		issuer:                   googleIssuer,
+		ClientID:                 opts.ClientID,
+		ClientSecret:             opts.ClientSecret,
+		Scopes:                   opts.Scopes,
+		RedirectURIs:             opts.RedirectURIs,
+		SignGQ:                   opts.SignGQ,
+		issuer:                   opts.Issuer,
 		requestTokenOverrideFunc: nil,
 		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
 	}
@@ -81,6 +115,20 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 		return g.requestTokenOverrideFunc(cicHash)
 	}
 
+	redirectURI, ln, err := FindAvaliablePort(g.RedirectURIs)
+	if err != nil {
+		return nil, err
+	}
+	logrus.Infof("listening on http://%s/", ln.Addr().String())
+	logrus.Info("press ctrl+c to stop")
+
+	g.server = &http.Server{}
+	go func() {
+		err := g.server.Serve(ln)
+		if err != nil && err != http.ErrServerClosed {
+			logrus.Error(err)
+		}
+	}()
 	cookieHandler :=
 		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
 	options := []rp.Option{
@@ -92,7 +140,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 	options = append(options, rp.WithPKCE(cookieHandler))
 
 	provider, err := rp.NewRelyingPartyOIDC(
-		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURI,
+		googleIssuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -133,24 +181,19 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 		}
 	}
 
-	http.Handle(g.CallbackPath, rp.CodeExchangeHandler(marshalToken, provider))
-
-	lis := fmt.Sprintf("localhost:%s", g.RedirURIPort)
-	g.server = &http.Server{
-		Addr: lis,
-	}
-
-	logrus.Infof("listening on http://%s/", lis)
-	logrus.Info("press ctrl+c to stop")
-	earl := fmt.Sprintf("http://localhost:%s/login", g.RedirURIPort)
-	util.OpenUrl(earl)
+	callbackPath := redirectURI.Path
+	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, provider))
 
 	go func() {
-		err := g.server.ListenAndServe()
+		err := g.server.Serve(ln)
 		if err != nil && err != http.ErrServerClosed {
 			logrus.Error(err)
 		}
 	}()
+
+	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
+	logrus.Infof("Opening browser to on http://%s/", loginURI)
+	util.OpenUrl(loginURI)
 
 	// If httpSessionHook is not defined shutdown the server when done,
 	// otherwise keep it open for the httpSessionHook
@@ -205,7 +248,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: googleAudience})
+	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
 	return vp.VerifyProvider(ctx, idt, cic)
 }
 
@@ -221,4 +264,23 @@ func (g *GoogleOp) VerifyProvider(ctx context.Context, idt []byte, cic *clientin
 // method is only available to browser based providers.
 func (g *GoogleOp) HookHTTPSession(h http.HandlerFunc) {
 	g.httpSessionHook = h
+}
+
+// FindAvaliablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
+func FindAvaliablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
+	var ln net.Listener
+	var lnErr error
+	for _, v := range redirectURIs {
+		redirectURI, err := url.Parse(v)
+		if err != nil {
+			return nil, nil, fmt.Errorf("malformed redirectURI specified, redirectURI was %s", v)
+		}
+
+		lnStr := fmt.Sprintf("localhost:%s", redirectURI.Port())
+		ln, lnErr = net.Listen("tcp", lnStr)
+		if lnErr == nil {
+			return redirectURI, ln, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("failed to start a listener for the callback from the OP, got %w", lnErr)
 }

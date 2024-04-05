@@ -38,16 +38,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// Variables for building our google provider
 var (
-	clientID = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
-	// The clientSecret was intentionally checked in. It holds no power and is used for development. Do not report as a security issue
-	clientSecret = "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" // Google requires a ClientSecret even if this a public OIDC App
-	scopes       = []string{"openid profile email"}
-	redirURIPort = "3000"
-	callbackPath = "/login-callback"
-	redirectURI  = fmt.Sprintf("http://localhost:%v%v", redirURIPort, callbackPath)
-
 	// File names for when we save or load our pktoken and the corresponding signing key
 	skFileName  = "key.pem"
 	pktFileName = "pktoken.json"
@@ -89,9 +80,10 @@ func main() {
 }
 
 func login(outputDir string, signGQ bool) error {
-
+	opOptions := providers.GetDefaultGoogleOpOptions()
+	opOptions.SignGQ = signGQ
 	opkClient, err := client.New(
-		providers.NewGoogleOp(clientID, clientSecret, scopes, redirURIPort, callbackPath, redirectURI, signGQ),
+		providers.NewGoogleOpWithOptions(opOptions),
 	)
 	if err != nil {
 		return err

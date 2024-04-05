@@ -24,14 +24,9 @@ Let's walk through a simple message signing example. For conciseness we omit the
 We start by configuring the OP (OpenID Provider) our client and verifier will use. In this example we use Google as our OP.
 
 ```golang
-op := &providers.GoogleOp{
-  ClientID:     "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
-  ClientSecret: "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", // The client secret is a public value
-  Scopes:       []string{"openid profile email"},
-  RedirURIPort: "3000",
-  CallbackPath: "/login-callback",
-  RedirectURI:  "http://localhost:3000/login-callback",
-}
+opOptions := providers.GetDefaultGoogleOpOptions()
+opOptions.SignGQ = signGQ
+op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
 Next we create the OpenPubkey client and call `opkClient.Auth`:
