@@ -24,9 +24,9 @@ Let's walk through a simple message signing example. For conciseness we omit the
 We start by configuring the OP (OpenID Provider) our client and verifier will use. In this example we use Google as our OP.
 
 ```golang
-	opOptions := providers.GetDefaultGoogleOpOptions()
-	opOptions.SignGQ = signGQ
-  op := providers.NewGoogleOpWithOptions(opOptions)
+opOptions := providers.GetDefaultGoogleOpOptions()
+opOptions.SignGQ = signGQ
+op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
 Next we create the OpenPubkey client and call `opkClient.Auth`:
