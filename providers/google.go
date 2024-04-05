@@ -43,7 +43,7 @@ var (
 
 const googleIssuer = "https://accounts.google.com"
 
-type Options struct {
+type GoogleOptions struct {
 	ClientID     string
 	ClientSecret string
 	Issuer       string // This should almost always be "https://accounts.google.com"
@@ -65,8 +65,8 @@ type GoogleOp struct {
 	httpSessionHook          http.HandlerFunc
 }
 
-func GetDefaultGoogleOpOptions() *Options {
-	return &Options{
+func GetDefaultGoogleOpOptions() *GoogleOptions {
+	return &GoogleOptions{
 		Issuer: googleIssuer,
 
 		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
@@ -94,7 +94,7 @@ func NewGoogleOp() OpenIdProvider {
 // NewGoogleOpWithOptions creates a Google OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewGoogleOpWithOptions(opts *Options) OpenIdProvider {
+func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 	return &GoogleOp{
 		ClientID:                 opts.ClientID,
 		ClientSecret:             opts.ClientSecret,
@@ -282,5 +282,5 @@ func FindAvaliablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 			return redirectURI, ln, nil
 		}
 	}
-	return nil, nil, fmt.Errorf("failed to start a listener for the callback from Google, got %w", lnErr)
+	return nil, nil, fmt.Errorf("failed to start a listener for the callback from the OP, got %w", lnErr)
 }
