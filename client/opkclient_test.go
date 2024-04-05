@@ -146,7 +146,7 @@ func TestClient(t *testing.T) {
 
 			cic, err := pkt.GetCicValues()
 			require.NoError(t, err)
-			err = op.VerifyProvider(context.Background(), pkt.OpToken, cic)
+			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 			require.NoError(t, err, tc.name)
 			require.NotNil(t, cic, tc.name)
 		})

@@ -150,7 +150,7 @@ func (m *MockProvider) Issuer() string {
 	return m.issuer
 }
 
-func (m *MockProvider) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+func (m *MockProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
-	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, idt, cic)
+	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyIDToken(ctx, idt, cic)
 }
