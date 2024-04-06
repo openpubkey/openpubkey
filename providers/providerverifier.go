@@ -81,7 +81,7 @@ func (v *DefaultProviderVerifier) Issuer() string {
 	return v.issuer
 }
 
-func (v *DefaultProviderVerifier) VerifyProvider(ctx context.Context, idToken []byte, cic *clientinstance.Claims) error {
+func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []byte, cic *clientinstance.Claims) error {
 	// Sanity check that if GQCommitment is enabled then the other options
 	// are set correctly for doing GQ commitment verification. The intention is
 	// to catch misconfigurations early and provide meaningful error messages.

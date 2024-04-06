@@ -80,7 +80,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	gqOnly := options.CommitType.GQCommitment
 
 	providerOpts := providers.MockProviderOpts{
-		SignGQ:     options.GQSign,
+		GQSign:     options.GQSign,
 		CommitType: options.CommitType,
 
 		VerifierOpts: providers.ProviderVerifierOpts{

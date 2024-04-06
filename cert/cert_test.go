@@ -38,7 +38,7 @@ func TestCreateX509Cert(t *testing.T) {
 	require.NoError(t, err)
 
 	providerOpts := providers.DefaultMockProviderOpts()
-	providerOpts.SignGQ = true
+	providerOpts.GQSign = true
 
 	op, _, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)

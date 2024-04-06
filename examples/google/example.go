@@ -56,7 +56,7 @@ func main() {
 		return
 	}
 
-	signGQ := true
+	gqSign := true
 
 	// Directory for saving data
 	outputDir := "output/google"
@@ -64,7 +64,7 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "login":
-		if err := login(outputDir, signGQ); err != nil {
+		if err := login(outputDir, gqSign); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {
 			fmt.Println("Login successful!")
@@ -79,9 +79,9 @@ func main() {
 	}
 }
 
-func login(outputDir string, signGQ bool) error {
+func login(outputDir string, gqSign bool) error {
 	opOptions := providers.GetDefaultGoogleOpOptions()
-	opOptions.SignGQ = signGQ
+	opOptions.GQSign = gqSign
 	opkClient, err := client.New(
 		providers.NewGoogleOpWithOptions(opOptions),
 	)

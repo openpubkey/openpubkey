@@ -32,7 +32,7 @@ var _ OpenIdProvider = (*MockProvider)(nil)
 type MockProviderOpts struct {
 	Issuer     string
 	ClientID   string
-	SignGQ     bool
+	GQSign     bool
 	CommitType CommitType
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
@@ -44,7 +44,7 @@ func DefaultMockProviderOpts() MockProviderOpts {
 	return MockProviderOpts{
 		Issuer:     "https://accounts.example.com",
 		ClientID:   clientID,
-		SignGQ:     false,
+		GQSign:     false,
 		CommitType: CommitTypesEnum.NONCE_CLAIM,
 		VerifierOpts: ProviderVerifierOpts{
 			CommitType:        CommitTypesEnum.NONCE_CLAIM,
@@ -113,7 +113,7 @@ func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte,
 }
 
 func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
-	if m.options.CommitType.GQCommitment && !m.options.SignGQ {
+	if m.options.CommitType.GQCommitment && !m.options.GQSign {
 		// Catch misconfigurations in tests
 		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
 	}
@@ -130,7 +130,7 @@ func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Cl
 	if m.options.CommitType.GQCommitment {
 		return CreateGQBoundToken(ctx, idToken, m, string(cicHash))
 	}
-	if m.options.SignGQ {
+	if m.options.GQSign {
 		return CreateGQToken(ctx, idToken, m)
 	}
 	return idToken, nil
@@ -150,7 +150,7 @@ func (m *MockProvider) Issuer() string {
 	return m.issuer
 }
 
-func (m *MockProvider) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+func (m *MockProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
-	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyProvider(ctx, idt, cic)
+	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyIDToken(ctx, idt, cic)
 }

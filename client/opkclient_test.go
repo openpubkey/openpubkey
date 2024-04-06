@@ -58,7 +58,7 @@ func TestClient(t *testing.T) {
 			providerOpts := providers.MockProviderOpts{
 				Issuer:     "mockIssuer",
 				ClientID:   clientID,
-				SignGQ:     tc.gq,
+				GQSign:     tc.gq,
 				CommitType: commitType,
 				VerifierOpts: providers.ProviderVerifierOpts{
 					CommitType:        commitType,
@@ -146,7 +146,7 @@ func TestClient(t *testing.T) {
 
 			cic, err := pkt.GetCicValues()
 			require.NoError(t, err)
-			err = op.VerifyProvider(context.Background(), pkt.OpToken, cic)
+			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 			require.NoError(t, err, tc.name)
 			require.NotNil(t, cic, tc.name)
 		})

@@ -33,8 +33,6 @@ func Sign(op client.OpenIdProvider) ([]byte, []byte, error) {
 	// key pair (public key, signing key). The public key is added to any
 	// PK Tokens the client generates
 	opkClient, err := client.New(op)
-	// If you want to enable GQ signatures use this instead
-	// opkClient, err := client.New(op, client.WithSignGQ(true))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -96,7 +94,8 @@ func Verify(op client.OpenIdProvider, pktJson []byte, signedMsg []byte) error {
 
 func main() {
 	opOptions := providers.GetDefaultGoogleOpOptions()
-	opOptions.SignGQ = false
+	// Change this to true to turn on GQ signatures
+	opOptions.GQSign = false
 	op := providers.NewGoogleOpWithOptions(opOptions)
 	pktJson, signedMsg, err := Sign(op)
 	if err != nil {

@@ -169,7 +169,7 @@ func (g *GithubOp) Issuer() string {
 	return g.issuer
 }
 
-func (g *GithubOp) VerifyProvider(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+func (g *GithubOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.AUD_CLAIM, GQOnly: true, SkipClientIDCheck: true})
-	return vp.VerifyProvider(ctx, idt, cic)
+	return vp.VerifyIDToken(ctx, idt, cic)
 }

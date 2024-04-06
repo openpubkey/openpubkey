@@ -135,7 +135,7 @@ func TestProviderVerifier(t *testing.T) {
 			providerOpts := MockProviderOpts{
 				Issuer:     issuer,
 				ClientID:   clientID,
-				SignGQ:     tc.tokenGQSign,
+				GQSign:     tc.tokenGQSign,
 				CommitType: tc.tokenCommitType,
 				VerifierOpts: ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,
@@ -172,7 +172,7 @@ func TestProviderVerifier(t *testing.T) {
 				// overwrite the cic with a new cic with a different hash
 				cic = GenCICExtra(t, map[string]any{"cause": "differentCicHash"})
 			}
-			err = pv.VerifyProvider(context.Background(), idToken, cic)
+			err = pv.VerifyIDToken(context.Background(), idToken, cic)
 
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError)
