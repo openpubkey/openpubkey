@@ -207,7 +207,7 @@ func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
 
 func (p *PKToken) Hash() (string, error) {
 	/*
-		We set the raw variable when unmarshaling from json (the only current string representation of a
+		We set the raw variable when unmarshalling from json (the only current string representation of a
 		PK Token) so when we hash we use the same representation that was given for consistency. When the
 		token being hashed is a new PK Token, we marshal it ourselves. This can introduce some issues based
 		on how different languages format their json strings.
@@ -223,6 +223,56 @@ func (p *PKToken) Hash() (string, error) {
 
 	hash := util.B64SHA3_256(message)
 	return string(hash), nil
+}
+
+// Compact serializes a PK Token into a compact representation.
+func (p *PKToken) Compact() ([]byte, error) {
+	opProtected, payload, opSig, err := oidc.SplitCompact(p.OpToken)
+	if err != nil {
+		return nil, err
+	}
+	compact := [][]byte{payload, opProtected, opSig}
+
+	if p.CicToken != nil {
+		cicProtected, _, cicSig, err := oidc.SplitCompact(p.CicToken)
+		if err != nil {
+			return nil, err
+		}
+
+		compact = append(compact, cicProtected, cicSig)
+	}
+	if p.CosToken != nil {
+		cosProtected, _, cosSig, err := oidc.SplitCompact(p.OpToken)
+		if err != nil {
+			return nil, err
+		}
+
+		compact = append(compact, cosProtected, cosSig)
+	}
+	return bytes.Join(compact, []byte(":")), nil
+}
+
+func (p *PKToken) FromCompact(com []byte) error {
+	compact := bytes.Split(com, []byte(":"))
+
+	payload := compact[0]
+	// TODO: Shouldn't determine tokens by order
+	opToken := bytes.Join([][]byte{compact[1], payload, compact[2]}, []byte("."))
+	cicToken := bytes.Join([][]byte{compact[3], payload, compact[4]}, []byte("."))
+
+	if err := p.AddSignature(opToken, OIDC); err != nil {
+		return err
+	}
+	if err := p.AddSignature(cicToken, CIC); err != nil {
+		return err
+	}
+	if len(compact) == 7 {
+		cosToken := bytes.Join([][]byte{compact[5], payload, compact[6]}, []byte("."))
+		if err := p.AddSignature(cosToken, COS); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {

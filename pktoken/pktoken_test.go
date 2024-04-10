@@ -73,6 +73,15 @@ func testPkTokenSerialization(t *testing.T, pkt *pktoken.PKToken) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, string(pktJson), string(newPktJson))
+
+	com, err := newPkt.Compact()
+	require.NoError(t, err)
+	require.NotNil(t, com)
+
+	newPkt2 := &pktoken.PKToken{}
+	err = newPkt2.FromCompact(com)
+	require.NoError(t, err)
+	require.NotNil(t, newPkt2.OpToken)
 }
 
 func TestPkTokenJwsUnchanged(t *testing.T) {
