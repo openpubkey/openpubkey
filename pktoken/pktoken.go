@@ -99,6 +99,28 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
+// NewFromCompact creates a PK Token from a compact representation
+func NewFromCompact(pktCom []byte) (*PKToken, error) {
+	tokens, _, err := SplitCompactPKToken(pktCom)
+	if err != nil {
+		return nil, err
+	}
+	pkt := &PKToken{}
+
+	for _, token := range tokens {
+		parsedToken, err := oidc.NewJwt(token)
+		if err != nil {
+			return nil, err
+		}
+		typ := parsedToken.GetSignature().GetProtectedClaims().Type
+		sigType := SignatureType(typ)
+		if err := pkt.AddSignature(token, sigType); err != nil {
+			return nil, err
+		}
+	}
+	return pkt, nil
+}
+
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
 		Issuer string `json:"iss"`
@@ -227,52 +249,19 @@ func (p *PKToken) Hash() (string, error) {
 
 // Compact serializes a PK Token into a compact representation.
 func (p *PKToken) Compact() ([]byte, error) {
-	opProtected, payload, opSig, err := oidc.SplitCompact(p.OpToken)
-	if err != nil {
-		return nil, err
+	tokens := [][]byte{}
+	if p.OpToken != nil {
+		tokens = append(tokens, p.OpToken)
 	}
-	compact := [][]byte{payload, opProtected, opSig}
-
 	if p.CicToken != nil {
-		cicProtected, _, cicSig, err := oidc.SplitCompact(p.CicToken)
-		if err != nil {
-			return nil, err
-		}
-
-		compact = append(compact, cicProtected, cicSig)
+		tokens = append(tokens, p.CicToken)
 	}
 	if p.CosToken != nil {
-		cosProtected, _, cosSig, err := oidc.SplitCompact(p.OpToken)
-		if err != nil {
-			return nil, err
-		}
-
-		compact = append(compact, cosProtected, cosSig)
+		tokens = append(tokens, p.CosToken)
 	}
-	return bytes.Join(compact, []byte(":")), nil
-}
-
-func (p *PKToken) FromCompact(com []byte) error {
-	compact := bytes.Split(com, []byte(":"))
-
-	payload := compact[0]
-	// TODO: Shouldn't determine tokens by order
-	opToken := bytes.Join([][]byte{compact[1], payload, compact[2]}, []byte("."))
-	cicToken := bytes.Join([][]byte{compact[3], payload, compact[4]}, []byte("."))
-
-	if err := p.AddSignature(opToken, OIDC); err != nil {
-		return err
-	}
-	if err := p.AddSignature(cicToken, CIC); err != nil {
-		return err
-	}
-	if len(compact) == 7 {
-		cosToken := bytes.Join([][]byte{compact[5], payload, compact[6]}, []byte("."))
-		if err := p.AddSignature(cosToken, COS); err != nil {
-			return err
-		}
-	}
-	return nil
+	// Refreshed ID token is nil for now because we don't support it yet
+	var refIDToken []byte
+	return CompactPKToken(tokens, refIDToken)
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {
