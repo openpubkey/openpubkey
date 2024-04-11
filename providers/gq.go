@@ -18,10 +18,12 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
@@ -71,9 +73,33 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	if !ok {
 		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 	}
+	jktB64, err := createJkt(rsaKey)
+	if err != nil {
+		return nil, err
+	}
+
 	if cicHash == "" {
-		return gq.GQ256SignJWT(rsaKey, idToken)
+		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("jkt", jktB64))
 	} else {
-		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("cic", cicHash))
+		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("jkt", jktB64), gq.WithExtraClaim("cic", cicHash))
 	}
 }
+
+func createJkt(publicKey crypto.PublicKey) (string, error) {
+	jwkKey, err := jwk.PublicKeyOf(publicKey)
+	if err != nil {
+		return "", err
+	}
+	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return "", err
+	}
+	return string(util.Base64EncodeForJWT(thumbprint)), nil
+}
+
+// func jt
+// jwk, err := jwk.FromRaw(publicKeys[i])
+// require.NoError(t, err)
+// jkt, err := jwk.Thumbprint(crypto.SHA256)
+// require.NoError(t, err)
+// jktB64 := util.Base64EncodeForJWT(jkt)
