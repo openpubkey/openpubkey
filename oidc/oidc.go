@@ -75,7 +75,7 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 // We include it here so so that jwx is not a dependency of simpleJws
 func SplitCompact(src []byte) ([]byte, []byte, []byte, error) {
 	parts := bytes.Split(src, []byte("."))
-	if len(parts) < 3 {
+	if len(parts) != 3 {
 		return nil, nil, nil, fmt.Errorf(`invalid number of segments`)
 	}
 	return parts[0], parts[1], parts[2], nil

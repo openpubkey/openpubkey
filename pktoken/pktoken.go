@@ -99,6 +99,28 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
+// NewFromCompact creates a PK Token from a compact representation
+func NewFromCompact(pktCom []byte) (*PKToken, error) {
+	tokens, _, err := SplitCompactPKToken(pktCom)
+	if err != nil {
+		return nil, err
+	}
+	pkt := &PKToken{}
+
+	for _, token := range tokens {
+		parsedToken, err := oidc.NewJwt(token)
+		if err != nil {
+			return nil, err
+		}
+		typ := parsedToken.GetSignature().GetProtectedClaims().Type
+		sigType := SignatureType(typ)
+		if err := pkt.AddSignature(token, sigType); err != nil {
+			return nil, err
+		}
+	}
+	return pkt, nil
+}
+
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
 		Issuer string `json:"iss"`
@@ -207,7 +229,7 @@ func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
 
 func (p *PKToken) Hash() (string, error) {
 	/*
-		We set the raw variable when unmarshaling from json (the only current string representation of a
+		We set the raw variable when unmarshalling from json (the only current string representation of a
 		PK Token) so when we hash we use the same representation that was given for consistency. When the
 		token being hashed is a new PK Token, we marshal it ourselves. This can introduce some issues based
 		on how different languages format their json strings.
@@ -223,6 +245,23 @@ func (p *PKToken) Hash() (string, error) {
 
 	hash := util.B64SHA3_256(message)
 	return string(hash), nil
+}
+
+// Compact serializes a PK Token into a compact representation.
+func (p *PKToken) Compact() ([]byte, error) {
+	tokens := [][]byte{}
+	if p.OpToken != nil {
+		tokens = append(tokens, p.OpToken)
+	}
+	if p.CicToken != nil {
+		tokens = append(tokens, p.CicToken)
+	}
+	if p.CosToken != nil {
+		tokens = append(tokens, p.CosToken)
+	}
+	// Refreshed ID token is nil for now because we don't support it yet
+	var refIDToken []byte
+	return CompactPKToken(tokens, refIDToken)
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {
