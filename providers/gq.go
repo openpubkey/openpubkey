@@ -46,18 +46,22 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	}
 	headersB64, _, _, err := jws.SplitCompact(idToken)
 	if err != nil {
-		return nil, fmt.Errorf("error getting original headers: %w", err)
+		return nil, fmt.Errorf("error splitting compact ID Token: %w", err)
 	}
 
 	// TODO: We should create a util function for extracting headers from tokens
 	headersJson, err := util.Base64DecodeForJWT(headersB64)
 	if err != nil {
-		return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+		return nil, fmt.Errorf("error base64 decoding ID Token headers: %w", err)
 	}
 	headers := jws.NewHeaders()
 	err = json.Unmarshal(headersJson, &headers)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
+		return nil, fmt.Errorf("error unmarshalling ID Token headers: %w", err)
+	}
+
+	if headers.Algorithm() != "RS256" {
+		return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", headers.Algorithm())
 	}
 
 	opKey, err := op.PublicKeyByToken(ctx, idToken)
@@ -96,10 +100,3 @@ func createJkt(publicKey crypto.PublicKey) (string, error) {
 	}
 	return string(util.Base64EncodeForJWT(thumbprint)), nil
 }
-
-// func jt
-// jwk, err := jwk.FromRaw(publicKeys[i])
-// require.NoError(t, err)
-// jkt, err := jwk.Thumbprint(crypto.SHA256)
-// require.NoError(t, err)
-// jktB64 := util.Base64EncodeForJWT(jkt)

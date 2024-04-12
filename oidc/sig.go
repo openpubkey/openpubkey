@@ -31,6 +31,7 @@ type Signature struct {
 
 type ProtectedClaims struct {
 	Alg   string `json:"alg"`
+	Jkt   string `json:"jkt,omitempty"`
 	KeyID string `json:"kid,omitempty"`
 	Type  string `json:"typ,omitempty"`
 	CIC   string `json:"cic,omitempty"`
