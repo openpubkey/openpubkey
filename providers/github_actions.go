@@ -143,7 +143,7 @@ func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
 
-func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GithubOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
 	// Define our commitment as the hash of the client instance claims
 	commitment, err := cic.Hash()
 	if err != nil {

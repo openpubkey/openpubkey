@@ -62,7 +62,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.Background(), cic)
+	idToken, err := op.RequestToken(context.Background(), cic)
 	require.NoError(t, err)
 
 	cicHash, err := cic.Hash()
@@ -123,7 +123,7 @@ func TestFindAvaliablePort(t *testing.T) {
 				blockedPorts = append(blockedPorts, ln)
 			}
 
-			foundURI, ln, err := FindAvaliablePort(redirects)
+			foundURI, ln, err := FindAvailablePort(redirects)
 
 			if tc.expError != "" {
 				require.Error(t, err)

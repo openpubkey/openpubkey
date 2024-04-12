@@ -112,7 +112,7 @@ func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte,
 	return m.requestTokenOverrideFunc(cicHash)
 }
 
-func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (m *MockProvider) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
 	if m.options.CommitType.GQCommitment && !m.options.GQSign {
 		// Catch misconfigurations in tests
 		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")

@@ -65,7 +65,7 @@ func TestGithubOpTableTest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.TODO(), cic)
+	idToken, err := op.RequestToken(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 
@@ -107,7 +107,7 @@ func TestGithubOpTableTest(t *testing.T) {
 // These two tests are regression tests for  deserialization bug
 // that broke our ability to read the ID Token directly from the HTTP
 // response. To ensure we don't break this again this test stands up a server
-// so that all of the RequestTokens code is tested. For all the other tests
+// so that all of the RequestToken code is tested. For all the other tests
 // we just use the standard override functions.
 func TestGithubOpSimpleRequest(t *testing.T) {
 	expCicHash := "LJJfahE5cC1AgAWrMkUDL85d0oSSBcP6FJVSulzojds"
@@ -203,7 +203,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 		},
 	}
 
-	idToken, err := op.RequestTokens(context.TODO(), cic)
+	idToken, err := op.RequestToken(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 

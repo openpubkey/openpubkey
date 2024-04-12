@@ -58,7 +58,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.Background(), cic)
+	idToken, err := op.RequestToken(context.Background(), cic)
 	require.NoError(t, err)
 
 	cicHash, err := cic.Hash()

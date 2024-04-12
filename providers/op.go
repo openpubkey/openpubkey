@@ -26,9 +26,10 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
-// Interface for interacting with the OP (OpenID Provider)
+// Interface for interacting with the OP (OpenID Provider) that only returns
+// an ID Token
 type OpenIdProvider interface {
-	RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error)
+	RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error)
 	PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error)
 	PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error)
 	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
@@ -40,6 +41,18 @@ type OpenIdProvider interface {
 type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	HookHTTPSession(h http.HandlerFunc)
+}
+
+// Interface for an OpenIdProvider that returns an ID Token, Refresh Token and Access Token
+type TokensOpenIdProvider interface {
+	RequestTokens(ctx context.Context, cic *clientinstance.Claims) (Tokens, error)
+	RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error)
+}
+
+type Tokens struct {
+	IDToken      []byte
+	RefreshToken []byte
+	AccessToken  []byte
 }
 
 type CommitType struct {

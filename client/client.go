@@ -42,11 +42,13 @@ type PKTokenVerifier interface {
 }
 
 type OpkClient struct {
-	Op       OpenIdProvider
-	cosP     *CosignerProvider
-	signer   crypto.Signer
-	alg      jwa.KeyAlgorithm
-	verifier PKTokenVerifier
+	Op           OpenIdProvider
+	cosP         *CosignerProvider
+	signer       crypto.Signer
+	alg          jwa.KeyAlgorithm
+	refreshToken []byte
+	accessToken  []byte
+	verifier     PKTokenVerifier
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -217,11 +219,21 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	// Send the CIC to the OpenIdProvider and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(ctx, cic)
-
-	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
+	var idToken []byte
+	if tokensOp, ok := o.Op.(providers.TokensOpenIdProvider); ok {
+		tokens, err := tokensOp.RequestTokens(ctx, cic)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID token: %w", err)
+		}
+		idToken = tokens.IDToken
+		o.refreshToken = tokens.RefreshToken
+		o.accessToken = tokens.AccessToken
+	} else {
+		// Send the CIC to the OpenIdProvider and get an ID token from the provider
+		idToken, err = o.Op.RequestToken(ctx, cic)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		}
 	}
 
 	// Sign over the payload from the ID token and client instance claims
@@ -256,6 +268,20 @@ func (o *OpkClient) oidcAuth(
 	}
 
 	return pkt, nil
+}
+
+func (o *OpkClient) RefreshIDToken(ctx context.Context) ([]byte, error) {
+	if o.refreshToken == nil {
+		return nil, fmt.Errorf("no refresh token set")
+	}
+	if tokensOp, ok := o.Op.(providers.TokensOpenIdProvider); ok {
+		idToken, err := tokensOp.RefreshIDToken(ctx, o.refreshToken)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID token: %w", err)
+		}
+		return idToken, nil
+	}
+	return nil, fmt.Errorf("OP (issuer=%s) does not support refreshed ID Token", o.Op.Issuer())
 }
 
 // GetOp returns the OpenID Provider the OpkClient has been configured to use

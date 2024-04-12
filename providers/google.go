@@ -61,6 +61,7 @@ type GoogleOp struct {
 	issuer                   string
 	server                   *http.Server
 	publicKeyFinder          discover.PublicKeyFinder
+	refreshToken             []byte
 	requestTokenOverrideFunc func(string) ([]byte, error)
 	httpSessionHook          http.HandlerFunc
 }
@@ -110,12 +111,18 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, error) {
 	if g.requestTokenOverrideFunc != nil {
-		return g.requestTokenOverrideFunc(cicHash)
+		// TODO: Fix this, we need a refresh token override func
+		if idToken, err := g.requestTokenOverrideFunc(cicHash); err != nil {
+			return nil, err
+		} else {
+			return &Tokens{IDToken: idToken}, err
+		}
+
 	}
 
-	redirectURI, ln, err := FindAvaliablePort(g.RedirectURIs)
+	redirectURI, ln, err := FindAvailablePort(g.RedirectURIs)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +157,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 		return uuid.New().String()
 	}
 
-	ch := make(chan []byte, 1)
+	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
 	http.Handle("/login", rp.AuthURLHandler(state, provider,
@@ -168,7 +175,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 			return
 		}
 
-		ch <- []byte(tokens.IDToken)
+		chTokens <- tokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -210,25 +217,68 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 			defer g.server.Shutdown(ctx)
 		}
 		return nil, err
-	case token := <-ch:
-		return token, nil
+	case tokens := <-chTokens:
+		return &Tokens{
+			IDToken:      []byte(tokens.IDToken),
+			RefreshToken: []byte(tokens.RefreshToken),
+			AccessToken:  []byte(tokens.AccessToken)}, nil
 	}
 }
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	idToken, err := g.requestTokens(ctx, string(cicHash))
+	tokens, err := g.requestTokens(ctx, string(cicHash))
 	if err != nil {
 		return nil, err
 	}
 	if g.GQSign {
-		return CreateGQToken(ctx, idToken, g)
+		if gqToken, err := CreateGQToken(ctx, tokens.IDToken, g); err != nil {
+			return nil, err
+		} else {
+			tokens.IDToken = gqToken
+			return tokens, nil
+		}
 	}
-	return idToken, nil
+	return tokens, nil
+}
+
+func (g *GoogleOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+	if tokens, err := g.RequestTokens(ctx, cic); err != nil {
+		return nil, err
+	} else {
+		return tokens.IDToken, nil
+	}
+}
+
+func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error) {
+	// options := []rp.Option{}
+	// // if g.httpClient != nil {
+	// // 	options = append(options, rp.WithHTTPClient(g.httpClient))
+	// // }
+
+	// provider, err := rp.NewRelyingPartyOIDC(
+	// 	g.issuer,
+	// 	g.ClientID,
+	// 	g.ClientSecret,
+	// 	g.RedirectURIs[0], // TODO: worry about this
+	// 	g.Scopes,
+	// 	options...,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+	// }
+
+	// tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, provider, refreshToken, "", "")
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return tokens.idToken, nil
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -266,8 +316,8 @@ func (g *GoogleOp) HookHTTPSession(h http.HandlerFunc) {
 	g.httpSessionHook = h
 }
 
-// FindAvaliablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
-func FindAvaliablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
+// FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
+func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 	var ln net.Listener
 	var lnErr error
 	for _, v := range redirectURIs {
