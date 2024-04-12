@@ -65,7 +65,7 @@ func TestGithubOpTableTest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestToken(context.TODO(), cic)
+	idToken, _, _, err := op.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 
@@ -129,7 +129,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 	authToken := "fakeAuthToken"
 	op := NewGithubOp(tokenRequestURL, authToken)
 
-	// Lowercase requestTokens just gets the ID Token
+	// Lowercase requestTokens just gets the ID Token (no GQ signing or modification)
 	idTokenLB, err := op.requestTokens(context.TODO(), expCicHash)
 	require.NoError(t, err)
 	require.NotNil(t, idTokenLB)
@@ -203,7 +203,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 		},
 	}
 
-	idToken, err := op.RequestToken(context.TODO(), cic)
+	idToken, _, _, err := op.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 

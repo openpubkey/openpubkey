@@ -65,7 +65,8 @@ func (t *IDTokenTemplate) AddCommit(cicHash string) {
 	t.CommitFunc(t, cicHash)
 }
 
-func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
+// TODO: Rename to IssueTokens
+func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
@@ -101,10 +102,10 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
 
 	payloadBytes, err := json.Marshal(payloadMap)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
-	return jws.Sign(
+	idToken, err := jws.Sign(
 		payloadBytes,
 		jws.WithKey(
 			jwa.KeyAlgorithmFrom(t.Alg),
@@ -112,6 +113,13 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
 			jws.WithProtectedHeaders(headers),
 		),
 	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// TODO: Add ability to return mock Refresh Token and Access Token
+	return idToken, nil, nil, nil
+
 }
 
 func AddNonceCommit(idtTemp *IDTokenTemplate, cicHash string) {

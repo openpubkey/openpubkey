@@ -99,7 +99,7 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 
 	backend.SetIDTokenTemplate(&idtTemplate)
 
-	idToken, err := op.RequestToken(context.Background(), cic)
+	idToken, _, _, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
 		return nil, nil, err
 	}

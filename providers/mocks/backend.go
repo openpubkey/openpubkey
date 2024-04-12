@@ -86,7 +86,7 @@ func (o *MockProviderBackend) SetIDTokenTemplate(template *IDTokenTemplate) {
 	o.IDTokensTemplate = template
 }
 
-func (o *MockProviderBackend) RequestTokenOverrideFunc(cicHash string) ([]byte, error) {
+func (o *MockProviderBackend) RequestTokenOverrideFunc(cicHash string) ([]byte, []byte, []byte, error) {
 	o.IDTokensTemplate.AddCommit(cicHash)
 	return o.IDTokensTemplate.IssueToken()
 }

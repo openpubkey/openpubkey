@@ -35,7 +35,7 @@ type GithubOp struct {
 	rawTokenRequestURL       string
 	tokenRequestAuthToken    string
 	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, error)
+	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error) //TODO: Rename to RequestToken(s)OverrideFunc
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -94,7 +94,7 @@ func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	if g.requestTokenOverrideFunc != nil {
-		jwt, err := g.requestTokenOverrideFunc(cicHash)
+		jwt, _, _, err := g.requestTokenOverrideFunc(cicHash)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
@@ -143,11 +143,11 @@ func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
 
-func (g *GithubOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
 	// Define our commitment as the hash of the client instance claims
 	commitment, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
@@ -157,12 +157,12 @@ func (g *GithubOp) RequestToken(ctx context.Context, cic *clientinstance.Claims)
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
 	// a public value.
 	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
 
-	return gqToken, err
+	return gqToken, nil, nil, err
 }
 
 func (g *GithubOp) Issuer() string {

@@ -31,7 +31,7 @@ type GitlabOp struct {
 	issuer                   string // Change issuer to point this to a test issuer
 	publicKeyFinder          discover.PublicKeyFinder
 	tokenEnvVar              string
-	requestTokenOverrideFunc func(string) ([]byte, error)
+	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
 }
 
 func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
@@ -64,23 +64,23 @@ func (g *GitlabOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
 }
 
-func (g *GitlabOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	var idToken []byte
 	if g.requestTokenOverrideFunc != nil {
 		noCicHashInIDToken := ""
-		if idToken, err = g.requestTokenOverrideFunc(noCicHashInIDToken); err != nil {
-			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		if idToken, _, _, err = g.requestTokenOverrideFunc(noCicHashInIDToken); err != nil {
+			return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
 	} else {
 		idTokenStr, err := getEnvVar(g.tokenEnvVar)
 		if err != nil {
-			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+			return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
 		idToken = []byte(idTokenStr)
 	}
@@ -92,7 +92,7 @@ func (g *GitlabOp) RequestToken(ctx context.Context, cic *clientinstance.Claims)
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
 
-	return gqToken, err
+	return gqToken, nil, nil, err
 }
 
 func (g *GitlabOp) Issuer() string {

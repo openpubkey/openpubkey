@@ -37,7 +37,7 @@ func TestMockProviderTest(t *testing.T) {
 	idtTemplate.ExtraClaims = map[string]interface{}{"sha": "c7d5b5ff9b2130a53526dcc44a1f69ef0e50d003"}
 
 	cic := GenCIC(t)
-	idToken, err := provider.RequestToken(context.TODO(), cic)
+	idToken, _, _, err := provider.RequestTokens(context.TODO(), cic)
 	require.NoError(t, err)
 	require.NotNil(t, idToken)
 

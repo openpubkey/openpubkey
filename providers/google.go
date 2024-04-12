@@ -62,7 +62,7 @@ type GoogleOp struct {
 	server                   *http.Server
 	publicKeyFinder          discover.PublicKeyFinder
 	refreshToken             []byte
-	requestTokenOverrideFunc func(string) ([]byte, error)
+	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
 	httpSessionHook          http.HandlerFunc
 }
 
@@ -111,20 +111,14 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, error) {
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, []byte, []byte, error) {
 	if g.requestTokenOverrideFunc != nil {
-		// TODO: Fix this, we need a refresh token override func
-		if idToken, err := g.requestTokenOverrideFunc(cicHash); err != nil {
-			return nil, err
-		} else {
-			return &Tokens{IDToken: idToken}, err
-		}
-
+		return g.requestTokenOverrideFunc(cicHash)
 	}
 
 	redirectURI, ln, err := FindAvailablePort(g.RedirectURIs)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
@@ -150,7 +144,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, 
 		googleIssuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
-		return nil, fmt.Errorf("error creating provider: %w", err)
+		return nil, nil, nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
 	state := func() string {
@@ -216,43 +210,39 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, 
 		if g.httpSessionHook != nil {
 			defer g.server.Shutdown(ctx)
 		}
-		return nil, err
+		return nil, nil, nil, err
 	case tokens := <-chTokens:
-		return &Tokens{
-			IDToken:      []byte(tokens.IDToken),
-			RefreshToken: []byte(tokens.RefreshToken),
-			AccessToken:  []byte(tokens.AccessToken)}, nil
+		return []byte(tokens.IDToken), []byte(tokens.RefreshToken), []byte(tokens.AccessToken), nil
 	}
 }
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	tokens, err := g.requestTokens(ctx, string(cicHash))
+	idToken, refreshToken, accessToken, err := g.requestTokens(ctx, string(cicHash))
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if g.GQSign {
-		if gqToken, err := CreateGQToken(ctx, tokens.IDToken, g); err != nil {
-			return nil, err
+		if gqToken, err := CreateGQToken(ctx, idToken, g); err != nil {
+			return nil, nil, nil, err
 		} else {
-			tokens.IDToken = gqToken
-			return tokens, nil
+			return gqToken, refreshToken, accessToken, nil
 		}
 	}
-	return tokens, nil
+	return idToken, refreshToken, accessToken, nil
 }
 
-func (g *GoogleOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
-	if tokens, err := g.RequestTokens(ctx, cic); err != nil {
-		return nil, err
-	} else {
-		return tokens.IDToken, nil
-	}
-}
+// func (g *GoogleOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
+// 	if tokens, err := g.RequestTokens(ctx, cic); err != nil {
+// 		return nil, err
+// 	} else {
+// 		return tokens.IDToken, nil
+// 	}
+// }
 
 func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error) {
 	// options := []rp.Option{}

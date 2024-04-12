@@ -59,7 +59,7 @@ type MockProvider struct {
 	options                  MockProviderOpts
 	issuer                   string
 	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, error)
+	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
 }
 
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
@@ -108,32 +108,39 @@ func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *mocks.MockProvider
 	return provider, mockBackend, idTokenTemplate, nil
 }
 
-func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte, error) {
+func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte, []byte, []byte, error) {
 	return m.requestTokenOverrideFunc(cicHash)
 }
 
-func (m *MockProvider) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
 	if m.options.CommitType.GQCommitment && !m.options.GQSign {
 		// Catch misconfigurations in tests
-		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
+		return nil, nil, nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
 	}
 
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	idToken, err := m.requestTokens(ctx, string(cicHash))
+	idToken, refreshToken, accessToken, err := m.requestTokens(ctx, string(cicHash))
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if m.options.CommitType.GQCommitment {
-		return CreateGQBoundToken(ctx, idToken, m, string(cicHash))
+		gqToken, err := CreateGQBoundToken(ctx, idToken, m, string(cicHash))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return gqToken, refreshToken, accessToken, nil
+	} else if m.options.GQSign {
+		gqToken, err := CreateGQToken(ctx, idToken, m)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return gqToken, refreshToken, accessToken, nil
 	}
-	if m.options.GQSign {
-		return CreateGQToken(ctx, idToken, m)
-	}
-	return idToken, nil
+	return idToken, refreshToken, accessToken, nil
 }
 func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return m.publicKeyFinder.ByToken(ctx, m.issuer, token)

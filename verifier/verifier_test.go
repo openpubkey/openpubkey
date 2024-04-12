@@ -283,7 +283,7 @@ func TestGQCommitment(t *testing.T) {
 			gqSign: true, gqCommitment: true, gqOnly: true},
 		{name: "wrong aud prefix", aud: "bad value", expError: "error verifying PK Token: audience claim in PK Token's GQCommitment must be prefixed by",
 			gqSign: true, gqCommitment: true, gqOnly: true},
-		{name: "gqSign is false", aud: providers.AudPrefixForGQCommitment, expError: "error requesting ID Token: if GQCommitment is true then GQSign must also be true",
+		{name: "gqSign is false", aud: providers.AudPrefixForGQCommitment, expError: "if GQCommitment is true then GQSign must also be true",
 			gqSign: false, gqCommitment: true, gqOnly: true},
 		{name: "gqCommitment is false", aud: providers.AudPrefixForGQCommitment, expError: "verifier configured with empty commitment claim",
 			gqSign: true, gqCommitment: false, gqOnly: true},

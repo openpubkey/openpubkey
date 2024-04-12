@@ -55,7 +55,7 @@ func TestSimpleBackendOverride(t *testing.T) {
 	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
 	cicHash := util.Base64EncodeForJWT([]byte("0123456789ABCDEF0123456789ABCDEF"))
-	idt, err := mockBackend.RequestTokenOverrideFunc(string(cicHash))
+	idt, _, _, err := mockBackend.RequestTokenOverrideFunc(string(cicHash))
 	require.NoError(t, err)
 	require.NotNil(t, idt)
 
