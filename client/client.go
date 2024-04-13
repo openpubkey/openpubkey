@@ -227,21 +227,6 @@ func (o *OpkClient) oidcAuth(
 	}
 	o.refreshToken = refreshToken
 	o.accessToken = accessToken
-	// if tokensOp, ok := o.Op.(providers.TokensOpenIdProvider); ok {
-	// 	tokens, err := tokensOp.RequestTokens(ctx, cic)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("error requesting ID token: %w", err)
-	// 	}
-	// 	idToken = tokens.IDToken
-	// 	o.refreshToken = tokens.RefreshToken
-	// 	o.accessToken = tokens.AccessToken
-	// } else {
-	// 	// Send the CIC to the OpenIdProvider and get an ID token from the provider
-	// 	idToken, err = o.Op.RequestToken(ctx, cic)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("error requesting ID Token: %w", err)
-	// 	}
-	// }
 
 	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(signer, alg, idToken)
@@ -278,10 +263,10 @@ func (o *OpkClient) oidcAuth(
 }
 
 func (o *OpkClient) RefreshIDToken(ctx context.Context) ([]byte, error) {
-	if o.refreshToken == nil {
-		return nil, fmt.Errorf("no refresh token set")
-	}
-	if tokensOp, ok := o.Op.(providers.TokensOpenIdProvider); ok {
+	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
+		if o.refreshToken == nil {
+			return nil, fmt.Errorf("no refresh token set")
+		}
 		idToken, err := tokensOp.RefreshIDToken(ctx, o.refreshToken)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)

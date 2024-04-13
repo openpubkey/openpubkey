@@ -44,7 +44,7 @@ type BrowserOpenIdProvider interface {
 }
 
 // Interface for an OpenIdProvider that returns an ID Token, Refresh Token and Access Token
-type TokensOpenIdProvider interface {
+type RefreshableOpenIdProvider interface {
 	RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error)
 }
 

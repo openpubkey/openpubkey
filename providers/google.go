@@ -61,7 +61,6 @@ type GoogleOp struct {
 	issuer                   string
 	server                   *http.Server
 	publicKeyFinder          discover.PublicKeyFinder
-	refreshToken             []byte
 	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
 	httpSessionHook          http.HandlerFunc
 }
