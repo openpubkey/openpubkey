@@ -17,7 +17,6 @@
 package gq
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"math/big"
@@ -25,6 +24,7 @@ import (
 
 	"filippo.io/bigmod"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/stretchr/testify/require"
 )
 
 // The test vector specifies hex values for each of the signature scheme's data
@@ -60,18 +60,12 @@ func TestSignerISO(t *testing.T) {
 	}()
 
 	encodedSig, err := svISO.Sign(qISO, mISO)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	sig, err := util.Base64DecodeForJWT(encodedSig)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, sig, sigISO, "Signature does not match expected value")
 
-	if !bytes.Equal(sig, sigISO) {
-		t.Fatal("Signature does not match expected value")
-	}
 }
 
 // Test our verifier using the values specified in ISO/IEC 14888-2:2008
@@ -94,9 +88,7 @@ func TestVerifierISO(t *testing.T) {
 	encodedSigISO := util.Base64EncodeForJWT(sigISO)
 	ok := svISO.Verify(encodedSigISO, idISO, mISO)
 
-	if !ok {
-		t.Fatal("signature verification failed")
-	}
+	require.True(t, ok, "signature verification failed")
 }
 
 func init() {

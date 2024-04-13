@@ -19,8 +19,9 @@ package gq
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var result error
@@ -34,9 +35,7 @@ type testTuple struct {
 func BenchmarkSigning(b *testing.B) {
 	// Generate test matrix
 	matrix, err := generateTestMatrix(b.N)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 
 	// Reset the benchmark timer to exclude setup time
 	b.ResetTimer()
@@ -44,10 +43,9 @@ func BenchmarkSigning(b *testing.B) {
 	var signerVerifier SignerVerifier
 	for i := 0; i < b.N; i++ {
 		signerVerifier, err = NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 		_, err = signerVerifier.SignJWT(matrix[i].token)
+		require.NoError(b, err)
 	}
 
 	// Avoid compiler optimisations eliminating the function under test and artificially lowering the run time of the benchmark
@@ -58,21 +56,15 @@ func BenchmarkSigning(b *testing.B) {
 func BenchmarkVerifying(b *testing.B) {
 	// Generate test matrix
 	matrix, err := generateTestMatrix(b.N)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 
 	// Generate signatures using matrix
 	gqSignedTokens := [][]byte{}
 	for i := 0; i < b.N; i++ {
 		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 		sig, err := signerVerifier.SignJWT(matrix[i].token)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 
 		gqSignedTokens = append(gqSignedTokens, sig)
 	}
@@ -83,13 +75,9 @@ func BenchmarkVerifying(b *testing.B) {
 	var ok bool
 	for i := 0; i < b.N; i++ {
 		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 		ok = signerVerifier.VerifyJWT(gqSignedTokens[i])
-		if !ok {
-			b.Fatal(fmt.Errorf("Failed to verify signature!"))
-		}
+		require.True(b, ok, "Failed to verify signature!")
 	}
 
 	// Avoid compiler optimisations eliminating the function under test and artificially lowering the run time of the benchmark
