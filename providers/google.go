@@ -30,10 +30,10 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
-	"github.com/zitadel/oidc/v2/pkg/client/rp"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	httphelper "github.com/zitadel/oidc/v2/pkg/http"
+	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
 var (
@@ -139,7 +139,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 
-	provider, err := rp.NewRelyingPartyOIDC(
+	provider, err := rp.NewRelyingPartyOIDC(ctx,
 		googleIssuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
@@ -159,7 +159,8 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-		rp.WithPromptURLParam("select_account")))
+		rp.WithPromptURLParam("select_account"),
+		rp.WithURLParam("access_type", "offline")))
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
@@ -235,21 +236,27 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	return idToken, refreshToken, accessToken, nil
 }
 
-// func (g *GoogleOp) RequestToken(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
-// 	if tokens, err := g.RequestTokens(ctx, cic); err != nil {
-// 		return nil, err
-// 	} else {
-// 		return tokens.IDToken, nil
-// 	}
-// }
-
 func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error) {
 	// options := []rp.Option{}
-	// // if g.httpClient != nil {
-	// // 	options = append(options, rp.WithHTTPClient(g.httpClient))
-	// // }
+	// if g.httpClient != nil {
+	// 	options = append(options, rp.WithHTTPClient(g.httpClient))
+	// }
+
+	cookieHandler :=
+		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
+	options := []rp.Option{
+		rp.WithCookieHandler(cookieHandler),
+		rp.WithVerifierOpts(
+			rp.WithIssuedAtOffset(issuedAtOffset)),
+	}
+	options = append(options, rp.WithPKCE(cookieHandler))
+
+	provider, err := rp.NewRelyingPartyOIDC(ctx,
+		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURIs[0],
+		g.Scopes, options...)
 
 	// provider, err := rp.NewRelyingPartyOIDC(
+	// 	ctx,
 	// 	g.issuer,
 	// 	g.ClientID,
 	// 	g.ClientSecret,
@@ -257,17 +264,17 @@ func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]b
 	// 	g.Scopes,
 	// 	options...,
 	// )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
-	// }
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
 
-	// tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, provider, refreshToken, "", "")
-	// if err != nil {
-	// 	return nil, err
-	// }
+	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, provider, string(refreshToken), "", "")
+	if err != nil {
+		return nil, err
+	}
 
 	// return tokens.idToken, nil
-	return nil, fmt.Errorf("not implemented")
+	return []byte(tokens.IDToken), nil
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
