@@ -102,11 +102,18 @@ func login(outputDir string, gqSign bool) error {
 	}
 	fmt.Println(string(pktJson))
 
-	idToken, err := opkClient.RefreshIDToken(context.Background())
+	refIdToken, err := opkClient.RefreshIDToken(context.Background())
 	if err != nil {
 		return err
 	}
-	fmt.Println("refreshed ID Token", string(idToken))
+	fmt.Println("refreshed ID Token", string(refIdToken))
+	pkt.RefIdToken = refIdToken
+
+	pktCom, err := pkt.Compact()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Compact", len(pktCom), string(pktCom))
 
 	// Save our signer and pktoken by writing them to a file
 	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
