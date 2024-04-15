@@ -162,7 +162,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 
 // modInverse finds the modular multiplicative inverse of the value stored in b
 //
-// All operations invovling the secret value are performed either with constant-
+// All operations involving the secret value are performed either with constant-
 // time methods or with blinding (if sv has a source of randomness)
 func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.LockedBuffer, error) {
 	x, err := bigmod.NewNat().SetBytes(b.Bytes(), sv.n)

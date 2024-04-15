@@ -60,7 +60,7 @@ func DefaultIDTokenTemplate() IDTokenTemplate {
 }
 
 // AddCommit adds the commitment to the CIC to the ID Token. The
-// CommitmentFunc is specifed allowing custom commitment functions to be specified
+// CommitmentFunc is specified allowing custom commitment functions to be specified
 func (t *IDTokenTemplate) AddCommit(cicHash string) {
 	t.CommitFunc(t, cicHash)
 }
