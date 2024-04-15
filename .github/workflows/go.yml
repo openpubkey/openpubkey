@@ -3,56 +3,32 @@ name: Go Checks
 on:
   pull_request:
     paths:
-      - '**.go'
+      - "**.go"
 
 jobs:
-  gofmt:
-    name: Check Code Formatting
+  golangci-linter:
+    name: Run golangci linter
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.20.8
-    
-    - name: Check formatting
-      run: |
-        FILES=$(gofmt -l .)
-        if [ -n "$FILES" ]; then
-          echo "These files are not formatted correctly:"
-          echo "$FILES"
-          exit 1
-        fi
-
-  govet:
-    name: Vet Code
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.20.8
-
-    - name: Vet
-      run: go vet ./...
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.20"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.57
   gotest:
     name: Run Tests
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.20.8
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20.8
 
-    - name: Test
-      run: go test ./...
+      - name: Test
+        run: go test ./...
