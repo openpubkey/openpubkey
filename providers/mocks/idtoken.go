@@ -69,16 +69,24 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
-		headers.Set(jws.AlgorithmKey, t.Alg)
+		if err := headers.Set(jws.AlgorithmKey, t.Alg); err != nil {
+			return nil, err
+		}
 	}
 	if !t.NoKeyID {
-		headers.Set(jws.KeyIDKey, t.KeyID)
+		if err := headers.Set(jws.KeyIDKey, t.KeyID); err != nil {
+			return nil, err
+		}
 	}
-	headers.Set(jws.TypeKey, "JWT")
+	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
+		return nil, err
+	}
 
 	if t.ExtraProtectedClaims != nil {
 		for k, v := range t.ExtraProtectedClaims {
-			headers.Set(k, v)
+			if err := headers.Set(k, v); err != nil {
+				return nil, err
+			}
 		}
 	}
 
