@@ -131,7 +131,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
-
+		alg := jwa.SignatureAlgorithm(algStr)
 		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}

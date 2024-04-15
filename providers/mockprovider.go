@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/mocks"
@@ -65,7 +67,7 @@ type MockProvider struct {
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
 // the mock backend, and the ID token template. Tests can use the mock backend to look up keys issued by the mock provider.
 // Tests can use the ID token template to create ID tokens and test the provider's behavior when verifying incorrectly set ID Tokens.
-func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *mocks.MockProviderBackend, *mocks.IDTokenTemplate, error) {
+func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderBackend, *mocks.IDTokenTemplate, error) {
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
@@ -142,6 +144,11 @@ func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Cl
 	}
 	return idToken, refreshToken, accessToken, nil
 }
+
+func (m *MockProvider) RefreshTokens(ctx context.Context, refreshToken []byte) ([]byte, []byte, []byte, error) {
+	return m.requestTokenOverrideFunc("")
+}
+
 func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return m.publicKeyFinder.ByToken(ctx, m.issuer, token)
 }
@@ -160,4 +167,48 @@ func (m *MockProvider) Issuer() string {
 func (m *MockProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	m.options.VerifierOpts.DiscoverPublicKey = &m.publicKeyFinder //TODO: this should be set in the constructor once we have constructors for each OP
 	return NewProviderVerifier(m.Issuer(), m.options.VerifierOpts).VerifyIDToken(ctx, idt, cic)
+}
+
+func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	pkr, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt)
+	if err != nil {
+		return err
+	}
+	alg := jwa.SignatureAlgorithm(pkr.Alg)
+	if _, err := jws.Verify(reIdt, jws.WithKey(alg, pkr.PublicKey)); err != nil {
+		return err
+	}
+
+	// It doesn't make sense to put this in the mock, but non mock implementations
+	// we should check the refreshed ID Token matches the identity in the PK Token
+	return nil
+}
+
+// Mock provider that does not support refresh
+type NonRefreshableOp struct {
+	op *MockProvider
+}
+
+func NewNonRefreshableOp(op *MockProvider) *NonRefreshableOp {
+	return &NonRefreshableOp{op: op}
+}
+
+func (nro *NonRefreshableOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
+	idToken, _, _, err := nro.op.RequestTokens(ctx, cic)
+	return idToken, nil, nil, err
+}
+func (nro *NonRefreshableOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
+	return nro.op.PublicKeyByKeyId(ctx, keyID)
+}
+func (nro *NonRefreshableOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
+	return nro.op.PublicKeyByJTK(ctx, jtk)
+}
+func (nro *NonRefreshableOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+	return nro.op.PublicKeyByToken(ctx, token)
+}
+func (nro *NonRefreshableOp) Issuer() string {
+	return nro.op.Issuer()
+}
+func (nro *NonRefreshableOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+	return nro.op.VerifyIDToken(ctx, idt, cic)
 }

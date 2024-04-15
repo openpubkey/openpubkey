@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/securecookie"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -144,6 +143,11 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 
+	// The reason we don't set the relyingParty on the struct and reuse it,
+	// is because refresh requests require a slightly different set of
+	// options. For instance we want the option to check the nonce (WithNonce)
+	// here, but in RefreshTokens we don't want that option set because
+	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
 		g.issuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
@@ -263,11 +267,11 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) ([]by
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
-
 	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
 	return []byte(tokens.IDToken), refreshToken, []byte(tokens.AccessToken), nil
 }
 
@@ -290,6 +294,19 @@ func (g *GoogleOp) Issuer() string {
 func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
 	return vp.VerifyIDToken(ctx, idt, cic)
+}
+
+func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	redirectURI := ""
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
+		g.ClientSecret, redirectURI, g.Scopes)
+	if err != nil {
+		return fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
+	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
+
+	// TODO: check the ID Tokens match for the same user
+	return err
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
@@ -326,11 +343,14 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 }
 
 func configCookieHandler() (*httphelper.CookieHandler, error) {
+	// I've been unable to determine a scenario in which setting a hashKey and blockKey
+	// on the cookie provide protection in the localhost redirect URI case. However I
+	// see no harm in setting it.
 	hashKey := make([]byte, 64)
 	if _, err := io.ReadFull(rand.Reader, hashKey); err != nil {
 		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
 	}
-	blockKey := securecookie.GenerateRandomKey(32)
+	blockKey := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, blockKey); err != nil {
 		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
 	}
@@ -341,9 +361,5 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// OpenPubkey added support for non-localhost redirect URIs.
 	// WithUnsecure() is equivalent to not setting the 'secure' attribute
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
-	//
-	// I've been unable to determine a scenario in which setting a hashKey and blockKey
-	// on the cookie provide protection in the localhost redirect URI case. However I
-	// see no harm in setting it.
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
 }

@@ -46,6 +46,7 @@ type OpkClient struct {
 	cosP         *CosignerProvider
 	signer       crypto.Signer
 	alg          jwa.KeyAlgorithm
+	pkToken      *pktoken.PKToken
 	refreshToken []byte
 	accessToken  []byte
 	verifier     PKTokenVerifier
@@ -170,7 +171,12 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 
 	// If no Cosigner is set then do standard OIDC authentication
 	if o.cosP == nil {
-		return o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
+		pkt, err := o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
+		if err != nil {
+			return nil, err
+		}
+		o.pkToken = pkt
+		return o.pkToken, nil
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -188,7 +194,12 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 		if err != nil {
 			return nil, err
 		}
-		return o.cosP.RequestToken(ctx, o.signer, pkt, redirCh)
+		pktCos, err := o.cosP.RequestToken(ctx, o.signer, pkt, redirCh)
+		if err != nil {
+			return nil, err
+		}
+		o.pkToken = pktCos
+		return o.pkToken, nil
 	}
 }
 
@@ -258,24 +269,28 @@ func (o *OpkClient) oidcAuth(
 	if err := pktVerifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
-
 	return pkt, nil
 }
 
-func (o *OpkClient) Refresh(ctx context.Context) ([]byte, error) {
+func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
 		if o.refreshToken == nil {
 			return nil, fmt.Errorf("no refresh token set")
+		}
+		if o.pkToken == nil {
+			return nil, fmt.Errorf("no PK Token set, run Auth() to create a PK Token first")
 		}
 		idToken, refreshToken, accessToken, err := tokensOp.RefreshTokens(ctx, o.refreshToken)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)
 		}
+		o.pkToken.RefreshedIdToken = idToken
 		o.refreshToken = refreshToken
 		o.accessToken = accessToken
-		return idToken, nil
+
+		return o.pkToken, nil
 	}
-	return nil, fmt.Errorf("OP (issuer=%s) does not support refreshed ID Token", o.Op.Issuer())
+	return nil, fmt.Errorf("OP (issuer=%s) does not support OIDC refresh requests", o.Op.Issuer())
 }
 
 // GetOp returns the OpenID Provider the OpkClient has been configured to use
@@ -298,4 +313,12 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 // (Public Key, Signing Key)
 func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
 	return o.alg
+}
+
+func (o *OpkClient) SetPKToken(pkt *pktoken.PKToken) {
+	o.pkToken = pkt
+}
+
+func (o *OpkClient) GetPKToken() *pktoken.PKToken {
+	return o.pkToken
 }

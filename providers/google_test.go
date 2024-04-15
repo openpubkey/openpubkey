@@ -62,7 +62,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, _, _, err := op.RequestTokens(context.Background(), cic)
+	idToken, refreshToken, accessToken, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
 
 	cicHash, err := cic.Hash()
@@ -86,9 +86,12 @@ func TestGoogleSimpleRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(payload), string(cicHash))
 	}
+
+	require.Equal(t, "mock-refresh-token", string(refreshToken))
+	require.Equal(t, "mock-access-token", string(accessToken))
 }
 
-func TestFindAvaliablePort(t *testing.T) {
+func TestFindAvailablePort(t *testing.T) {
 	redirects := []string{
 		"http://localhost:21111/login-callback",
 		"http://localhost:21012/login-callback",

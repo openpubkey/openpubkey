@@ -33,6 +33,10 @@ type ProviderVerifier interface {
 	VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
+type RefreshableProviderVerifier interface {
+	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
+}
+
 type CosignerVerifier interface {
 	Issuer() string
 	Strict() bool // Whether or not a given cosigner MUST be present for successful verification
@@ -40,6 +44,15 @@ type CosignerVerifier interface {
 }
 
 type VerifierOpts func(*Verifier) error
+
+// RequireRefreshedIDToken instructs the verifier to check that
+// an unexpired, refreshed ID token is set on the PKToken.
+func RequireRefreshedIDToken() VerifierOpts {
+	return func(v *Verifier) error {
+		v.requireRefreshedIDToken = true
+		return nil
+	}
+}
 
 func WithCosignerVerifiers(verifiers ...*cosigner.DefaultCosignerVerifier) VerifierOpts {
 	return func(v *Verifier) error {
@@ -82,8 +95,9 @@ func GQOnly() Check {
 }
 
 type Verifier struct {
-	providers map[string]ProviderVerifier
-	cosigners map[string]CosignerVerifier
+	providers               map[string]ProviderVerifier
+	cosigners               map[string]CosignerVerifier
+	requireRefreshedIDToken bool
 }
 
 func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) {
@@ -132,6 +146,19 @@ func (v *Verifier) VerifyPKToken(
 	}
 	if err := providerVerifier.VerifyIDToken(ctx, pkt.OpToken, cic); err != nil {
 		return err
+	}
+
+	if v.requireRefreshedIDToken {
+		if reProviderVerifier, ok := providerVerifier.(RefreshableProviderVerifier); !ok {
+			return fmt.Errorf("refreshed ID Token verification required but provider verifier (issuer=%s) does not support it", issuer)
+		} else {
+			if pkt.RefreshedIdToken == nil {
+				return fmt.Errorf("no refreshed ID Token set")
+			}
+			if err := reProviderVerifier.VerifyRefreshedIDToken(ctx, pkt.OpToken, pkt.RefreshedIdToken); err != nil {
+				return err
+			}
+		}
 	}
 
 	if len(v.cosigners) > 0 {
