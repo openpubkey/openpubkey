@@ -262,15 +262,17 @@ func (o *OpkClient) oidcAuth(
 	return pkt, nil
 }
 
-func (o *OpkClient) RefreshIDToken(ctx context.Context) ([]byte, error) {
+func (o *OpkClient) Refresh(ctx context.Context) ([]byte, error) {
 	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
 		if o.refreshToken == nil {
 			return nil, fmt.Errorf("no refresh token set")
 		}
-		idToken, err := tokensOp.RefreshIDToken(ctx, o.refreshToken)
+		idToken, refreshToken, accessToken, err := tokensOp.RefreshTokens(ctx, o.refreshToken)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)
 		}
+		o.refreshToken = refreshToken
+		o.accessToken = accessToken
 		return idToken, nil
 	}
 	return nil, fmt.Errorf("OP (issuer=%s) does not support refreshed ID Token", o.Op.Issuer())

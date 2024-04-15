@@ -102,7 +102,7 @@ func login(outputDir string, gqSign bool) error {
 	}
 	fmt.Println(string(pktJson))
 
-	refIdToken, err := opkClient.RefreshIDToken(context.Background())
+	refIdToken, err := opkClient.Refresh(context.Background())
 	if err != nil {
 		return err
 	}

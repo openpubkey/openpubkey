@@ -117,9 +117,9 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
 		return nil, nil, nil, err
 	}
 
-	// TODO: Add ability to return mock Refresh Token and Access Token
-	return idToken, nil, nil, nil
-
+	refreshToken := []byte("mock-refresh-token")
+	accessToken := []byte("mock-access-token")
+	return idToken, refreshToken, accessToken, nil
 }
 
 func AddNonceCommit(idtTemp *IDTokenTemplate, cicHash string) {

@@ -18,7 +18,9 @@ package providers
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/securecookie"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -37,7 +40,6 @@ import (
 )
 
 var (
-	key            = []byte("NotASecureKey123")
 	issuedAtOffset = 1 * time.Minute
 )
 
@@ -129,8 +131,11 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 			logrus.Error(err)
 		}
 	}()
-	cookieHandler :=
-		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
+
+	cookieHandler, err := configCookieHandler()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
@@ -139,8 +144,8 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 
-	provider, err := rp.NewRelyingPartyOIDC(ctx,
-		googleIssuer, g.ClientID, g.ClientSecret, redirectURI.String(),
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
+		g.issuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("error creating provider: %w", err)
@@ -153,7 +158,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
-	http.Handle("/login", rp.AuthURLHandler(state, provider,
+	http.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
@@ -183,7 +188,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	}
 
 	callbackPath := redirectURI.Path
-	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, provider))
+	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
 
 	go func() {
 		err := g.server.Serve(ln)
@@ -236,14 +241,11 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	return idToken, refreshToken, accessToken, nil
 }
 
-func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]byte, error) {
-	// options := []rp.Option{}
-	// if g.httpClient != nil {
-	// 	options = append(options, rp.WithHTTPClient(g.httpClient))
-	// }
-
-	cookieHandler :=
-		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
+func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) ([]byte, []byte, []byte, error) {
+	cookieHandler, err := configCookieHandler()
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
@@ -251,30 +253,22 @@ func (g *GoogleOp) RefreshIDToken(ctx context.Context, refreshToken []byte) ([]b
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 
-	provider, err := rp.NewRelyingPartyOIDC(ctx,
-		googleIssuer, g.ClientID, g.ClientSecret, g.RedirectURIs[0],
-		g.Scopes, options...)
-
-	// provider, err := rp.NewRelyingPartyOIDC(
-	// 	ctx,
-	// 	g.issuer,
-	// 	g.ClientID,
-	// 	g.ClientSecret,
-	// 	g.RedirectURIs[0], // TODO: worry about this
-	// 	g.Scopes,
-	// 	options...,
-	// )
+	// The redirect URI is not sent in the refresh request so we set it to an empty string.
+	// According to the OIDC spec the only values send on a refresh request are:
+	// client_id, client_secret, grant_type, refresh_token, and scope.
+	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+	redirectURI := ""
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
+		g.ClientSecret, redirectURI, g.Scopes, options...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
 
-	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, provider, string(refreshToken), "", "")
+	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-
-	// return tokens.idToken, nil
-	return []byte(tokens.IDToken), nil
+	return []byte(tokens.IDToken), refreshToken, []byte(tokens.AccessToken), nil
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -294,7 +288,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
@@ -329,4 +323,27 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 		}
 	}
 	return nil, nil, fmt.Errorf("failed to start a listener for the callback from the OP, got %w", lnErr)
+}
+
+func configCookieHandler() (*httphelper.CookieHandler, error) {
+	hashKey := make([]byte, 64)
+	if _, err := io.ReadFull(rand.Reader, hashKey); err != nil {
+		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
+	}
+	blockKey := securecookie.GenerateRandomKey(32)
+	if _, err := io.ReadFull(rand.Reader, blockKey); err != nil {
+		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
+	}
+
+	// OpenPubkey uses a localhost redirect URI to receive the authcode
+	// from the OP. Localhost redirects use http not https. Thus, we should
+	// not set these cookies as secure-only. This should be changed if
+	// OpenPubkey added support for non-localhost redirect URIs.
+	// WithUnsecure() is equivalent to not setting the 'secure' attribute
+	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
+	//
+	// I've been unable to determine a scenario in which setting a hashKey and blockKey
+	// on the cookie provide protection in the localhost redirect URI case. However I
+	// see no harm in setting it.
+	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
 }

@@ -79,6 +79,7 @@ func TestClient(t *testing.T) {
 				require.NoError(t, err, tc.name)
 				require.Equal(t, signer, c.GetSigner(), tc.name)
 				require.Equal(t, tc.signerAlg, c.GetAlg(), tc.name)
+				// require.True(t, false, "signer not implemented")
 			} else {
 				c, err = client.New(op)
 				require.NoError(t, err, tc.name)
