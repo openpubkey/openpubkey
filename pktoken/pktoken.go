@@ -60,7 +60,7 @@ type PKToken struct {
 
 	// Refreshed ID Token has a different payload from other tokens.
 	// It is only used for POP Authentication
-	RefreshedIdToken []byte // Base64 encoded Refreshed ID Token
+	ReIDToken []byte // Base64 encoded Refreshed ID Token
 }
 
 // kid isn't always present, and is only guaranteed to be unique within a given key set,
@@ -263,7 +263,7 @@ func (p *PKToken) Compact() ([]byte, error) {
 	if p.CosToken != nil {
 		tokens = append(tokens, p.CosToken)
 	}
-	return CompactPKToken(tokens, p.RefreshedIdToken)
+	return CompactPKToken(tokens, p.ReIDToken)
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {

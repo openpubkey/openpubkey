@@ -23,6 +23,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 )
@@ -170,6 +171,13 @@ func (m *MockProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 }
 
 func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
+	}
+	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
+	}
+
 	pkr, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt)
 	if err != nil {
 		return err
@@ -179,8 +187,6 @@ func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byt
 		return err
 	}
 
-	// It doesn't make sense to put this in the mock, but non mock implementations
-	// we should check the refreshed ID Token matches the identity in the PK Token
 	return nil
 }
 

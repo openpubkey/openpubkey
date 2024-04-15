@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
@@ -297,6 +298,13 @@ func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientins
 }
 
 func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
+	}
+	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
+	}
+
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
 		g.ClientSecret, redirectURI, g.Scopes)
@@ -304,8 +312,6 @@ func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, r
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
-
-	// TODO: check the ID Tokens match for the same user
 	return err
 }
 

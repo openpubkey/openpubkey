@@ -284,7 +284,7 @@ func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)
 		}
-		o.pkToken.RefreshedIdToken = idToken
+		o.pkToken.ReIDToken = idToken
 		o.refreshToken = refreshToken
 		o.accessToken = accessToken
 

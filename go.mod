@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
+	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/zitadel/logging v0.4.0 // indirect
 	github.com/zitadel/schema v1.3.0 // indirect
@@ -31,7 +32,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-tpm v0.9.0 // indirect
-	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
 	github.com/lestrrat-go/httprc v1.0.5 // indirect

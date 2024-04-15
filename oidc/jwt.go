@@ -64,3 +64,43 @@ func (i *Jwt) GetSignature() *Signature {
 func (i *Jwt) GetRaw() []byte {
 	return i.raw
 }
+
+// Compares two JWTs and determines if they are for the same identity (subject)
+func SameIdentity(t1, t2 []byte) error {
+	token1, err := NewJwt(t1)
+	if err != nil {
+		return err
+	}
+	token2, err := NewJwt(t2)
+	if err != nil {
+		return err
+	}
+
+	// Subject identity can only be established within the same issuer
+	if token1.GetClaims().Issuer != token2.GetClaims().Issuer {
+		return fmt.Errorf("tokens have different issuers")
+	}
+
+	if token1.GetClaims().Subject != token2.GetClaims().Subject {
+		return fmt.Errorf("token have a different subject claims")
+	}
+	return nil
+}
+
+// RequireYounger returns an error if t1 is not older than t2
+func RequireOlder(t1, t2 []byte) error {
+	token1, err := NewJwt(t1)
+	if err != nil {
+		return err
+	}
+	token2, err := NewJwt(t2)
+	if err != nil {
+		return err
+	}
+
+	// Check which token was issued first
+	if token1.GetClaims().IssuedAt > token2.GetClaims().IssuedAt {
+		return fmt.Errorf("tokens not issued in correct order")
+	}
+	return nil
+}

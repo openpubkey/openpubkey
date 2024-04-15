@@ -106,7 +106,7 @@ func login(outputDir string, gqSign bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("refreshed ID Token", string(newPkt.RefreshedIdToken))
+	fmt.Println("refreshed ID Token", string(newPkt.ReIDToken))
 
 	pktCom, err := pkt.Compact()
 	if err != nil {
