@@ -71,22 +71,22 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
 		if err := headers.Set(jws.AlgorithmKey, t.Alg); err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
 	if !t.NoKeyID {
 		if err := headers.Set(jws.KeyIDKey, t.KeyID); err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
 	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	if t.ExtraProtectedClaims != nil {
 		for k, v := range t.ExtraProtectedClaims {
 			if err := headers.Set(k, v); err != nil {
-				return nil, err
+				return nil, nil, nil, err
 			}
 		}
 	}

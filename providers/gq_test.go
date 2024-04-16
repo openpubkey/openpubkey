@@ -76,7 +76,7 @@ func TestGQ(t *testing.T) {
 
 			expPublicKey := maps.Values(backend.GetProviderPublicKeySet())[0].PublicKey
 
-			idToken, err := idtTemplate.IssueToken()
+			idToken, _, _, err := idtTemplate.IssueToken()
 			require.NoError(t, err)
 
 			if tc.wrongAlg {
