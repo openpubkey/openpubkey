@@ -38,9 +38,9 @@ type OidcClaims struct {
 	LastName   string `json:"family_name,omitempty"`
 }
 
-// Implement UnmarshalJSON for custom handling during JSON unmarshaling
+// Implement UnmarshalJSON for custom handling during JSON unmarshalling
 func (id *OidcClaims) UnmarshalJSON(data []byte) error {
-	// unmarshal audience claim seperately to account for []string, https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
+	// unmarshal audience claim separately to account for []string, https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 	type Alias OidcClaims
 	aux := &struct {
 		Audience any `json:"aud"`

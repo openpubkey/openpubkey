@@ -60,7 +60,7 @@ func DefaultIDTokenTemplate() IDTokenTemplate {
 }
 
 // AddCommit adds the commitment to the CIC to the ID Token. The
-// CommitmentFunc is specifed allowing custom commitment functions to be specified
+// CommitmentFunc is specified allowing custom commitment functions to be specified
 func (t *IDTokenTemplate) AddCommit(cicHash string) {
 	t.CommitFunc(t, cicHash)
 }
@@ -69,16 +69,24 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
-		headers.Set(jws.AlgorithmKey, t.Alg)
+		if err := headers.Set(jws.AlgorithmKey, t.Alg); err != nil {
+			return nil, err
+		}
 	}
 	if !t.NoKeyID {
-		headers.Set(jws.KeyIDKey, t.KeyID)
+		if err := headers.Set(jws.KeyIDKey, t.KeyID); err != nil {
+			return nil, err
+		}
 	}
-	headers.Set(jws.TypeKey, "JWT")
+	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
+		return nil, err
+	}
 
 	if t.ExtraProtectedClaims != nil {
 		for k, v := range t.ExtraProtectedClaims {
-			headers.Set(k, v)
+			if err := headers.Set(k, v); err != nil {
+				return nil, err
+			}
 		}
 	}
 

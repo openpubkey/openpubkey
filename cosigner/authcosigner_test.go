@@ -48,8 +48,8 @@ func TestInitAuth(t *testing.T) {
 	}
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
-	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
-	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
+	initAuthMsgJson, _, _ := cosP.CreateInitAuthSig(redirectURI)
+	sig, _ := pkt.NewSignedMessage(initAuthMsgJson, signer)
 	authID1, err := cos.InitAuth(pkt, sig)
 	require.NoError(t, err, "failed to initiate auth")
 	require.NotEmpty(t, authID1)
@@ -95,12 +95,20 @@ func TestRedeemAuthcode(t *testing.T) {
 
 	for i, tc := range tests {
 		initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
+		require.NoError(t, err, "test %d: CreateInitAuthSig err: %v", i+1, err)
+
 		sig, err := tc.pkt.NewSignedMessage(initAuthMsgJson, tc.signer)
+		require.NoError(t, err, "test %d: NewSignedMessage err: %v", i+1, err)
+
 		authID, err := cos.InitAuth(tc.pkt, sig)
 		if !tc.wantError {
 			require.NoError(t, err, "test %d: expected: nil, got: %v", i+1, err)
 		}
+
 		authcode, err := cos.NewAuthcode(authID)
+		if !tc.wantError {
+			require.NoError(t, err, "test %d: NewAuthcode err: %v", i+1, err)
+		}
 
 		acSig, err := tc.pkt.NewSignedMessage([]byte(authcode), tc.signer)
 		require.NoError(t, err, "test %d: expected: nil, got: %v", i+1, err)
@@ -117,7 +125,7 @@ func TestRedeemAuthcode(t *testing.T) {
 
 func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	alg := jwa.ES256
-	signer, err := util.GenKeyPair(alg)
+	signer, _ := util.GenKeyPair(alg)
 	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
 
@@ -131,7 +139,11 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 
 	// reuse the same authcode twice, it should fail
 	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
+	require.NoError(t, err, "CreateInitAuthSig err: %v", err)
+
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
+	require.NoError(t, err, "NewSignedMessage err: %v", err)
+
 	authID, err := cos.InitAuth(pkt, sig)
 	require.Empty(t, err)
 

@@ -102,14 +102,21 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 			}()
 
 			if err != nil {
-				w.Write([]byte(err.Error())) //Write the error message to the user
+				// Write the error message to the user
+				if _, err := w.Write([]byte(err.Error())); err != nil {
+					logrus.Error(err)
+				}
+
 				select {
 				case errCh <- err:
 				case <-ctx.Done():
 					return
 				}
 			} else {
-				w.Write([]byte("You may now close this window"))
+				if _, err := w.Write([]byte("You may now close this window")); err != nil {
+					logrus.Error(err)
+				}
+
 				select {
 				case sigCh <- cosSig:
 				case <-ctx.Done():
@@ -132,7 +139,11 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 			logrus.Error(err)
 		}
 	}()
-	defer server.Shutdown(ctx)
+	defer func() {
+		if err := server.Shutdown(ctx); err != nil {
+			logrus.Error(err)
+		}
+	}()
 
 	pktJson, err := json.Marshal(pkt)
 	if err != nil {

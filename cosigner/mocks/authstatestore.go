@@ -119,7 +119,7 @@ func (s *AuthStateInMemoryStore) CreateNewAuthSession(pkt *pktoken.PKToken, ruri
 		return "", err
 	} else {
 		s.AuthStateMapLock.Lock()
-		if _, ok := s.AuthStateMap[authID]; ok != false {
+		if _, ok := s.AuthStateMap[authID]; ok {
 			return "", fmt.Errorf("specified authID is already in use")
 		}
 		s.AuthStateMap[authID] = authState
@@ -141,7 +141,7 @@ func (s *AuthStateInMemoryStore) CreateAuthcode(authID string) (string, error) {
 
 	if authState, ok := s.AuthStateMap[authID]; !ok {
 		return "", fmt.Errorf("no such authID")
-	} else if authState.AuthcodeIssued == true {
+	} else if authState.AuthcodeIssued {
 		return "", fmt.Errorf("authcode already issued for this authID")
 	} else {
 		s.AuthcodeMapLock.Lock()
@@ -168,11 +168,11 @@ func (s *AuthStateInMemoryStore) RedeemAuthcode(authcode string) (cosigner.AuthS
 		defer s.AuthStateMapLock.Unlock()
 
 		authState := s.AuthStateMap[authID]
-		if authState.AuthcodeIssued == false {
+		if !authState.AuthcodeIssued {
 			// This should never happen
 			return cosigner.AuthState{}, "", fmt.Errorf("no authcode issued for this authID")
 		}
-		if authState.AuthcodeRedeemed == true {
+		if authState.AuthcodeRedeemed {
 			return cosigner.AuthState{}, "", fmt.Errorf("authcode has already been redeemed")
 		}
 		authState.AuthcodeRedeemed = true
