@@ -138,6 +138,7 @@ func TestProviderVerifier(t *testing.T) {
 				Issuer:     issuer,
 				ClientID:   clientID,
 				GQSign:     tc.tokenGQSign,
+				NumKeys:    2,
 				CommitType: tc.tokenCommitType,
 				VerifierOpts: ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,

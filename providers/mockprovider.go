@@ -33,6 +33,7 @@ type MockProviderOpts struct {
 	Issuer     string
 	ClientID   string
 	GQSign     bool
+	NumKeys    int
 	CommitType CommitType
 	// We keep VerifierOpts as a variable separate to let us test failures
 	// where the mock op does something which causes a verification failure
@@ -45,6 +46,7 @@ func DefaultMockProviderOpts() MockProviderOpts {
 		Issuer:     "https://accounts.example.com",
 		ClientID:   clientID,
 		GQSign:     false,
+		NumKeys:    2,
 		CommitType: CommitTypesEnum.NONCE_CLAIM,
 		VerifierOpts: ProviderVerifierOpts{
 			CommitType:        CommitTypesEnum.NONCE_CLAIM,
@@ -69,8 +71,7 @@ func NewMockProvider(opts MockProviderOpts) (OpenIdProvider, *mocks.MockProvider
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
-	numKeys := 2
-	mockBackend, err := mocks.NewMockProviderBackend(opts.Issuer, numKeys)
+	mockBackend, err := mocks.NewMockProviderBackend(opts.Issuer, opts.NumKeys)
 	if err != nil {
 		return nil, nil, nil, err
 	}

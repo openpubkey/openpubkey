@@ -59,6 +59,7 @@ func TestClient(t *testing.T) {
 				Issuer:     "mockIssuer",
 				ClientID:   clientID,
 				GQSign:     tc.gq,
+				NumKeys:    2,
 				CommitType: commitType,
 				VerifierOpts: providers.ProviderVerifierOpts{
 					CommitType:        commitType,

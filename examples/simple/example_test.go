@@ -27,6 +27,7 @@ func TestGitlabExample(t *testing.T) {
 	providerOpts := providers.MockProviderOpts{
 		Issuer:     "mockIssuer",
 		GQSign:     true,
+		NumKeys:    2,
 		CommitType: providers.CommitTypesEnum.GQ_BOUND,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			CommitType:        providers.CommitTypesEnum.GQ_BOUND,
