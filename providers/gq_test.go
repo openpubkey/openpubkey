@@ -73,7 +73,7 @@ func TestGQ(t *testing.T) {
 
 			op, backend, idtTemplate, err := NewMockProvider(providerOpts)
 			require.NoError(t, err)
-			
+
 			expPublicKey := maps.Values(backend.GetProviderPublicKeySet())[0].PublicKey
 
 			idToken, err := idtTemplate.IssueToken()
