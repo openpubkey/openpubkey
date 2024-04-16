@@ -69,36 +69,27 @@ func TestAuthorizedKeysCommand(t *testing.T) {
 
 	principals := []string{"guest", "dev"}
 	cert, err := sshcert.New(pkt, principals)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	sshSigner, err := ssh.NewSignerFromSigner(signer)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	signerMas, err := ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner),
 		[]string{ssh.KeyAlgoECDSA256})
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	sshCert, err := cert.SignCert(signerMas)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
 	certTypeAndCertB64 := ssh.MarshalAuthorizedKey(sshCert)
 	typeArg := strings.Split(string(certTypeAndCertB64), " ")[0]
 	certB64Arg := strings.Split(string(certTypeAndCertB64), " ")[1]
 
 	userArg := "user"
 	pubkeyList, err := authorizedKeysCommand(userArg, typeArg, certB64Arg, AllowAllPolicyEnforcer, op)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
 	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256"
-	if !strings.Contains(pubkeyList, expectedPubkeyList) {
-		t.Error(err)
-	}
+	require.Contains(t, pubkeyList, expectedPubkeyList)
+
 }

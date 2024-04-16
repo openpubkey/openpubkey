@@ -114,12 +114,14 @@ func TestProviderVerifier(t *testing.T) {
 				NoAlg:   false,
 			}
 
-			if tc.tokenCommitType.Claim == "nonce" {
+			switch tc.tokenCommitType.Claim {
+			case "nonce":
 				idtTemplate.CommitFunc = mocks.AddNonceCommit
-			} else if tc.tokenCommitType.Claim == "aud" {
+			case "aud":
 				idtTemplate.CommitFunc = mocks.AddAudCommit
-			} else {
+			default:
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
+
 			}
 
 			if tc.aud != "" {
@@ -136,6 +138,7 @@ func TestProviderVerifier(t *testing.T) {
 				Issuer:     issuer,
 				ClientID:   clientID,
 				GQSign:     tc.tokenGQSign,
+				NumKeys:    2,
 				CommitType: tc.tokenCommitType,
 				VerifierOpts: ProviderVerifierOpts{
 					CommitType:        tc.pvCommitType,

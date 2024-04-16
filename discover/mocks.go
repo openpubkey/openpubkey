@@ -34,13 +34,20 @@ func MockGetJwksByIssuer(publicKeys []crypto.PublicKey, keyIDs []string, algs []
 			return nil, err
 		}
 
-		jwkKey.Set(jwk.AlgorithmKey, algs[i])
+		if err := jwkKey.Set(jwk.AlgorithmKey, algs[i]); err != nil {
+			return nil, err
+		}
+
 		if keyIDs != nil {
-			jwkKey.Set(jwk.KeyIDKey, keyIDs[i])
+			if err := jwkKey.Set(jwk.KeyIDKey, keyIDs[i]); err != nil {
+				return nil, err
+			}
 		}
 
 		// Put our jwk into a set
-		jwks.AddKey(jwkKey)
+		if err := jwks.AddKey(jwkKey); err != nil {
+			return nil, err
+		}
 	}
 
 	jwksJson, err := json.Marshal(jwks)
@@ -60,12 +67,18 @@ func MockGetJwksByIssuerOneKey(publicKey crypto.PublicKey, keyID string, alg str
 		return nil, err
 	}
 
-	jwkKey.Set(jwk.AlgorithmKey, alg)
-	jwkKey.Set(jwk.KeyIDKey, keyID)
+	if err := jwkKey.Set(jwk.AlgorithmKey, alg); err != nil {
+		return nil, err
+	}
+	if err := jwkKey.Set(jwk.KeyIDKey, keyID); err != nil {
+		return nil, err
+	}
 
 	// Put our jwk into a set
 	jwks := jwk.NewSet()
-	jwks.AddKey(jwkKey)
+	if err := jwks.AddKey(jwkKey); err != nil {
+		return nil, err
+	}
 
 	jwksJson, err := json.Marshal(jwks)
 	if err != nil {

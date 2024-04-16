@@ -324,13 +324,16 @@ func TestGQTokens(t *testing.T) {
 
 func CreateIDToken(t *testing.T, issuer string, signer crypto.Signer, alg string, kid string) []byte {
 	headers := jws.NewHeaders()
-	headers.Set(jws.AlgorithmKey, alg)
+	err := headers.Set(jws.AlgorithmKey, alg)
+	require.NoError(t, err)
 
 	// This lets us test JKT behavior when there is no kid
 	if kid != "" {
-		headers.Set(jws.KeyIDKey, kid)
+		err := headers.Set(jws.KeyIDKey, kid)
+		require.NoError(t, err)
 	}
-	headers.Set(jws.TypeKey, "JWT")
+	err = headers.Set(jws.TypeKey, "JWT")
+	require.NoError(t, err)
 
 	payload := map[string]any{
 		"sub": "me",

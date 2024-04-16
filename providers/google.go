@@ -160,6 +160,12 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		return uuid.New().String()
 	}
 
+	shutdownServer := func() {
+		if err := g.server.Shutdown(ctx); err != nil {
+			logrus.Errorf("Failed to shutdown http server: %v", err)
+		}
+	}
+
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
@@ -186,9 +192,11 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		// MFA Cosigner Auth URI.
 		if g.httpSessionHook != nil {
 			g.httpSessionHook(w, r)
-			defer g.server.Shutdown(ctx) // If no http session hook is set, we do server shutdown in RequestTokens
+			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
-			w.Write([]byte("You may now close this window"))
+			if _, err := w.Write([]byte("You may now close this window")); err != nil {
+				logrus.Error(err)
+			}
 		}
 	}
 
@@ -204,7 +212,9 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 
 	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
 	logrus.Infof("Opening browser to on http://%s/", loginURI)
-	util.OpenUrl(loginURI)
+	if err := util.OpenUrl(loginURI); err != nil {
+		logrus.Errorf("Failed to open url: %v", err)
+	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
 	// otherwise keep it open for the httpSessionHook
@@ -213,12 +223,12 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 	// 1. We shut it down if an error occurs in the marshalToken handler
 	// 2. We shut it down if the marshalToken handler completes
 	if g.httpSessionHook == nil {
-		defer g.server.Shutdown(ctx)
+		defer shutdownServer()
 	}
 	select {
 	case err := <-chErr:
 		if g.httpSessionHook != nil {
-			defer g.server.Shutdown(ctx)
+			defer shutdownServer()
 		}
 		return nil, nil, nil, err
 	case tokens := <-chTokens:

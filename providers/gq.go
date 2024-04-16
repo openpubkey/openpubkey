@@ -18,10 +18,12 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
@@ -44,18 +46,22 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	}
 	headersB64, _, _, err := jws.SplitCompact(idToken)
 	if err != nil {
-		return nil, fmt.Errorf("error getting original headers: %w", err)
+		return nil, fmt.Errorf("error splitting compact ID Token: %w", err)
 	}
 
 	// TODO: We should create a util function for extracting headers from tokens
 	headersJson, err := util.Base64DecodeForJWT(headersB64)
 	if err != nil {
-		return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+		return nil, fmt.Errorf("error base64 decoding ID Token headers: %w", err)
 	}
 	headers := jws.NewHeaders()
 	err = json.Unmarshal(headersJson, &headers)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
+		return nil, fmt.Errorf("error unmarshalling ID Token headers: %w", err)
+	}
+
+	if headers.Algorithm() != "RS256" {
+		return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", headers.Algorithm())
 	}
 
 	opKey, err := op.PublicKeyByToken(ctx, idToken)
@@ -71,9 +77,26 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	if !ok {
 		return nil, fmt.Errorf("gq signatures require original provider to have signed with an RSA key")
 	}
-	if cicHash == "" {
-		return gq.GQ256SignJWT(rsaKey, idToken)
-	} else {
-		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("cic", cicHash))
+	jktB64, err := createJkt(rsaKey)
+	if err != nil {
+		return nil, err
 	}
+
+	if cicHash == "" {
+		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("jkt", jktB64))
+	} else {
+		return gq.GQ256SignJWT(rsaKey, idToken, gq.WithExtraClaim("jkt", jktB64), gq.WithExtraClaim("cic", cicHash))
+	}
+}
+
+func createJkt(publicKey crypto.PublicKey) (string, error) {
+	jwkKey, err := jwk.PublicKeyOf(publicKey)
+	if err != nil {
+		return "", err
+	}
+	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return "", err
+	}
+	return string(util.Base64EncodeForJWT(thumbprint)), nil
 }

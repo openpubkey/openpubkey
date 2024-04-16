@@ -121,7 +121,8 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
-		res.Write([]byte(expResponseBody))
+		_, err := res.Write([]byte(expResponseBody))
+		require.NoError(t, err)
 	}))
 	defer func() { testServer.Close() }()
 
@@ -185,7 +186,8 @@ func TestGithubOpFullGQ(t *testing.T) {
 	expResponseBody := fmt.Sprintf(`{"count":1857,"value":"%s"}`, expIdToken)
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusOK)
-		res.Write([]byte(expResponseBody))
+		_, err := res.Write([]byte(expResponseBody))
+		require.NoError(t, err)
 	}))
 	defer func() { testServer.Close() }()
 

@@ -56,11 +56,17 @@ func NewMockProviderBackend(issuer string, numKeys int) (*MockProviderBackend, e
 					if err != nil {
 						return nil, err
 					}
-					jwkKey.Set(jwk.AlgorithmKey, record.Alg)
-					jwkKey.Set(jwk.KeyIDKey, kid)
+					if err := jwkKey.Set(jwk.AlgorithmKey, record.Alg); err != nil {
+						return nil, err
+					}
+					if err := jwkKey.Set(jwk.KeyIDKey, kid); err != nil {
+						return nil, err
+					}
 
 					// Put our jwk into a set
-					keySet.AddKey(jwkKey)
+					if err := keySet.AddKey(jwkKey); err != nil {
+						return nil, err
+					}
 				}
 				return json.MarshalIndent(keySet, "", "  ")
 			},

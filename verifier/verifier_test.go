@@ -38,6 +38,7 @@ func NewMockOpenIdProvider(gqSign bool, issuer string, clientID string, extraCla
 		Issuer:     issuer,
 		ClientID:   clientID,
 		GQSign:     gqSign,
+		NumKeys:    2,
 		CommitType: providers.CommitTypesEnum.NONCE_CLAIM,
 		VerifierOpts: providers.ProviderVerifierOpts{
 			CommitType:        providers.CommitTypesEnum.NONCE_CLAIM,
@@ -331,6 +332,7 @@ func TestGQCommitment(t *testing.T) {
 			providerOpts := providers.MockProviderOpts{
 				ClientID:   clientID,
 				GQSign:     tc.gqSign,
+				NumKeys:    2,
 				CommitType: commitType,
 				VerifierOpts: providers.ProviderVerifierOpts{
 					CommitType:        commitType,
