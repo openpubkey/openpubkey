@@ -152,10 +152,10 @@ func (v *Verifier) VerifyPKToken(
 		if reProviderVerifier, ok := providerVerifier.(RefreshableProviderVerifier); !ok {
 			return fmt.Errorf("refreshed ID Token verification required but provider verifier (issuer=%s) does not support it", issuer)
 		} else {
-			if pkt.ReIDToken == nil {
+			if pkt.FreshIDToken == nil {
 				return fmt.Errorf("no refreshed ID Token set")
 			}
-			if err := reProviderVerifier.VerifyRefreshedIDToken(ctx, pkt.OpToken, pkt.ReIDToken); err != nil {
+			if err := reProviderVerifier.VerifyRefreshedIDToken(ctx, pkt.OpToken, pkt.FreshIDToken); err != nil {
 				return err
 			}
 		}

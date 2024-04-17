@@ -24,11 +24,11 @@ import (
 
 func TestBuildCompact(t *testing.T) {
 	testCases := []struct {
-		name       string
-		tokens     [][]byte
-		refIDToken []byte
-		expError   string
-		expPktCom  []byte
+		name         string
+		tokens       [][]byte
+		freshIDToken []byte
+		expError     string
+		expPktCom    []byte
 	}{
 		{name: "happy case one tokens",
 			tokens: [][]byte{
@@ -51,8 +51,8 @@ func TestBuildCompact(t *testing.T) {
 				// base64(two fake protected).base64(fake payload).base64(two fake sig)
 				[]byte(`dHdvIGZha2UgcHJvdGVjdGVk.ZmFrZSBwYXlsb2Fk.dHdvIGZha2Ugc2ln`)},
 			// base64(refreshed protected).base64(refreshed payload).base64(refreshed sig)
-			refIDToken: []byte(`cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
-			expPktCom:  []byte(`ZmFrZSBwYXlsb2Fk:MWZha2Vwcm90ZWN0ZWQ:b25lIGZha2Ugc2ln:dHdvIGZha2UgcHJvdGVjdGVk:dHdvIGZha2Ugc2ln.cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
+			freshIDToken: []byte(`cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
+			expPktCom:    []byte(`ZmFrZSBwYXlsb2Fk:MWZha2Vwcm90ZWN0ZWQ:b25lIGZha2Ugc2ln:dHdvIGZha2UgcHJvdGVjdGVk:dHdvIGZha2Ugc2ln.cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
 		},
 		{name: "different payloads",
 			expError: "payloads in tokens are not the same",
@@ -78,13 +78,13 @@ func TestBuildCompact(t *testing.T) {
 				// base64(two fake protected).base64(fake payload).base64(two fake sig)
 				[]byte(`dHdvIGZha2UgcHJvdGVjdGVk.ZmFrZSBwYXlsb2Fk.dHdvIGZha2Ugc2ln`)},
 			// base64(refreshed protected).base64(refreshed payload).base64(refreshed sig)
-			refIDToken: []byte(`***=BAD!!!###`),
+			freshIDToken: []byte(`***=BAD!!!###`),
 		},
 	}
 	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
-			pktCom, err := CompactPKToken(tc.tokens, tc.refIDToken)
+			pktCom, err := CompactPKToken(tc.tokens, tc.freshIDToken)
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError)
 			} else {
@@ -97,11 +97,11 @@ func TestBuildCompact(t *testing.T) {
 
 func TestFromCompact(t *testing.T) {
 	testCases := []struct {
-		name          string
-		expTokens     [][]byte
-		expRefIDToken []byte
-		expError      string
-		pktCom        []byte
+		name            string
+		expTokens       [][]byte
+		expFreshIDToken []byte
+		expError        string
+		pktCom          []byte
 	}{
 		{name: "happy case one tokens",
 			expTokens: [][]byte{
@@ -125,8 +125,8 @@ func TestFromCompact(t *testing.T) {
 				// base64(two fake protected).base64(fake payload).base64(two fake sig)
 				[]byte(`dHdvIGZha2UgcHJvdGVjdGVk.ZmFrZSBwYXlsb2Fk.dHdvIGZha2Ugc2ln`)},
 			// base64(refreshed protected).base64(refreshed payload).base64(refreshed sig)
-			expRefIDToken: []byte(`cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
-			pktCom:        []byte(`ZmFrZSBwYXlsb2Fk:MWZha2Vwcm90ZWN0ZWQ:b25lIGZha2Ugc2ln:dHdvIGZha2UgcHJvdGVjdGVk:dHdvIGZha2Ugc2ln.cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
+			expFreshIDToken: []byte(`cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
+			pktCom:          []byte(`ZmFrZSBwYXlsb2Fk:MWZha2Vwcm90ZWN0ZWQ:b25lIGZha2Ugc2ln:dHdvIGZha2UgcHJvdGVjdGVk:dHdvIGZha2Ugc2ln.cmVmcmVzaGVkIHByb3RlY3RlZA.cmVmcmVzaGVkIHBheWxvYWQ.cmVmcmVzaGVkIHNpZw`),
 		},
 		{name: "malformed Compact PK Token (invalid number of segments)",
 			expError: "invalid number of segments",
@@ -140,13 +140,13 @@ func TestFromCompact(t *testing.T) {
 	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
-			tokens, refIDToken, err := SplitCompactPKToken(tc.pktCom)
+			tokens, freshIDToken, err := SplitCompactPKToken(tc.pktCom)
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tc.expTokens, tokens)
-				require.Equal(t, tc.expRefIDToken, refIDToken)
+				require.Equal(t, tc.expFreshIDToken, freshIDToken)
 			}
 		})
 	}

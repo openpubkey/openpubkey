@@ -230,7 +230,6 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-
 	idToken, refreshToken, accessToken, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting OIDC tokens from OpenID Provider: %w", err)
@@ -283,7 +282,7 @@ func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)
 		}
-		o.pkToken.ReIDToken = idToken
+		o.pkToken.FreshIDToken = idToken
 		o.refreshToken = refreshToken
 		o.accessToken = accessToken
 
