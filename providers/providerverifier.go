@@ -132,6 +132,12 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 			return fmt.Errorf("failed to get OP public key: %w", err)
 		}
 
+		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
+		_, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("public key is not an RSA public key")
+		}
+
 		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
