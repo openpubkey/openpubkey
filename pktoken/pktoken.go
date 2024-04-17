@@ -59,7 +59,7 @@ type PKToken struct {
 	CosToken []byte // Base64 encoded Token signed by the Cosigner
 
 	// FreshIDToken is the refreshed ID Token. It has a different payload from
-	// other tokens and must be handled seperately.
+	// other tokens and must be handled separately.
 	// It is only used for POP Authentication
 	FreshIDToken []byte // Base64 encoded Refreshed ID Token
 }
