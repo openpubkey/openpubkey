@@ -87,7 +87,7 @@ func SameIdentity(t1, t2 []byte) error {
 	return nil
 }
 
-// RequireYounger returns an error if t1 is not older than t2
+// RequireOlder returns an error if t1 is not older than t2
 func RequireOlder(t1, t2 []byte) error {
 	token1, err := NewJwt(t1)
 	if err != nil {
