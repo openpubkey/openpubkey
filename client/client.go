@@ -230,7 +230,6 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	var idToken []byte
 
 	idToken, refreshToken, accessToken, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
