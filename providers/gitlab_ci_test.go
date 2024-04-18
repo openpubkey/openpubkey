@@ -34,9 +34,9 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &GitlabOp{
-		issuer:                   gitlabIssuer,
-		publicKeyFinder:          providerOverride.PublicKeyFinder,
-		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
+		issuer:                    gitlabIssuer,
+		publicKeyFinder:           providerOverride.PublicKeyFinder,
+		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
 	}
 
 	aud := AudPrefixForGQCommitment
@@ -58,8 +58,9 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.Background(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 
 	cicHash, err := cic.Hash()
 	require.NoError(t, err)

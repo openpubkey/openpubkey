@@ -29,6 +29,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/oidc"
 	"golang.org/x/exp/maps"
 )
 
@@ -92,7 +93,7 @@ func (o *MockProviderBackend) SetIDTokenTemplate(template *IDTokenTemplate) {
 	o.IDTokensTemplate = template
 }
 
-func (o *MockProviderBackend) RequestTokenOverrideFunc(cicHash string) ([]byte, error) {
+func (o *MockProviderBackend) RequestTokensOverrideFunc(cicHash string) (*oidc.Tokens, error) {
 	o.IDTokensTemplate.AddCommit(cicHash)
 	return o.IDTokensTemplate.IssueToken()
 }

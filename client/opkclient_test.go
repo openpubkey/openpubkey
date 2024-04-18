@@ -149,7 +149,75 @@ func TestClient(t *testing.T) {
 			require.NoError(t, err)
 			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 			require.NoError(t, err, tc.name)
-			require.NotNil(t, cic, tc.name)
+
+			pktRefreshed, err := c.Refresh(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, pktRefreshed)
+
+			// TODO: Add Verification of Refreshed ID Token
 		})
 	}
+}
+
+func TestClientRefreshErrorHandling(t *testing.T) {
+	signerAlg := jwa.ES256
+
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, _, err := providers.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	signer, err := util.GenKeyPair(signerAlg)
+	require.NoError(t, err)
+	c, err := client.New(op, client.WithSigner(signer, jwa.ES256))
+	require.NoError(t, err)
+
+	_, err = c.Refresh(context.Background())
+	require.ErrorContains(t, err, "no refresh token set")
+
+	// Now that we have called Auth refresh should work
+	pkt1, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	pkt1Com, err := pkt1.Compact()
+	require.NoError(t, err)
+
+	pkt2, err := c.Refresh(context.Background())
+	require.NoError(t, err)
+
+	pkt2Com, err := pkt2.Compact()
+	require.NoError(t, err)
+	require.NotEqual(t, string(pkt1Com), string(pkt2Com))
+
+	pkt3 := c.GetPKToken()
+	pkt3com, err := pkt3.Compact()
+	require.NoError(t, err)
+	require.Equal(t, pkt2Com, pkt3com)
+
+	// Nil out PK Token in client so check we catch the error of a nil PK Token
+	c.SetPKToken(nil)
+	_, err = c.Refresh(context.Background())
+	require.ErrorContains(t, err, "no PK Token set, run Auth() to create a PK Token first")
+}
+
+func TestClientRefreshNotSupported(t *testing.T) {
+	signerAlg := jwa.ES256
+
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, _, err := providers.NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	// Removes RefreshTokens from Op so we can test that client
+	// handles Op's that can't refresh tokens
+	opRefreshUnsupported := providers.NewNonRefreshableOp(op)
+
+	signer, err := util.GenKeyPair(signerAlg)
+	require.NoError(t, err)
+	c, err := client.New(opRefreshUnsupported, client.WithSigner(signer, jwa.ES256))
+	require.NoError(t, err)
+
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	_, err = c.Refresh(context.Background())
+	require.ErrorContains(t, err, "does not support OIDC refresh requests")
 }

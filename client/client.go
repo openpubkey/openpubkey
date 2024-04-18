@@ -42,11 +42,14 @@ type PKTokenVerifier interface {
 }
 
 type OpkClient struct {
-	Op       OpenIdProvider
-	cosP     *CosignerProvider
-	signer   crypto.Signer
-	alg      jwa.KeyAlgorithm
-	verifier PKTokenVerifier
+	Op           OpenIdProvider
+	cosP         *CosignerProvider
+	signer       crypto.Signer
+	alg          jwa.KeyAlgorithm
+	pkToken      *pktoken.PKToken
+	refreshToken []byte
+	accessToken  []byte
+	verifier     PKTokenVerifier
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -168,7 +171,12 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 
 	// If no Cosigner is set then do standard OIDC authentication
 	if o.cosP == nil {
-		return o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
+		pkt, err := o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)
+		if err != nil {
+			return nil, err
+		}
+		o.pkToken = pkt
+		return o.pkToken, nil
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -186,7 +194,12 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 		if err != nil {
 			return nil, err
 		}
-		return o.cosP.RequestToken(ctx, o.signer, pkt, redirCh)
+		pktCos, err := o.cosP.RequestToken(ctx, o.signer, pkt, redirCh)
+		if err != nil {
+			return nil, err
+		}
+		o.pkToken = pktCos
+		return o.pkToken, nil
 	}
 }
 
@@ -217,12 +230,13 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	// Send the CIC to the OpenIdProvider and get an ID token from the provider
-	idToken, err := o.Op.RequestTokens(ctx, cic)
-
+	tokens, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
-		return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		return nil, fmt.Errorf("error requesting OIDC tokens from OpenID Provider: %w", err)
 	}
+	idToken := tokens.IDToken
+	o.refreshToken = tokens.RefreshToken
+	o.accessToken = tokens.AccessToken
 
 	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(signer, alg, idToken)
@@ -254,8 +268,28 @@ func (o *OpkClient) oidcAuth(
 	if err := pktVerifier.VerifyPKToken(ctx, pkt, verifierChecks...); err != nil {
 		return nil, fmt.Errorf("error verifying PK Token: %w", err)
 	}
-
 	return pkt, nil
+}
+
+func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
+	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
+		if o.refreshToken == nil {
+			return nil, fmt.Errorf("no refresh token set")
+		}
+		if o.pkToken == nil {
+			return nil, fmt.Errorf("no PK Token set, run Auth() to create a PK Token first")
+		}
+		tokens, err := tokensOp.RefreshTokens(ctx, o.refreshToken)
+		if err != nil {
+			return nil, fmt.Errorf("error requesting ID token: %w", err)
+		}
+		o.pkToken.FreshIDToken = tokens.IDToken
+		o.refreshToken = tokens.RefreshToken
+		o.accessToken = tokens.AccessToken
+
+		return o.pkToken, nil
+	}
+	return nil, fmt.Errorf("OP (issuer=%s) does not support OIDC refresh requests", o.Op.Issuer())
 }
 
 // GetOp returns the OpenID Provider the OpkClient has been configured to use
@@ -278,4 +312,12 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 // (Public Key, Signing Key)
 func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
 	return o.alg
+}
+
+func (o *OpkClient) SetPKToken(pkt *pktoken.PKToken) {
+	o.pkToken = pkt
+}
+
+func (o *OpkClient) GetPKToken() *pktoken.PKToken {
+	return o.pkToken
 }

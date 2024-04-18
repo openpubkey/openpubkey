@@ -35,6 +35,7 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -82,9 +83,8 @@ func main() {
 func login(outputDir string, gqSign bool) error {
 	opOptions := providers.GetDefaultGoogleOpOptions()
 	opOptions.GQSign = gqSign
-	opkClient, err := client.New(
-		providers.NewGoogleOpWithOptions(opOptions),
-	)
+	op := providers.NewGoogleOpWithOptions(opOptions)
+	opkClient, err := client.New(op)
 	if err != nil {
 		return err
 	}
@@ -101,6 +101,28 @@ func login(outputDir string, gqSign bool) error {
 		return err
 	}
 	fmt.Println(string(pktJson))
+
+	newPkt, err := opkClient.Refresh(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Println("refreshed ID Token", string(newPkt.FreshIDToken))
+
+	pktCom, err := pkt.Compact()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Compact", len(pktCom), string(pktCom))
+
+	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
+	pktVerifier, err := verifier.New(op, verifier.RequireRefreshedIDToken())
+	if err != nil {
+		return err
+	}
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+	if err != nil {
+		return err
+	}
 
 	// Save our signer and pktoken by writing them to a file
 	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)

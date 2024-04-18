@@ -206,6 +206,34 @@ func TestVerifier(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestVerifierRefreshedIDToken(t *testing.T) {
+	issuer := "issuer-provider"
+	clientID := "verifier"
+	// commitType := providers.CommitTypesEnum.NONCE_CLAIM
+
+	noGQSign := false
+	provider, _, err := NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+		"aud": clientID,
+	})
+	require.NoError(t, err)
+
+	opkClient, err := client.New(provider)
+	require.NoError(t, err)
+	pkt, err := opkClient.Auth(context.Background())
+	require.NoError(t, err)
+
+	pktVerifier, err := verifier.New(provider, verifier.RequireRefreshedIDToken())
+	require.NoError(t, err)
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+	require.ErrorContains(t, err, "no refreshed ID Token set")
+
+	rePkt, err := opkClient.Refresh(context.Background())
+	require.NoError(t, err)
+
+	err = pktVerifier.VerifyPKToken(context.Background(), rePkt)
+	require.NoError(t, err)
+}
+
 func TestCICSignature(t *testing.T) {
 	clientID := "test_client_id"
 	alg := jwa.ES256
@@ -284,7 +312,7 @@ func TestGQCommitment(t *testing.T) {
 			gqSign: true, gqCommitment: true, gqOnly: true},
 		{name: "wrong aud prefix", aud: "bad value", expError: "error verifying PK Token: audience claim in PK Token's GQCommitment must be prefixed by",
 			gqSign: true, gqCommitment: true, gqOnly: true},
-		{name: "gqSign is false", aud: providers.AudPrefixForGQCommitment, expError: "error requesting ID Token: if GQCommitment is true then GQSign must also be true",
+		{name: "gqSign is false", aud: providers.AudPrefixForGQCommitment, expError: "if GQCommitment is true then GQSign must also be true",
 			gqSign: false, gqCommitment: true, gqOnly: true},
 		{name: "gqCommitment is false", aud: providers.AudPrefixForGQCommitment, expError: "verifier configured with empty commitment claim",
 			gqSign: true, gqCommitment: false, gqOnly: true},

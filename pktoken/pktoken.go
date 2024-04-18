@@ -57,6 +57,11 @@ type PKToken struct {
 	OpToken  []byte // Base64 encoded ID Token signed by the OP
 	CicToken []byte // Base64 encoded Token signed by the Client
 	CosToken []byte // Base64 encoded Token signed by the Cosigner
+
+	// FreshIDToken is the refreshed ID Token. It has a different payload from
+	// other tokens and must be handled separately.
+	// It is only used for POP Authentication
+	FreshIDToken []byte // Base64 encoded Refreshed ID Token
 }
 
 // kid isn't always present, and is only guaranteed to be unique within a given key set,
@@ -259,9 +264,7 @@ func (p *PKToken) Compact() ([]byte, error) {
 	if p.CosToken != nil {
 		tokens = append(tokens, p.CosToken)
 	}
-	// Refreshed ID token is nil for now because we don't support it yet
-	var refIDToken []byte
-	return CompactPKToken(tokens, refIDToken)
+	return CompactPKToken(tokens, p.FreshIDToken)
 }
 
 func (p *PKToken) MarshalJSON() ([]byte, error) {

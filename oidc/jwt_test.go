@@ -67,3 +67,59 @@ func TestJwtMarshaling(t *testing.T) {
 	}
 
 }
+
+func TestJwtCompare(t *testing.T) {
+
+	testCases := []struct {
+		name                string
+		t1, t2              string
+		expIdErr, expAgeErr string
+	}{
+		{name: "Happy case",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":35,"iat":12,"email":"alice@example.com"}.fakesignature
+			t2: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
+		},
+		{name: "Different Subjects",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"567","aud":"abc","exp":35,"iat":12,"email":"alice@example.com"}.fakesignature
+			t2:       "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiNTY3IiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
+			expIdErr: "token have a different subject claims",
+		},
+		{name: "Different Issuers",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://notexample.com","sub":"123","aud":"abc","exp":35,"iat":12,"email":"alice@example.com"}.fakesignature
+			t2:       "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL25vdGV4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
+			expIdErr: "tokens have different issuers",
+		},
+		{name: "Age mismatch t1 issued after t2",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":35,"iat":10,"email":"alice@example.com"}.fakesignature
+			t2:        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMCwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
+			expAgeErr: "tokens not issued in correct order",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			err := SameIdentity([]byte(tc.t1), []byte(tc.t2))
+			if tc.expIdErr != "" {
+				require.ErrorContains(t, err, tc.expIdErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			err = RequireOlder([]byte(tc.t1), []byte(tc.t2))
+			if tc.expAgeErr != "" {
+				require.ErrorContains(t, err, tc.expAgeErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

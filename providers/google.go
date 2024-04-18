@@ -18,7 +18,9 @@ package providers
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,17 +29,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
-	"github.com/zitadel/oidc/v2/pkg/client/rp"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 
-	httphelper "github.com/zitadel/oidc/v2/pkg/http"
+	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
 var (
-	key            = []byte("NotASecureKey123")
 	issuedAtOffset = 1 * time.Minute
 )
 
@@ -53,16 +55,16 @@ type GoogleOptions struct {
 }
 
 type GoogleOp struct {
-	ClientID                 string
-	ClientSecret             string
-	Scopes                   []string
-	RedirectURIs             []string
-	GQSign                   bool
-	issuer                   string
-	server                   *http.Server
-	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, error)
-	httpSessionHook          http.HandlerFunc
+	ClientID                  string
+	ClientSecret              string
+	Scopes                    []string
+	RedirectURIs              []string
+	GQSign                    bool
+	issuer                    string
+	server                    *http.Server
+	publicKeyFinder           discover.PublicKeyFinder
+	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
+	httpSessionHook           http.HandlerFunc
 }
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
@@ -96,26 +98,26 @@ func NewGoogleOp() OpenIdProvider {
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 	return &GoogleOp{
-		ClientID:                 opts.ClientID,
-		ClientSecret:             opts.ClientSecret,
-		Scopes:                   opts.Scopes,
-		RedirectURIs:             opts.RedirectURIs,
-		GQSign:                   opts.GQSign,
-		issuer:                   opts.Issuer,
-		requestTokenOverrideFunc: nil,
-		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
+		ClientID:                  opts.ClientID,
+		ClientSecret:              opts.ClientSecret,
+		Scopes:                    opts.Scopes,
+		RedirectURIs:              opts.RedirectURIs,
+		GQSign:                    opts.GQSign,
+		issuer:                    opts.Issuer,
+		requestTokensOverrideFunc: nil,
+		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
 	}
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, error) {
-	if g.requestTokenOverrideFunc != nil {
-		return g.requestTokenOverrideFunc(cicHash)
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
+	if g.requestTokensOverrideFunc != nil {
+		return g.requestTokensOverrideFunc(cicHash)
 	}
 
-	redirectURI, ln, err := FindAvaliablePort(g.RedirectURIs)
+	redirectURI, ln, err := FindAvailablePort(g.RedirectURIs)
 	if err != nil {
 		return nil, err
 	}
@@ -129,8 +131,11 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 			logrus.Error(err)
 		}
 	}()
-	cookieHandler :=
-		httphelper.NewCookieHandler(key, key, httphelper.WithUnsecure())
+
+	cookieHandler, err := configCookieHandler()
+	if err != nil {
+		return nil, err
+	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
@@ -139,8 +144,13 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 
-	provider, err := rp.NewRelyingPartyOIDC(
-		googleIssuer, g.ClientID, g.ClientSecret, redirectURI.String(),
+	// The reason we don't set the relyingParty on the struct and reuse it,
+	// is because refresh requests require a slightly different set of
+	// options. For instance we want the option to check the nonce (WithNonce)
+	// here, but in RefreshTokens we don't want that option set because
+	// a refreshed ID token doesn't have a nonce.
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
+		g.issuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -156,25 +166,26 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 		}
 	}
 
-	ch := make(chan []byte, 1)
+	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
-	http.Handle("/login", rp.AuthURLHandler(state, provider,
+	http.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-		rp.WithPromptURLParam("select_account")))
+		rp.WithPromptURLParam("select_account"),
+		rp.WithURLParam("access_type", "offline")))
 
-	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
+	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			chErr <- err
 			return
 		}
 
-		ch <- []byte(tokens.IDToken)
+		chTokens <- retTokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -190,7 +201,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 	}
 
 	callbackPath := redirectURI.Path
-	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, provider))
+	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
 
 	go func() {
 		err := g.server.Serve(ln)
@@ -220,25 +231,67 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, e
 			defer shutdownServer()
 		}
 		return nil, err
-	case token := <-ch:
-		return token, nil
+	case retTokens := <-chTokens:
+		// retTokens is a zitadel/oidc struct. We turn it into our simpler token struct
+		return &simpleoidc.Tokens{
+			IDToken:      []byte(retTokens.IDToken),
+			RefreshToken: []byte(retTokens.RefreshToken),
+			AccessToken:  []byte(retTokens.AccessToken)}, nil
 	}
 }
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	idToken, err := g.requestTokens(ctx, string(cicHash))
+	tokens, err := g.requestTokens(ctx, string(cicHash))
 	if err != nil {
 		return nil, err
 	}
 	if g.GQSign {
-		return CreateGQToken(ctx, idToken, g)
+		idToken := tokens.IDToken
+		if gqToken, err := CreateGQToken(ctx, idToken, g); err != nil {
+			return nil, err
+		} else {
+			tokens.IDToken = gqToken
+			return tokens, nil
+		}
 	}
-	return idToken, nil
+	return tokens, nil
+}
+
+func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
+	cookieHandler, err := configCookieHandler()
+	if err != nil {
+		return nil, err
+	}
+	options := []rp.Option{
+		rp.WithCookieHandler(cookieHandler),
+		rp.WithVerifierOpts(
+			rp.WithIssuedAtOffset(issuedAtOffset)),
+	}
+	options = append(options, rp.WithPKCE(cookieHandler))
+
+	// The redirect URI is not sent in the refresh request so we set it to an empty string.
+	// According to the OIDC spec the only values send on a refresh request are:
+	// client_id, client_secret, grant_type, refresh_token, and scope.
+	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+	redirectURI := ""
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
+		g.ClientSecret, redirectURI, g.Scopes, options...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
+	retTokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
+	if err != nil {
+		return nil, err
+	}
+	return &simpleoidc.Tokens{
+		IDToken:      []byte(retTokens.IDToken),
+		RefreshToken: []byte(retTokens.RefreshToken),
+		AccessToken:  []byte(retTokens.AccessToken)}, nil
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -258,8 +311,26 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(googleIssuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
 	return vp.VerifyIDToken(ctx, idt, cic)
+}
+
+func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
+	}
+	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
+	}
+
+	redirectURI := ""
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
+		g.ClientSecret, redirectURI, g.Scopes)
+	if err != nil {
+		return fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
+	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
+	return err
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
@@ -276,8 +347,8 @@ func (g *GoogleOp) HookHTTPSession(h http.HandlerFunc) {
 	g.httpSessionHook = h
 }
 
-// FindAvaliablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
-func FindAvaliablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
+// FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
+func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 	var ln net.Listener
 	var lnErr error
 	for _, v := range redirectURIs {
@@ -293,4 +364,26 @@ func FindAvaliablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 		}
 	}
 	return nil, nil, fmt.Errorf("failed to start a listener for the callback from the OP, got %w", lnErr)
+}
+
+func configCookieHandler() (*httphelper.CookieHandler, error) {
+	// I've been unable to determine a scenario in which setting a hashKey and blockKey
+	// on the cookie provide protection in the localhost redirect URI case. However I
+	// see no harm in setting it.
+	hashKey := make([]byte, 64)
+	if _, err := io.ReadFull(rand.Reader, hashKey); err != nil {
+		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
+	}
+	blockKey := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, blockKey); err != nil {
+		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
+	}
+
+	// OpenPubkey uses a localhost redirect URI to receive the authcode
+	// from the OP. Localhost redirects use http not https. Thus, we should
+	// not set these cookies as secure-only. This should be changed if
+	// OpenPubkey added support for non-localhost redirect URIs.
+	// WithUnsecure() is equivalent to not setting the 'secure' attribute
+	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
+	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
 }

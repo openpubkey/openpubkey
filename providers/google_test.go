@@ -38,9 +38,9 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &GoogleOp{
-		issuer:                   googleIssuer,
-		publicKeyFinder:          providerOverride.PublicKeyFinder,
-		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
+		issuer:                    googleIssuer,
+		publicKeyFinder:           providerOverride.PublicKeyFinder,
+		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
 	}
 
 	cic := GenCIC(t)
@@ -62,8 +62,9 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.Background(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 
 	cicHash, err := cic.Hash()
 	require.NoError(t, err)
@@ -86,9 +87,12 @@ func TestGoogleSimpleRequest(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(payload), string(cicHash))
 	}
+
+	require.Equal(t, "mock-refresh-token", string(tokens.RefreshToken))
+	require.Equal(t, "mock-access-token", string(tokens.AccessToken))
 }
 
-func TestFindAvaliablePort(t *testing.T) {
+func TestFindAvailablePort(t *testing.T) {
 	redirects := []string{
 		"http://localhost:21111/login-callback",
 		"http://localhost:21012/login-callback",
@@ -123,7 +127,7 @@ func TestFindAvaliablePort(t *testing.T) {
 				blockedPorts = append(blockedPorts, ln)
 			}
 
-			foundURI, ln, err := FindAvaliablePort(redirects)
+			foundURI, ln, err := FindAvailablePort(redirects)
 
 			if tc.expError != "" {
 				require.Error(t, err)

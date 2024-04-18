@@ -32,7 +32,7 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 
-	oidcclient "github.com/zitadel/oidc/v2/pkg/client"
+	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
 )
 
 type PublicKeyRecord struct {
@@ -90,7 +90,7 @@ type PublicKeyFinder struct {
 // configuration. It doesn't attempt to parse the response but instead returns the JSON bytes of
 // the JWKS.
 func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
-	discConf, err := oidcclient.Discover(issuer, http.DefaultClient)
+	discConf, err := oidcclient.Discover(ctx, issuer, http.DefaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}

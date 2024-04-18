@@ -24,7 +24,7 @@ import (
 )
 
 // CompactPKToken creates a compact representation of a PK Token from a list of tokens
-func CompactPKToken(tokens [][]byte, refIDToken []byte) ([]byte, error) {
+func CompactPKToken(tokens [][]byte, freshIDToken []byte) ([]byte, error) {
 	if len(tokens) == 0 {
 		return nil, fmt.Errorf("no tokens provided")
 	}
@@ -50,22 +50,22 @@ func CompactPKToken(tokens [][]byte, refIDToken []byte) ([]byte, error) {
 	pktCom := bytes.Join(compact, []byte(":"))
 
 	// If we have a refreshed ID Token, append it to the compact representation using "."
-	if refIDToken != nil {
-		if len(bytes.Split(refIDToken, []byte("."))) != 3 {
+	if freshIDToken != nil {
+		if len(bytes.Split(freshIDToken, []byte("."))) != 3 {
 			// Compact ID Token should be reformated as Base64(protected)"."Base64(payload)"."Base64(signature)
 			return nil, fmt.Errorf("invalid refreshed ID Token")
 		}
-		pktCom = bytes.Join([][]byte{pktCom, refIDToken}, []byte("."))
+		pktCom = bytes.Join([][]byte{pktCom, freshIDToken}, []byte("."))
 	}
 	return pktCom, nil
 }
 
 // SplitCompactPKToken breaks a compact representation of a PK Token into its constituent tokens
 func SplitCompactPKToken(pktCom []byte) ([][]byte, []byte, error) {
-	tokensBytes, refIDToken, _ := bytes.Cut(pktCom, []byte("."))
+	tokensBytes, freshIDToken, _ := bytes.Cut(pktCom, []byte("."))
 	tokensParts := bytes.Split(tokensBytes, []byte(":"))
 
-	if refIDToken != nil && len(bytes.Split(refIDToken, []byte("."))) != 3 {
+	if freshIDToken != nil && len(bytes.Split(freshIDToken, []byte("."))) != 3 {
 		// Compact ID Token should be reformated as Base64(protected)"."Base64(payload)"."Base64(signature)
 		return nil, nil, fmt.Errorf("invalid refreshed ID Token")
 	}
@@ -82,5 +82,5 @@ func SplitCompactPKToken(pktCom []byte) ([][]byte, []byte, error) {
 		token := bytes.Join([][]byte{tokensParts[i], payload, tokensParts[i+1]}, []byte("."))
 		tokens = append(tokens, token)
 	}
-	return tokens, refIDToken, nil
+	return tokens, freshIDToken, nil
 }

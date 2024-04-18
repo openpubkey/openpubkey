@@ -22,16 +22,17 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
 const gitlabIssuer = "https://gitlab.com"
 
 type GitlabOp struct {
-	issuer                   string // Change issuer to point this to a test issuer
-	publicKeyFinder          discover.PublicKeyFinder
-	tokenEnvVar              string
-	requestTokenOverrideFunc func(string) ([]byte, error)
+	issuer                    string // Change issuer to point this to a test issuer
+	publicKeyFinder           discover.PublicKeyFinder
+	tokenEnvVar               string
+	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
 
 func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
@@ -44,10 +45,10 @@ func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabOp {
 
 func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 	op := &GitlabOp{
-		issuer:                   issuer,
-		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
-		tokenEnvVar:              tokenEnvVar,
-		requestTokenOverrideFunc: nil,
+		issuer:                    issuer,
+		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
+		tokenEnvVar:               tokenEnvVar,
+		requestTokensOverrideFunc: nil,
 	}
 	return op
 }
@@ -64,7 +65,7 @@ func (g *GitlabOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
 }
 
-func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, error) {
+func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
@@ -72,10 +73,12 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	}
 
 	var idToken []byte
-	if g.requestTokenOverrideFunc != nil {
+	if g.requestTokensOverrideFunc != nil {
 		noCicHashInIDToken := ""
-		if idToken, err = g.requestTokenOverrideFunc(noCicHashInIDToken); err != nil {
+		if tokens, err := g.requestTokensOverrideFunc(noCicHashInIDToken); err != nil {
 			return nil, fmt.Errorf("error requesting ID Token: %w", err)
+		} else {
+			idToken = tokens.IDToken
 		}
 	} else {
 		idTokenStr, err := getEnvVar(g.tokenEnvVar)
@@ -91,8 +94,10 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
-
-	return gqToken, err
+	if err != nil {
+		return nil, err
+	}
+	return &simpleoidc.Tokens{IDToken: []byte(gqToken)}, nil
 }
 
 func (g *GitlabOp) Issuer() string {

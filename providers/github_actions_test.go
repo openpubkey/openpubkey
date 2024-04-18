@@ -41,11 +41,11 @@ func TestGithubOpTableTest(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &GithubOp{
-		issuer:                   githubIssuer,
-		rawTokenRequestURL:       "fakeTokenURL",
-		tokenRequestAuthToken:    "fakeToken",
-		publicKeyFinder:          providerOverride.PublicKeyFinder,
-		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
+		issuer:                    githubIssuer,
+		rawTokenRequestURL:        "fakeTokenURL",
+		tokenRequestAuthToken:     "fakeToken",
+		publicKeyFinder:           providerOverride.PublicKeyFinder,
+		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
 	}
 
 	cic := GenCIC(t)
@@ -65,8 +65,9 @@ func TestGithubOpTableTest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, err := op.RequestTokens(context.TODO(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)
@@ -107,7 +108,7 @@ func TestGithubOpTableTest(t *testing.T) {
 // These two tests are regression tests for  deserialization bug
 // that broke our ability to read the ID Token directly from the HTTP
 // response. To ensure we don't break this again this test stands up a server
-// so that all of the RequestTokens code is tested. For all the other tests
+// so that all of the RequestToken code is tested. For all the other tests
 // we just use the standard override functions.
 func TestGithubOpSimpleRequest(t *testing.T) {
 	expCicHash := "LJJfahE5cC1AgAWrMkUDL85d0oSSBcP6FJVSulzojds"
@@ -130,7 +131,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 	authToken := "fakeAuthToken"
 	op := NewGithubOp(tokenRequestURL, authToken)
 
-	// Lowercase requestTokens just gets the ID Token
+	// Lowercase requestTokens just gets the ID Token (no GQ signing or modification)
 	idTokenLB, err := op.requestTokens(context.TODO(), expCicHash)
 	require.NoError(t, err)
 	require.NotNil(t, idTokenLB)
@@ -205,8 +206,9 @@ func TestGithubOpFullGQ(t *testing.T) {
 		},
 	}
 
-	idToken, err := op.RequestTokens(context.TODO(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)
