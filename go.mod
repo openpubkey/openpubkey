@@ -15,7 +15,7 @@ require (
 )
 
 require (
-	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/zitadel/logging v0.4.0 // indirect
