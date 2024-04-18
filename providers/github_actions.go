@@ -143,11 +143,11 @@ func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
 
-func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
+func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	commitment, err := cic.Hash()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	// Use the commitment nonce to complete the OIDC flow and get an ID token from the provider
@@ -157,12 +157,12 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
 	// a public value.
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
+		return nil, fmt.Errorf("error requesting ID Token: %w", err)
 	}
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
 
-	return gqToken, nil, nil, err
+	return &Tokens{IDToken: gqToken}, err
 }
 
 func (g *GithubOp) Issuer() string {

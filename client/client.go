@@ -230,12 +230,13 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
-	idToken, refreshToken, accessToken, err := o.Op.RequestTokens(ctx, cic)
+	tokens, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting OIDC tokens from OpenID Provider: %w", err)
 	}
-	o.refreshToken = refreshToken
-	o.accessToken = accessToken
+	idToken := tokens.IDToken
+	o.refreshToken = tokens.RefreshToken
+	o.accessToken = tokens.AccessToken
 
 	// Sign over the payload from the ID token and client instance claims
 	cicToken, err := cic.Sign(signer, alg, idToken)
@@ -278,13 +279,13 @@ func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 		if o.pkToken == nil {
 			return nil, fmt.Errorf("no PK Token set, run Auth() to create a PK Token first")
 		}
-		idToken, refreshToken, accessToken, err := tokensOp.RefreshTokens(ctx, o.refreshToken)
+		tokens, err := tokensOp.RefreshTokens(ctx, o.refreshToken)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID token: %w", err)
 		}
-		o.pkToken.FreshIDToken = idToken
-		o.refreshToken = refreshToken
-		o.accessToken = accessToken
+		o.pkToken.FreshIDToken = tokens.IDToken
+		o.refreshToken = tokens.RefreshToken
+		o.accessToken = tokens.AccessToken
 
 		return o.pkToken, nil
 	}

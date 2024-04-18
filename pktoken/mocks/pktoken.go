@@ -99,10 +99,11 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 
 	backend.SetIDTokenTemplate(&idtTemplate)
 
-	idToken, _, _, err := op.RequestTokens(context.Background(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	if err != nil {
 		return nil, nil, err
 	}
+	idToken := tokens.IDToken
 
 	// Return a PK Token where the CIC which doesn't match the commitment
 	if !options.CorrectCicHash {

@@ -62,8 +62,9 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, refreshToken, accessToken, err := op.RequestTokens(context.Background(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 
 	cicHash, err := cic.Hash()
 	require.NoError(t, err)
@@ -87,8 +88,8 @@ func TestGoogleSimpleRequest(t *testing.T) {
 		require.Contains(t, string(payload), string(cicHash))
 	}
 
-	require.Equal(t, "mock-refresh-token", string(refreshToken))
-	require.Equal(t, "mock-access-token", string(accessToken))
+	require.Equal(t, "mock-refresh-token", string(tokens.RefreshToken))
+	require.Equal(t, "mock-access-token", string(tokens.AccessToken))
 }
 
 func TestFindAvailablePort(t *testing.T) {

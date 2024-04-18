@@ -29,7 +29,7 @@ import (
 // Interface for interacting with the OP (OpenID Provider) that only returns
 // an ID Token
 type OpenIdProvider interface {
-	RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error)
+	RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error)
 	PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error)
 	PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error)
 	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
@@ -45,7 +45,7 @@ type BrowserOpenIdProvider interface {
 
 // Interface for an OpenIdProvider that returns an ID Token, Refresh Token and Access Token
 type RefreshableOpenIdProvider interface {
-	RefreshTokens(ctx context.Context, refreshToken []byte) ([]byte, []byte, []byte, error)
+	RefreshTokens(ctx context.Context, refreshToken []byte) (*Tokens, error)
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
 

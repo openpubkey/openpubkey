@@ -112,14 +112,18 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, []byte, []byte, error) {
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, error) {
 	if g.requestTokenOverrideFunc != nil {
-		return g.requestTokenOverrideFunc(cicHash)
+		idToken, refreshToken, accessToken, err := g.requestTokenOverrideFunc(cicHash)
+		return &Tokens{
+			IDToken:      idToken,
+			RefreshToken: refreshToken,
+			AccessToken:  accessToken}, err
 	}
 
 	redirectURI, ln, err := FindAvailablePort(g.RedirectURIs)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
@@ -134,7 +138,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
@@ -153,7 +157,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		g.issuer, g.ClientID, g.ClientSecret, redirectURI.String(),
 		g.Scopes, options...)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error creating provider: %w", err)
+		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
 	state := func() string {
@@ -178,14 +182,14 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		rp.WithPromptURLParam("select_account"),
 		rp.WithURLParam("access_type", "offline")))
 
-	marshalToken := func(w http.ResponseWriter, r *http.Request, tokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
+	marshalToken := func(w http.ResponseWriter, r *http.Request, oidcTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			chErr <- err
 			return
 		}
 
-		chTokens <- tokens
+		chTokens <- oidcTokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -230,36 +234,41 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) ([]byte, [
 		if g.httpSessionHook != nil {
 			defer shutdownServer()
 		}
-		return nil, nil, nil, err
-	case tokens := <-chTokens:
-		return []byte(tokens.IDToken), []byte(tokens.RefreshToken), []byte(tokens.AccessToken), nil
+		return nil, err
+	case oidcTokens := <-chTokens:
+		return &Tokens{
+			IDToken:      []byte(oidcTokens.IDToken),
+			RefreshToken: []byte(oidcTokens.RefreshToken),
+			AccessToken:  []byte(oidcTokens.AccessToken)}, nil
 	}
 }
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	idToken, refreshToken, accessToken, err := g.requestTokens(ctx, string(cicHash))
+	tokens, err := g.requestTokens(ctx, string(cicHash))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if g.GQSign {
+		idToken := tokens.IDToken
 		if gqToken, err := CreateGQToken(ctx, idToken, g); err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		} else {
-			return gqToken, refreshToken, accessToken, nil
+			tokens.IDToken = gqToken
+			return tokens, nil
 		}
 	}
-	return idToken, refreshToken, accessToken, nil
+	return tokens, nil
 }
 
-func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) ([]byte, []byte, []byte, error) {
+func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*Tokens, error) {
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
@@ -276,14 +285,17 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) ([]by
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
 		g.ClientSecret, redirectURI, g.Scopes, options...)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
 	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
-	return []byte(tokens.IDToken), refreshToken, []byte(tokens.AccessToken), nil
+	return &Tokens{
+		IDToken:      []byte(tokens.IDToken),
+		RefreshToken: []byte(tokens.RefreshToken),
+		AccessToken:  []byte(tokens.AccessToken)}, nil
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {

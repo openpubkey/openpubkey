@@ -64,23 +64,23 @@ func (g *GitlabOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
 }
 
-func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) ([]byte, []byte, []byte, error) {
+func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
+		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
 
 	var idToken []byte
 	if g.requestTokenOverrideFunc != nil {
 		noCicHashInIDToken := ""
 		if idToken, _, _, err = g.requestTokenOverrideFunc(noCicHashInIDToken); err != nil {
-			return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
 	} else {
 		idTokenStr, err := getEnvVar(g.tokenEnvVar)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error requesting ID Token: %w", err)
+			return nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
 		idToken = []byte(idTokenStr)
 	}
@@ -91,8 +91,10 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
-
-	return gqToken, nil, nil, err
+	if err != nil {
+		return nil, err
+	}
+	return &Tokens{IDToken: []byte(gqToken)}, nil
 }
 
 func (g *GitlabOp) Issuer() string {

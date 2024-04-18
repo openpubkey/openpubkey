@@ -65,8 +65,9 @@ func TestGithubOpTableTest(t *testing.T) {
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)
 
-	idToken, _, _, err := op.RequestTokens(context.TODO(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)
@@ -205,8 +206,9 @@ func TestGithubOpFullGQ(t *testing.T) {
 		},
 	}
 
-	idToken, _, _, err := op.RequestTokens(context.TODO(), cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
+	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)

@@ -156,8 +156,9 @@ func TestProviderVerifier(t *testing.T) {
 
 			backendMock.SetIDTokenTemplate(&idtTemplate)
 
-			idToken, _, _, err := op.RequestTokens(context.Background(), cic)
+			tokens, err := op.RequestTokens(context.Background(), cic)
 			require.NoError(t, err)
+			idToken := tokens.IDToken
 
 			if tc.name == "GQ Commitment happy case" {
 				fmt.Println("here")
