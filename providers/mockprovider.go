@@ -61,10 +61,10 @@ func DefaultMockProviderOpts() MockProviderOpts {
 }
 
 type MockProvider struct {
-	options                  MockProviderOpts
-	issuer                   string
-	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
+	options                   MockProviderOpts
+	issuer                    string
+	publicKeyFinder           discover.PublicKeyFinder
+	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
 
 // NewMockProvider creates a new mock provider with a random signing key and a random key ID. It returns the provider,
@@ -79,10 +79,10 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 		return nil, nil, nil, err
 	}
 	provider := &MockProvider{
-		options:                  opts,
-		issuer:                   mockBackend.Issuer,
-		requestTokenOverrideFunc: mockBackend.RequestTokenOverrideFunc,
-		publicKeyFinder:          mockBackend.PublicKeyFinder,
+		options:                   opts,
+		issuer:                    mockBackend.Issuer,
+		requestTokensOverrideFunc: mockBackend.RequestTokensOverrideFunc,
+		publicKeyFinder:           mockBackend.PublicKeyFinder,
 	}
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
@@ -112,11 +112,11 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 	return provider, mockBackend, idTokenTemplate, nil
 }
 
-func (m *MockProvider) requestTokens(_ context.Context, cicHash string) ([]byte, []byte, []byte, error) {
-	return m.requestTokenOverrideFunc(cicHash)
+func (m *MockProvider) requestTokens(_ context.Context, cicHash string) (*simpleoidc.Tokens, error) {
+	return m.requestTokensOverrideFunc(cicHash)
 }
 
-func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
+func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	if m.options.CommitType.GQCommitment && !m.options.GQSign {
 		// Catch misconfigurations in tests
 		return nil, fmt.Errorf("if GQCommitment is true then GQSign must also be true")
@@ -127,47 +127,28 @@ func (m *MockProvider) RequestTokens(ctx context.Context, cic *clientinstance.Cl
 	if err != nil {
 		return nil, fmt.Errorf("error calculating client instance claim commitment: %w", err)
 	}
-	idToken, refreshToken, accessToken, err := m.requestTokens(ctx, string(cicHash))
+	tokens, err := m.requestTokens(ctx, string(cicHash))
 	if err != nil {
 		return nil, err
 	}
 	if m.options.CommitType.GQCommitment {
-		gqToken, err := CreateGQBoundToken(ctx, idToken, m, string(cicHash))
-		if err != nil {
+		if tokens.IDToken, err = CreateGQBoundToken(ctx, tokens.IDToken, m, string(cicHash)); err != nil {
 			return nil, err
 		}
-		return &Tokens{
-			IDToken:      gqToken,
-			RefreshToken: refreshToken,
-			AccessToken:  accessToken}, nil
 	} else if m.options.GQSign {
-		gqToken, err := CreateGQToken(ctx, idToken, m)
-		if err != nil {
-			return &Tokens{
-				IDToken:      gqToken,
-				RefreshToken: refreshToken,
-				AccessToken:  accessToken}, nil
+		if tokens.IDToken, err = CreateGQToken(ctx, tokens.IDToken, m); err != nil {
+			return nil, err
 		}
-		return &Tokens{
-			IDToken:      gqToken,
-			RefreshToken: refreshToken,
-			AccessToken:  accessToken}, nil
 	}
-	return &Tokens{
-		IDToken:      idToken,
-		RefreshToken: refreshToken,
-		AccessToken:  accessToken}, nil
+	return tokens, nil
 }
 
-func (m *MockProvider) RefreshTokens(ctx context.Context, _ []byte) (*Tokens, error) {
-	idToken, refreshToken, access, err := m.requestTokenOverrideFunc("")
+func (m *MockProvider) RefreshTokens(ctx context.Context, _ []byte) (*simpleoidc.Tokens, error) {
+	tokens, err := m.requestTokensOverrideFunc("")
 	if err != nil {
 		return nil, err
 	}
-	return &Tokens{
-		IDToken:      idToken,
-		RefreshToken: refreshToken,
-		AccessToken:  access}, nil
+	return tokens, nil
 }
 
 func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -219,9 +200,9 @@ func NewNonRefreshableOp(op *MockProvider) *NonRefreshableOp {
 	return &NonRefreshableOp{op: op}
 }
 
-func (nro *NonRefreshableOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
+func (nro *NonRefreshableOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	tokens, err := nro.op.RequestTokens(ctx, cic)
-	return &Tokens{IDToken: tokens.IDToken}, err
+	return &simpleoidc.Tokens{IDToken: tokens.IDToken}, err
 }
 func (nro *NonRefreshableOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return nro.op.PublicKeyByKeyId(ctx, keyID)

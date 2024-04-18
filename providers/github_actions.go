@@ -25,17 +25,18 @@ import (
 
 	"github.com/awnumar/memguard"
 	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
 
 const githubIssuer = "https://token.actions.githubusercontent.com"
 
 type GithubOp struct {
-	issuer                   string // Change issuer to point this to a test issuer
-	rawTokenRequestURL       string
-	tokenRequestAuthToken    string
-	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error) //TODO: Rename to RequestToken(s)OverrideFunc
+	issuer                    string // Change issuer to point this to a test issuer
+	rawTokenRequestURL        string
+	tokenRequestAuthToken     string
+	publicKeyFinder           discover.PublicKeyFinder
+	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
 
 var _ OpenIdProvider = (*GithubOp)(nil)
@@ -55,11 +56,11 @@ func NewGithubOpFromEnvironment() (*GithubOp, error) {
 
 func NewGithubOp(tokenURL string, token string) *GithubOp {
 	op := &GithubOp{
-		issuer:                   githubIssuer,
-		rawTokenRequestURL:       tokenURL,
-		tokenRequestAuthToken:    token,
-		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
-		requestTokenOverrideFunc: nil,
+		issuer:                    githubIssuer,
+		rawTokenRequestURL:        tokenURL,
+		tokenRequestAuthToken:     token,
+		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
+		requestTokensOverrideFunc: nil,
 	}
 	return op
 }
@@ -93,12 +94,12 @@ func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.Pu
 }
 
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
-	if g.requestTokenOverrideFunc != nil {
-		jwt, _, _, err := g.requestTokenOverrideFunc(cicHash)
+	if g.requestTokensOverrideFunc != nil {
+		tokens, err := g.requestTokensOverrideFunc(cicHash)
 		if err != nil {
 			return nil, fmt.Errorf("error requesting ID Token: %w", err)
 		}
-		return memguard.NewBufferFromBytes(jwt), nil
+		return memguard.NewBufferFromBytes(tokens.IDToken), nil
 	}
 
 	tokenURL, err := buildTokenURL(g.rawTokenRequestURL, cicHash)
@@ -143,7 +144,7 @@ func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard
 	return memguard.NewBufferFromBytes(jwt.Value[1 : len(jwt.Value)-1]), nil
 }
 
-func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
+func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	commitment, err := cic.Hash()
 	if err != nil {
@@ -162,7 +163,7 @@ func (g *GithubOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQToken(ctx, idTokenLB.Bytes(), g)
 
-	return &Tokens{IDToken: gqToken}, err
+	return &simpleoidc.Tokens{IDToken: gqToken}, err
 }
 
 func (g *GithubOp) Issuer() string {

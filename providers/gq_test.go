@@ -76,8 +76,9 @@ func TestGQ(t *testing.T) {
 
 			expPublicKey := maps.Values(backend.GetProviderPublicKeySet())[0].PublicKey
 
-			idToken, _, _, err := idtTemplate.IssueToken()
+			tokens, err := idtTemplate.IssueToken()
 			require.NoError(t, err)
+			idToken := tokens.IDToken
 
 			if tc.wrongAlg {
 				protected := util.Base64EncodeForJWT([]byte(`{"alg": "EC256","kid": "kid-0","typ": "JWT"}`))

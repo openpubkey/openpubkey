@@ -41,11 +41,11 @@ func TestGithubOpTableTest(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &GithubOp{
-		issuer:                   githubIssuer,
-		rawTokenRequestURL:       "fakeTokenURL",
-		tokenRequestAuthToken:    "fakeToken",
-		publicKeyFinder:          providerOverride.PublicKeyFinder,
-		requestTokenOverrideFunc: providerOverride.RequestTokenOverrideFunc,
+		issuer:                    githubIssuer,
+		rawTokenRequestURL:        "fakeTokenURL",
+		tokenRequestAuthToken:     "fakeToken",
+		publicKeyFinder:           providerOverride.PublicKeyFinder,
+		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
 	}
 
 	cic := GenCIC(t)

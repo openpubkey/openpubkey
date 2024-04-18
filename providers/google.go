@@ -55,16 +55,16 @@ type GoogleOptions struct {
 }
 
 type GoogleOp struct {
-	ClientID                 string
-	ClientSecret             string
-	Scopes                   []string
-	RedirectURIs             []string
-	GQSign                   bool
-	issuer                   string
-	server                   *http.Server
-	publicKeyFinder          discover.PublicKeyFinder
-	requestTokenOverrideFunc func(string) ([]byte, []byte, []byte, error)
-	httpSessionHook          http.HandlerFunc
+	ClientID                  string
+	ClientSecret              string
+	Scopes                    []string
+	RedirectURIs              []string
+	GQSign                    bool
+	issuer                    string
+	server                    *http.Server
+	publicKeyFinder           discover.PublicKeyFinder
+	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
+	httpSessionHook           http.HandlerFunc
 }
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
@@ -98,27 +98,23 @@ func NewGoogleOp() OpenIdProvider {
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 	return &GoogleOp{
-		ClientID:                 opts.ClientID,
-		ClientSecret:             opts.ClientSecret,
-		Scopes:                   opts.Scopes,
-		RedirectURIs:             opts.RedirectURIs,
-		GQSign:                   opts.GQSign,
-		issuer:                   opts.Issuer,
-		requestTokenOverrideFunc: nil,
-		publicKeyFinder:          *discover.DefaultPubkeyFinder(),
+		ClientID:                  opts.ClientID,
+		ClientSecret:              opts.ClientSecret,
+		Scopes:                    opts.Scopes,
+		RedirectURIs:              opts.RedirectURIs,
+		GQSign:                    opts.GQSign,
+		issuer:                    opts.Issuer,
+		requestTokensOverrideFunc: nil,
+		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
 	}
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 
-func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, error) {
-	if g.requestTokenOverrideFunc != nil {
-		idToken, refreshToken, accessToken, err := g.requestTokenOverrideFunc(cicHash)
-		return &Tokens{
-			IDToken:      idToken,
-			RefreshToken: refreshToken,
-			AccessToken:  accessToken}, err
+func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
+	if g.requestTokensOverrideFunc != nil {
+		return g.requestTokensOverrideFunc(cicHash)
 	}
 
 	redirectURI, ln, err := FindAvailablePort(g.RedirectURIs)
@@ -182,14 +178,14 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, 
 		rp.WithPromptURLParam("select_account"),
 		rp.WithURLParam("access_type", "offline")))
 
-	marshalToken := func(w http.ResponseWriter, r *http.Request, oidcTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
+	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			chErr <- err
 			return
 		}
 
-		chTokens <- oidcTokens
+		chTokens <- retTokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -235,15 +231,16 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*Tokens, 
 			defer shutdownServer()
 		}
 		return nil, err
-	case oidcTokens := <-chTokens:
-		return &Tokens{
-			IDToken:      []byte(oidcTokens.IDToken),
-			RefreshToken: []byte(oidcTokens.RefreshToken),
-			AccessToken:  []byte(oidcTokens.AccessToken)}, nil
+	case retTokens := <-chTokens:
+		// retTokens is a zitadel/oidc struct. We turn it into our simpler token struct
+		return &simpleoidc.Tokens{
+			IDToken:      []byte(retTokens.IDToken),
+			RefreshToken: []byte(retTokens.RefreshToken),
+			AccessToken:  []byte(retTokens.AccessToken)}, nil
 	}
 }
 
-func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*Tokens, error) {
+func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
@@ -265,7 +262,7 @@ func (g *GoogleOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	return tokens, nil
 }
 
-func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*Tokens, error) {
+func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
 		return nil, err
@@ -287,15 +284,14 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*Tok
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
-	tokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
+	retTokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
 	if err != nil {
 		return nil, err
 	}
-
-	return &Tokens{
-		IDToken:      []byte(tokens.IDToken),
-		RefreshToken: []byte(tokens.RefreshToken),
-		AccessToken:  []byte(tokens.AccessToken)}, nil
+	return &simpleoidc.Tokens{
+		IDToken:      []byte(retTokens.IDToken),
+		RefreshToken: []byte(retTokens.RefreshToken),
+		AccessToken:  []byte(retTokens.AccessToken)}, nil
 }
 
 func (g *GoogleOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {

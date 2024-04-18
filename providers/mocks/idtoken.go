@@ -23,6 +23,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 )
 
 type CommitmentType struct {
@@ -66,27 +67,27 @@ func (t *IDTokenTemplate) AddCommit(cicHash string) {
 }
 
 // TODO: Rename to IssueTokens
-func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
+func (t *IDTokenTemplate) IssueToken() (*oidc.Tokens, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
 		if err := headers.Set(jws.AlgorithmKey, t.Alg); err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	}
 	if !t.NoKeyID {
 		if err := headers.Set(jws.KeyIDKey, t.KeyID); err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 	}
 	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	if t.ExtraProtectedClaims != nil {
 		for k, v := range t.ExtraProtectedClaims {
 			if err := headers.Set(k, v); err != nil {
-				return nil, nil, nil, err
+				return nil, err
 			}
 		}
 	}
@@ -110,7 +111,7 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
 
 	payloadBytes, err := json.Marshal(payloadMap)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	idToken, err := jws.Sign(
@@ -122,12 +123,12 @@ func (t *IDTokenTemplate) IssueToken() ([]byte, []byte, []byte, error) {
 		),
 	)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-
-	refreshToken := []byte("mock-refresh-token")
-	accessToken := []byte("mock-access-token")
-	return idToken, refreshToken, accessToken, nil
+	return &oidc.Tokens{
+		IDToken:      idToken,
+		RefreshToken: []byte("mock-refresh-token"),
+		AccessToken:  []byte("mock-access-token")}, nil
 }
 
 func AddNonceCommit(idtTemp *IDTokenTemplate, cicHash string) {
