@@ -52,6 +52,7 @@ type GoogleOptions struct {
 	Scopes       []string
 	RedirectURIs []string
 	GQSign       bool
+	OpenBrowser  bool
 }
 
 type GoogleOp struct {
@@ -60,6 +61,7 @@ type GoogleOp struct {
 	Scopes                    []string
 	RedirectURIs              []string
 	GQSign                    bool
+	OpenBrowser               bool
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -69,8 +71,7 @@ type GoogleOp struct {
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
 	return &GoogleOptions{
-		Issuer: googleIssuer,
-
+		Issuer:   googleIssuer,
 		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
 		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
 		// Google requires a ClientSecret even if this a public OIDC App
@@ -81,7 +82,8 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign: false,
+		GQSign:      false,
+		OpenBrowser: true,
 	}
 }
 
@@ -103,6 +105,7 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
+		OpenBrowser:               opts.OpenBrowser,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
@@ -210,10 +213,12 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 		}
 	}()
 
-	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
-	logrus.Infof("Opening browser to on http://%s/", loginURI)
-	if err := util.OpenUrl(loginURI); err != nil {
-		logrus.Errorf("Failed to open url: %v", err)
+	if g.OpenBrowser {
+		loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
+		logrus.Infof("Opening browser to on http://%s/", loginURI)
+		if err := util.OpenUrl(loginURI); err != nil {
+			logrus.Errorf("Failed to open url: %v", err)
+		}
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
