@@ -53,6 +53,7 @@ type GoogleOptions struct {
 	RedirectURIs []string
 	GQSign       bool
 	OpenBrowser  bool
+	HttpClient   *http.Client
 }
 
 type GoogleOp struct {
@@ -62,6 +63,7 @@ type GoogleOp struct {
 	RedirectURIs              []string
 	GQSign                    bool
 	OpenBrowser               bool
+	httpClient                *http.Client
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -84,6 +86,7 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 		},
 		GQSign:      false,
 		OpenBrowser: true,
+		HttpClient:  nil,
 	}
 }
 
@@ -99,17 +102,21 @@ func NewGoogleOp() OpenIdProvider {
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
-	return &GoogleOp{
+	googleOp := &GoogleOp{
 		ClientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
+		httpClient:                opts.HttpClient,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
 	}
+
+	googleOp.publicKeyFinder.HttpClient = opts.HttpClient
+	return googleOp
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
@@ -146,6 +153,9 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 				func(ctx context.Context) string { return cicHash })),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
+	}
 
 	// The reason we don't set the relyingParty on the struct and reuse it,
 	// is because refresh requests require a slightly different set of
@@ -278,6 +288,9 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 			rp.WithIssuedAtOffset(issuedAtOffset)),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
+	}
 
 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
 	// According to the OIDC spec the only values send on a refresh request are:
@@ -316,7 +329,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID, DiscoverPublicKey: &g.publicKeyFinder})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
@@ -328,9 +341,13 @@ func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, r
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
 
+	options := []rp.Option{}
+	if g.httpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.httpClient))
+	}
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
-		g.ClientSecret, redirectURI, g.Scopes)
+		g.ClientSecret, redirectURI, g.Scopes, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}

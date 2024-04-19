@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 )
@@ -55,7 +56,7 @@ func MockGetJwksByIssuer(publicKeys []crypto.PublicKey, keyIDs []string, algs []
 		return nil, err
 	}
 
-	return func(ctx context.Context, issuer string) ([]byte, error) {
+	return func(ctx context.Context, issuer string, _ *http.Client) ([]byte, error) {
 		return jwksJson, nil
 	}, nil
 }
@@ -85,7 +86,7 @@ func MockGetJwksByIssuerOneKey(publicKey crypto.PublicKey, keyID string, alg str
 		return nil, err
 	}
 
-	return func(ctx context.Context, issuer string) ([]byte, error) {
+	return func(ctx context.Context, issuer string, _ *http.Client) ([]byte, error) {
 		return jwksJson, nil
 	}, nil
 }
