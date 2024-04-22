@@ -135,13 +135,8 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
 
-	g.server = &http.Server{}
-	go func() {
-		err := g.server.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
-		}
-	}()
+	mux := http.NewServeMux()
+	g.server = &http.Server{Handler: mux}
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
@@ -174,24 +169,18 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 		return uuid.New().String()
 	}
 
-	shutdownServer := func() {
-		if err := g.server.Shutdown(ctx); err != nil {
-			logrus.Errorf("Failed to shutdown http server: %v", err)
-		}
-	}
-	defer shutdownServer()
-
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
-	http.Handle("/login", rp.AuthURLHandler(state, relyingParty,
+	mux.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 		rp.WithPromptURLParam("select_account"),
-		rp.WithURLParam("access_type", "offline")))
+		rp.WithURLParam("access_type", "offline")),
+	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
@@ -216,12 +205,17 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	}
 
 	callbackPath := redirectURI.Path
-	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
+	mux.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
 
 	go func() {
 		err := g.server.Serve(ln)
 		if err != nil && err != http.ErrServerClosed {
 			logrus.Error(err)
+		}
+	}()
+	defer func() {
+		if err := g.server.Shutdown(ctx); err != nil {
+			logrus.Errorf("Failed to shutdown http server: %v", err)
 		}
 	}()
 
