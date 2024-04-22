@@ -39,21 +39,18 @@ import (
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
-var (
-	issuedAtOffset = 1 * time.Minute
-)
-
 const googleIssuer = "https://accounts.google.com"
 
 type GoogleOptions struct {
-	ClientID     string
-	ClientSecret string
-	Issuer       string // This should almost always be "https://accounts.google.com"
-	Scopes       []string
-	RedirectURIs []string
-	GQSign       bool
-	OpenBrowser  bool
-	HttpClient   *http.Client
+	ClientID       string
+	ClientSecret   string
+	Issuer         string // This should almost always be "https://accounts.google.com"
+	Scopes         []string
+	RedirectURIs   []string
+	GQSign         bool
+	OpenBrowser    bool
+	HttpClient     *http.Client
+	IssuedAtOffset time.Duration
 }
 
 type GoogleOp struct {
@@ -64,6 +61,7 @@ type GoogleOp struct {
 	GQSign                    bool
 	OpenBrowser               bool
 	httpClient                *http.Client
+	issuedAtOffset            time.Duration
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -84,9 +82,10 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign:      false,
-		OpenBrowser: true,
-		HttpClient:  nil,
+		GQSign:         false,
+		OpenBrowser:    true,
+		HttpClient:     nil,
+		IssuedAtOffset: 1 * time.Minute,
 	}
 }
 
@@ -110,6 +109,7 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
 		httpClient:                opts.HttpClient,
+		issuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
@@ -145,7 +145,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(issuedAtOffset), rp.WithNonce(
+			rp.WithIssuedAtOffset(g.issuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
@@ -269,7 +269,7 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(issuedAtOffset)),
+			rp.WithIssuedAtOffset(g.issuedAtOffset)),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 	if g.httpClient != nil {
