@@ -179,6 +179,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 			logrus.Errorf("Failed to shutdown http server: %v", err)
 		}
 	}
+	defer shutdownServer()
 
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
@@ -199,19 +200,19 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 			return
 		}
 
-		chTokens <- retTokens
-
-		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
-		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
-		// MFA Cosigner Auth URI.
+		// If defined the OIDC client hands over control of the HTTP server
+		// session to the OpenPubkey client. Useful for redirecting the user's
+		// browser window that just finished OIDC Auth flow to the MFA Cosigner
+		// Auth URI.
 		if g.httpSessionHook != nil {
 			g.httpSessionHook(w, r)
-			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
 			if _, err := w.Write([]byte("You may now close this window")); err != nil {
 				logrus.Error(err)
 			}
 		}
+
+		chTokens <- retTokens
 	}
 
 	callbackPath := redirectURI.Path
@@ -232,20 +233,8 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 		}
 	}
 
-	// If httpSessionHook is not defined shutdown the server when done,
-	// otherwise keep it open for the httpSessionHook
-	// If httpSessionHook is set we handle both possible cases to ensure
-	// the server is shutdown:
-	// 1. We shut it down if an error occurs in the marshalToken handler
-	// 2. We shut it down if the marshalToken handler completes
-	if g.httpSessionHook == nil {
-		defer shutdownServer()
-	}
 	select {
 	case err := <-chErr:
-		if g.httpSessionHook != nil {
-			defer shutdownServer()
-		}
 		return nil, err
 	case retTokens := <-chTokens:
 		// retTokens is a zitadel/oidc struct. We turn it into our simpler token struct
