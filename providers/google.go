@@ -290,6 +290,13 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	if err != nil {
 		return nil, err
 	}
+
+	if retTokens.RefreshToken == "" {
+		// Google does not rotate refresh tokens, the one you get at the
+		// beginning is the only one you'll ever get
+		retTokens.RefreshToken = string(refreshToken)
+	}
+
 	return &simpleoidc.Tokens{
 		IDToken:      []byte(retTokens.IDToken),
 		RefreshToken: []byte(retTokens.RefreshToken),
