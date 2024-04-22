@@ -302,10 +302,6 @@ func (g *GoogleOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discove
 	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
-func (g *GoogleOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
-}
-
 func (g *GoogleOp) Issuer() string {
 	return g.issuer
 }

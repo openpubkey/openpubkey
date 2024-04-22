@@ -244,20 +244,10 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
-	opKeyRecord, err := o.Op.PublicKeyByToken(ctx, idToken)
-	if err != nil {
-		return nil, err
-	}
-	opKey := opKeyRecord.PublicKey
-
 	// Combine our ID token and signature over the cic to create our PK Token
 	pkt, err := pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
-	}
-
-	if err := pkt.AddJKTHeader(opKey); err != nil {
-		return nil, fmt.Errorf("error adding JKT header: %w", err)
 	}
 
 	pktVerifier, err := verifier.New(o.Op)

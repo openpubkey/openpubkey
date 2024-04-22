@@ -61,10 +61,6 @@ func (g *GitlabOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discove
 	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
-func (g *GitlabOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
-}
-
 func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()

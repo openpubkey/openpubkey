@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 
 	"github.com/openpubkey/openpubkey/oidc"
@@ -62,32 +61,6 @@ type PKToken struct {
 	// other tokens and must be handled separately.
 	// It is only used for POP Authentication
 	FreshIDToken []byte // Base64 encoded Refreshed ID Token
-}
-
-// kid isn't always present, and is only guaranteed to be unique within a given key set,
-// so we can use the thumbprint of the key instead to identify it at verification time
-func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
-	public, err := jwk.FromRaw(opKey)
-	if err != nil {
-		return fmt.Errorf("failed to create JWK from public key: %w", err)
-	}
-	thumbprint, err := public.Thumbprint(crypto.SHA256)
-	if err != nil {
-		return fmt.Errorf("failed to calculate thumbprint: %w", err)
-	}
-	headers := p.Op.PublicHeaders()
-	if headers == nil {
-		headers = jws.NewHeaders()
-	}
-	thumbprintB64 := util.Base64EncodeForJWT(thumbprint)
-
-	// We make thumbprint a string otherwise jkt will Base64 encode it again
-	err = headers.Set("jkt", string(thumbprintB64))
-	if err != nil {
-		return fmt.Errorf("failed to set jkt claim: %w", err)
-	}
-	p.Op.SetPublicHeaders(headers)
-	return nil
 }
 
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {

@@ -32,7 +32,6 @@ import (
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error)
 	PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error)
-	PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error)
 	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string

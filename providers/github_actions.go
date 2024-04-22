@@ -89,10 +89,6 @@ func (g *GithubOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discove
 	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
-func (g *GithubOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByJTK(ctx, g.issuer, jtk)
-}
-
 func (g *GithubOp) requestTokens(ctx context.Context, cicHash string) (*memguard.LockedBuffer, error) {
 	if g.requestTokensOverrideFunc != nil {
 		tokens, err := g.requestTokensOverrideFunc(cicHash)
