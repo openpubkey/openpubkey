@@ -101,7 +101,7 @@ func NewGoogleOp() OpenIdProvider {
 // NewGoogleOpWithOptions creates a Google OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
+func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
 	googleOp := &GoogleOp{
 		ClientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
@@ -121,6 +121,7 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
+var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
 	if g.requestTokensOverrideFunc != nil {
