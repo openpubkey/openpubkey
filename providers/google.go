@@ -87,8 +87,8 @@ type GoogleOp struct {
 	RedirectURIs              []string
 	GQSign                    bool
 	OpenBrowser               bool
-	httpClient                *http.Client
-	issuedAtOffset            time.Duration
+	HttpClient                *http.Client
+	IssuedAtOffset            time.Duration
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -135,8 +135,8 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
-		httpClient:                opts.HttpClient,
-		issuedAtOffset:            opts.IssuedAtOffset,
+		HttpClient:                opts.HttpClient,
+		IssuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
@@ -173,12 +173,12 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(g.issuedAtOffset), rp.WithNonce(
+			rp.WithIssuedAtOffset(g.IssuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
-	if g.httpClient != nil {
-		options = append(options, rp.WithHTTPClient(g.httpClient))
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
 	}
 
 	// The reason we don't set the relyingParty on the struct and reuse it,
@@ -310,11 +310,11 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(g.issuedAtOffset)),
+			rp.WithIssuedAtOffset(g.IssuedAtOffset)),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
-	if g.httpClient != nil {
-		options = append(options, rp.WithHTTPClient(g.httpClient))
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
 	}
 
 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
@@ -374,8 +374,8 @@ func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, r
 	}
 
 	options := []rp.Option{}
-	if g.httpClient != nil {
-		options = append(options, rp.WithHTTPClient(g.httpClient))
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
 	}
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
