@@ -106,7 +106,7 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 
 // NewFromCompact creates a PK Token from a compact representation
 func NewFromCompact(pktCom []byte) (*PKToken, error) {
-	tokens, _, err := SplitCompactPKToken(pktCom)
+	tokens, freshIDToken, err := SplitCompactPKToken(pktCom)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +123,7 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 			return nil, err
 		}
 	}
+	pkt.FreshIDToken = freshIDToken
 	return pkt, nil
 }
 

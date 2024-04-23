@@ -39,19 +39,45 @@ import (
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
-var (
-	issuedAtOffset = 1 * time.Minute
-)
-
 const googleIssuer = "https://accounts.google.com"
 
+// GoogleOptions is an options struct that configures how providers.GoogleOp
+// operates. See providers.GetDefaultGoogleOpOptions for the recommended default
+// values to use when interacting with Google as the OpenIdProvider.
 type GoogleOptions struct {
-	ClientID     string
+	// ClientID is the client ID of the OIDC application. It should be the
+	// expected "aud" claim in received ID tokens from the OP.
+	ClientID string
+	// ClientSecret is the client secret of the OIDC application. Some OPs do
+	// not require that this value is set.
 	ClientSecret string
-	Issuer       string // This should almost always be "https://accounts.google.com"
-	Scopes       []string
+	// Issuer is the OP's issuer URI for performing OIDC authorization and
+	// discovery.
+	Issuer string
+	// Scopes is the list of scopes to send to the OP in the initial
+	// authorization request.
+	Scopes []string
+	// RedirectURIs is the list of authorized redirect URIs that can be
+	// redirected to by the OP after the user completes the authorization code
+	// flow exchange. Ensure that your OIDC application is configured to accept
+	// these URIs otherwise an error may occur.
 	RedirectURIs []string
-	GQSign       bool
+	// GQSign denotes if the received ID token should be upgraded to a GQ token
+	// using GQ signatures.
+	GQSign bool
+	// OpenBrowser denotes if the client's default browser should be opened
+	// automatically when performing the OIDC authorization flow. This value
+	// should typically be set to true, unless performing some headless
+	// automation (e.g. integration tests) where you don't want the browser to
+	// open.
+	OpenBrowser bool
+	// HttpClient is the http.Client to use when making queries to the OP (OIDC
+	// code exchange, refresh, verification of ID token, fetch of JWKS endpoint,
+	// etc.). If nil, then http.DefaultClient is used.
+	HttpClient *http.Client
+	// IssuedAtOffset configures the offset to add when validating the "iss" and
+	// "exp" claims of received ID tokens from the OP.
+	IssuedAtOffset time.Duration
 }
 
 type GoogleOp struct {
@@ -60,6 +86,9 @@ type GoogleOp struct {
 	Scopes                    []string
 	RedirectURIs              []string
 	GQSign                    bool
+	OpenBrowser               bool
+	HttpClient                *http.Client
+	IssuedAtOffset            time.Duration
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -69,8 +98,7 @@ type GoogleOp struct {
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
 	return &GoogleOptions{
-		Issuer: googleIssuer,
-
+		Issuer:   googleIssuer,
 		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
 		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
 		// Google requires a ClientSecret even if this a public OIDC App
@@ -81,7 +109,10 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign: false,
+		GQSign:         false,
+		OpenBrowser:    true,
+		HttpClient:     nil,
+		IssuedAtOffset: 1 * time.Minute,
 	}
 }
 
@@ -96,21 +127,29 @@ func NewGoogleOp() OpenIdProvider {
 // NewGoogleOpWithOptions creates a Google OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewGoogleOpWithOptions(opts *GoogleOptions) OpenIdProvider {
+func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
 	return &GoogleOp{
 		ClientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
+		OpenBrowser:               opts.OpenBrowser,
+		HttpClient:                opts.HttpClient,
+		IssuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
-		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+			},
+		},
 	}
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
+var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
 
 func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
 	if g.requestTokensOverrideFunc != nil {
@@ -124,13 +163,8 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
 
-	g.server = &http.Server{}
-	go func() {
-		err := g.server.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
-		}
-	}()
+	mux := http.NewServeMux()
+	g.server = &http.Server{Handler: mux}
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
@@ -139,10 +173,13 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(issuedAtOffset), rp.WithNonce(
+			rp.WithIssuedAtOffset(g.IssuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
+	}
 
 	// The reason we don't set the relyingParty on the struct and reuse it,
 	// is because refresh requests require a slightly different set of
@@ -169,14 +206,15 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
-	http.Handle("/login", rp.AuthURLHandler(state, relyingParty,
+	mux.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 		rp.WithPromptURLParam("select_account"),
-		rp.WithURLParam("access_type", "offline")))
+		rp.WithURLParam("access_type", "offline")),
+	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
@@ -201,7 +239,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 	}
 
 	callbackPath := redirectURI.Path
-	http.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
+	mux.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
 
 	go func() {
 		err := g.server.Serve(ln)
@@ -210,10 +248,12 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 		}
 	}()
 
-	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
-	logrus.Infof("Opening browser to on http://%s/", loginURI)
-	if err := util.OpenUrl(loginURI); err != nil {
-		logrus.Errorf("Failed to open url: %v", err)
+	if g.OpenBrowser {
+		loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
+		logrus.Infof("Opening browser to on http://%s/", loginURI)
+		if err := util.OpenUrl(loginURI); err != nil {
+			logrus.Errorf("Failed to open url: %v", err)
+		}
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
@@ -270,9 +310,12 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(issuedAtOffset)),
+			rp.WithIssuedAtOffset(g.IssuedAtOffset)),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
+	}
 
 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
 	// According to the OIDC spec the only values send on a refresh request are:
@@ -288,6 +331,13 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	if err != nil {
 		return nil, err
 	}
+
+	if retTokens.RefreshToken == "" {
+		// Google does not rotate refresh tokens, the one you get at the
+		// beginning is the only one you'll ever get
+		retTokens.RefreshToken = string(refreshToken)
+	}
+
 	return &simpleoidc.Tokens{
 		IDToken:      []byte(retTokens.IDToken),
 		RefreshToken: []byte(retTokens.RefreshToken),
@@ -311,7 +361,7 @@ func (g *GoogleOp) Issuer() string {
 }
 
 func (g *GoogleOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: g.ClientID, DiscoverPublicKey: &g.publicKeyFinder})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
@@ -323,9 +373,13 @@ func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, r
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
 
+	options := []rp.Option{}
+	if g.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(g.HttpClient))
+	}
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, g.issuer, g.ClientID,
-		g.ClientSecret, redirectURI, g.Scopes)
+		g.ClientSecret, redirectURI, g.Scopes, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
