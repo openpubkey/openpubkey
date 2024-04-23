@@ -41,15 +41,42 @@ import (
 
 const googleIssuer = "https://accounts.google.com"
 
+// GoogleOptions is an options struct that configures how providers.GoogleOp
+// operates. See providers.GetDefaultGoogleOpOptions for the recommended default
+// values to use when interacting with Google as the OpenIdProvider.
 type GoogleOptions struct {
-	ClientID       string
-	ClientSecret   string
-	Issuer         string // This should almost always be "https://accounts.google.com"
-	Scopes         []string
-	RedirectURIs   []string
-	GQSign         bool
-	OpenBrowser    bool
-	HttpClient     *http.Client
+	// ClientID is the client ID of the OIDC application. It should be the
+	// expected "aud" claim in received ID tokens from the OP.
+	ClientID string
+	// ClientSecret is the client secret of the OIDC application. Some OPs do
+	// not require that this value is set.
+	ClientSecret string
+	// Issuer is the OP's issuer URI for performing OIDC authorization and
+	// discovery.
+	Issuer string
+	// Scopes is the list of scopes to send to the OP in the initial
+	// authorization request.
+	Scopes []string
+	// RedirectURIs is the list of authorized redirect URIs that can be
+	// redirected to by the OP after the user completes the authorization code
+	// flow exchange. Ensure that your OIDC application is configured to accept
+	// these URIs otherwise an error may occur.
+	RedirectURIs []string
+	// GQSign denotes if the received ID token should be upgraded to a GQ token
+	// using GQ signatures.
+	GQSign bool
+	// OpenBrowser denotes if the client's default browser should be opened
+	// automatically when performing the OIDC authorization flow. This value
+	// should typically be set to true, unless performing some headless
+	// automation (e.g. integration tests) where you don't want the browser to
+	// open.
+	OpenBrowser bool
+	// HttpClient is the http.Client to use when making queries to the OP (OIDC
+	// code exchange, refresh, verification of ID token, fetch of JWKS endpoint,
+	// etc.). If nil, then http.DefaultClient is used.
+	HttpClient *http.Client
+	// IssuedAtOffset configures the offset to add when validating the "iss" and
+	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
 }
 
