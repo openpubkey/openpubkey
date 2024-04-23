@@ -101,7 +101,7 @@ func NewGoogleOp() OpenIdProvider {
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
-	googleOp := &GoogleOp{
+	return &GoogleOp{
 		ClientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
@@ -112,11 +112,12 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) *GoogleOp {
 		issuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
-		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+			},
+		},
 	}
-
-	googleOp.publicKeyFinder.HttpClient = opts.HttpClient
-	return googleOp
 }
 
 var _ OpenIdProvider = (*GoogleOp)(nil)

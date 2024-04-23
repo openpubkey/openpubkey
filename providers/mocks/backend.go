@@ -26,7 +26,6 @@ import (
 	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
-	"net/http"
 
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/discover"
@@ -51,8 +50,7 @@ func NewMockProviderBackend(issuer string, numKeys int) (*MockProviderBackend, e
 	return &MockProviderBackend{
 		Issuer: issuer,
 		PublicKeyFinder: discover.PublicKeyFinder{
-			HttpClient: nil,
-			JwksFunc: func(ctx context.Context, issuer string, _ *http.Client) ([]byte, error) {
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
 				keySet := jwk.NewSet()
 				for kid, record := range providerPublicKeySet {
 					jwkKey, err := jwk.PublicKeyOf(record.PublicKey)

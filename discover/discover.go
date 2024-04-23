@@ -76,16 +76,16 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 
 func DefaultPubkeyFinder() *PublicKeyFinder {
 	return &PublicKeyFinder{
-		JwksFunc:   GetJwksByIssuer,
-		HttpClient: nil,
+		JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+			return GetJwksByIssuer(ctx, issuer, nil)
+		},
 	}
 }
 
-type JwksFetchFunc func(ctx context.Context, issuer string, httpClient *http.Client) ([]byte, error)
+type JwksFetchFunc func(ctx context.Context, issuer string) ([]byte, error)
 
 type PublicKeyFinder struct {
-	JwksFunc   JwksFetchFunc
-	HttpClient *http.Client
+	JwksFunc JwksFetchFunc
 }
 
 // GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the
@@ -124,7 +124,7 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 }
 
 func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {
-	jwksJson, err := f.JwksFunc(ctx, issuer, f.HttpClient)
+	jwksJson, err := f.JwksFunc(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to fetch JWKS: %w`, err)
 	}
