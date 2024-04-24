@@ -187,7 +187,8 @@ func TestClientRefreshErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, string(pkt1Com), string(pkt2Com))
 
-	pkt3 := c.GetPKToken()
+	pkt3, err := c.GetPKToken()
+	require.NoError(t, err)
 	pkt3com, err := pkt3.Compact()
 	require.NoError(t, err)
 	require.Equal(t, pkt2Com, pkt3com)
