@@ -119,7 +119,13 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 		}
 		typ := parsedToken.GetSignature().GetProtectedClaims().Type
 		if typ == "" {
-			// missing typ claim, assuming this is from the OIDC provider
+			// missing typ claim, assuming this is from the OIDC provider and set typ=OIDC=JWT
+			// Okta is known not to set the typ parameter on their ID Tokens
+			// The JWT RFC-7519 encourages but does not require that typ be set saying about typ
+			//  "This parameter is ignored by JWT implementations; any processing of this parameter is
+			// performed by the JWT application.  If present, it is RECOMMENDED that its value be "JWT"
+			//  to indicate that this object is a JWT."
+			//  https://datatracker.ietf.org/doc/html/rfc7519#section-5.1
 			typ = string(OIDC)
 		}
 
