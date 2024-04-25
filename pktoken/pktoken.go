@@ -118,6 +118,11 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 			return nil, err
 		}
 		typ := parsedToken.GetSignature().GetProtectedClaims().Type
+		if typ == "" {
+			// missing typ claim, assuming this is from the OIDC provider
+			typ = string(OIDC)
+		}
+
 		sigType := SignatureType(typ)
 		if err := pkt.AddSignature(token, sigType); err != nil {
 			return nil, err
