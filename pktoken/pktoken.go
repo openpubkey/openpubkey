@@ -382,3 +382,17 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+// DeepCopy creates a complete and independent copy of this PKToken,
+func (p *PKToken) DeepCopy() (*PKToken, error) {
+	pktJson, err := p.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var pktCopy PKToken
+	if err := json.Unmarshal(pktJson, &pktCopy); err != nil {
+		return nil, err
+	}
+	pktCopy.FreshIDToken = p.FreshIDToken
+	return &pktCopy, nil
+}
