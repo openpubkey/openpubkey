@@ -90,6 +90,8 @@ func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
 	return nil
 }
 
+// Creates a new PKToken from an ID token and a CIC token.
+// It adds signatures for both tokens to the PKToken and returns the PKToken.
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	pkt := &PKToken{}
 
@@ -138,6 +140,8 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
+// Returns the issuer of the PKToken.
+// It extracts the issuer from the PKToken payload and returns it as a string.
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
 		Issuer string `json:"iss"`
@@ -170,6 +174,8 @@ func (p *PKToken) SignToken(
 	)
 }
 
+// Signs the PKToken with the specified signature type, signer, algorithm, and protected headers.
+// It returns an error if the PKToken cannot be signed.
 func (p *PKToken) Sign(
 	sigType SignatureType,
 	signer crypto.Signer,
@@ -183,6 +189,17 @@ func (p *PKToken) Sign(
 	return p.AddSignature(token, sigType)
 }
 
+// Adds a signature to the PKToken with the specified signature type.
+// It takes a token byte slice and a signature type as input, and returns an error if the signature cannot be added.
+//
+// To use AddSignature, first parse the token byte slice using the jws.Parse function to obtain a jws.Message object.
+// You can then extract the signature from the message object using the Signatures method, and pass it to AddSignature along with the desired signature type.
+//
+// The function supports three signature types: OIDC, CIC, and COS.
+// Depending on the signature type, the function will set the corresponding field in the PKToken struct (Op, Cic, or Cos) to the provided signature.
+// It will also set the corresponding token field (OpToken, CicToken, or CosToken) to the provided token byte slice.
+//
+// If the signature type is not recognized, an error will be returned.
 func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	message, err := jws.Parse(token)
 	if err != nil {
