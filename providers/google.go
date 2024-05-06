@@ -310,7 +310,9 @@ func (g *GoogleOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*sim
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(g.IssuedAtOffset)),
+			rp.WithIssuedAtOffset(g.IssuedAtOffset),
+			rp.WithNonce(nil), // disable nonce check
+		),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 	if g.HttpClient != nil {
