@@ -90,7 +90,7 @@ func (p *PKToken) AddJKTHeader(opKey crypto.PublicKey) error {
 	return nil
 }
 
-// New creates a new PKToken from an ID token and a CIC token.
+// New creates a new PKToken from an ID Token and a CIC Token.
 // It adds signatures for both tokens to the PK Token and returns the PK Token.
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	pkt := &PKToken{}
