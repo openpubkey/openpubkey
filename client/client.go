@@ -271,8 +271,8 @@ func (o *OpkClient) oidcAuth(
 	return pkt, nil
 }
 
-// Refresh is used for refreshing the ID token and access token for the OpenID provider using the refresh token.
-// It provides a way to refresh the access and ID tokens for an OIDC provider that supports refresh requests,
+// Refresh uses a refresh token to request a fresh ID token and access token from an OpenID Provider.
+// It provides a way to refresh the access and ID tokens for an OpenID Provider that supports refresh requests,
 // allowing the client to continue making authenticated requests without requiring the user to re-authenticate.
 func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
