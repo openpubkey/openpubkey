@@ -140,7 +140,7 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
-// Issuer returns the issuer of the PKToken.
+// Issuer returns the issuer of the ID Token in the PKToken.
 // It extracts the issuer from the PKToken payload and returns it as a string.
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
