@@ -63,6 +63,8 @@ type PKToken struct {
 	FreshIDToken []byte // Base64 encoded Refreshed ID Token
 }
 
+// New creates a new PKToken from an ID Token and a CIC Token.
+// It adds signatures for both tokens to the PK Token and returns the PK Token.
 func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 	pkt := &PKToken{}
 
@@ -79,7 +81,7 @@ func New(idToken []byte, cicToken []byte) (*PKToken, error) {
 
 // NewFromCompact creates a PK Token from a compact representation
 func NewFromCompact(pktCom []byte) (*PKToken, error) {
-	tokens, _, err := SplitCompactPKToken(pktCom)
+	tokens, freshIDToken, err := SplitCompactPKToken(pktCom)
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +93,28 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 			return nil, err
 		}
 		typ := parsedToken.GetSignature().GetProtectedClaims().Type
+		if typ == "" {
+			// missing typ claim, assuming this is from the OIDC provider and set typ=OIDC=JWT
+			// Okta is known not to set the typ parameter on their ID Tokens
+			// The JWT RFC-7519 encourages but does not require that typ be set saying about typ
+			//  "This parameter is ignored by JWT implementations; any processing of this parameter is
+			// performed by the JWT application.  If present, it is RECOMMENDED that its value be "JWT"
+			//  to indicate that this object is a JWT."
+			//  https://datatracker.ietf.org/doc/html/rfc7519#section-5.1
+			typ = string(OIDC)
+		}
+
 		sigType := SignatureType(typ)
 		if err := pkt.AddSignature(token, sigType); err != nil {
 			return nil, err
 		}
 	}
+	pkt.FreshIDToken = freshIDToken
 	return pkt, nil
 }
 
+// Issuer returns the issuer of the ID Token in the PKToken.
+// It extracts the issuer from the PKToken payload and returns it as a string.
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
 		Issuer string `json:"iss"`
@@ -131,6 +147,8 @@ func (p *PKToken) SignToken(
 	)
 }
 
+// Sign is used for signing the PKToken with the specified signature type, signer, algorithm, and protected headers.
+// It returns an error if the PKToken cannot be signed.
 func (p *PKToken) Sign(
 	sigType SignatureType,
 	signer crypto.Signer,
@@ -144,6 +162,18 @@ func (p *PKToken) Sign(
 	return p.AddSignature(token, sigType)
 }
 
+// AddSignature will add a signature to the PKToken with the specified signature type.
+// It takes a token byte slice and a signature type as input, and returns an error if the signature cannot be added.
+//
+// To use AddSignature, first parse the token byte slice using the jws.Parse function to obtain a jws.Message object.
+// You can then extract the signature from the message object using the Signatures method, and pass it to AddSignature along with the desired signature type.
+//
+// The function supports three signature types: OIDC, CIC, and COS.
+// These signature types correspond to the JWTs in the PK Token.
+// Depending on the signature type, the function will set the corresponding field in the PKToken struct (Op, Cic, or Cos) to the provided signature.
+// It will also set the corresponding token field (OpToken, CicToken, or CosToken) to the provided token byte slice.
+//
+// If the signature type is not recognized, an error will be returned.
 func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	message, err := jws.Parse(token)
 	if err != nil {
@@ -342,4 +372,18 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+// DeepCopy creates a complete and independent copy of this PKToken,
+func (p *PKToken) DeepCopy() (*PKToken, error) {
+	pktJson, err := p.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var pktCopy PKToken
+	if err := json.Unmarshal(pktJson, &pktCopy); err != nil {
+		return nil, err
+	}
+	pktCopy.FreshIDToken = p.FreshIDToken
+	return &pktCopy, nil
 }

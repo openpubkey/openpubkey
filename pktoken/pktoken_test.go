@@ -295,6 +295,23 @@ func TestCompact(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, "mockIssuer", actualIssuer)
 				}
+
+				// Test Deep Copy
+				pktCopy1, err := pkt.DeepCopy()
+				require.NoError(t, err)
+				pktCopy2, err := pkt.DeepCopy()
+				require.NoError(t, err)
+				require.Equal(t, pktCopy1.OpToken, pktCopy2.OpToken)
+				require.Equal(t, pktCopy1.Op, pktCopy2.Op)
+				require.Equal(t, pktCopy1.FreshIDToken, pktCopy2.FreshIDToken)
+
+				pktCopy1.OpToken = []byte("Overwritten-OP-Token")
+				pktCopy1.Op.SetSignature([]byte{0x0})
+				pktCopy1.FreshIDToken = []byte("Overwritten-Fresh-ID-Token")
+
+				require.NotEqual(t, pktCopy1.OpToken, pktCopy2.OpToken)
+				require.NotEqual(t, pktCopy1.Op, pktCopy2.Op)
+				require.NotEqual(t, pktCopy1.FreshIDToken, pktCopy2.FreshIDToken)
 			}
 
 		})

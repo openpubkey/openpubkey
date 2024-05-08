@@ -176,7 +176,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 			return nil, err
 		}
 		o.pkToken = pkt
-		return o.pkToken, nil
+		return o.pkToken.DeepCopy()
 	}
 
 	// If a Cosigner is set then check that will support doing Cosigner auth
@@ -199,7 +199,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 			return nil, err
 		}
 		o.pkToken = pktCos
-		return o.pkToken, nil
+		return o.pkToken.DeepCopy()
 	}
 }
 
@@ -261,6 +261,9 @@ func (o *OpkClient) oidcAuth(
 	return pkt, nil
 }
 
+// Refresh uses a Refresh Token to request a fresh ID Token and Access Token from an OpenID Provider.
+// It provides a way to refresh the Access and ID Tokens for an OpenID Provider that supports refresh requests,
+// allowing the client to continue making authenticated requests without requiring the user to re-authenticate.
 func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
 		if o.refreshToken == nil {
@@ -277,7 +280,7 @@ func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 		o.refreshToken = tokens.RefreshToken
 		o.accessToken = tokens.AccessToken
 
-		return o.pkToken, nil
+		return o.pkToken.DeepCopy()
 	}
 	return nil, fmt.Errorf("OP (issuer=%s) does not support OIDC refresh requests", o.Op.Issuer())
 }
@@ -308,6 +311,7 @@ func (o *OpkClient) SetPKToken(pkt *pktoken.PKToken) {
 	o.pkToken = pkt
 }
 
-func (o *OpkClient) GetPKToken() *pktoken.PKToken {
-	return o.pkToken
+// GetPKToken returns a deep copy of client's current PK Token
+func (o *OpkClient) GetPKToken() (*pktoken.PKToken, error) {
+	return o.pkToken.DeepCopy()
 }

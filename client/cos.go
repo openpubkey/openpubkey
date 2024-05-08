@@ -259,6 +259,9 @@ func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expe
 	return nil
 }
 
+// CreateInitAuthSig generates a random nonce, validates the redirectURI,
+// creates an InitMFAAuth message, marshals it to JSON,
+// and returns the JSON message along with the nonce.
 func (c *CosignerProvider) CreateInitAuthSig(redirectURI string) ([]byte, string, error) {
 	bits := 256
 	rBytes := make([]byte, bits/8)

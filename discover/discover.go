@@ -76,7 +76,9 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 
 func DefaultPubkeyFinder() *PublicKeyFinder {
 	return &PublicKeyFinder{
-		JwksFunc: GetJwksByIssuer,
+		JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+			return GetJwksByIssuer(ctx, issuer, nil)
+		},
 	}
 }
 
@@ -86,11 +88,16 @@ type PublicKeyFinder struct {
 	JwksFunc JwksFetchFunc
 }
 
-// GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the issuer's well-known
-// configuration. It doesn't attempt to parse the response but instead returns the JSON bytes of
-// the JWKS.
-func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
-	discConf, err := oidcclient.Discover(ctx, issuer, http.DefaultClient)
+// GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the
+// issuer's well-known configuration. It doesn't attempt to parse the response
+// but instead returns the JSON bytes of the JWKS. If httpClient is nil, then
+// http.DefaultClient is used when fetching.
+func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client) ([]byte, error) {
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	discConf, err := oidcclient.Discover(ctx, issuer, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call OIDC discovery endpoint: %w", err)
 	}
@@ -100,13 +107,13 @@ func GetJwksByIssuer(ctx context.Context, issuer string) ([]byte, error) {
 		return nil, err
 	}
 
-	response, err := http.DefaultClient.Do(request)
+	response, err := httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
 
-	resp, err := http.DefaultClient.Get(discConf.JwksURI)
+	resp, err := httpClient.Get(discConf.JwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
 	}
