@@ -196,6 +196,7 @@ func (p *PKToken) Sign(
 // You can then extract the signature from the message object using the Signatures method, and pass it to AddSignature along with the desired signature type.
 //
 // The function supports three signature types: OIDC, CIC, and COS.
+// These signature types correspond to the JWTs in the PK Token.
 // Depending on the signature type, the function will set the corresponding field in the PKToken struct (Op, Cic, or Cos) to the provided signature.
 // It will also set the corresponding token field (OpToken, CicToken, or CosToken) to the provided token byte slice.
 //
