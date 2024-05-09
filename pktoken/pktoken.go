@@ -174,21 +174,6 @@ func (p *PKToken) SignToken(
 	)
 }
 
-// Sign is used for signing the PKToken with the specified signature type, signer, algorithm, and protected headers.
-// It returns an error if the PKToken cannot be signed.
-func (p *PKToken) Sign(
-	sigType SignatureType,
-	signer crypto.Signer,
-	alg jwa.KeyAlgorithm,
-	protected map[string]any,
-) error {
-	token, err := p.SignToken(signer, alg, protected)
-	if err != nil {
-		return err
-	}
-	return p.AddSignature(token, sigType)
-}
-
 // AddSignature will add a signature to the PKToken with the specified signature type.
 // It takes a token byte slice and a signature type as input, and returns an error if the signature cannot be added.
 //
