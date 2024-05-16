@@ -25,7 +25,7 @@ We start by configuring the OP (OpenID Provider) our client and verifier will us
 
 ```golang
 opOptions := providers.GetDefaultGoogleOpOptions()
-opOptions.SignGQ = signGQ
+opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
