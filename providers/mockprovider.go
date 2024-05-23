@@ -159,9 +159,6 @@ func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string) (*dis
 	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID)
 }
 
-func (m *MockProvider) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return m.publicKeyFinder.ByJTK(ctx, m.issuer, jtk)
-}
 func (m *MockProvider) Issuer() string {
 	return m.issuer
 }
@@ -206,9 +203,6 @@ func (nro *NonRefreshableOp) RequestTokens(ctx context.Context, cic *clientinsta
 }
 func (nro *NonRefreshableOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return nro.op.PublicKeyByKeyId(ctx, keyID)
-}
-func (nro *NonRefreshableOp) PublicKeyByJTK(ctx context.Context, jtk string) (*discover.PublicKeyRecord, error) {
-	return nro.op.PublicKeyByJTK(ctx, jtk)
 }
 func (nro *NonRefreshableOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return nro.op.PublicKeyByToken(ctx, token)

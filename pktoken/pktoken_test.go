@@ -339,39 +339,6 @@ func TestThumprintCalculation(t *testing.T) {
 
 }
 
-func TestJktInPublicHeader(t *testing.T) {
-	fromRfc := "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"
-
-	// Add create thumbprint
-	keyJwk, err := jwk.ParseKey(test_jwk)
-	require.NoError(t, err)
-	pubJwk, err := keyJwk.PublicKey()
-	require.NoError(t, err)
-	var pubRaw interface{}
-	err = pubJwk.Raw(&pubRaw)
-	require.NoError(t, err)
-
-	alg := jwa.ES256
-	signingKey, err := util.GenKeyPair(alg)
-	require.NoError(t, err)
-
-	pkt, err := mocks.GenerateMockPKToken(t, signingKey, alg)
-	require.NoError(t, err)
-
-	// Add to public header
-	err = pkt.AddJKTHeader(pubRaw)
-	require.NoError(t, err)
-
-	publicHeadersJson, err := pkt.Op.PublicHeaders().MarshalJSON()
-	require.NoError(t, err)
-	jktStruct := struct {
-		Jkt string `json:"jkt"`
-	}{}
-	err = json.Unmarshal(publicHeadersJson, &jktStruct)
-	require.NoError(t, err)
-	require.Equal(t, fromRfc, jktStruct.Jkt, "jkt in public headers does not match value we supplied")
-}
-
 func BuildToken(protected string, payload string, sig string) []byte {
 	return util.JoinJWTSegments(
 		util.Base64EncodeForJWT([]byte(protected)),

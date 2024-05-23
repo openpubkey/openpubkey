@@ -171,7 +171,7 @@ func TestPublicKeyFinder(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJTK(ctx, issuer, string(jktB64))
+		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -196,9 +196,9 @@ func TestPublicKeyFinder(t *testing.T) {
 	require.EqualError(t, err, "no matching public key found for kid ")
 	require.Nil(t, pubkeyRecord)
 
-	wrongJTK := "not-a-jkt"
-	pubkeyRecord, err = finder.ByJTK(ctx, issuer, wrongJTK)
-	require.EqualError(t, err, "no matching public key found for jtk not-a-jkt")
+	wrongJKT := "not-a-jkt"
+	pubkeyRecord, err = finder.ByJKT(ctx, issuer, wrongJKT)
+	require.EqualError(t, err, "no matching public key found for jkt not-a-jkt")
 	require.Nil(t, pubkeyRecord)
 }
 
@@ -248,7 +248,7 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJTK(ctx, issuer, string(jktB64))
+		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -314,7 +314,7 @@ func TestGQTokens(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJTK(ctx, issuer, string(jktB64))
+		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)

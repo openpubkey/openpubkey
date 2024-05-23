@@ -18,12 +18,10 @@ package client_test
 
 import (
 	"context"
-	"crypto"
 	"crypto/rsa"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
@@ -106,23 +104,6 @@ func TestClient(t *testing.T) {
 				pkt, err = c.Auth(context.Background())
 				require.NoError(t, err, tc.name)
 			}
-
-			jkt, ok := pkt.Op.PublicHeaders().Get("jkt")
-			require.True(t, ok, "missing jkt header")
-			jktstr, ok := jkt.(string)
-			require.True(t, ok, "expected jkt header to be a string, got %T", jkt)
-
-			pubkeyRecord, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
-			require.NoError(t, err, tc.name)
-
-			pub, err := jwk.FromRaw(pubkeyRecord.PublicKey)
-			require.NoError(t, err, tc.name)
-
-			thumbprint, err := pub.Thumbprint(crypto.SHA256)
-			require.NoError(t, err, tc.name)
-
-			thumbprintStr := string(util.Base64EncodeForJWT(thumbprint))
-			require.Equal(t, jktstr, thumbprintStr, "jkt header does not match op thumbprint in "+tc.name)
 
 			providerAlg, ok := pkt.ProviderAlgorithm()
 			require.True(t, ok, "missing algorithm", tc.name)

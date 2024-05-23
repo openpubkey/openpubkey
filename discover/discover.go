@@ -195,7 +195,7 @@ func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID stri
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
 }
 
-func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) (*PublicKeyRecord, error) {
+func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) (*PublicKeyRecord, error) {
 	jwks, err := f.fetchAndParseJwks(ctx, issuer)
 	if err != nil {
 		return nil, err
@@ -208,11 +208,11 @@ func (f *PublicKeyFinder) ByJTK(ctx context.Context, issuer string, jtk string) 
 		if err != nil {
 			return nil, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)
 		}
-		jtkOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
-		if jtk == string(jtkOfKeyB64) {
+		jktOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
+		if jkt == string(jktOfKeyB64) {
 			return NewPublicKeyRecord(key, issuer)
 		}
 	}
 
-	return nil, fmt.Errorf("no matching public key found for jtk %s", jtk)
+	return nil, fmt.Errorf("no matching public key found for jkt %s", jkt)
 }

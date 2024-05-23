@@ -153,8 +153,6 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
 func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, idToken []byte) (*discover.PublicKeyRecord, error) {
-	// TODO: We should support verifying by JKT if not kid exists in the header
-	// Created issue https://github.com/openpubkey/openpubkey/issues/137 to track this
 	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idToken)
 }
 
