@@ -1,14 +1,16 @@
 # PK Token
 
-OpenPubkey works by 
+OpenPubkey works by binding an identity's public key to that identity's OpenID Connect ID Token. This binding allows verifiers that have learned the identity's public key to check if an ID Token is bound that particular public key. To provide verifiers with all the needed information, we add this additional information as additional signatures to the ID Token. This is possible because ID Tokens are JSON Web Signatures (JWS) and JWS can support more than one signature. We call this ID Token extended with additional signatures a PK Token (Public Key Token).
+
+In this document we provide background on JSON Web Signatures (JWS), we breakdown how our PK Tokens function via an example PK Token and then finally provide a "Zoo" of all of the types of PK Tokens we use in OpenPubkey.
 
 ## JSON Web Signatures (JWS) and JSON Web Tokens (JWTs)
 
-A [JWS (JSON Web Signature)](https://www.rfc-editor.org/rfc/rfc7515.html) is a signed message format. The message which is signed is called the payload. It supports 1 or more signatures. Each signature has a protected header (`protected`) which specifies metadata about the signature such as the algorithm (`alg`) that was used to verify it or the key ID (`kid`) of the public key to verify the signature.
+A [JWS (JSON Web Signature)](https://www.rfc-editor.org/rfc/rfc7515.html) is a signed message format. The message which is signed is called the payload. It supports 1 or more signatures. Each signature has a protected header (denoted as `protected` in JSON) which specifies metadata about the signature such as the algorithm (`alg`) that was used to verify it and the key ID (`kid`) of the public key which should be used to verify the signature.
 
 ```json
-payload: "message payload"
-signatures: [
+"payload": "message payload"
+"signatures": [
   {
     "protected": {"alg": "RS256", "kid": "1234"},
     "signature": "signature-1"
@@ -24,38 +26,222 @@ signatures: [
 ]
 ```
 
-Note that each signature signs the payload and that signature's protected header. In the example above RSA signature-2 is RSA-SIGN(SK, ("message payload", "{"alg": "RS256", "kid": "1234"}")). All signature's sign the same payload, no signature signs another signature's protected header.
+Note that each signature signs the payload and that signature's protected header. In the example above RSA signature-2 is computed as  `RSA-SIGN(SK, ("message payload", {"alg": "RS256", "kid": "1234"}))`. All signatures sign the same payload, no signature signs another signature's protected header.
 
 
-A [JWT (JSON Web Token)](https://datatracker.ietf.org/doc/html/rfc7519) is a type of JWS used by one party to make claims another set of parties. The party making the claims is called the issuer and they include their identity in the JWT using the `iss` claim. JWT are defined as making only one signature, the signature of the issuer.
+[JWT (JSON Web Token)](https://datatracker.ietf.org/doc/html/rfc7519) is a type of JWS used by one party to make claims another set of parties. The party making the claims is called the issuer. The issuer includes their identity in the JWT using the `iss` claim. JWT are defined as having only one signature, the signature of the issuer.
 
 ```json
-payload: {
-  "iss": "https://accounts.google.com",
-  "claim": "claimvalue",
+"payload": {
+  "iss": "https://jwt.example.com",
+  "claim-1": "value-1",
+  "claim-2": "value-2",
 } 
-signatures: [
+"signatures": [
   {
-    "protected": {"alg": "RS256", "kid": "1234..."},
+    "protected": {"alg": "RS256", "kid": "1234"},
     "signature": "RSA signature-1"
   }
 ]
 ```
 
-An ID Token is a type of JWT used in OpenID Connect protocol to enable an OpenID Provider to make claims about an identity.
+An ID Token is a type of JWT used in the OpenID Connect protocol by an OpenID Provider to make claims about an identity. This is what a Google issued ID Token looks like:
 
+```JSON
+{"payload":{
+    "iss": "https://accounts.google.com",
+    "azp": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+    "aud": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+    "sub": "104852002444754136271",
+    "email": "anon.author.aardvark@gmail.com",
+    "email_verified": true,
+    "at_hash": "4yj5j65fR9VuqPDZYJTadA",
+    "nonce": "fsTLlOIUqtJHomMB2t6HymoAqJi-wORIFtg3y8c65VY",
+    "name": "Anonymous Author",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIdbWtaAGFsizjWVh7Q6C-XDBuSoUOpf7d7nGqgNQ-9yHmenNA=s96-c",
+    "given_name": "Anonymous",
+    "family_name": "Author",
+    "iat": 1722113587,
+    "exp": 1722117187},
+"signatures":[
+  {
+    "protected":{
+      "alg": "RS256",
+      "kid": "e26d917b1fe8de13382aa7cc9a1d6e93262f33e2",
+      "typ": "JWT"
+    },
+    "signature":"Zbli..."
+  }
+]}
+```
+
+## Breaking down a PK Token
+
+Now let's look at what happens when we extend this ID Token with additional signatures to create a PK Token. The PK Token has three signature, protected header pairs:
+
+1. The first signature (`typ=JWT`) is the OpenID provider's signature in the ID Token.
+2. The second signature (`typ=CIC`) is the  CIC (Client-Instance Claims) signature. This is generated by the identity's client. The CIC signature is required.
+3. The third signature (`typ=COS`) is the COS (Cosigner) signature. The Cosigner is a third party who has independently authenticated the identity. It exists to remove the OpenID Provider as a single point of compromise. The COS signature is optional and not every PK Token will have one.
+
+```JSON
+{"payload":{
+    "iss": "https://accounts.google.com",
+    "azp": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+    "aud": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+    "sub": "104852002444754136271",
+    "email": "anon.author.aardvark@gmail.com",
+    "email_verified": true,
+    "at_hash": "4yj5j65fR9VuqPDZYJTadA",
+    "nonce": "fsTLlOIUqtJHomMB2t6HymoAqJi-wORIFtg3y8c65VY",
+    "name": "Anonymous Author",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIdbWtaAGFsizjWVh7Q6C-XDBuSoUOpf7d7nGqgNQ-9yHmenNA=s96-c",
+    "given_name": "Anonymous",
+    "family_name": "Author",
+    "iat": 1722113587,
+    "exp": 1722117187},
+"signatures":[
+  {
+    "protected":{
+      "alg": "RS256",
+      "kid": "e26d917b1fe8de13382aa7cc9a1d6e93262f33e2",
+      "typ": "JWT"
+    },
+    "signature":"Zbli..."
+  },
+  {
+    "protected": {
+    "alg": "ES256",
+    "rz": "b9522b5c4cff90687ec6787236184659e077a619b82827227114108440fec26a",
+    "typ": "CIC",
+    "upk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "cvqyUFNs1OUdRcDSmzJfS7ynuTHAjlDqoeinCZy_r1Q",
+        "y": "Whl5jJUIz7ujFvlB5Hzhaz6DIlpyWQmIIA3J7VMj53o"
+    }},
+    "signature":"TBPZa..."
+  },
+  {
+    "protected":{
+      "alg": "ES256",
+      "auth_time": 1722113589,
+      "eid": "6e38311685191ac62e8647e8263f98ad1d57752dab14a5b83298c0d70fe19942",
+      "exp": 1722117189,
+      "iat": 1722113589,
+      "iss": "http://localhost:3003",
+      "kid": "b5eed4577745938ac3ed505229ed8b845bdbce5bd2a0820a2e5d405ceb836303",
+      "nonce": "a958dd0574393cc3fa0e423b4d060009b44ecc710d1ff7af0e4cc74b9fc99649",
+      "ruri": "http://mfa-cosigner.example.com:54435/mfacallback",
+      "typ": "COS"
+    },
+    "signature":"hiyDh..."
+  }
+]}
+```
+
+
+### CIC (Client-Instance Claims) Signature
+
+The Client-Instance is the identity's OpenID Connect client. The CIC are the claims made about the identity by this client. The CIC signature performs two functions. First, it provides the needed data to allow verifies to check that ID Token commits to the user's public key. Second, functions as a Proof-of-Possession showing that the identity's knows the signing key associated for the public key `upk`. This Proof-of-Possession prevents rogue key attacks in which a attackers associates their identity with another identity's public key and the attempts to claim they produced signatures produced by the other identity.
+
+Our example PK Token uses a *nonce-bound* to bind identity's public key to the ID Token. That is, the `nonce` value in the payload commits to the user's public key. By commitment we mean that the nonce has been set to be the hash of the identity's public key and associated metadata. 
+
+```
+nonce = SHA3(
+  Base64({"alg":"ES256",   
+    "rz":"301a510ffd19b4888cdec7b9dda62192cfa06d85936cabb1afdd1a015ad44137",
+    "typ":"CIC",
+    "upk":{"alg":"ES256","crv":"P-256","kty":"EC" "x":"8JAMvpmdrhiKJi9A79LHPj5CPKlyztHHEkCr6tntyq8", "y":"jRqKcX8wIU24ffb5GI6z9XlePqlP1DOxvlEwvp0wC5s"}
+  }))
+```
+
+The value which is hashed to generate the `nonce` value in the payload is exactly the value given in the protected header of the CIC. Put another way, the CIC allows the verifier to open the commitment to the identity's commitment in the nonce. The value `rz` is randomly chosen by the identity's client-instance to ensure that each time a nonce is generated it is always unique and random. The value `upk` is the identity's public key.
+
+
+### COS (Cosigner) Signature
+
+The Cosigner is a third party who issues this signature if they are able to authenticate the identity. This authentication must be independent of the OpenID Provider's authentication. The purpose of the Cosigner is enable OpenPubkey to maintain security even if the OpenID Provider becomes maliciously.
+
+Cosigning is an optional feature of OpenPubkey and OpenPubkey can be used without a cosigner. In such cases there is no COS signature.
+
+The claims in a COS signature are:
+
+* auth_time - When the cosigner authenticated the identity (unix epoch)
+* eid - Authentication id.
+* exp - Expiration time of cosigner signature  (unix epoch)
+* iat - Issued at time of this signature. May differ from auth_time because of refresh. (unix epoch)
+* iss - Issuer, the cosigner which issued this signature. This can be used to look up the cosigner JWKS URI to get this cosigner's public keys.
+* nonce - Nonce supplied by the user. This should not match the nonce in the payload.
+* ruri - Redirect URI that was used by the cosigner to send the client-instance the auth_code.
+
+### Signature Type (typ)
+
+We use the `typ` value in the protected header of each signature to distinguish the "type" of signature it is. This is already an established pattern with OpenID Provider signatures in ID Tokens having `typ=JWT`. Some OpenID Providers do not specify `typ`. Thus we classify a signature as being from the OpenID Provider if either `typ=JWT` or `typ` is not defined. Since the OpenPubkey client generates the CIC signature, we always set this to `typ=CIC`.
 
 ## PK Tokens
 
+OpenPubkey has a number of different types of PK Tokens. A full list includes:
 
-OpenPubkey has a number of types of signatures. We encode the type of a signature in a PK Token using the helpful `typ` (type) key in the protected header of each signature.
+* Nonce-bound PK Tokens
+* Audience-bound PK Tokens
+* Nonce-bound GQ PK Tokens
+* Audience-bound GQ PK Tokens
+* GQ-bound PK Tokens
+* ZKP-bound PK Tokens
 
-Explain the different types
+### Nonce-bound PK Tokens
+
+We have already looked at nonce-bound PK Tokens in the breakdown.
+
+### Nonce-bound (GQ) PK Tokens
+
+We have already looked at nonce-bound PK Tokens in the breakdown.
+
+ERH: Provide example
+
+### Audience-bound (GQ) PK Tokens
+
+Audience-bound PK Tokens are very similar to Nonce-Bound PK Token. The main difference is that instead of committing to the CIC in the `nonce` claim, we commit to the CIC in the  `aud` (audience) claim.
+
+User identity OpenID Connect ID Token issuance flows typically hardcode the `aud` but allow the user to specify the `nonce`. Machine identity OpenID Connect ID Token issuance flows do not use a `nonce` but they do allow the identity to specify a custom audience `aud`. To support machine identity.
+
+
+ERH: provide example of audience, explain encoding decoding 
+
+
+### GQ-Bound PK Tokens
+
+ERH: provide example of audience, explain encoding decoding 
+
+
+### ZK PK Tokens
+
+
+## PK Token Zoo
+
+| PK Token Type      | ALG | Supported OPs | Identity type |
+| -------------      |-------------- | ------------- |------------- |
+| Nonce-bound        |   |Google, Azure, Okta   | Human  |
+| Audience-bound (GQ)|    |Github, GCP  | Machine  |
+| GQ-bound           | alg=GQ256 |Gitlab  | Human, Machine  |
+| ZKP-bound          | alg=ZKP | Google, Azure, Okta, Github, GCP, Gitlab  |Human, Machine  |
+
+| OpenID Provider      | Supports               | Identity type |
+| -------------        |--------------          | ------------- |
+| Google, Azure, Okta, |  Nonce-bound           | Human  |
+| Github-Actions       |  Audience-bound (GQ)   | Machine  |
+| Gitlab-CI            |  GQ-bound              | Machine  |
+
+### Google
+
+### Github
+
+### Gitlab-CI
 
 
 
 ## Our JWS conventions
-
 
 ### The TYP pattern
 
