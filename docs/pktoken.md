@@ -140,7 +140,6 @@ Now let's look at what happens when we extend this ID Token with additional sign
 ]}
 ```
 
-
 ### CIC (Client-Instance Claims) Signature
 
 The Client-Instance is the identity's OpenID Connect client. The CIC are the claims made about the identity by this client. The CIC signature performs two functions. First, it provides the needed data to allow verifies to check that ID Token commits to the user's public key. Second, functions as a Proof-of-Possession showing that the identity's knows the signing key associated for the public key `upk`. This Proof-of-Possession prevents rogue key attacks in which a attackers associates their identity with another identity's public key and the attempts to claim they produced signatures produced by the other identity.
@@ -207,12 +206,126 @@ Audience-bound PK Tokens are very similar to Nonce-Bound PK Token. The main diff
 User identity OpenID Connect ID Token issuance flows typically hardcode the `aud` but allow the user to specify the `nonce`. Machine identity OpenID Connect ID Token issuance flows do not use a `nonce` but they do allow the identity to specify a custom audience `aud`. To support machine identity.
 
 
-ERH: provide example of audience, explain encoding decoding 
-
+```JSON
+{"payload":{
+    "jti": "d41b4ff2-6f05-41ce-98e8-f0c06e05902f",
+    "sub": "repo:openpubkey/gha-test:ref:refs/heads/main",
+    "aud": "LEQE668yEBBpVxKfi4SvIkl8wFxn55TdzNF79aEomIA",
+    "ref": "refs/heads/main",
+    "sha": "6b906a4153c61a2486973a1347db8300dc9ce3ee",
+    "repository": "openpubkey/gha-test",
+    "repository_owner": "openpubkey",
+    "repository_owner_id": "145685596",
+    "run_id": "10133323083",
+    "run_number": "38",
+    "run_attempt": "1",
+    "repository_visibility": "public",
+    "repository_id": "771245825",
+    "actor_id": "274814",
+    "actor": "EthanHeilman",
+    "workflow": "Go Checks",
+    "head_ref": "",
+    "base_ref": "",
+    "event_name": "push",
+    "ref_protected": "false",
+    "ref_type": "branch",
+    "workflow_ref": "openpubkey/gha-test/.github/workflows/test.yml@refs/heads/main",
+    "workflow_sha": "6b906a4153c61a2486973a1347db8300dc9ce3ee",
+    "job_workflow_ref": "openpubkey/gha-test/.github/workflows/test.yml@refs/heads/main",
+    "job_workflow_sha": "6b906a4153c61a2486973a1347db8300dc9ce3ee",
+    "runner_environment": "github-hosted",
+    "iss": "https://token.actions.githubusercontent.com",
+    "nbf": 1722185193,
+    "exp": 1722186093,
+    "iat": 1722185793}
+"signatures":[
+  {
+    "protected":{
+    "alg": "GQ256",
+    "jkt": "UJCvHZiaJcaQDc2tJbP_kgtgxB-OcKd1lwD76M3riUY",
+    "kid": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6Ikh5cTROQVRBanNucUM3bWRydEFoaHJDUjJfUSIsImtpZCI6IjFGMkFCODM0MDRDMDhFQzlFQTBCQjk5REFFRDAyMTg2QjA5MURCRjQifQ",
+    "typ": "JWT"},
+    "signature":"h4lbgJd... (5504 base64 characters)"
+  },
+  {
+    "protected": {
+    "alg": "ES256",
+    "rz": "bca0353ea63adbfce72032ab7d8fb7940def3488ca0765546a89d46760113c70",
+    "typ": "CIC",
+    "upk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "5BP8B8bXgf0OFxHLJS5LSFlPOsfdIvf2tJU_3mwTGNE",
+        "y": "7KzWJi88qdZOI_j-kUG2aPjkzEA7IGMXFp1f-jdt28I"
+    }},
+    "signature":"5dfaFj..."
+  }
+]}
+```
 
 ### GQ-Bound PK Tokens
 
-ERH: provide example of audience, explain encoding decoding 
+ERH: provide example of audience, explain encoding decoding
+
+```JSON
+{"payload":{
+    "namespace_id": "84329880",
+    "namespace_path": "openpubkey",
+    "project_id": "56004559",
+    "project_path": "openpubkey/gl-test",
+    "user_id": "20558032",
+    "user_login": "ethan.r.heilman",
+    "user_email": "ethan.r.heilman@gmail.com",
+    "user_access_level": "owner",
+    "pipeline_id": "1391152406",
+    "pipeline_source": "push",
+    "job_id": "7446098166",
+    "ref": "main",
+    "ref_type": "branch",
+    "ref_path": "refs/heads/main",
+    "ref_protected": "true",
+    "groups_direct": [
+        "openpubkey"
+    ],
+    "runner_id": 12270852,
+    "runner_environment": "gitlab-hosted",
+    "sha": "9898863c7dcd844a6fc3c70191769b8d07567f57",
+    "project_visibility": "public",
+    "ci_config_ref_uri": "gitlab.com/openpubkey/gl-test//.gitlab-ci.yml@refs/heads/main",
+    "ci_config_sha": "9898863c7dcd844a6fc3c70191769b8d07567f57",
+    "jti": "3a8b958c-0117-4d61-8d84-90b186efc4e7",
+    "iat": 1722189366,
+    "nbf": 1722189361,
+    "exp": 1722192966,
+    "iss": "https://gitlab.com",
+    "sub": "project_path:openpubkey/gl-test:ref_type:branch:ref:main",
+    "aud": "OPENPUBKEY-PKTOKEN:1234"
+},
+"signatures":[
+  {"protected":{
+    "alg": "GQ256",
+    "cic": "HVIF0m3zCwEsAZSFjTiyQFU982qF2UZXSpCE__F6IbE",
+    "jkt": "4i3sFE7sxqNPOT7FdvcGA1ZVGGI_r-tsDXnEuYT4ZqE",
+    "kid": "eyJraWQiOiI0aTNzRkU3c3hxTlBPVDdGZHZjR0ExWlZHR0lfci10c0RYbkV1WVQ0WnFFIiwidHlwIjoiSldUIiwiYWxnIjoiUlMyNTYifQ",
+    "typ": "JWT"
+    },
+  "signature":"18nN... (5504 base64 characters)"},
+  {"protected":{
+    "alg": "ES256",
+    "rz": "600e69b29d89651591836d2598f6813a9a74b9e4124ddb81bee1561299c3590e",
+    "typ": "CIC",
+    "upk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "c63goURlnP5vbJbt4chtOHTHwg6Yvy4h6_aw3Zc2A5o",
+        "y": "pfsH8--s5c8u4DxXto0sN4g5n6SjlXn1WjzaKXrr9b4"
+    }
+  },
+  "signature":"xpt6tTEzAqPrXCzAL6UCdiIliPPejRmn2sW1_RSxCt3WUQN38s3z_MURF3Bd8mlncU1UhWwSMCAcwDijm-Hc6w"}
+]}
+```
 
 
 ### ZK PK Tokens
