@@ -18,6 +18,7 @@ package gitlab_example
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/openpubkey/openpubkey/client"
@@ -59,7 +60,11 @@ func SignWithGitlab(opts ...Opts) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("pkt:", pktJson)
+	fmt.Println("pkt:", string(pktJson))
+
+	pktCom, _ := pkt.Compact()
+	b64pktCom := base64.StdEncoding.EncodeToString(pktCom)
+	fmt.Println("pkt compact:", string(b64pktCom))
 
 	// Create a verifier to check that the PK Token is well formed
 	// The OPK client does this as well, but for the purposes of the
