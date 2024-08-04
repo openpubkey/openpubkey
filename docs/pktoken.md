@@ -126,6 +126,13 @@ In a ID Token or JWT the claims the issuer is making are set in the payload. How
 
 Our solution is to allow signing parties to specify additional claims in their protected header such as the identity's public key (`upk`).This enables the signing party to add claims without requiring any new signatures from any other parties. The protected header in which the claims are made makes it clear who added these claims.
 
+#### Required Claims
+
+In PK Tokens the following claims are required and assumed to exist `alg`, `typ` and `kid`. The one exception is that since OP (OpenID Providers) generate the OP signature, they may not include `typ` or `kid`. However in all other signatures in a PK Token, OpenPubkey enforces that `alg`, `typ` and `kid` are specified.
+
+#### Custom Claims
+
+OpenPubkey allows third party to extend OpenPubkey and specify any custom claims in the protected header of PK Token signatures. The only rule is that custom claims can not use the keys: `alg`, `typ` and `kid`.
 
 ### Signature Type (typ)
 
@@ -159,7 +166,6 @@ The CIC always contains these claims (and may contain other claims)
 * `typ` - this value is always set to `CIC` to identify this protected header and signature pair as the CIC.
 
 
-
 #### COS (Cosigner) Signature
 
 The Cosigner is a third party who issues this signature if they are able to authenticate the identity. This authentication must be independent of the OpenID Provider's authentication. The purpose of the Cosigner is enable OpenPubkey to maintain security even if the OpenID Provider becomes maliciously.
@@ -176,23 +182,22 @@ The claims in a COS signature are:
 * nonce - Nonce supplied by the user. This should not match the nonce in the payload.
 * ruri - Redirect URI that was used by the cosigner to send the client-instance the auth_code.
 
-
-
 ## Types of PK Tokens
 
 In this section we use actual PK Tokens from to illustrate the types of PK Tokens.
 
-
 OpenPubkey has a number of different types of PK Tokens. A full list includes:
 
-* Nonce-bound PK Tokens
-* Audience-bound PK Tokens
-* Nonce-bound GQ PK Tokens
-* Audience-bound GQ PK Tokens
-* GQ-bound PK Tokens
-* ZKP-bound PK Tokens
+| PK Token Type                 | OP Support               | Identity type |
+| -------------                 |--------------            | ------------- |
+| Nonce-Commitment              | Google, Azure, Okta      | Human         |
+| GQ Signed Nonce-Commitmnt     | Google, Azure, Okta      | Human         |
+| GQ Signed Audience-Commitment | Github, GCP              | Machine       |
+| GQ-bound                      | Gitlab-CI                | Machine       |
+| ZKP-bound PK Tokens           | Google, Azure, Okta, Github, Gitlab-CI | Human+Machine|
 
-### Nonce-Commitment PK Token (Google)
+
+### Nonce-Commitment PK Token - Google Example
 
 This PK Token is an Google issued ID Token that has been extended with two signatures.
 
@@ -272,11 +277,9 @@ Notice that the value which is hashed to generate the `nonce` value in the paylo
 
 We have included in an Cosigner signature in this example to show what it looks like. Given that the Cosigner signature does not not differ much between examples we have omitted it from the other examples. Note that PK Tokens can function without a Cosigner signature, it is a part of the protocol that a verifier can choose to require or not require.
 
-### GQ Signed Nonce-bound PK Tokens
+### GQ Signed Nonce-Commitmnt PK Tokens - Google Example
 
-This PK Token is for the same Google account as the prior example including the same use of the nonce-commitment, the only difference is that we have replaced RSA signature issued by Google with a GQ Signature.
-
-
+This PK Token is for the same Google account as the prior example including the same use of the nonce-commitment, the only difference is that we have replaced Google's RSA signature and protected header with a GQ Signature.
 
 
 ```JSON
@@ -338,26 +341,49 @@ Currently, an OpenPubkey token contains the ID Token from the OpenID Provider. I
 
 Note that in cases where a PK Token mere used to authenticate to a server and is not made publicly avaliable, no GQ signature is needed. For instance when OpenPubkey is used in SSH, SSH3, TLS and web authentication we do not need to use GQ signatures, but when OpenPubkey is used to for software artifact signing where the signatures and PK Tokens will be posted to a public ledger, then GQ signatures or Zero Knowledge Proofs should be used.
 
+
 #### GQ Signature Protected Header
 
 When we replace an RSA signature in a PK Token with a GQ signature, we also replace the protected header of the RSA signature. GQ signature's not only provide a Proof-of-Knowledge of the original RSA Signature, but they also enable anyone who knows the original RSA signature to sign a message using the RSA signature as the signing key. Using this property the GQ signature also acts a signature, signing the payload and the new protected header using the original RSA signature as the signing secret.
 
-The new protected header signals it is a GQ signature protected header by setting `alg=GQ256`. 
+The required claims in a GQ Signture protected header are:
 
-As verifying the GQ signature requires the original protected header of the RSA signature we set the `kid` in the new protected header to the base64 encoding of the original protected header.
+* **alg** - To signal that the GQ protected header is for a GQ signature we set `alg=GQ256`.
+* **kid** -  We set the kid (Key ID) of the new GQ protected to the Base64 encoding of the original RSA protected header `"kid": Base64({"alg":"RS256","kid":"e26d917b1fe8de13382aa7cc9a1d6e93262f33e2","typ":"JWT"})`. This is required because verifying the GQ signature requires the original protected header of the RSA signature.
+* **jtk** - To ensure we can always lookup and find the correct public key to verify a GQ signed ID Token, we record the `jkt` (JSON Key Thumbprint) of the OP's public key in the GQ signture's protected header. The original OP's public key for the RSA signature is needed to verify the GQ signature. This is needed because OP (OpenID Providesr) are not required to set a `kid` (Key ID) or use a unique `kid` for the public keys they in their JWKS. While it is extremely rare for an OP to not use an kid or to recycle a kid, such behavior is standards compliant and we must ensure we can handle this behavior and uniquely identify the OP public key used to verify the signature.
+* **typ** - The typ (type) is always `typ=JWT` to signal is the OP's signature.
 
+#### GQ Signing 
+
+We sign the payload and the GQ protected header using the RSA signature as the singing key.
+
+For the complete details see our package [gq.SignJWT](https://github.com/openpubkey/openpubkey/blob/main/gq/sign.go#L108)
+```golang 
+origHeaders, payload, signature, err := jws.SplitCompact(jwt)
+	if err != nil {
+		return nil, err
+	}
+
+	signingPayload := util.JoinJWTSegments(origHeaders, payload)
+
+	headers := jws.NewHeaders()
+	err = headers.Set(jws.AlgorithmKey, GQ256)
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
+	err = headers.Set(jws.KeyIDKey, string(origHeaders))
+	if err != nil {
+		return nil, err
+	}
 ```
-"kid": Base64({"alg":"RS256","kid":"e26d917b1fe8de13382aa7cc9a1d6e93262f33e2","typ":"JWT"})
-```
 
-OP (OpenID Provider) are not required to set a `kid` (Key ID) or use a unique `kid` for the public keys they in their JWKS. While it is extremely rare for an OP to not use an kid or to recycle a kid, such behavior is standards compliant and we must ensure we can handle this behavior. To ensure we can always lookup and find the correct public key to verify a GQ signed ID Token, we record the `jkt` (JSON Key Thumbprint) of the OP's public key in the GQ signture's protected header. The original OP's public key for the RSA signature is needed to verify the GQ signature.
-
-### Audience-bound (GQ) PK Tokens
+### GQ Signed Audience-bound PK Tokens - GitHub Example
 
 Audience-bound PK Tokens are very similar to Nonce-Bound PK Token. The main difference is that instead of committing to the CIC in the `nonce` claim, we commit to the CIC in the  `aud` (audience) claim.
-
-User identity OpenID Connect ID Token issuance flows typically hardcode the `aud` but allow the user to specify the `nonce`. Machine identity OpenID Connect ID Token issuance flows do not use a `nonce` but they do allow the identity to specify a custom audience `aud`. To support machine identity.
-
 
 ```JSON
 {"payload":{
@@ -417,9 +443,38 @@ User identity OpenID Connect ID Token issuance flows typically hardcode the `aud
 ]}
 ```
 
-### GQ-Bound PK Tokens
 
-ERH: provide example of audience, explain encoding decoding
+#### Audience-Commitment
+
+Machine identity OpenID Connect ID Token issuance flows typically allow the identity requesting the ID Token to specify any value for the audience `aud`. Most machine identity flows do not use a `nonce`, so we must repurpose the `aud` value to commit to the identity's public key.
+
+Our example PK Token uses a *audience-commitment* to bind the identity's public key `upk` to the ID Token. That is, the `aud` value in the payload commits to the user's public key. We use the `aud` in exactly the same way as the `nonce` commitmment:
+
+```
+nonce = SHA3(
+  Base64({"alg": "ES256",
+    "rz": "bca0353ea63adbfce72032ab7d8fb7940def3488ca0765546a89d46760113c70",
+    "typ": "CIC",
+    "upk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "5BP8B8bXgf0OFxHLJS5LSFlPOsfdIvf2tJU_3mwTGNE",
+        "y": "7KzWJi88qdZOI_j-kUG2aPjkzEA7IGMXFp1f-jdt28I"
+    }))
+```
+
+User identity OpenID Connect ID Token issuance flows set the `aud` to a unique identifier to scope the ID Token to a particular service or OIDC client. This is done, among other reasons to prevent a malicious service from replaying the ID Tokens it receives from users to impersonate those users to a another service. Allowing the requesting party to specify the `aud` as is done in machine identity would be wildly insecure for user identity, but is safe and is the primary pattern in machine identity flows.
+
+#### GQ Signatures Are Required For Aud-Commitment PK Tokens
+
+The main usecase of machine identity aud-commitment PK Tokens is to create publicly published signatures which GQ signatures or ZK proofs should always be used, we require the use of GQ signatures. This eliminates the risks of accidental misconfiguraitons where a GQ signatures should be but are not used.
+
+### GQ-Bound PK Tokens (Gitlab-CI Example)
+
+GQ-bound PK Tokens are designed for the case where neither a nonce-commitment or an aud-commitment are avaliable. Instead the GQ signature itself functions as the binding between the identity's public key and the ID Token. So far we have only encountered one OP (OpenID Provider) which can't support a nonce-commitment or an aud-commitment: gitlab-CI.
+
+GQ-bound PK Tokens should only be used if an OP can not support nonce or audience-scommitment PK Tokens.
 
 ```JSON
 {"payload":{
@@ -480,32 +535,83 @@ ERH: provide example of audience, explain encoding decoding
 ]}
 ```
 
+#### GQ-binding 
 
-### ZK PK Tokens
+For Google and github we bind the CIC (Client Instance Claims) that contains the user's public key to the ID Token by putting a hashed commitment to the CIC in one of the claims of the ID Token. For Google we put the commitment in the nonce claim, for github we put the commitment in the audience (aud) claim. Gitlab-CI does not provide an nonce claim and does not allow a running job/workflow to specify the aud. While Gitlab does allow customizing the `aud` (audience) claim, this custom `aud` can not be set per request, but it is a fixed configuration value. As such we can not use audience-commitment PK Tokens for gitlab-CI. As gitlab-CI is for machine identity it does not support specifying a nonce and thus nonce-commitment PK Tokens are not avaliable either.
+
+GQ-binding solves this problem. Remember that with GQ signatures we use the OP's RSA signature on the ID Token to generate a GQ signature that signs both the payload and the GQ protected header. Then we delete the RSA signature. We can simply put the commitment to the identity's public key, a.k.a., the hash of the CIC, in the protected header of the GQ signed ID Token and then when we GQ sign the payload and the protected header the GQ signature will also sign this commitment. GQ-bound PK Tokens were introduced in PR: [Adds gitlab-ci OP using GQ commitment binding](https://github.com/openpubkey/openpubkey/pull/143).
+
+In a GQ-bound PK Token the GQ protected header contains a claim `cic` where:
+
+```
+cic = "SHA3(
+  Base64({"alg": "ES256",
+    "rz": "600e69b29d89651591836d2598f6813a9a74b9e4124ddb81bee1561299c3590e",
+    "typ": "CIC",
+    "upk": {
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "c63goURlnP5vbJbt4chtOHTHwg6Yvy4h6_aw3Zc2A5o",
+        "y": "pfsH8--s5c8u4DxXto0sN4g5n6SjlXn1WjzaKXrr9b4"
+    }))
+```
+
+and the `aud` is always prefixed with `"OPENPUBKEY-PKTOKEN:"`. In the next section we explain why we require the audience to be prefixed this way.
+
+#### Security
+
+If configured correctly, GQ-bound PK Tokens offer the same security as nonce or audience bound PK Tokens. However GQ-bound PK Tokens do introduce a security risk from misconfiguration not present in the other cases. The risk is that if a GQ signature is not used and an attacker learns the ID Token, the attacker can compute the GQ signature from the RSA signature and insert their own public key.
+
+We mitigate the risk by:
+
+* Requiring that PK Tokens that use the GQ signature to bind the CIC to the ID TOken must have "OPENPUBKEY-PKTOKEN:" prefixed in the audience (`aud`) and that they are not considered valid PK Tokens if they do not have this prefix. This also prevents attacks in which an ID Token not intended for use as a PK Token is replayed in a PK Token. This rule does not apply to other types of PK Tokens.
+* Ensuring that OpenPubkey clients always enforce the deletion of the RSA signature and only verify GQ-Bound PK Tokens for OPs like gitlab-CI whcih can not support nonce or audience commitments.
+
+### ZK PK Tokens (Under development)
+
+Similar to our approach of GQ Signatures we can use ZKP (Zero Knowledge Proofs) to provide privacy enhanced PK Tokens and if needed use the ZKP as a binding mechanism. This is currently under discussion in the issue: [Proposed zklogin JWS](https://github.com/openpubkey/openpubkey/issues/101).
 
 
-## PK Token Zoo
+## PK Token Compact Serialization
 
-| PK Token Type      | ALG | Supported OPs | Identity type |
-| -------------      |-------------- | ------------- |------------- |
-| Nonce-bound        |   |Google, Azure, Okta   | Human  |
-| Audience-bound (GQ)|    |Github, GCP  | Machine  |
-| GQ-bound           | alg=GQ256 |Gitlab  | Human, Machine  |
-| ZKP-bound          | alg=ZKP | Google, Azure, Okta, Github, GCP, Gitlab  |Human, Machine  |
+[RFC-7515 Section 7.1](https://datatracker.ietf.org/doc/html/rfc7515#section-7.1) describes a compact serialization format for a JWS (JSON Web Signatures):
 
-| OpenID Provider      | Supports               | Identity type |
-| -------------        |--------------          | ------------- |
-| Google, Azure, Okta, |  Nonce-bound           | Human  |
-| Github-Actions       |  Audience-bound (GQ)   | Machine  |
-| Gitlab-CI            |  GQ-bound              | Machine  |
+```
+BASE64URL(UTF8(JWS Protected Header)) || '.' ||
+BASE64URL(JWS Payload) || '.' ||
+BASE64URL(JWS Signature)
+```
 
-### Google
+This compact representation does not support a JWS with more than one signature. As our PK Tokens have at least two signatures we invented a compact serialization format for a JWS with more than one signature:
 
-### Github
+```
+BASE64URL(JWS Payload) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-OP)) || ':' ||
+BASE64URL(UTF8(JWS Signature-OP)) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-CIC)) || ':' ||
+BASE64URL(UTF8(JWS Signature-CIC)) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-COS)) || ':' ||
+BASE64URL(UTF8(JWS Signature-COS)) || ':' ||
+```
 
-### Gitlab-CI
 
+### Refreshed Payload and Signature
 
+If this JWS represents a PK Token, then we may wish to refresh the ID Token. Refreshed ID Token's typically do not contain the nonce in the initial ID Token. As such we may want to transmit both the initial ID Token and the Refreshed ID Token. To do this we use the compact representation:
+
+```
+BASE64URL(JWS Payload) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-OP)) || ':' ||
+BASE64URL(UTF8(JWS Signature-OP)) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-CIC)) || ':' ||
+BASE64URL(UTF8(JWS Signature-CIC)) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-COS)) || ':' ||
+BASE64URL(UTF8(JWS Signature-COS)) || '.' ||
+BASE64URL(JWS Refreshed Payload) || '.' ||
+BASE64URL(UTF8(JWS Refreshed Protected Header-OP)) || ',' ||
+BASE64URL(UTF8(JWS Refreshed Signature-OP)) || '.' ||
+```
 
 ## Our JWS conventions
 
@@ -525,10 +631,26 @@ In a JWT the claims the issuer is making are set in the payload. However this is
 
 Our solution is to allow signing parties to specify additional claims in their protected header. This enables the party to add claims without requiring any new signatures from any other parties and also makes it clear who added these claims.
 
-### Compact representations of a JWS with ore two or more signatures
+### Compact representations of a JWS with two or more signatures
+[RFC-7515 Section 7.1](https://datatracker.ietf.org/doc/html/rfc7515#section-7.1) describes a compact serialization format for a JWS (JSON Web Signatures):
 
+```
+BASE64URL(UTF8(JWS Protected Header)) || '.' ||
+BASE64URL(JWS Payload) || '.' ||
+BASE64URL(JWS Signature)
+```
 
-### Signature wrapping
+This compact representation does not support a JWS with more than one signature. As our PK Tokens have at least two signatures we invented a compact serialization format for a JWS with more than one signature:
 
-GQ Signatures, ZKP
+```
+BASE64URL(JWS Payload) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-1)) || ':' ||
+BASE64URL(UTF8(JWS Signature-1)) || ':' ||
+BASE64URL(UTF8(JWS Protected Header-2)) || ':' ||
+BASE64URL(UTF8(JWS Signature-2)) || ':' ||
+...
+BASE64URL(UTF8(JWS Protected Header-N)) || ':' ||
+BASE64URL(UTF8(JWS Signature-N))
+```
 
+We use `:` as a delimiter rather than `.` to avoid confusion arrising from a someone attempting to parse this as a standard single singature JWS. 
