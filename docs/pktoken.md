@@ -53,7 +53,7 @@ An ID Token is a type of JWT used in the OpenID Connect protocol by an OP (OpenI
     "aud": "audience-id",
     "sub": "104852002444754136271",
     "nonce": "fsTLlOIUqtJHomMB2t6HymoAqJi-wORIFtg3y8c65VY",
-    "email": "alice@example.com",
+    "email": "alice@example.com"},
 "signatures":[
   {
     "protected":{
@@ -76,7 +76,7 @@ Now let's look at what happens when we extend this ID Token with additional sign
     "aud": "audience-id",
     "sub": "104852002444754136271",
     "nonce": "fsTLlOIUqtJHomMB2t6HymoAqJi-wORIFtg3y8c65VY",
-    "email": "alice@example.com",
+    "email": "alice@example.com"},
 "signatures":[
   {
     "protected":{
