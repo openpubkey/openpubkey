@@ -34,7 +34,7 @@ In this document we provide needed background on JSON Web Signatures (JWS), ID T
   - [PK Token Compact Serialization](#pk-token-compact-serialization)
     - [Refreshed Payload and Signature](#refreshed-payload-and-signature)
 - [Notes](#notes)
-  - [GQ Signatures](#gq-signatures-1)
+  - [GQ Signatures Background](#gq-signatures-background)
   - [Our JWS Conventions](#our-jws-conventions)
     - [The TYP Pattern](#the-typ-pattern)
     - [Protected Header Claims](#protected-header-claims-1)
@@ -205,7 +205,7 @@ In our PK Token zoo below we describe four different mechanisms that the CIC can
 
 This is signature of the OpenID Provider that created the payload and signed it to create the ID Token. This signature is responsible for binding the identity claims in the payload to that identity's public key.
 
-Typically OP signature/protected header along with the payload is the ID Token. For some more advanced forms of PK Tokens such as GQ or ZK PK Tokens, we transform OP signature and protected header. In these cases, you can no longer recover the ID Token from the PK Token, but even when we alter the OP Signature and protected header in this way, we don't break the cryptographic binding between payload and OpenID Provider that the signature provides.
+Typically OP signature/protected header along with the payload is the ID Token. For some more advanced forms of PK Tokens such as GQ or ZK PK Tokens, we transform OP signature and protected header. In these cases, you can no longer recover the ID Token from the PK Token, but even when we alter the OP signature and protected header in this way, we don't break the cryptographic binding between payload and OpenID Provider that the signature provides.
 
 Some OpenID Providers do not specify `typ`. To get around this we classify a signature as being from the OpenID Provider if either `typ=JWT` or `typ` is not defined.
 
@@ -331,7 +331,7 @@ We have included in a Cosigner signature in this example to show what what one l
 
 ### GQ Signed Nonce-Commitment PK Tokens - Google Example
 
-This PK Token is for the same Google account as the prior example including the same use of the nonce-commitment, the only difference is that we have replaced Google's RSA signature and protected header with a GQ Signature.
+This PK Token is for the same Google account as the prior example including the same use of the nonce-commitment, the only difference is that we have replaced Google's RSA signature and protected header with a GQ signature.
 
 ```JSON
 {
@@ -383,21 +383,23 @@ This PK Token is for the same Google account as the prior example including the 
 
 #### GQ Signatures
 
-A [GQ (Guillou and Quisquater) signature](https://link.springer.com/content/pdf/10.1007/0-387-34799-2_16.pdf) is a a [Proof of Knowledge (PoK)](https://en.wikipedia.org/wiki/Proof_of_knowledge) of an RSA signature that keeps the RSA signature secret. It provides the same guarantee that the ID Token was signed by OpenID Provider, but it keeps the original RSA signature secret, preventing the ID Token in the PK Token from being used an ID Token. This works because a standard OpenID Connect-compliant service only accepts RSA signature and so will rejected an ID Token that has a GQ signature instead.
+A [GQ (Guillou and Quisquater) signature](https://link.springer.com/content/pdf/10.1007/0-387-34799-2_16.pdf) is a [Proof of Knowledge (PoK)](https://en.wikipedia.org/wiki/Proof_of_knowledge) of an RSA signature that keeps the RSA signature secret. It provides the same guarantee that the ID Token was signed by OpenID Provider, but it keeps the original RSA signature secret, preventing the ID Token in the PK Token from being used an ID Token. This works because a standard OpenID Connect-compliant service only accepts RSA signature and so will reject an ID Token that has a GQ signature instead.
 
-Why do this? A non-GQ PK Token contains the ID Token signed and issued by the OP ( OpenID Provider). If the PK Token anyone who sees it could extract the ID Token including the signature issued by OP from the PK Token and then attempt to replay this ID Token to authenticate as the subject (remember ID Tokens are bearer authentication secrets). A correctly configured service would reject such a replayed ID Token because the audience (`aud`) value in the ID Token would not match the audience that the service expects. This is because ID Tokens issued for OpenPubkey will have a different audience than an ID Token issued for use in another service. Unfortunately, a common misconfiguration is that services do not check the audience claim in the ID Token. To prevent such replay attacks in OpenPubkey we use GQ signatures when a PK Token will be publicly posted.
+**Why do this?** A non-GQ PK Token contains the ID Token signed and issued by the OP (OpenID Provider).
+Anyone who sees hte PK Token could extract the ID Token including the RSA signature issued by OP from the PK Token and then to replay this ID Token to authenticate as the subject (remember ID Tokens are bearer authentication secrets).
+A correctly configured service would reject such a replayed ID Token because the audience (`aud`) value in the ID Token would not match the audience that the service expects. This is because ID Tokens issued for OpenPubkey will have a different audience than an ID Token issued for use in another service. Unfortunately, a common misconfiguration is that services do not check the audience claim in the ID Token. **To prevent such replay attacks in OpenPubkey we use GQ signatures when a PK Token will be publicly posted.**
 
 Note that in cases where a PK Token is merely used to authenticate to a server and is not made publicly available, no GQ signature is needed. For instance when OpenPubkey is used in SSH, SSH3, TLS and web authentication we do not need to use GQ signatures. When OpenPubkey is used for software artifact signing where the signatures and PK Tokens will be posted to a public ledger, then GQ signatures or Zero Knowledge Proofs should be used.
 
 #### GQ Signature Protected Header
 
-When we replace an RSA signature in a PK Token with a GQ signature, we also replace the protected header of the RSA signature. GQ signatures not only provide a Proof-of-Knowledge of the original RSA Signature, but they also enable anyone who knows the original RSA signature to sign a message using the RSA signature as the signing key. Using this property the GQ signature acts a signature, signing the payload and the new protected header using the original RSA signature as the signing secret.
+When we replace an RSA signature in a PK Token with a GQ signature, we also replace the protected header of the RSA signature. GQ signatures not only provide a Proof-of-Knowledge of the original RSA signature, but they also enable anyone who knows the original RSA signature to sign a message using the RSA signature as the signing key. Using this property the GQ signature acts a signature, signing the payload and the new protected header using the original RSA signature as the signing secret.
 
 The required claims in a GQ signature protected header are:
 
 * **alg** - To signal that the GQ protected header is for a GQ signature we set `alg=GQ256`.
 * **kid** -  We set the `kid` (Key ID) of the new GQ protected to the Base64 encoding of the original RSA protected header `"kid": Base64({"alg":"RS256","kid":"e26d917b1fe8de13382aa7cc9a1d6e93262f33e2","typ":"JWT"})`. This is required because verifying the GQ signature requires the original protected header of the RSA signature.
-* **jtk** - To ensure we can always lookup and find the correct public key to verify a GQ signed ID Token, we record the `jkt` (JSON Key Thumbprint) of the OP's public key in the GQ signature's protected header. The original OP's public key for the RSA signature is needed to verify the GQ signature. This is needed because OP (OpenID Provider) are not required to set a `kid` (Key ID) or use a unique `kid` for the public keys they in their JWKS. While it is extremely rare for an OP to not use an kid or to recycle a kid, such behavior is standards compliant and we must ensure we can handle this behavior and uniquely identify the OP public key used to verify the signature.
+* **jtk** - To ensure we can always lookup and find the correct public key to verify a GQ signed ID Token, we record the `jkt` (JSON Key Thumbprint) of the OP's public key in the GQ signature's protected header. The original OP's public key for the RSA signature is needed to verify the GQ signature. This is needed because OP (OpenID Provider) are not required to set a `kid` (Key ID) or use a unique `kid` for the public keys they use in their JWKS. While it is extremely rare for an OP to not use a `kid` or to recycle a `kid`, such behavior is standards compliant and we must ensure we can handle this behavior and uniquely identify the OP public key used to verify the signature.
 * **typ** - The typ (type) is always `typ=JWT` to signal is the OP's signature.
 
 #### GQ Signing
@@ -506,15 +508,15 @@ nonce = SHA3(
     }}))
 ```
 
-User identity ID Token issuance flows set the `aud` to a unique identifier to scope the ID Token to a particular service or OIDC client. This is done, among other reasons to prevent a malicious service from replaying the ID Tokens it receives from users to impersonate those users to a another service. Allowing the requesting party to specify the `aud` as is done in machine identity would be insecure for user identity. However it is both secure and the primary pattern in machine identity flows.
+User identity ID Token issuance flows set the `aud` to a unique identifier to scope the ID Token to a particular service or OIDC client. This is done, among other reasons to prevent a malicious service from replaying the ID Tokens it receives from users to impersonate those users to another service. Allowing the requesting party to specify the `aud` as is done in machine identity would be insecure for user identity. However it is both secure and the primary pattern in machine identity flows.
 
 #### GQ Signatures Are Required For Aud-Commitment PK Tokens
 
-The main use case of machine identity audience-commitment PK Tokens is to create publicly published signatures. As in such cases GQ signatures or ZK proofs should always be used, in such cases we require the use of GQ signatures. This eliminates the risks of accidental misconfigurations where a GQ signature should be used but is not used.
+The main use case of machine identity audience-commitment PK Tokens is to create publicly published signatures. In such cases, GQ signatures or ZK proofs should always be used. This eliminates the risks of accidental misconfigurations where a GQ signature should be used but is not used.
 
 ### GQ-Commitment PK Tokens (Gitlab-CI Example)
 
-GQ-commitment PK Tokens are designed for the case where a OP can not support a nonce-commitment or an audience-commitment. Instead the GQ signature itself functions as the binding between the identity's public key (and CIC protected header) and the ID Token. So far we have only encountered one OP which can't support a nonce-commitment or an aud-commitment: gitlab-CI.
+GQ-commitment PK Tokens are designed for the case where an OP can not support a nonce-commitment or an audience-commitment. Instead the GQ signature itself functions as the binding between the identity's public key (and CIC protected header) and the ID Token. So far we have only encountered one OP which can't support a nonce-commitment or an aud-commitment: GitLab-CI.
 
 **Critical:** GQ-commitment PK Tokens should only be used if an OP can not support nonce or audience-commitment PK Tokens. Never verify a GQ-bound PK Token unless the issuing OP only supports GQ-bound PK Tokens.
 
@@ -579,9 +581,9 @@ GQ-commitment PK Tokens are designed for the case where a OP can not support a n
 
 #### GQ-Commitment to the CIC
 
-For Google and github we bind the CIC (Client Instance Claims) that contains the user's public key to the ID Token by putting a hashed commitment to the CIC in one of the claims of the ID Token. For Google we put the commitment in the `nonce` claim, for github we put the commitment in the audience (`aud`) claim. Gitlab-CI does not provide an `nonce` claim and does not allow a running job/workflow to specify the audience. While Gitlab does allow customizing the audience, this custom audience is a fixed configuration value and can not be set per request. As such we can not use audience-commitment PK Tokens for gitlab-CI. As gitlab-CI is for machine identity it does not support specifying a nonce and thus nonce-commitment PK Tokens are not available either.
+For Google and github we bind the CIC (Client Instance Claims) that contains the user's public key to the ID Token by putting a hashed commitment to the CIC in one of the claims of the ID Token. For Google we put the commitment in the `nonce` claim, for github we put the commitment in the audience (`aud`) claim. Gitlab-CI does not provide an `nonce` claim and does not allow a running job/workflow to specify the audience. While Gitlab does allow customizing the audience, this custom audience is a fixed configuration value and can not be set per request. As such we can not use audience-commitment PK Tokens for GitLab-CI. As GitLab-CI is for machine identity it does not support specifying a nonce and thus nonce-commitment PK Tokens are not available either.
 
-GQ-binding solves this problem posed by gitlab-CI. Remember that with GQ signatures, we use the OP's RSA signature on the ID Token to generate a GQ signature that signs both the payload and the GQ protected header. Therefore, we can simply put the commitment to the identity's public key, i.e. the hash of the CIC, in the GQ protected header and then when the GQ signature will also sign this commitment. GQ-bound PK Tokens were introduced in PR: [Adds gitlab-ci OP using GQ commitment binding](https://github.com/openpubkey/openpubkey/pull/143).
+GQ-binding solves this problem posed by GitLab-CI. Remember that with GQ signatures, we use the OP's RSA signature on the ID Token to generate a GQ signature that signs both the payload and the GQ protected header. Therefore, we can simply put the commitment to the identity's public key, i.e. the hash of the CIC, in the GQ protected header and then when the GQ signature will also sign this commitment. GQ-bound PK Tokens were introduced in PR: [Adds GitLab-ci OP using GQ commitment binding](https://github.com/openpubkey/openpubkey/pull/143).
 
 In a GQ-bound PK Token the GQ protected header contains a claim `cic` where:
 
@@ -608,11 +610,11 @@ If configured correctly, GQ-bound PK Tokens offer the same security as nonce or 
 We mitigate this risk by:
 
 - Requiring that PK Tokens employing GQ-commitments must have "OPENPUBKEY-PKTOKEN:" prefixed in the audience (`aud`) and that they are not considered valid PK Tokens if they do not have this prefix. This also prevents attacks in which an ID Token not intended for use as a PK Token is replayed in a PK Token. This rule does not apply to other types of PK Tokens.
-- Requiring that OpenPubkey clients only verify GQ-Bound PK Tokens for OPs like gitlab-CI that are confirmed to not support nonce or audience commitments.
+- Requiring that OpenPubkey clients only verify GQ-Bound PK Tokens for OPs like GitLab-CI that are confirmed to not support nonce or audience commitments.
 
 ### ZK PK Tokens (Under development)
 
-Similar to our approach of GQ Signatures, we can use ZKP (Zero Knowledge Proofs) to provide privacy-enhanced PK Tokens, and if needed use the ZKP as a binding mechanism. This is currently under discussion and development in the issue: [Proposed zklogin JWS](https://github.com/openpubkey/openpubkey/issues/101).
+Similar to our approach of GQ signatures, we can use ZKP (Zero Knowledge Proofs) to provide privacy-enhanced PK Tokens, and if needed use the ZKP as a binding mechanism. This is currently under discussion and development in the issue: [Proposed zklogin JWS](https://github.com/openpubkey/openpubkey/issues/101).
 
 ## PK Token Compact Serialization
 
@@ -655,8 +657,9 @@ BASE64URL(UTF8(JWS Refreshed Signature-OP)) || '.' ||
 
 # Notes
 
-## GQ Signatures
+Additional notes
 
+## GQ Signatures Background
 
 GQ (Guillou and Quisquater) signatures were invented in the paper ['A “Paradoxical” Indentity-Based Signature Scheme Resulting from Zero-Knowledge' (1988).](https://link.springer.com/content/pdf/10.1007/0-387-34799-2_16.pdf) GQ signatures were standardized in  GQ1 in [ISO/IEC 14888-2:2008](https://www.iso.org/standard/44227.html). Our GQ signatures are based on this standard but we have increased the security parameter to 256-bits.
 
