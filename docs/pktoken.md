@@ -605,7 +605,7 @@ and the `aud` is always prefixed with `"OPENPUBKEY-PKTOKEN:"`. In the next secti
 
 #### Security
 
-If configured correctly, GQ-bound PK Tokens offer the same security as nonce or audience bound PK Tokens. However GQ-commitment PK Tokens do introduce a security risk from misconfiguration not present in the other cases. The risk is that if a GQ signature is not used and an attacker learns the ID Token, the attacker can compute the GQ signature from the RSA signature on a CIC protected header of the attackers choosing.
+If configured correctly, GQ-bound PK Tokens offer the same security as nonce or audience bound PK Tokens. However GQ-commitment PK Tokens do introduce a security risk from misconfiguration not present in the other cases. The risk is that if a GQ signature is not used and an attacker learns the ID Token, the attacker can compute the GQ signature from the RSA signature on a CIC protected header of the attacker's choosing.
 
 We mitigate this risk by:
 
@@ -669,7 +669,7 @@ In this section we discuss how the patterns we use for PK Tokens can be more bro
 
 ### The TYP Pattern
 
-Because a PK Token always has more two or more signatures we have been forced to think about how to effective organize a JWS (JSON Web Signatures) that two or more signatures. If a JWS has only one signature, then the `iss` (issuer) claim in the payload identifies the party that generated the signature. Once you have two or more signatures, how do you determine which signature matches the issuer? How do you determine the identity of signer that generated each signature? Determining what party generated what signature is important because we need to know where to find which public key to verify which signature.
+Because a PK Token always has more two or more signatures we have been forced to think about how to effectively organize a JWS (JSON Web Signatures) that is two or more signatures. If a JWS has only one signature, then the `iss` (issuer) claim in the payload identifies the party that generated the signature. Once you have two or more signatures, how do you determine which signature matches the issuer? How do you determine the identity of signer that generated each signature?
 
 One approach is to use signature order. For instance, we could specify that the first signature in the signatures list is the party that created the payload, the second signature is the cosigner, and so on. This approach has two major drawbacks. First, the order of the signatures is not signed or enforced in anyway. This means we can not assume that software and libraries won't reorder the signature list, breaking our ability to match signers to signatures. Second, this approach doesn't solve the problem of optional signers, who may or may not be required.
 
@@ -677,7 +677,7 @@ Instead we use the `typ` (type) key in the protected header to specify the diffe
 
 ### Protected Header Claims
 
-In a JWT the claims the issuer is making are set in the payload. However this isn't sufficient for OpenPubkey, parties may wish to add additional claims although with their signature. For instance a signing party who independently authenticated the identity, might want to add an additional claim specifying the time at which this independent authentication took place. This signature can not update the payload without breaking the signature that already signed the payload.
+In a JWT the claims the issuer is making are set in the payload. However this isn't sufficient for OpenPubkey, parties may wish to add additional claims along with their signature with their signature. For instance a signing party who independently authenticated the identity, might want to add an additional claim specifying the time at which this independent authentication took place. This signature can not update the payload without breaking the signature that already signed the payload.
 
 Our solution is to allow signing parties to specify additional claims in their protected header. This enables the party to add claims without requiring any new signatures from any other parties and also makes it clear who added these claims.
 
@@ -704,4 +704,4 @@ BASE64URL(UTF8(JWS Protected Header-N)) || ':' ||
 BASE64URL(UTF8(JWS Signature-N))
 ```
 
-We use `:` as a delimiter rather than `.` to avoid confusion arising from a someone attempting to parse this as a standard single signature JWS.
+We use `:` as a delimiter rather than `.` to avoid confusion arising from someone attempting to parse this as a standard single signature JWS.
