@@ -87,7 +87,7 @@ payload: {
   ...
 } 
 signatures: [
-  {"protected": {"typ": "JWT", "alg": "RS256", "kid": "1234...", "typ": "JWT"},
+  {"protected": {"alg": "RS256", "kid": "1234...", "typ": "JWT"},
   "signature": SIGN(google-signkey, (payload, signatures[0].protected))`
   },
 ]
