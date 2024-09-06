@@ -29,39 +29,60 @@ import (
 
 type simpleFilePolicyEnforcer struct {
 	PolicyFilePath string
+	readPolicyFile FilePolicyReader
 }
 
-func (p *simpleFilePolicyEnforcer) readPolicyFile() (string, []string, error) {
-	info, err := os.Stat(p.PolicyFilePath)
-	if err != nil {
-		return "", nil, err
-	}
-	mode := info.Mode()
+type FilePolicyReader func() ([]byte, error)
 
-	// Only the owner of this file should be able to write to it
-	if mode.Perm() != fs.FileMode(0600) {
-		return "", nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
-	}
+func NewSimpleFilePolicyEnforcer(policyFilePath string) *simpleFilePolicyEnforcer {
+	return &simpleFilePolicyEnforcer{
+		PolicyFilePath: policyFilePath,
+		readPolicyFile: func() ([]byte, error) {
+			info, err := os.Stat(policyFilePath)
+			if err != nil {
+				return nil, err
+			}
+			mode := info.Mode()
 
-	content, err := os.ReadFile(p.PolicyFilePath)
+			// Only the owner of this file should be able to write to it
+			if mode.Perm() != fs.FileMode(0600) {
+				return nil, fmt.Errorf("policy file has insecure permissions, expected (0600), got (%o)", mode.Perm())
+			}
+
+			content, err := os.ReadFile(policyFilePath)
+			if err != nil {
+				return nil, err
+			}
+			return content, nil
+		},
+	}
+}
+
+func (p *simpleFilePolicyEnforcer) parsePolicyFile() (map[string][]string, error) {
+	content, err := p.readPolicyFile()
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	rows := strings.Split(string(content), "\n")
 
+	policy := make(map[string][]string)
 	for _, row := range rows {
 		entries := strings.Fields(row)
 		if len(entries) > 1 {
 			email := entries[0]
 			allowedPrincipals := entries[1:]
-			return email, allowedPrincipals, nil
+			policy[email] = allowedPrincipals
 		}
 	}
-	return "", nil, fmt.Errorf("policy file contained no policy")
+	if len(policy) == 0 {
+		return nil, fmt.Errorf("policy file contained no policy")
+	}
+	return policy, nil
 }
 
 func (p *simpleFilePolicyEnforcer) checkPolicy(principalDesired string, pkt *pktoken.PKToken) error {
-	allowedEmail, allowedPrincipals, err := p.readPolicyFile()
+	// AllowedEmail-->[allowedPrincipals]
+	policy, err := p.parsePolicyFile()
 	if err != nil {
 		return err
 	}
@@ -71,7 +92,9 @@ func (p *simpleFilePolicyEnforcer) checkPolicy(principalDesired string, pkt *pkt
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return err
 	}
-	if string(claims.Email) == allowedEmail {
+
+	if policy[claims.Email] != nil {
+		allowedPrincipals := policy[claims.Email]
 		if slices.Contains(allowedPrincipals, principalDesired) {
 			// Access granted
 			return nil
@@ -79,7 +102,7 @@ func (p *simpleFilePolicyEnforcer) checkPolicy(principalDesired string, pkt *pkt
 			return fmt.Errorf("no policy to allow %s to assume %s, check policy config in %s", claims.Email, principalDesired, p.PolicyFilePath)
 		}
 	} else {
-		return fmt.Errorf("no policy for email %s, allowed email is %s, check policy config in %s", claims.Email, allowedEmail, p.PolicyFilePath)
+		return fmt.Errorf("no policy for email %s, check policy config in %s", claims.Email, p.PolicyFilePath)
 	}
 }
 
