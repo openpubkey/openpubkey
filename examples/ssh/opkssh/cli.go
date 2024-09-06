@@ -68,9 +68,7 @@ func main() {
 	case "ver":
 		{
 			log(strings.Join(os.Args, " "))
-			policyEnforcer := simpleFilePolicyEnforcer{
-				PolicyFilePath: "/etc/opk/policy",
-			}
+			policyEnforcer := NewSimpleFilePolicyEnforcer("/etc/opk/policy")
 
 			if len(os.Args) != 5 {
 				fmt.Println("Invalid number of arguments for ver, should be `opkssh ver <User (TOKEN u)> <Cert (TOKEN k)> <Key type (TOKEN t)>`")
