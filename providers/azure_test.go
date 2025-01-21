@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2025 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,15 +27,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGoogleSimpleRequest(t *testing.T) {
+func TestAzureSimpleRequest(t *testing.T) {
 	gqSign := false
 
-	issuer := googleIssuer
+	issuer := azureIssuer("1234")
 	providerOverride, err := mocks.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
-	op := &GoogleOp{
-		issuer:                    googleIssuer,
+	op := &AzureOp{
+		issuer:                    issuer,
 		publicKeyFinder:           providerOverride.PublicKeyFinder,
 		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
 	}
