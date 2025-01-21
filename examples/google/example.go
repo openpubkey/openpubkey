@@ -57,7 +57,7 @@ func main() {
 		return
 	}
 
-	gqSign := true
+	gqSign := false
 
 	// Directory for saving data
 	outputDir := "output/google"
@@ -119,13 +119,13 @@ func login(outputDir string, gqSign bool) error {
 	if err != nil {
 		return err
 	}
-	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+	err = pktVerifier.VerifyPKToken(context.Background(), newPkt)
 	if err != nil {
 		return err
 	}
 
 	// Save our signer and pktoken by writing them to a file
-	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
+	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), newPkt)
 }
 
 func sign(message string, outputDir string) error {

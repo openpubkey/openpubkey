@@ -18,12 +18,8 @@ package providers
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
-	"net/url"
 
 	"time"
 
@@ -35,8 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
-
-	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
 const googleIssuer = "https://accounts.google.com"
@@ -213,6 +207,7 @@ func (g *GoogleOp) requestTokens(ctx context.Context, cicHash string) (*simpleoi
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 		rp.WithPromptURLParam("select_account"),
+		rp.WithPromptURLParam("consent"), // This ensures we always get a refreshed ID Token
 		rp.WithURLParam("access_type", "offline")),
 	)
 
@@ -397,45 +392,4 @@ func (g *GoogleOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, r
 // method is only available to browser based providers.
 func (g *GoogleOp) HookHTTPSession(h http.HandlerFunc) {
 	g.httpSessionHook = h
-}
-
-// FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
-func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
-	var ln net.Listener
-	var lnErr error
-	for _, v := range redirectURIs {
-		redirectURI, err := url.Parse(v)
-		if err != nil {
-			return nil, nil, fmt.Errorf("malformed redirectURI specified, redirectURI was %s", v)
-		}
-
-		lnStr := fmt.Sprintf("localhost:%s", redirectURI.Port())
-		ln, lnErr = net.Listen("tcp", lnStr)
-		if lnErr == nil {
-			return redirectURI, ln, nil
-		}
-	}
-	return nil, nil, fmt.Errorf("failed to start a listener for the callback from the OP, got %w", lnErr)
-}
-
-func configCookieHandler() (*httphelper.CookieHandler, error) {
-	// I've been unable to determine a scenario in which setting a hashKey and blockKey
-	// on the cookie provide protection in the localhost redirect URI case. However I
-	// see no harm in setting it.
-	hashKey := make([]byte, 64)
-	if _, err := io.ReadFull(rand.Reader, hashKey); err != nil {
-		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
-	}
-	blockKey := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, blockKey); err != nil {
-		return nil, fmt.Errorf("failed to generate random keys for cookie storage")
-	}
-
-	// OpenPubkey uses a localhost redirect URI to receive the authcode
-	// from the OP. Localhost redirects use http not https. Thus, we should
-	// not set these cookies as secure-only. This should be changed if
-	// OpenPubkey added support for non-localhost redirect URIs.
-	// WithUnsecure() is equivalent to not setting the 'secure' attribute
-	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
-	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
 }
