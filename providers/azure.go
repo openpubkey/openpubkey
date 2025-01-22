@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2025 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,25 +18,20 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
 )
 
-const googleIssuer = "https://accounts.google.com"
-
-// GoogleOptions is an options struct that configures how providers.GoogleOp
-// operates. See providers.GetDefaultGoogleOpOptions for the recommended default
-// values to use when interacting with Google as the OpenIdProvider.
-type GoogleOptions struct {
+// AzureOptions is an options struct that configures how providers.AzureOp
+// operates. See providers.GetDefaultAzureOpOptions for the recommended default
+// values to use when interacting with Azure as the OpenIdProvider.
+type AzureOptions struct {
 	// ClientID is the client ID of the OIDC application. It should be the
 	// expected "aud" claim in received ID tokens from the OP.
 	ClientID string
-	// ClientSecret is the client secret of the OIDC application. Some OPs do
-	// not require that this value is set.
-	ClientSecret string
 	// Issuer is the OP's issuer URI for performing OIDC authorization and
 	// discovery.
 	Issuer string
@@ -64,16 +59,22 @@ type GoogleOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+	// TenantID is the GUID  of the Azure tenant/organization. Azure has a
+	// different issuer URI for each tenant. Users that are not part of Azure
+	// organization, which microsoft nicknames consumers have a default
+	// tenant ID of "9188040d-6c67-4c5b-b112-36a304b66dad"
+	// More details can be found at
+	// https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens
+	TenantID string
 }
 
-func GetDefaultGoogleOpOptions() *GoogleOptions {
-	return &GoogleOptions{
-		Issuer:   googleIssuer,
-		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
-		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
-		// Google requires a ClientSecret even if this a public OIDC App
-		ClientSecret: "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", // The client secret is a public value
-		Scopes:       []string{"openid profile email"},
+func GetDefaultAzureOpOptions() *AzureOptions {
+	defaultTenantID := "9188040d-6c67-4c5b-b112-36a304b66dad"
+	return &AzureOptions{
+		Issuer:   azureIssuer(defaultTenantID),
+		ClientID: "bd345b9c-6902-400d-9e18-45abdf0f698f", // TODO: replace with a better client ID
+
+		// Scopes: []string{"openid profile email", "offline_access"}, // offline_access is required for refresh tokens
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -86,21 +87,20 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 	}
 }
 
-// NewGoogleOp creates a Google OP (OpenID Provider) using the
+// NewAzureOp creates a Azure OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
-func NewGoogleOp() OpenIdProvider {
-	options := GetDefaultGoogleOpOptions()
-	return NewGoogleOpWithOptions(options)
+func NewAzureOp() OpenIdProvider {
+	options := GetDefaultAzureOpOptions()
+	return NewAzureOpWithOptions(options)
 }
 
-// NewGoogleOpWithOptions creates a Google OP with configuration specified
+// NewAzureOpWithOptions creates a Azure OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewGoogleOpWithOptions(opts *GoogleOptions) *StandardOp {
+func NewAzureOpWithOptions(opts *AzureOptions) *StandardOp {
 	return &StandardOp{
 		ClientID:                  opts.ClientID,
-		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
@@ -117,4 +117,12 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) *StandardOp {
 	}
 }
 
-type GoogleOp = StandardOp
+var _ OpenIdProvider = (*AzureOp)(nil)
+var _ BrowserOpenIdProvider = (*AzureOp)(nil)
+var _ RefreshableOpenIdProvider = (*AzureOp)(nil)
+
+func azureIssuer(tenantID string) string {
+	return fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
+}
+
+type AzureOp = StandardOp

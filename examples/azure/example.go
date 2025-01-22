@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2025 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -60,7 +59,7 @@ func main() {
 	gqSign := false
 
 	// Directory for saving data
-	outputDir := "output/google"
+	outputDir := "output/azure"
 
 	command := os.Args[1]
 	switch command {
@@ -81,9 +80,9 @@ func main() {
 }
 
 func login(outputDir string, gqSign bool) error {
-	opOptions := providers.GetDefaultGoogleOpOptions()
+	opOptions := providers.GetDefaultAzureOpOptions()
 	opOptions.GQSign = gqSign
-	op := providers.NewGoogleOpWithOptions(opOptions)
+	op := providers.NewAzureOpWithOptions(opOptions)
 	opkClient, err := client.New(op)
 	if err != nil {
 		return err
@@ -145,17 +144,12 @@ func sign(message string, outputDir string) error {
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	pktJson, err := json.Marshal(pkt)
+	pktJson, err := json.MarshalIndent(pkt, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	// Pretty print our json token
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
-		return err
-	}
-	fmt.Println(prettyJSON.String())
+	fmt.Println(string(pktJson))
 
 	return nil
 }
