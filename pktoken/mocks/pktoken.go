@@ -19,6 +19,7 @@ package mocks
 import (
 	"context"
 	"crypto"
+	"fmt"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -96,6 +97,16 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	opSignKey, keyID, _ := backend.RandomSigningKey()
 	idtTemplate.KeyID = keyID
 	idtTemplate.SigningKey = opSignKey
+
+	switch options.CommitType {
+	case providers.CommitTypesEnum.NONCE_CLAIM:
+		idtTemplate.CommitFunc = mocks.AddNonceCommit
+	case providers.CommitTypesEnum.AUD_CLAIM:
+		idtTemplate.CommitFunc = mocks.AddAudCommit
+	case providers.CommitTypesEnum.GQ_BOUND:
+	default:
+		return nil, nil, fmt.Errorf("unknown CommitType: %v", options.CommitType)
+	}
 
 	backend.SetIDTokenTemplate(&idtTemplate)
 
