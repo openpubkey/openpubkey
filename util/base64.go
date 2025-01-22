@@ -20,16 +20,7 @@ import (
 	"encoding/base64"
 )
 
-var standardEncoding = base64.StdEncoding.Strict()
 var rawURLEncoding = base64.RawURLEncoding.Strict()
-
-func Base64Encode(decoded []byte) []byte {
-	return base64Encode(decoded, standardEncoding)
-}
-
-func Base64Decode(encoded []byte) ([]byte, error) {
-	return base64Decode(encoded, standardEncoding)
-}
 
 func Base64EncodeForJWT(decoded []byte) []byte {
 	return base64Encode(decoded, rawURLEncoding)
