@@ -239,7 +239,8 @@ func (s *StandardOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*s
 
 	if retTokens.RefreshToken == "" {
 		// Google does not rotate refresh tokens, the one you get at the
-		// beginning is the only one you'll ever get
+		// beginning is the only one you'll ever get. This may not be true
+		// of OPs.
 		retTokens.RefreshToken = string(refreshToken)
 	}
 

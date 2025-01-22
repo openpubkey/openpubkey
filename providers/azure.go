@@ -25,9 +25,9 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 )
 
-// GoogleOptions is an options struct that configures how providers.GoogleOp
-// operates. See providers.GetDefaultGoogleOpOptions for the recommended default
-// values to use when interacting with Google as the OpenIdProvider.
+// AzureOptions is an options struct that configures how providers.AzureOp
+// operates. See providers.GetDefaultAzureOpOptions for the recommended default
+// values to use when interacting with Azure as the OpenIdProvider.
 type AzureOptions struct {
 	// ClientID is the client ID of the OIDC application. It should be the
 	// expected "aud" claim in received ID tokens from the OP.
@@ -95,7 +95,7 @@ func NewAzureOp() OpenIdProvider {
 	return NewAzureOpWithOptions(options)
 }
 
-// NewAzureOpWithOptions creates a Google OP with configuration specified
+// NewAzureOpWithOptions creates a Azure OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewAzureOpWithOptions(opts *AzureOptions) *StandardOp {
