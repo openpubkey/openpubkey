@@ -145,17 +145,12 @@ func sign(message string, outputDir string) error {
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	pktJson, err := json.Marshal(pkt)
+	pktJson, err := json.MarshalIndent(pkt, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	// Pretty print our json token
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
-		return err
-	}
-	fmt.Println(prettyJSON.String())
+	fmt.Println(string(pktJson))
 
 	return nil
 }
