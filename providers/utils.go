@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strings"
 
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
@@ -34,6 +35,13 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 		redirectURI, err := url.Parse(v)
 		if err != nil {
 			return nil, nil, fmt.Errorf("malformed redirectURI specified, redirectURI was %s", v)
+		}
+
+		if !(strings.HasPrefix(redirectURI.Host, "localhost") ||
+			strings.HasPrefix(redirectURI.Host, "127.0.0.1") ||
+			strings.HasPrefix(redirectURI.Host, "0:0:0:0:0:0:0:1") ||
+			strings.HasPrefix(redirectURI.Host, "::1")) {
+			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was  %s", redirectURI.Host)
 		}
 
 		lnStr := fmt.Sprintf("localhost:%s", redirectURI.Port())
