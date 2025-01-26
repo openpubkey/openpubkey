@@ -87,7 +87,7 @@ func login(outputDir string, gqSign bool) error {
 
 	// TODO: switch back. This is temporary test code for the new webchooser
 	opChooser := providers.NewWebChooser([]providers.BrowserOpenIdProvider{op})
-	opkClient, err := client.New(opChooser)
+	opkClient, err := client.NewFromOpChooser(opChooser)
 
 	// opkClient, err := client.New(op)
 	// opChooser := choosers.NewWebChooser([]providers.BrowserOpenIdProvider{op})

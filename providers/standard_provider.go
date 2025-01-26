@@ -115,7 +115,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-		rp.WithPromptURLParam("select_account"),
+		rp.WithPromptURLParam("consent"),
 		rp.WithURLParam("access_type", "offline")),
 	)
 

@@ -54,8 +54,7 @@ type WebChooser struct {
 	OpenBrowser bool
 }
 
-func (wc *WebChooser) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
-
+func (wc *WebChooser) RequestTokens() (OpenIdProvider, error) {
 	if wc.opSelected == nil {
 		// Parse the HTML template
 		tmpl, err := template.New("abc").Parse(templateHtml)
@@ -98,6 +97,12 @@ func (wc *WebChooser) RequestTokens(ctx context.Context, cic *clientinstance.Cla
 			op.ReuseBrowserWindowHook(redirCh)
 			redirectUri := <-redirCh
 			http.Redirect(w, r, redirectUri, http.StatusFound)
+
+			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
+			// TODO: Make sure to shutdown the server after the OP has redirected back to the localhost webserver
+			// if err := server.Shutdown(ctx); err != nil {
+			// 	logrus.Errorf("Failed to shutdown http server: %v", err)
+			// }
 		})
 
 		go func() {
@@ -108,10 +113,6 @@ func (wc *WebChooser) RequestTokens(ctx context.Context, cic *clientinstance.Cla
 		}()
 		opName := <-opNameCh
 
-		if err := server.Shutdown(ctx); err != nil {
-			logrus.Errorf("Failed to shutdown http server: %v", err)
-		}
-
 		switch opName {
 		case "google": // TODO: Get the button from op
 			wc.opSelected = wc.OpList[0]
@@ -119,7 +120,7 @@ func (wc *WebChooser) RequestTokens(ctx context.Context, cic *clientinstance.Cla
 			return nil, fmt.Errorf("unknown opName: %s", opName)
 		}
 	}
-	return wc.opSelected.RequestTokens(ctx, cic)
+	return wc.opSelected, nil
 }
 func (wc *WebChooser) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return wc.opSelected.PublicKeyByKeyId(ctx, keyID)
