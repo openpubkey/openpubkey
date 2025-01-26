@@ -23,9 +23,6 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/openpubkey/openpubkey/discover"
-	simpleoidc "github.com/openpubkey/openpubkey/oidc"
-	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
 )
@@ -54,7 +51,7 @@ type WebChooser struct {
 	OpenBrowser bool
 }
 
-func (wc *WebChooser) RequestTokens() (OpenIdProvider, error) {
+func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 	if wc.opSelected == nil {
 		// Parse the HTML template
 		tmpl, err := template.New("abc").Parse(templateHtml)
@@ -122,42 +119,8 @@ func (wc *WebChooser) RequestTokens() (OpenIdProvider, error) {
 	}
 	return wc.opSelected, nil
 }
-func (wc *WebChooser) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return wc.opSelected.PublicKeyByKeyId(ctx, keyID)
-}
-func (wc *WebChooser) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return wc.opSelected.PublicKeyByToken(ctx, token)
-}
 
-func (wc *WebChooser) Issuer() string {
-	return wc.opSelected.Issuer()
-}
-
-func (wc *WebChooser) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	return wc.opSelected.VerifyIDToken(ctx, idt, cic)
-}
-
-func (wc *WebChooser) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
-	// In the chooser we are making assumption that all OPs in the chooser list
-	// support refresh by implementing the Refresh Tokens interface.
-	// TODO: Think of a better way of singling the ability to be refreshed.
-	if tokensOp, ok := wc.opSelected.(RefreshableOpenIdProvider); ok {
-		return tokensOp.RefreshTokens(ctx, refreshToken)
-	}
-	return nil, fmt.Errorf("OP (issuer=%s) does not support OIDC refresh requests", wc.opSelected.Issuer())
-}
-
-func (wc *WebChooser) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
-	if tokensOp, ok := wc.opSelected.(RefreshableOpenIdProvider); ok {
-		return tokensOp.VerifyRefreshedIDToken(ctx, origIdt, reIdt)
-	}
-	return fmt.Errorf("OP (issuer=%s) does not support OIDC refresh requests", wc.opSelected.Issuer())
-}
-
-func (wc *WebChooser) HookHTTPSession(h http.HandlerFunc) {
-	wc.opSelected.HookHTTPSession(h)
-}
-
+// TODO: Break this out into a file
 const templateHtml = `
 <!DOCTYPE html>
 <html>

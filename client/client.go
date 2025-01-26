@@ -159,7 +159,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 
 	// If an OpChooser is set then use it to select the OP (OpenID Provider) to use
 	if o.OpChooser != nil {
-		if opSelected, err := o.OpChooser.RequestTokens(); err != nil {
+		if opSelected, err := o.OpChooser.ChooseOp(ctx); err != nil {
 			return nil, err
 		} else {
 			o.Op = opSelected
