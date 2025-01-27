@@ -71,8 +71,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 				GoogleUri string
 				AzureUri  string
 			}{
-				GoogleUri: "/google",
-				AzureUri:  "/azure",
+				GoogleUri: "/select?op=google",
+				AzureUri:  "/select?op=azure",
 			}
 			w.Header().Set("Content-Type", "text/html")
 			if err := tmpl.Execute(w, data); err != nil {
@@ -88,35 +88,40 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 			}
 		}
 
-		opNameCh := make(chan string, 1)
-		mux.HandleFunc("/google", func(w http.ResponseWriter, r *http.Request) {
-			op := wc.OpList[0]
-			opNameCh <- "google"
+		opCh := make(chan BrowserOpenIdProvider, 1)
+		mux.HandleFunc("/select/", func(w http.ResponseWriter, r *http.Request) {
+			opName := r.URL.Query().Get("op")
+			if opName == "" {
+				http.Error(w, "missing op parameter", http.StatusBadRequest)
+				return
+			}
+			var op BrowserOpenIdProvider
+
+			switch opName {
+			case "google": // TODO: Get the button from op
+				op = wc.OpList[0]
+			case "azure": // TODO: Get the button from op
+				op = wc.OpList[1]
+			default:
+				http.Error(w, fmt.Sprintf("unknown opName: %s", opName), http.StatusBadRequest)
+			}
+			opCh <- op
+
 			redirCh := make(chan string, 1)
 			op.ReuseBrowserWindowHook(redirCh)
 			redirectUri := <-redirCh
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 
 			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
-			// TODO: Make sure to shutdown the server after the OP has redirected back to the localhost webserver
-			// if err := server.Shutdown(ctx); err != nil {
-			// 	logrus.Errorf("Failed to shutdown http server: %v", err)
-			// }
-		})
-
-		mux.HandleFunc("/azure", func(w http.ResponseWriter, r *http.Request) {
-			op := wc.OpList[0]
-			opNameCh <- "azure"
-			redirCh := make(chan string, 1)
-			op.ReuseBrowserWindowHook(redirCh)
-			redirectUri := <-redirCh
-			http.Redirect(w, r, redirectUri, http.StatusFound)
-
-			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
-			// TODO: Make sure to shutdown the server after the OP has redirected back to the localhost webserver
-			// if err := server.Shutdown(ctx); err != nil {
-			// 	logrus.Errorf("Failed to shutdown http server: %v", err)
-			// }
+			shutdownServer := func() {
+				go func() {
+					// Put this in a go func so that it will not block the redirect
+					if err := server.Shutdown(context.Background()); err != nil {
+						logrus.Errorf("Failed to shutdown http server: %v", err)
+					}
+				}()
+			}
+			defer shutdownServer()
 		})
 
 		go func() {
@@ -125,16 +130,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 				logrus.Error(err)
 			}
 		}()
-		opName := <-opNameCh
+		wc.opSelected = <-opCh
 
-		switch opName {
-		case "google": // TODO: Get the button from op
-			wc.opSelected = wc.OpList[0]
-		case "azure": // TODO: Get the button from op
-			wc.opSelected = wc.OpList[1]
-		default:
-			return nil, fmt.Errorf("unknown opName: %s", opName)
-		}
 	}
 	return wc.opSelected, nil
 }
