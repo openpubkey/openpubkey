@@ -69,8 +69,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 		mux.HandleFunc("/choose", func(w http.ResponseWriter, r *http.Request) {
 			data := struct {
 				GoogleUri string
+				AzureUri  string
 			}{
 				GoogleUri: "/google",
+				AzureUri:  "/azure",
 			}
 			w.Header().Set("Content-Type", "text/html")
 			if err := tmpl.Execute(w, data); err != nil {
@@ -102,6 +104,21 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 			// }
 		})
 
+		mux.HandleFunc("/azure", func(w http.ResponseWriter, r *http.Request) {
+			op := wc.OpList[0]
+			opNameCh <- "azure"
+			redirCh := make(chan string, 1)
+			op.ReuseBrowserWindowHook(redirCh)
+			redirectUri := <-redirCh
+			http.Redirect(w, r, redirectUri, http.StatusFound)
+
+			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
+			// TODO: Make sure to shutdown the server after the OP has redirected back to the localhost webserver
+			// if err := server.Shutdown(ctx); err != nil {
+			// 	logrus.Errorf("Failed to shutdown http server: %v", err)
+			// }
+		})
+
 		go func() {
 			err := server.Serve(listener)
 			if err != nil && err != http.ErrServerClosed {
@@ -113,6 +130,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (OpenIdProvider, error) {
 		switch opName {
 		case "google": // TODO: Get the button from op
 			wc.opSelected = wc.OpList[0]
+		case "azure": // TODO: Get the button from op
+			wc.opSelected = wc.OpList[1]
 		default:
 			return nil, fmt.Errorf("unknown opName: %s", opName)
 		}
@@ -144,6 +163,10 @@ const templateHtml = `
         <br>
         <a href="{{.GoogleUri}}">
             <img src="https://developers.google.com/identity/images/btn_google_signin_dark_normal_web.png" alt="Sign in with Google" />
+        </a>
+		<br>
+		<a href="{{.AzureUri}}">
+            <img src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_signin_light.svg" alt="Sign in with Azure" />
         </a>
     </body>
 </html>`
