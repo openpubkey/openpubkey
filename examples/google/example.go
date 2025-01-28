@@ -32,6 +32,7 @@ import (
 	"github.com/awnumar/memguard"
 
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
@@ -90,9 +91,13 @@ func login(outputDir string, gqSign bool) error {
 	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
 
 	// TODO: switch back. This is temporary test code for the new webchooser
-	opChooser := providers.NewWebChooser([]providers.BrowserOpenIdProvider{googleOp, azureOp})
-	opkClient, err := client.NewFromOpChooser(opChooser)
+	opChooser := choosers.NewWebChooser([]providers.BrowserOpenIdProvider{googleOp, azureOp})
 
+	op, err := opChooser.ChooseOp(context.Background())
+	if err != nil {
+		return err
+	}
+	opkClient, err := client.New(op)
 	if err != nil {
 		return err
 	}

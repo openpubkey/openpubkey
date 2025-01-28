@@ -42,7 +42,6 @@ type PKTokenVerifier interface {
 
 type OpkClient struct {
 	Op           OpenIdProvider
-	OpChooser    *providers.WebChooser
 	cosP         *CosignerProvider
 	signer       crypto.Signer
 	alg          jwa.KeyAlgorithm
@@ -75,15 +74,6 @@ func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
 func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	return func(o *OpkClient) {
 		o.cosP = cosP
-	}
-}
-
-func NewFromOpChooser(opChooser *providers.WebChooser, opts ...ClientOpts) (*OpkClient, error) {
-	if client, err := New(nil, opts...); err != nil {
-		return nil, err
-	} else {
-		client.OpChooser = opChooser
-		return client, nil
 	}
 }
 
@@ -151,19 +141,6 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 	}
 	for _, applyOpt := range opts {
 		applyOpt(authOpts)
-	}
-
-	if o.OpChooser != nil && o.Op != nil {
-		return nil, fmt.Errorf("op and opChooser can't both be set selected")
-	}
-
-	// If an OpChooser is set then use it to select the OP (OpenID Provider) to use
-	if o.OpChooser != nil {
-		if opSelected, err := o.OpChooser.ChooseOp(ctx); err != nil {
-			return nil, err
-		} else {
-			o.Op = opSelected
-		}
 	}
 
 	// If no Cosigner is set then do standard OIDC authentication
