@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2025 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,12 @@ import (
 var staticFiles embed.FS
 
 // TODO: Add instructions on how to add a new OpenID Provider to the web chooser
-type Server struct {
+
+type WebChooser struct {
+	OpList      []providers.BrowserOpenIdProvider
+	opSelected  providers.BrowserOpenIdProvider
+	OpenBrowser bool
+	server      *http.Server
 }
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider) *WebChooser {
@@ -43,12 +48,6 @@ func NewWebChooser(opList []providers.BrowserOpenIdProvider) *WebChooser {
 		OpList:      opList,
 		OpenBrowser: true,
 	}
-}
-
-type WebChooser struct {
-	OpList      []providers.BrowserOpenIdProvider
-	opSelected  providers.BrowserOpenIdProvider
-	OpenBrowser bool
 }
 
 func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, error) {
@@ -77,7 +76,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	}
 
 	mux := http.NewServeMux()
-	server := &http.Server{Handler: mux}
+	wc.server = &http.Server{Handler: mux}
 
 	staticContent, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -107,7 +106,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
 			shutdownServer := func() {
 				go func() { // Put this in a go func so that it will not block the redirect
-					if err := server.Shutdown(context.Background()); err != nil {
+					if err := wc.server.Shutdown(context.Background()); err != nil {
 						logrus.Errorf("Failed to shutdown http server: %v", err)
 					}
 				}()
@@ -125,7 +124,9 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	}
 
 	go func() {
-		err := server.Serve(listener)
+		wc.server.Addr = listener.Addr().String() // This is used by tests to know the
+		err := wc.server.Serve(listener)
+
 		if err != nil && err != http.ErrServerClosed {
 			logrus.Error(err)
 		}
@@ -138,6 +139,13 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		return wc.opSelected, nil
 	}
 }
+
+// func (wc *WebChooser) GetServer() error {
+// 	if wc.server != nil {
+// 		return wc.server
+// 	}
+// 	return nil
+// }
 
 func IssuerToName(issuer string) (string, error) {
 	// TODO: Make these constants or use an enum
