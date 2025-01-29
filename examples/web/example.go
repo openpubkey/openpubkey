@@ -1,4 +1,4 @@
-// Copyright 2025 OpenPubkey
+// Copyright 2024 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -31,6 +32,7 @@ import (
 	"github.com/awnumar/memguard"
 
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
@@ -59,7 +61,7 @@ func main() {
 	gqSign := false
 
 	// Directory for saving data
-	outputDir := "output/azure"
+	outputDir := "output/google"
 
 	command := os.Args[1]
 	switch command {
@@ -80,9 +82,21 @@ func main() {
 }
 
 func login(outputDir string, gqSign bool) error {
-	opOptions := providers.GetDefaultAzureOpOptions()
-	opOptions.GQSign = gqSign
-	op := providers.NewAzureOpWithOptions(opOptions)
+	googleOpOptions := providers.GetDefaultGoogleOpOptions()
+	googleOpOptions.GQSign = gqSign
+	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
+
+	azureOpOptions := providers.GetDefaultAzureOpOptions()
+	azureOpOptions.GQSign = gqSign
+	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
+
+	op, err := choosers.NewWebChooser(
+		[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+	).ChooseOp(context.Background())
+	if err != nil {
+		return err
+	}
+
 	opkClient, err := client.New(op)
 	if err != nil {
 		return err
@@ -114,7 +128,7 @@ func login(outputDir string, gqSign bool) error {
 	fmt.Println("Compact", len(pktCom), string(pktCom))
 
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	pktVerifier, err := verifier.New(op, verifier.RequireRefreshedIDToken())
+	pktVerifier, err := verifier.New(googleOp, verifier.AddProviderVerifiers(azureOp), verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err
 	}
@@ -144,12 +158,17 @@ func sign(message string, outputDir string) error {
 	fmt.Println("Hash:", hex.EncodeToString(msgHashSum[:]))
 	fmt.Println("Cert:")
 
-	pktJson, err := json.MarshalIndent(pkt, "", "  ")
+	pktJson, err := json.Marshal(pkt)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(pktJson))
+	// Pretty print our json token
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, pktJson, "", "  "); err != nil {
+		return err
+	}
+	fmt.Println(prettyJSON.String())
 
 	return nil
 }
