@@ -18,28 +18,24 @@ package choosers
 
 import (
 	"context"
+	"embed"
+	_ "embed"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"strings"
-	"text/template"
 
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
 )
 
+//go:embed static/*
+var staticFiles embed.FS
+
 // TODO: Add instructions on how to add a new OpenID Provider to the web chooser
-
 type Server struct {
-}
-
-func NewChooserServer() (*Server, error) {
-	server := &Server{}
-	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir("chooser/static")))
-	err := http.ListenAndServe(":3003", mux)
-	return server, err
 }
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider) *WebChooser {
@@ -72,11 +68,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}
 	}
 
-	// Parse the HTML template
-	tmpl, err := template.New("chooser").Parse(templateHtml)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
-	}
+	opCh := make(chan providers.BrowserOpenIdProvider, 1)
+	errCh := make(chan error, 1)
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -85,30 +78,13 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 
 	mux := http.NewServeMux()
 	server := &http.Server{Handler: mux}
-	mux.HandleFunc("/choose", func(w http.ResponseWriter, r *http.Request) {
-		data := struct {
-			GoogleUri string
-			AzureUri  string
-		}{
-			GoogleUri: "/select?op=google",
-			AzureUri:  "/select?op=azure",
-		}
-		w.Header().Set("Content-Type", "text/html")
-		if err := tmpl.Execute(w, data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
 
-	if wc.OpenBrowser {
-		loginURI := fmt.Sprintf("http://%s/choose", listener.Addr().String())
-		logrus.Infof("Opening browser to %s", loginURI)
-		if err := util.OpenUrl(loginURI); err != nil {
-			logrus.Errorf("Failed to open url: %v", err)
-		}
+	staticContent, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		return nil, err
 	}
 
-	opCh := make(chan providers.BrowserOpenIdProvider, 1)
-	errCh := make(chan error, 1)
+	mux.Handle("/choose/", http.StripPrefix("/choose/", http.FileServer(http.FS(staticContent))))
 	mux.HandleFunc("/select/", func(w http.ResponseWriter, r *http.Request) {
 		opName := r.URL.Query().Get("op")
 		if opName == "" {
@@ -122,9 +98,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		} else {
 			opCh <- op
 
-			redirCh := make(chan string, 1)
-			op.ReuseBrowserWindowHook(redirCh)
-			redirectUri := <-redirCh
+			redirectUriCh := make(chan string, 1)
+			op.ReuseBrowserWindowHook(redirectUriCh)
+
+			redirectUri := <-redirectUriCh
 			http.Redirect(w, r, redirectUri, http.StatusFound)
 
 			// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
@@ -138,6 +115,14 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			defer shutdownServer()
 		}
 	})
+
+	if wc.OpenBrowser {
+		loginURI := fmt.Sprintf("http://%s/choose", listener.Addr().String())
+		logrus.Infof("Opening browser to %s", loginURI)
+		if err := util.OpenUrl(loginURI); err != nil {
+			logrus.Errorf("Failed to open url: %v", err)
+		}
+	}
 
 	go func() {
 		err := server.Serve(listener)
@@ -165,35 +150,3 @@ func IssuerToName(issuer string) (string, error) {
 		return "", fmt.Errorf("unknown OpenID Provider issuer: %s", issuer)
 	}
 }
-
-// TODO: Break this out into a file
-const templateHtml = `
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>OpenPubkey: OpenID Providers</title>
-        <style>
-            body {
-                text-align: center;
-                font-family: Arial, sans-serif;
-                background-color: #f0f0f0;
-            }
-            .g_id_signin {
-                margin-top: 100px;
-            }
-        </style>
-    </head>
-    <body>
-        <div>
-        <h1>OpenPubkey OpenID Providers:</h1>
-        </div>
-        <br>
-        <a href="{{.GoogleUri}}">
-            <img src="https://developers.google.com/identity/images/btn_google_signin_dark_normal_web.png" alt="Sign in with Google" />
-        </a>
-		<br>
-		<a href="{{.AzureUri}}">
-            <img src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_signin_light.svg" alt="Sign in with Azure" />
-        </a>
-    </body>
-</html>`
