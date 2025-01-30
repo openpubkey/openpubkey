@@ -315,3 +315,9 @@ func (s *StandardOp) HookHTTPSession(h http.HandlerFunc) {
 func (s *StandardOp) ReuseBrowserWindowHook(h chan string) {
 	s.reuseBrowserWindowHook = h
 }
+
+// GetBrowserWindowHook ris used by testing to trigger the redirect without
+// calling out the OP. This is hidden by not including in the interface.
+func (s *StandardOp) TriggerBrowserWindowHook(uri string) {
+	s.reuseBrowserWindowHook <- uri
+}

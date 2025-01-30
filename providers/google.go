@@ -89,7 +89,7 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 // NewGoogleOp creates a Google OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
-func NewGoogleOp() OpenIdProvider {
+func NewGoogleOp() BrowserOpenIdProvider {
 	options := GetDefaultGoogleOpOptions()
 	return NewGoogleOpWithOptions(options)
 }
@@ -97,7 +97,7 @@ func NewGoogleOp() OpenIdProvider {
 // NewGoogleOpWithOptions creates a Google OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewGoogleOpWithOptions(opts *GoogleOptions) *StandardOp {
+func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 	return &StandardOp{
 		ClientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
@@ -118,3 +118,7 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) *StandardOp {
 }
 
 type GoogleOp = StandardOp
+
+var _ OpenIdProvider = (*GoogleOp)(nil)
+var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
+var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
