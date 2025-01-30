@@ -15,15 +15,18 @@
     </head>
     <body>
         <div>
-        <h1>OpenPubkey OpenID Providers:</h1>
+        <h3>OpenPubkey OpenID:</h3>
         </div>
         <br>
-        <div style="display:{{.Google}};">
-        <a href="/select?op=google"><img src="static/buttons/google-light.svg" alt="Sign in with Google" /></a>
+        <div style="background-color: grey; padding: 20px; display: inline-block;">
+            <div style="display:{{.Google}};">
+                <a href="/select?op=google"><img src="static/buttons/google-light.svg" alt="Sign in with Google" style="width:200px;" /></a>
+            </div>
+            <br>
+            <div style="visibility:{{.Azure}};">
+                <a href="/select?op=azure"><img src="static/buttons/azure-dark.svg" alt="Sign in with Azure" style="width:200px;" /></a>
+            </div>
         </div>
-		<br>
-        <div style="visibility:{{.Azure}};">
-        <a href="/select?op=azure"><img src="static/buttons/azure-light.svg" alt="Sign in with Azure" /></a>
-        </div>
+
     </body>
 </html>
