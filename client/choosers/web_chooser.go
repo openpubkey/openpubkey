@@ -177,7 +177,6 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 }
 
 func IssuerToName(issuer string) (string, error) {
-	// TODO: Make these constants or use an enum
 	switch {
 	case strings.HasPrefix(issuer, "https://accounts.google.com"):
 		return "google", nil
