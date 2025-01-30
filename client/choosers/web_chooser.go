@@ -21,6 +21,7 @@ import (
 	"embed"
 	_ "embed"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"net"
 	"net/http"
@@ -34,6 +35,9 @@ import (
 
 //go:embed static/*
 var staticFiles embed.FS
+
+//go:embed chooser.tmpl
+var chooserTemplate string
 
 // TODO: Add instructions on how to add a new OpenID Provider to the web chooser
 
@@ -79,7 +83,32 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle("/choose/", http.StripPrefix("/choose/", http.FileServer(http.FS(staticContent))))
+
+	tmpl, err := template.New("chooser-page").Parse(chooserTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	mux.HandleFunc("/chooser", func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			Google string
+			Azure  string
+		}{
+			Google: "none",
+			Azure:  "none",
+		}
+		if _, ok := providerMap["google"]; ok {
+			data.Google = "block"
+		}
+		if _, ok := providerMap["azure"]; ok {
+			data.Azure = "block"
+		}
+		w.Header().Set("Content-Type", "text/html")
+		if err := tmpl.Execute(w, data); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
 	mux.HandleFunc("/select/", func(w http.ResponseWriter, r *http.Request) {
 		// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
 		shutdownServer := func() {
@@ -131,7 +160,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}()
 
 		if wc.OpenBrowser {
-			loginURI := fmt.Sprintf("http://%s/choose", listener.Addr().String())
+			loginURI := fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 			logrus.Infof("Opening browser to %s", loginURI)
 			if err := util.OpenUrl(loginURI); err != nil {
 				logrus.Errorf("Failed to open url: %v", err)
