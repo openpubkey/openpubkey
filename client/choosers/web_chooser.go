@@ -19,7 +19,6 @@ package choosers
 import (
 	"context"
 	"embed"
-	_ "embed"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -37,9 +36,16 @@ import (
 var staticFiles embed.FS
 
 //go:embed chooser.tmpl
-var chooserTemplate string
+var chooserTemplateFile string
 
-// TODO: Add instructions on how to add a new OpenID Provider to the web chooser
+// To add support for an OP to the the WebChooser:
+// 1. Add the OP to IssuerToName func
+// 2. Add the OP to the html template file: `chooser.tmpl`
+// 3. Add the OP to the data which is supplied to `chooserTemplate.Execute(w, data)`
+//
+// Note that the web chooser can only support BrowserOpenIdProvider
+
+// TODO: This should be an enum that can also autogenerate what gets passed to the template
 
 type WebChooser struct {
 	OpList        []providers.BrowserOpenIdProvider
@@ -84,7 +90,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		return nil, err
 	}
 
-	tmpl, err := template.New("chooser-page").Parse(chooserTemplate)
+	chooserTemplate, err := template.New("chooser-page").Parse(chooserTemplateFile)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +110,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			data.Azure = "block"
 		}
 		w.Header().Set("Content-Type", "text/html")
-		if err := tmpl.Execute(w, data); err != nil {
+		if err := chooserTemplate.Execute(w, data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
