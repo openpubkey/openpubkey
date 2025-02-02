@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>OpenPubkey: OpenID Providers</title>
+        <style>
+            body {
+                text-align: center;
+                font-family: Arial, sans-serif;
+                background-color: #f0f0f0;
+            }
+            .g_id_signin {
+                margin-top: 100px;
+            }
+        </style>
+    </head>
+    <body>
+        <div>
+        <h3>OpenPubkey:</h3>
+        </div>
+        <br>
+        <div style="background-color: grey; padding: 20px; display: inline-block;">
+            <div style="display:{{.Google}};">
+                <a href="/select?op=google"><img src="static/buttons/google-light.svg" alt="Sign in with Google" style="width:200px;" /></a>
+            </div>
+            <br>
+            <div style="visibility:{{.Azure}};">
+                <a href="/select?op=azure"><img src="static/buttons/azure-dark.svg" alt="Sign in with Azure" style="width:200px;" /></a>
+            </div>
+        </div>
+
+    </body>
+</html>

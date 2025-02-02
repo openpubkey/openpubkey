@@ -73,8 +73,8 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 	return &AzureOptions{
 		Issuer:   azureIssuer(defaultTenantID),
 		ClientID: "bd345b9c-6902-400d-9e18-45abdf0f698f", // TODO: replace with a better client ID
-
-		// Scopes: []string{"openid profile email", "offline_access"}, // offline_access is required for refresh tokens
+		// Scopes:   []string{"openid profile email"},
+		Scopes: []string{"openid profile email offline_access"}, // offline_access is required for refresh tokens
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -90,7 +90,7 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 // NewAzureOp creates a Azure OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
-func NewAzureOp() OpenIdProvider {
+func NewAzureOp() BrowserOpenIdProvider {
 	options := GetDefaultAzureOpOptions()
 	return NewAzureOpWithOptions(options)
 }
@@ -98,7 +98,7 @@ func NewAzureOp() OpenIdProvider {
 // NewAzureOpWithOptions creates a Azure OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewAzureOpWithOptions(opts *AzureOptions) *StandardOp {
+func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 	return &StandardOp{
 		ClientID:                  opts.ClientID,
 		Scopes:                    opts.Scopes,
@@ -117,6 +117,8 @@ func NewAzureOpWithOptions(opts *AzureOptions) *StandardOp {
 	}
 }
 
+type AzureOp = StandardOp
+
 var _ OpenIdProvider = (*AzureOp)(nil)
 var _ BrowserOpenIdProvider = (*AzureOp)(nil)
 var _ RefreshableOpenIdProvider = (*AzureOp)(nil)
@@ -124,5 +126,3 @@ var _ RefreshableOpenIdProvider = (*AzureOp)(nil)
 func azureIssuer(tenantID string) string {
 	return fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
 }
-
-type AzureOp = StandardOp
