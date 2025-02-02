@@ -138,7 +138,7 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	redirectURI := fmt.Sprintf("%s/%s", "http://localhost:5555", cosP.CallbackPath)
 
 	// reuse the same authcode twice, it should fail
-	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
+	initAuthMsgJson, nonce, err := cosP.CreateInitAuthSig(redirectURI)
 	require.NoError(t, err, "CreateInitAuthSig err: %v", err)
 
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
@@ -159,6 +159,9 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 	cosSig, err := cos.RedeemAuthcode(acSig1)
 	require.NotEmpty(t, cosSig)
 	require.Empty(t, err)
+
+	err = cosP.ValidateCos(cosSig, nonce, redirectURI)
+	require.NoError(t, err, "ValidateCos err: %v", err)
 
 	// Should fail because authcode has already been issued
 	cosSig, err = cos.RedeemAuthcode(acSig2)
