@@ -39,7 +39,7 @@ func TestGoogleSelection(t *testing.T) {
 		{name: "select google", providerName: "google", httpCodeExpected: http.StatusOK},
 		{name: "select azure", providerName: "azure", httpCodeExpected: http.StatusOK},
 		{name: "select bad provider", providerName: "fakeProvider", httpCodeExpected: http.StatusBadRequest, errorString: "unknown OpenID Provider"},
-		{name: "select no provider", providerName: "", httpCodeExpected: http.StatusBadRequest},
+		{name: "select no provider", providerName: "", httpCodeExpected: http.StatusBadRequest, errorString: "missing op parameter"},
 	}
 
 	for _, tc := range testCases {
@@ -58,7 +58,11 @@ func TestGoogleSelection(t *testing.T) {
 
 			var chooserErr error
 			var op providers.OpenIdProvider
+
+			testRunDone := make(chan struct{})
 			go func() {
+				defer close(testRunDone)
+
 				// If something goes wrong in this go func, this unittest will hang
 				// until it times out. If you are running into such an issue
 				// check if check if anything here is failing.
@@ -76,6 +80,9 @@ func TestGoogleSelection(t *testing.T) {
 				case "google":
 					googleOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				case "azure":
+					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
+				default:
+					// Trigger azure even if the provider doesn't match to sure this test finishes
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				}
 			}()
@@ -106,6 +113,13 @@ func TestGoogleSelection(t *testing.T) {
 				require.Nil(t, op)
 			}
 
+			// Since we use a go func inside the test, we need to ensure it finishes before we move on to the next test
+			select {
+			case <-testRunDone:
+				require.Nil(t, nil)
+			case <-time.After(5 * time.Second):
+				t.Fatal("test timed out")
+			}
 		})
 	}
 
