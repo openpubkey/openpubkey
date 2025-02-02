@@ -130,7 +130,9 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 
 		opName := r.URL.Query().Get("op")
 		if opName == "" {
-			http.Error(w, "missing op parameter", http.StatusBadRequest)
+			errorString := "missing op parameter"
+			http.Error(w, errorString, http.StatusBadRequest)
+			errCh <- fmt.Errorf(errorString)
 			return
 		}
 		if op, ok := providerMap[opName]; !ok {
