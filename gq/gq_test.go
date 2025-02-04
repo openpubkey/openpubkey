@@ -154,6 +154,17 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
+func TestRejectUnsupportedPublicKey(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	oidcPrivKey.E = 3
+	oidcPubKey := &oidcPrivKey.PublicKey
+
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+	require.ErrorContains(t, err, "only 65537 is currently supported, unsupported RSA public key exponent")
+	require.Nil(t, signerVerifier)
+}
+
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 	headers, _, signature, err := jws.SplitCompact(token)
 	if err != nil {

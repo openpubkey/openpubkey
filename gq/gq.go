@@ -132,6 +132,11 @@ func New256SignerVerifier(publicKey *rsa.PublicKey) (SignerVerifier, error) {
 //
 // The securityParameter parameter is the level of desired security in bits. 256 is recommended.
 func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerVerifier, error) {
+	if publicKey.E != 65537 {
+		// Danger: Currently it is unsafe to use this library with a RSA exponent other than 65537.
+		// This issue is being tracked in https://github.com/openpubkey/openpubkey/issues/230
+		return nil, fmt.Errorf("only 65537 is currently supported, unsupported RSA public key exponent: %d", publicKey.E)
+	}
 	n, v, nBytes, vBytes, err := parsePublicKey(publicKey)
 	t := securityParameter / (vBytes * 8)
 
