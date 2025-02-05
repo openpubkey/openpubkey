@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,9 @@ func TestProviderVerifier(t *testing.T) {
 		tokenCommitType   CommitType
 		pvCommitType      CommitType
 		SkipClientIDCheck bool
+		ExpirationPolicy  *ExpirationPolicy
+		IssuedAtClaim     int64
+		ExpClaim          int64
 		correctCicHash    bool
 	}{
 		{name: "Claim Commitment happy case", aud: clientID, clientID: clientID,
@@ -60,6 +64,41 @@ func TestProviderVerifier(t *testing.T) {
 			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM,
 			expError:          "",
 			SkipClientIDCheck: true, correctCicHash: true},
+		{name: "Claim Commitment expiration happy case (OIDC)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			expError:         "",
+			ExpirationPolicy: &ExpirationPolicies.OIDC,
+			IssuedAtClaim:    time.Now().Add(-23 * time.Hour).Unix(),
+			ExpClaim:         time.Now().Add(2 * time.Hour).Unix(),
+			correctCicHash:   true},
+		{name: "Claim Commitment expiration expired by an hour (OIDC)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			expError:         "the ID token has expired",
+			ExpirationPolicy: &ExpirationPolicies.OIDC,
+			IssuedAtClaim:    time.Now().Add(-23 * time.Hour).Unix(),
+			ExpClaim:         time.Now().Add(-1 * time.Hour).Unix(),
+			correctCicHash:   true},
+		{name: "Claim Commitment expiration happy case (MAX AGE 24 hours)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			expError:         "",
+			ExpirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
+			IssuedAtClaim:    time.Now().Add(-23 * time.Hour).Unix(),
+			ExpClaim:         time.Now().Add(2 * time.Hour).Unix(),
+			correctCicHash:   true},
+		{name: "Claim Commitment expiration expired by an hour (MAX AGE 24)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			expError:         "the PK token has expired based on maxAge",
+			ExpirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
+			IssuedAtClaim:    time.Now().Add(-25 * time.Hour).Unix(),
+			ExpClaim:         time.Now().Add(2 * time.Hour).Unix(),
+			correctCicHash:   true},
+		{name: "Claim Commitment expiration default (default is OIDC)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			expError:         "the ID token has expired",
+			ExpirationPolicy: nil,
+			IssuedAtClaim:    time.Now().Add(-25 * time.Hour).Unix(),
+			ExpClaim:         time.Now().Add(-1 * time.Hour).Unix(),
+			correctCicHash:   true},
 		{name: "Claim Commitment wrong audience", aud: "wrong clientID", clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
 			expError:       "audience does not contain clientID",
@@ -106,12 +145,13 @@ func TestProviderVerifier(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			idtTemplate := mocks.IDTokenTemplate{
-				Issuer:  issuer,
-				Nonce:   "empty",
-				NoNonce: false,
-				Aud:     "empty",
-				Alg:     "RS256",
-				NoAlg:   false,
+				Issuer:      issuer,
+				Nonce:       "empty",
+				NoNonce:     false,
+				Aud:         "empty",
+				Alg:         "RS256",
+				NoAlg:       false,
+				ExtraClaims: map[string]any{},
 			}
 
 			switch tc.tokenCommitType.Claim {
@@ -121,11 +161,17 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.CommitFunc = mocks.AddAudCommit
 			default:
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
-
 			}
 
 			if tc.aud != "" {
 				idtTemplate.Aud = tc.aud
+			}
+
+			if tc.IssuedAtClaim != 0 {
+				idtTemplate.ExtraClaims["iat"] = tc.IssuedAtClaim
+			}
+			if tc.ExpClaim != 0 {
+				idtTemplate.ExtraClaims["exp"] = tc.ExpClaim
 			}
 
 			cic := GenCICExtra(t, map[string]any{})
@@ -169,7 +215,9 @@ func TestProviderVerifier(t *testing.T) {
 					DiscoverPublicKey: &backendMock.PublicKeyFinder,
 					GQOnly:            tc.pvGQOnly,
 					ClientID:          tc.clientID,
-					SkipClientIDCheck: tc.SkipClientIDCheck})
+					SkipClientIDCheck: tc.SkipClientIDCheck,
+					ExpirationPolicy:  tc.ExpirationPolicy,
+				})
 
 			// Change the CIC we test against so it doesn't match the commitment
 			if !tc.correctCicHash {

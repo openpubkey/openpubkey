@@ -268,7 +268,17 @@ func (s *StandardOp) Issuer() string {
 }
 
 func (s *StandardOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(s.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.NONCE_CLAIM, ClientID: s.ClientID, DiscoverPublicKey: &s.publicKeyFinder})
+	vp := NewProviderVerifier(
+		s.issuer,
+		ProviderVerifierOpts{
+			CommitType:        CommitTypesEnum.NONCE_CLAIM,
+			ClientID:          s.ClientID,
+			DiscoverPublicKey: &s.publicKeyFinder,
+			// For user access we override the ID Token expiration claim
+			// and instead have tokens expire after 24 hours so that
+			// users don't have log back in every hour.
+			ExpirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
+		})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
