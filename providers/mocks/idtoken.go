@@ -97,6 +97,7 @@ func (t *IDTokenTemplate) IssueToken() (*oidc.Tokens, error) {
 		"aud": t.Aud,
 		"iss": t.Issuer,
 		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(2 * time.Hour).Unix(),
 	}
 
 	if !t.NoNonce {

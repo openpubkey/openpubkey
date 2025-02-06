@@ -167,6 +167,6 @@ func (g *GithubOp) Issuer() string {
 }
 
 func (g *GithubOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
-	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.AUD_CLAIM, GQOnly: true, SkipClientIDCheck: true})
+	vp := NewProviderVerifier(g.issuer, ProviderVerifierOpts{CommitType: CommitTypesEnum.AUD_CLAIM, GQOnly: true, SkipClientIDCheck: true, ExpirationPolicy: &ExpirationPolicies.OIDC})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }

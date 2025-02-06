@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -51,8 +52,11 @@ type ProviderVerifierOpts struct {
 	SkipClientIDCheck bool
 	// Custom function for discovering public key of Provider
 	DiscoverPublicKey *discover.PublicKeyFinder
-	// Allows for successful verification of expired tokens
-	SkipExpirationCheck bool
+	// Sets the expiration policy to use
+	ExpirationPolicy *ExpirationPolicy
+	// Rejects Tokens that are too old. This is the standard OpenPubkey expiration mechanism.
+	// Set to 0 to disable.
+	MaxAge time.Duration
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
@@ -72,6 +76,11 @@ func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultPr
 	// If no custom DiscoverPublicKey function is set, set default
 	if v.options.DiscoverPublicKey == nil {
 		v.options.DiscoverPublicKey = discover.DefaultPubkeyFinder()
+	}
+
+	// If no ExpirationPolicy is set, set default standard OIDC exp claim
+	if v.options.ExpirationPolicy == nil {
+		v.options.ExpirationPolicy = &ExpirationPolicies.OIDC
 	}
 
 	return v
@@ -103,6 +112,10 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 	idt, err := oidc.NewJwt(idToken)
 	if err != nil {
+		return err
+	}
+
+	if err = v.options.ExpirationPolicy.CheckExpiration(*idt.GetClaims()); err != nil {
 		return err
 	}
 
