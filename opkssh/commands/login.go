@@ -11,14 +11,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/bastionzero/opk-ssh/sshcert"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/mixpanel/mixpanel-go"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -47,7 +45,6 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 	if err != nil {
 		return nil, err
 	}
-	trackLoginViaMixpanel(ctx, pkt)
 
 	// If principals is empty the server does not enforce any principal. The OPK
 	// verifier should use policy to make this decision.
@@ -236,44 +233,4 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 func fileExists(fPath string) bool {
 	_, err := os.Open(fPath)
 	return !errors.Is(err, os.ErrNotExist)
-}
-
-func trackLoginViaMixpanel(ctx context.Context, pkt *pktoken.PKToken) {
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return
-	}
-
-	sub, _ := client.ExtractClaim(idt, "sub")
-	issuer, _ := client.ExtractClaim(idt, "iss")
-	if sub == "" || issuer == "" {
-		return
-	}
-
-	userDistinctId := fmt.Sprintf("%s-%s", sub, issuer)
-	email, _ := client.ExtractClaim(idt, "email")
-
-	// This is the project token associated with our Mixpanel project
-	// It is safe to hardcode -> https://stackoverflow.com/a/41730503
-	mp := mixpanel.NewApiClient("981c739f510b69b7acc222f2a013d4bf")
-	if err := mp.Track(ctx, []*mixpanel.Event{
-		mp.NewEvent("User logged in", userDistinctId, map[string]any{
-			"os": runtime.GOOS,
-		}),
-	}); err != nil {
-		return
-	}
-
-	newUser := mixpanel.NewPeopleProperties(userDistinctId, map[string]any{
-		"$email": email,
-	})
-
-	err = mp.PeopleSet(ctx,
-		[]*mixpanel.PeopleProperties{
-			newUser,
-		},
-	)
-	if err != nil {
-		return
-	}
 }
