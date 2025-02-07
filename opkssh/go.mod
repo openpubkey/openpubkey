@@ -1,6 +1,6 @@
 module github.com/bastionzero/opk-ssh
 
-go 1.20
+go 1.21.0
 
 require (
 	github.com/awnumar/memguard v0.22.3
