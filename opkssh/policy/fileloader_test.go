@@ -7,7 +7,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 )
@@ -102,7 +102,8 @@ func TestLoadUserPolicy_ErrorYAML(t *testing.T) {
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
 	// Create policy file at user policy path with invalid yaml
-	afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "policy.yml"), []byte("{"), 0600)
+	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "policy.yml"), []byte("{"), 0600)
+	require.NoError(t, err)
 
 	policy, path, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
 
@@ -130,7 +131,8 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 	testPolicyYaml, err := testPolicy.ToYAML()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-	afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
+	require.NoError(t, err)
 
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
 
@@ -184,8 +186,8 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	testPolicyYaml, err := testPolicy.ToYAML()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-	afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
-
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
+	require.NoError(t, err)
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, true)
 
 	require.NoError(t, err)
@@ -219,7 +221,8 @@ func TestLoadPolicyAtPath_BadPermissions(t *testing.T) {
 		mockUserLookup,
 	)
 	// Create empty policy with bad permissions
-	afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0777)
+	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0777)
+	require.NoError(t, err)
 
 	contents, err := policyLoader.LoadPolicyAtPath(policy.SystemDefaultPolicyPath)
 
@@ -239,7 +242,8 @@ func TestLoadPolicyAtPath_ReadError(t *testing.T) {
 		mockUserLookup,
 	)
 	// Create empty policy file with correct permissions
-	afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0600)
+	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0600)
+	require.NoError(t, err)
 	// Now make it so mock filesystem returns error when reading the file (must
 	// do this after creating the SystemDefaultPolicyPath file above)
 	fakeError := errors.New("fake error")
@@ -260,8 +264,8 @@ func TestLoadSystemDefaultPolicy_ErrorYAML(t *testing.T) {
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
 	// Create policy file at default path with invalid yaml
-	afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0600)
-
+	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0600)
+	require.NoError(t, err)
 	policy, err := policyLoader.LoadSystemDefaultPolicy()
 
 	require.Error(t, err)
@@ -287,8 +291,8 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 	}
 	testPolicyYaml, err := testPolicy.ToYAML()
 	require.NoError(t, err)
-	afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyYaml, 0600)
-
+	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyYaml, 0600)
+	require.NoError(t, err)
 	gotPolicy, err := policyLoader.LoadSystemDefaultPolicy()
 
 	require.NoError(t, err)

@@ -4,13 +4,56 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bastionzero/opk-ssh/policy"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
-	"github.com/openpubkey/openpubkey/client/providers"
-	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/stretchr/testify/require"
 )
+
+func NewMockOpenIdProvider() (providers.OpenIdProvider, error) {
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, idTokenTemplate, err := providers.NewMockProvider(providerOpts)
+	idTokenTemplate.ExtraClaims = map[string]any{"email": "arthur.aardvark@example.com"}
+
+	return op, err
+}
+
+func NewMockOpenIdProvider2(gqSign bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *mocks.MockProviderBackend, error) {
+	providerOpts := providers.MockProviderOpts{
+		Issuer:     issuer,
+		ClientID:   clientID,
+		GQSign:     gqSign,
+		NumKeys:    2,
+		CommitType: providers.CommitTypesEnum.NONCE_CLAIM,
+		VerifierOpts: providers.ProviderVerifierOpts{
+			CommitType:        providers.CommitTypesEnum.NONCE_CLAIM,
+			SkipClientIDCheck: false,
+			GQOnly:            false,
+			ClientID:          clientID,
+		},
+	}
+
+	op, mockBackend, _, err := providers.NewMockProvider(providerOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
+
+	idTokenTemplate := &mocks.IDTokenTemplate{
+		CommitFunc:  mocks.AddNonceCommit,
+		Issuer:      op.Issuer(),
+		Aud:         clientID,
+		KeyID:       expKeyID,
+		Alg:         expRecord.Alg,
+		ExtraClaims: extraClaims,
+		SigningKey:  expSigningKey,
+	}
+	mockBackend.SetIDTokenTemplate(idTokenTemplate)
+
+	return op, mockBackend, nil
+}
 
 var policyTest = &policy.Policy{
 	Users: []policy.User{
@@ -63,19 +106,12 @@ func (m *MockPolicyLoader) Load() (*policy.Policy, policy.Source, error) {
 func TestPolicyApproved(t *testing.T) {
 	t.Parallel()
 
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
+	op, err := NewMockOpenIdProvider()
 	require.NoError(t, err)
 
-	op, err := providers.NewMockOpenIdProvider()
+	opkClient, err := client.New(op)
 	require.NoError(t, err)
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
+	pkt, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	policyEnforcer := &policy.Enforcer{
@@ -90,19 +126,12 @@ func TestPolicyApproved(t *testing.T) {
 func TestPolicyDeniedBadUser(t *testing.T) {
 	t.Parallel()
 
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
+	op, err := NewMockOpenIdProvider()
 	require.NoError(t, err)
 
-	op, err := providers.NewMockOpenIdProvider()
+	opkClient, err := client.New(op)
 	require.NoError(t, err)
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
+	pkt, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	policyEnforcer := &policy.Enforcer{
@@ -116,19 +145,12 @@ func TestPolicyDeniedBadUser(t *testing.T) {
 func TestPolicyDeniedNoUserEntry(t *testing.T) {
 	t.Parallel()
 
-	alg := jwa.ES256
-
-	signer, err := util.GenKeyPair(alg)
+	op, err := NewMockOpenIdProvider()
 	require.NoError(t, err)
 
-	op, err := providers.NewMockOpenIdProvider()
+	opkClient, err := client.New(op)
 	require.NoError(t, err)
-
-	client := &client.OpkClient{
-		Op: op,
-	}
-
-	pkt, err := client.OidcAuth(context.Background(), signer, alg, map[string]any{}, false)
+	pkt, err := opkClient.Auth(context.Background())
 	require.NoError(t, err)
 
 	policyEnforcer := &policy.Enforcer{

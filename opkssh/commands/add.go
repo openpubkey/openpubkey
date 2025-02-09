@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
 )
 
 // AddCmd provides functionality to read and update the opk-ssh policy file

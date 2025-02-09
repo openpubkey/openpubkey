@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bastionzero/opk-ssh/provider"
-	"github.com/bastionzero/opk-ssh/sshcert"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/opkssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
 )
@@ -27,6 +27,7 @@ type loginResult struct {
 	pkt        *pktoken.PKToken
 	signer     crypto.Signer
 	alg        jwa.SignatureAlgorithm
+	client     *client.OpkClient
 	principals []string
 }
 
@@ -38,10 +39,12 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 		return nil, fmt.Errorf("failed to generate keypair: %w", err)
 	}
 
-	client := &client.OpkClient{
-		Op: provider,
+	opkClient, err := client.New(provider, client.WithSigner(signer, alg))
+	if err != nil {
+		return nil, err
 	}
-	pkt, err := client.OidcAuth(ctx, signer, alg, map[string]any{}, false)
+
+	pkt, err := opkClient.Auth(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +65,7 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 	return &loginResult{
 		pkt:        pkt,
 		signer:     signer,
+		client:     opkClient,
 		alg:        alg,
 		principals: principals,
 	}, nil
@@ -79,7 +83,7 @@ func Login(ctx context.Context, provider client.OpenIdProvider) error {
 // the PKT (and create new SSH certs) indefinitely as its token expires. This
 // function only returns if it encounters an error or if the supplied context is
 // cancelled.
-func LoginWithRefresh(ctx context.Context, provider provider.RefreshableOP) error {
+func LoginWithRefresh(ctx context.Context, provider providers.RefreshableOpenIdProvider) error {
 	if loginResult, err := login(ctx, provider); err != nil {
 		return err
 	} else {
@@ -102,12 +106,18 @@ func LoginWithRefresh(ctx context.Context, provider provider.RefreshableOP) erro
 				return ctx.Err()
 			}
 
-			refreshedIdToken, err := provider.Refresh(ctx)
+			refreshedIdToken, err := loginResult.client.Refresh(ctx)
 			if err != nil {
 				return err
 			}
-
-			loginResult.pkt.Op.PublicHeaders().Set("refreshed_id_token", refreshedIdToken.String())
+			comPkt, err := refreshedIdToken.Compact()
+			if err != nil {
+				return err
+			}
+			err = loginResult.pkt.Op.PublicHeaders().Set("refreshed_id_token", comPkt)
+			if err != nil {
+				return err
+			}
 
 			certBytes, seckeySshPem, err := createSSHCert(ctx, loginResult.pkt, loginResult.signer, loginResult.principals)
 			if err != nil {
@@ -119,7 +129,7 @@ func LoginWithRefresh(ctx context.Context, provider provider.RefreshableOP) erro
 				return fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
 			}
 
-			_, payloadB64, _, err := jws.SplitCompactString(refreshedIdToken.String())
+			_, payloadB64, _, err := jws.SplitCompactString(string(comPkt))
 			if err != nil {
 				return fmt.Errorf("malformed ID token: %w", err)
 			}

@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package sshcert
 
 import (
@@ -7,9 +23,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/openpubkey/openpubkey/opkssh/provider"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
 	"golang.org/x/crypto/ssh"
@@ -140,12 +156,12 @@ func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig provide
 func verifyPKToken(ctx context.Context, opConfig provider.Config, pkt *pktoken.PKToken) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.IssuerUrl())
+	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.Issuer())
 	if err != nil {
 		return err
 	}
 
-	idt, err := pkt.Compact(pkt.Op)
+	idt, err := pkt.Compact()
 	if err != nil {
 		return err
 	}
@@ -178,10 +194,11 @@ func verifyPKToken(ctx context.Context, opConfig provider.Config, pkt *pktoken.P
 		}
 	}
 
-	err = pkt.VerifyCicSig()
-	if err != nil {
-		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
+	// TODO: Use a provider verifier to verify the PK Token
+	// err = pkt.VerifyCicSig()
+	// if err != nil {
+	// 	return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
+	// }
 
 	// Check our nonce matches expected
 	var claims struct {

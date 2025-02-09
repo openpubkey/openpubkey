@@ -17,12 +17,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/awnumar/memguard"
-	"github.com/bastionzero/opk-ssh/commands"
-	"github.com/bastionzero/opk-ssh/provider"
-	testprovider "github.com/bastionzero/opk-ssh/test/integration/provider"
-	"github.com/bastionzero/opk-ssh/test/integration/ssh_server"
+	"github.com/openpubkey/openpubkey/discover"
+	simpleoidc "github.com/openpubkey/openpubkey/oidc"
+	"github.com/openpubkey/openpubkey/opkssh/commands"
+	testprovider "github.com/openpubkey/openpubkey/opkssh/test/integration/provider"
+	"github.com/openpubkey/openpubkey/opkssh/test/integration/ssh_server"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 
 	"github.com/melbahja/goph"
@@ -69,16 +71,32 @@ func (t *oidcHttpClientTransport) RoundTrip(req *http.Request) (*http.Response, 
 // Refresh() unblocks and the function call is forwarded to the underlying
 // provider.RefreshableOP
 type pulseRefreshProvider struct {
-	provider.RefreshableOP
-	pulseCh chan struct{}
+	RefreshableOP providers.RefreshableOpenIdProvider
+	pulseCh       chan struct{}
 }
 
 // newPulseRefreshProvider creates a new pulseRefreshProvider
-func newPulseRefreshProvider(provider provider.RefreshableOP) *pulseRefreshProvider {
+func newPulseRefreshProvider(provider providers.RefreshableOpenIdProvider) *pulseRefreshProvider {
 	return &pulseRefreshProvider{
 		RefreshableOP: provider,
 		pulseCh:       make(chan struct{}, 1),
 	}
+}
+
+func (p *pulseRefreshProvider) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
+	return p.RefreshableOP.RequestTokens(ctx, cic)
+}
+
+func (p *pulseRefreshProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+	return p.RefreshableOP.VerifyRefreshedIDToken(ctx, origIdt, reIdt)
+}
+
+func (p *pulseRefreshProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+	return p.RefreshableOP.PublicKeyByToken(ctx, token)
+}
+
+func (p *pulseRefreshProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+	return p.RefreshableOP.VerifyIDToken(ctx, idt, cic)
 }
 
 // Pulse unblocks Refresh()
@@ -86,13 +104,21 @@ func (p *pulseRefreshProvider) Pulse() {
 	p.pulseCh <- struct{}{}
 }
 
+func (p *pulseRefreshProvider) Issuer() string {
+	return p.RefreshableOP.Issuer()
+}
+
+func (p *pulseRefreshProvider) PublicKeyByKeyId(ctx context.Context, keyId string) (*discover.PublicKeyRecord, error) {
+	return p.RefreshableOP.PublicKeyByKeyId(ctx, keyId)
+}
+
 // Refresh calls the underlying provider.RefreshableOP() function only after a
 // pulse has been received. This function stops waiting for a pulse if TestCtx
 // has been cancelled.
-func (p *pulseRefreshProvider) Refresh(ctx context.Context) (*memguard.LockedBuffer, error) {
+func (p *pulseRefreshProvider) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
 	select {
 	case <-p.pulseCh:
-		return p.RefreshableOP.Refresh(ctx)
+		return p.RefreshableOP.RefreshTokens(ctx, refreshToken)
 	case <-TestCtx.Done():
 		return nil, TestCtx.Err()
 	}
@@ -129,7 +155,7 @@ func createOpkSshSigner(t *testing.T, pubKey ssh.PublicKey, secKeyFilePath strin
 // This function returns both an OPK SSH provider and an HTTP transport that has
 // been modified from the http.DefaultTransport to send requests to 127.0.0.1
 // instead of oidc.local
-func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, authCallbackServerRedirectPort int) (zitadelOp *provider.GoogleProvider, httpTransport http.RoundTripper) {
+func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, authCallbackServerRedirectPort int) (zitadelOp providers.BrowserOpenIdProvider, httpTransport http.RoundTripper) {
 	// Create custom HTTP client that sends HTTP requests to the correct port
 	// and valid IP of the container running the OIDC server instead of
 	// "oidc.local" (which is an unknown name on the host machine); "oidc.local"
@@ -155,20 +181,15 @@ func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, auth
 	httpTransport = &oidcHttpClientTransport{underlyingTransport: customDialTransport, port: issuerPort}
 	httpClient := http.Client{Transport: httpTransport}
 
-	zitadelOp, err := provider.NewGoogleProvider(
-		fmt.Sprintf("http://oidc.local:%s/", issuerPort),
-		// Hardcoded id+secrets in example zitadel server
-		"web",
-		"secret",
-		[]int{authCallbackServerRedirectPort},
-		callbackPath,
-		// offline_access is used by the refresh test. Must include this scope
-		// in order to get back a refresh_token from the zitadel OP
-		[]string{"openid", "profile", "email", "offline_access"},
-		false,
-		&httpClient,
-	)
-	require.NoError(t, err)
+	zitadelOp = providers.NewGoogleOpWithOptions(&providers.GoogleOptions{
+		Issuer:       fmt.Sprintf("http://oidc.local:%s/", issuerPort),
+		ClientID:     "web",
+		ClientSecret: "secret",
+		RedirectURIs: []string{fmt.Sprintf("http:/localhost:%d/login-callback", authCallbackServerRedirectPort)}, // TODO: check this correct
+		Scopes:       []string{"openid", "profile", "email", "offline_access"},
+		OpenBrowser:  false,
+		HttpClient:   &httpClient,
+	})
 	return
 }
 

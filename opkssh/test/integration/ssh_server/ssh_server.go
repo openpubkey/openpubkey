@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bastionzero/opk-ssh/internal/projectpath"
+	"github.com/openpubkey/openpubkey/opkssh/internal/projectpath"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

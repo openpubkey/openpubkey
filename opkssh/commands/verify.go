@@ -3,9 +3,9 @@ package commands
 import (
 	"context"
 
-	"github.com/bastionzero/opk-ssh/policy"
-	"github.com/bastionzero/opk-ssh/provider"
-	"github.com/bastionzero/opk-ssh/sshcert"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/provider"
+	"github.com/openpubkey/openpubkey/opkssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/crypto/ssh"
 )

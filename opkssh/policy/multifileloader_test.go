@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,14 +163,16 @@ func TestLoad(t *testing.T) {
 			if tt.rootPolicy != nil {
 				policyYaml, err := tt.rootPolicy.ToYAML()
 				require.NoError(t, err)
-				afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, policyYaml, 0600)
+				err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, policyYaml, 0600)
+				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, policy.SystemDefaultPolicyPath)
 			}
 			if tt.userPolicy != nil {
 				policyYaml, err := tt.userPolicy.ToYAML()
 				require.NoError(t, err)
 				expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-				afero.WriteFile(mockFs, expectedPath, policyYaml, 0600)
+				err = afero.WriteFile(mockFs, expectedPath, policyYaml, 0600)
+				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, expectedPath)
 			}
 

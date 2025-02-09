@@ -1,6 +1,7 @@
 package sshcert
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -8,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -117,17 +118,18 @@ func TestSshCertCreation(t *testing.T) {
 
 	principals := []string{"guest", "dev"}
 
-	alg := jwa.ES256
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
+	require.NoError(t, err)
 
-	signingKey, err := util.GenKeyPair(alg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	email := "arthur.aardvark@example.com"
-	pkt, err := mocks.GenerateMockPKTokenWithEmail(signingKey, alg, email)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mockEmail := "arthur.aardvark@example.com"
+	idtTemplate.ExtraClaims = map[string]any{"email": mockEmail}
+
+	client, err := client.New(op)
+	require.NoError(t, err)
+
+	pkt, err := client.Auth(context.Background())
+	require.NoError(t, err)
 
 	cert, err := New(pkt, principals)
 	if err != nil {
@@ -148,8 +150,8 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 
-	if sshCert.KeyId != email {
-		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", email, sshCert.KeyId))
+	if sshCert.KeyId != mockEmail {
+		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId))
 	}
 
 	pktB64, ok := sshCert.Extensions["openpubkey-pkt"]
@@ -157,6 +159,9 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(err)
 	}
 	pktExtJson, err := util.Base64DecodeForJWT([]byte(pktB64))
+	if err != nil {
+		t.Error(err)
+	}
 
 	var pktExt *pktoken.PKToken
 	err = json.Unmarshal(pktExtJson, &pktExt)
@@ -172,6 +177,9 @@ func TestSshCertCreation(t *testing.T) {
 
 	cryptoCertKey := (sshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
+	if err != nil {
+		t.Error(err)
+	}
 	if !jwk.Equal(upk, jwkCertKey) {
 		t.Error(fmt.Errorf("expected upk to be equal to the value in sshCert.Key"))
 	}

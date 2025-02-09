@@ -3,7 +3,7 @@ package policy_test
 import (
 	"testing"
 
-	"github.com/bastionzero/opk-ssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/stretchr/testify/assert"
 )
 
