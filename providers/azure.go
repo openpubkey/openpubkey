@@ -100,7 +100,7 @@ func NewAzureOp() BrowserOpenIdProvider {
 // Client or override the configuration.
 func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 	return &StandardOp{
-		ClientID:                  opts.ClientID,
+		clientID:                  opts.ClientID,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,

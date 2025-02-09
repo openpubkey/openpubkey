@@ -63,6 +63,7 @@ func DefaultMockProviderOpts() MockProviderOpts {
 type MockProvider struct {
 	options                   MockProviderOpts
 	issuer                    string
+	clientID                  string
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
@@ -81,6 +82,7 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 	provider := &MockProvider{
 		options:                   opts,
 		issuer:                    mockBackend.Issuer,
+		clientID:                  opts.ClientID,
 		requestTokensOverrideFunc: mockBackend.RequestTokensOverrideFunc,
 		publicKeyFinder:           mockBackend.PublicKeyFinder,
 	}
@@ -161,6 +163,10 @@ func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string) (*dis
 
 func (m *MockProvider) Issuer() string {
 	return m.issuer
+}
+
+func (m *MockProvider) ClientID() string {
+	return m.clientID
 }
 
 func (m *MockProvider) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {

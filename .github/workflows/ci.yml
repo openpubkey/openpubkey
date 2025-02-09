@@ -22,13 +22,13 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Install Go
-      uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
     - name: Install dependencies
       run: go mod download
     - name: Build
-      run: go build -v
+      run: go build -v -o /dev/null ./opkssh/
   # Run integration tests
   test:
     needs: build
@@ -36,17 +36,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-    - name: Setup rootless Docker
-      uses: ScribeMD/rootless-docker@6bd157a512c2fafa4e0243a8aa87d964eb890886  # v0.2.2
-    - name: Remove Docker root socket
-      run: sudo rm -rf /var/run/docker.sock
     - name: Checkout
       uses: actions/checkout@v4
     - name: Install Go
-      uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      uses: actions/setup-go@v5
       with:
         go-version-file: 'go.mod'
+    - name: Install Docker
+      uses: docker/setup-buildx-action@v2
     - name: Install dependencies
       run: go mod download
     - name: Run integration tests
-      run: go test -tags=integration ./test/integration -timeout=15m -count=1 -parallel=2 -v
+      run: go test -tags=integration ./opkssh/test/integration -timeout=15m -count=1 -parallel=2 -v
+

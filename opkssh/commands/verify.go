@@ -3,10 +3,10 @@ package commands
 import (
 	"context"
 
-	"github.com/bastionzero/opk-ssh/policy"
-	"github.com/bastionzero/opk-ssh/provider"
-	"github.com/bastionzero/opk-ssh/sshcert"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -21,7 +21,7 @@ type AuthFunc func(username string, pkt *pktoken.PKToken) error
 type VerifyCmd struct {
 	// OPConfig returns configuration values used to verify the PK token
 	// contained in the SSH certificate
-	OPConfig provider.Config
+	OPConfig providers.Config
 	// Auth determines whether the verified PK token is permitted to SSH as a
 	// specific user
 	Auth AuthFunc

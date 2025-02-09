@@ -1,4 +1,4 @@
-FROM golang:1.20.12-bookworm
+FROM golang:1.22-bookworm
 
 # Update/Upgrade
 RUN apt-get update -y && apt-get upgrade -y
@@ -69,7 +69,7 @@ ARG ISSUER_PORT="9998"
 # "oidc.local" should be mapped to the IP of the docker container running the
 # zitadel dynamic exampleop server (configure ExtraHosts when running this
 # container).
-RUN go build -v -o /etc/opk/opk-ssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
+RUN go build -v -o /etc/opk/opk-ssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret" ./opkssh
 RUN chmod 700 /etc/opk/opk-ssh
 
 # Copy binary to unprivileged user's home directory

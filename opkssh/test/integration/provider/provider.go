@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bastionzero/opk-ssh/internal/projectpath"
+	"github.com/openpubkey/openpubkey/opkssh/internal/projectpath"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
@@ -27,7 +27,7 @@ func RunExampleOpContainer(ctx context.Context, networkName string, env map[stri
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
 			Context:       projectpath.Root,
-			Dockerfile:    filepath.Join("test", "integration", "provider", "exampleop.Dockerfile"),
+			Dockerfile:    filepath.Join("opkssh", "test", "integration", "provider", "exampleop.Dockerfile"),
 			PrintBuildLog: true,
 			KeepImage:     true,
 		},

@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 
-	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/jeremija/gosubmit"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/stretchr/testify/require"
 	"github.com/zitadel/oidc/v3/example/server/exampleop"
 	"github.com/zitadel/oidc/v3/example/server/storage"
@@ -104,10 +104,16 @@ func (s *FakeOpServer) OpkProvider() (client.OpenIdProvider, *url.URL, error) {
 
 	// Disable auto-open URL feature as this provider should be used in
 	// automated tests and not require user interaction via the browser
-	provider, err := provider.NewGoogleProvider(s.URL, webClient.GetID(), clientSecret, []int{redirectURIPort}, callbackPath, nil, false, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create provider: %w", err)
-	}
+	provider := providers.NewGoogleOpWithOptions(
+		&providers.GoogleOptions{
+			Issuer:       s.URL,
+			ClientID:     webClient.GetID(),
+			ClientSecret: clientSecret,
+			RedirectURIs: []string{fmt.Sprintf("http://localhost:%d/login-callback", redirectURIPort)},
+			Scopes:       []string{"openid", "profile", "email", "offline_access"},
+			OpenBrowser:  false,
+		},
+	)
 
 	return provider, loginURL, nil
 }

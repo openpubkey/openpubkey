@@ -1,3 +1,19 @@
+// Copyright 2024 OpenPubkey
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package sshcert
 
 import (
@@ -7,11 +23,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bastionzero/opk-ssh/provider"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -107,7 +124,7 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig provider.Config) (*pktoken.PKToken, error) {
+func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig providers.Config) (*pktoken.PKToken, error) {
 	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
@@ -137,27 +154,25 @@ func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig provide
 	}
 }
 
-func verifyPKToken(ctx context.Context, opConfig provider.Config, pkt *pktoken.PKToken) error {
+func verifyPKToken(ctx context.Context, opConfig providers.Config, pkt *pktoken.PKToken) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.IssuerUrl())
+	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.Issuer())
 	if err != nil {
 		return err
 	}
 
-	idt, err := pkt.Compact(pkt.Op)
-	if err != nil {
-		return err
-	}
+	idt := pkt.OpToken
 
 	// Verify ID token
-	verifier := provider.Verifier(&oidc.Config{
+	idtVerifier := provider.Verifier(&oidc.Config{
 		ClientID:        opConfig.ClientID(),
 		SkipExpiryCheck: true,
 	})
-	idToken, err := verifier.Verify(ctx, string(idt))
+	idToken, err := idtVerifier.Verify(ctx, string(idt))
 	if err != nil {
-		return err
+		// return err
+		return fmt.Errorf("failed to verify ID token: %w, idt: %v", err, idt)
 	}
 
 	// If the id token is expired, verify against the refreshed id token
@@ -171,40 +186,26 @@ func verifyPKToken(ctx context.Context, opConfig provider.Config, pkt *pktoken.P
 		if !ok {
 			return fmt.Errorf("failed to cast refreshed_id_token to string")
 		}
-
-		verifier := provider.Verifier(&oidc.Config{ClientID: opConfig.ClientID()})
-		if _, err = verifier.Verify(ctx, refreshedIdToken); err != nil {
+		// TODO: Use a provider verifier with expiration policy
+		idtExpVerifier := provider.Verifier(&oidc.Config{ClientID: opConfig.ClientID()})
+		if _, err = idtExpVerifier.Verify(ctx, refreshedIdToken); err != nil {
 			return err
 		}
 	}
 
-	err = pkt.VerifyCicSig()
-	if err != nil {
-		return fmt.Errorf("error verifying CIC signature on PK Token: %w", err)
-	}
-
-	// Check our nonce matches expected
-	var claims struct {
-		Nonce string `json:"nonce"`
-	}
-	if err := idToken.Claims(&claims); err != nil {
-		return err
-	}
-
-	cic, err := pkt.GetCicValues()
+	op := providers.NewGoogleOpWithOptions(
+		&providers.GoogleOptions{
+			Issuer:   opConfig.Issuer(),
+			ClientID: opConfig.ClientID(),
+		},
+	)
+	ver, err := verifier.New(op)
 	if err != nil {
 		return err
 	}
-
-	commitment, err := cic.Hash()
-	if err != nil {
-		return err
+	if err := ver.VerifyPKToken(ctx, pkt); err != nil {
+		return fmt.Errorf("failed to verify PK token: %w", err)
 	}
-
-	if string(commitment) != claims.Nonce {
-		return fmt.Errorf("nonce claim doesn't match, got %q, expected %q", claims.Nonce, string(commitment))
-	}
-
 	return nil
 }
 

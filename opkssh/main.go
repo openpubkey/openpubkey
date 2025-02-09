@@ -12,17 +12,22 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/bastionzero/opk-ssh/commands"
-	"github.com/bastionzero/opk-ssh/policy"
-	"github.com/bastionzero/opk-ssh/provider"
+	"github.com/openpubkey/openpubkey/opkssh/commands"
+	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/providers"
 )
 
 var (
-	issuer           = "https://accounts.google.com"
-	clientID         = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
-	clientSecret     = "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"
-	redirectEndpoint = "/login-callback"
-	redirectURIPorts = []int{49172, 51252, 58243, 59360, 62109}
+	issuer       = "https://accounts.google.com"
+	clientID     = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
+	clientSecret = "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"
+	redirectURIs = []string{
+		"http://localhost:49172/login-callback",
+		"http://localhost:51252/login-callback",
+		"http://localhost:58243/login-callback",
+		"http://localhost:59360/login-callback",
+		"http://localhost:62109/login-callback",
+	}
 )
 
 func main() {
@@ -36,11 +41,12 @@ func run() int {
 	}
 	command := os.Args[1]
 
-	provider, err := provider.NewGoogleProvider(issuer, clientID, clientSecret, redirectURIPorts, redirectEndpoint, nil, true, nil)
-	if err != nil {
-		log.Println("failed to create new google provider instance:", err)
-		return 1
-	}
+	opts := providers.GetDefaultGoogleOpOptions()
+	opts.Issuer = issuer
+	opts.ClientID = clientID
+	opts.ClientSecret = clientSecret
+	opts.RedirectURIs = redirectURIs
+	provider := providers.NewGoogleOpWithOptions(opts)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
@@ -55,7 +61,10 @@ func run() int {
 		loginCmd := flag.NewFlagSet("login", flag.ExitOnError)
 		autoRefresh := loginCmd.Bool("auto-refresh", false, "Used to specify whether login will begin a process that auto-refreshes PK token")
 		logFilePath := loginCmd.String("log-dir", "", "Specify which directory the output log is placed")
-		loginCmd.Parse(os.Args[2:])
+		if err := loginCmd.Parse(os.Args[2:]); err != nil {
+			log.Println("ERROR parsing args:", err)
+			return 1
+		}
 
 		// If a log directory was provided, write any logs to a file in that directory AND stdout
 		if *logFilePath != "" {
@@ -68,6 +77,7 @@ func run() int {
 			}
 		}
 
+		var err error
 		// Execute login command
 		if *autoRefresh {
 			err = commands.LoginWithRefresh(ctx, provider)
@@ -153,4 +163,9 @@ func run() int {
 	}
 
 	return 0
+}
+
+// TODO: Added this to make the provider compatible with the ProviderConfig. Should be removed after integration is complete
+type ConfigAdapter struct {
+	*providers.StandardOp
 }
