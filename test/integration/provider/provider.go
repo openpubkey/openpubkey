@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/openpubkey/openpubkey/opkssh/internal/projectpath"
+	"github.com/openpubkey/openpubkey/internal/projectpath"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/opkssh/policy"
-	"github.com/openpubkey/openpubkey/opkssh/test/integration/ssh_server"
+	"github.com/openpubkey/openpubkey/test/integration/ssh_server"
 	"github.com/testcontainers/testcontainers-go"
 
 	"github.com/stretchr/testify/assert"

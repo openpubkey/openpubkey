@@ -20,11 +20,11 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/opkssh/commands"
-	testprovider "github.com/openpubkey/openpubkey/opkssh/test/integration/provider"
-	"github.com/openpubkey/openpubkey/opkssh/test/integration/ssh_server"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
+	testprovider "github.com/openpubkey/openpubkey/test/integration/provider"
+	"github.com/openpubkey/openpubkey/test/integration/ssh_server"
 	"github.com/openpubkey/openpubkey/util"
 
 	"github.com/melbahja/goph"

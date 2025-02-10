@@ -2,8 +2,6 @@ module github.com/openpubkey/openpubkey
 
 go 1.22
 
-toolchain go1.22.2
-
 require (
 	filippo.io/bigmod v0.0.3
 	github.com/awnumar/memguard v0.22.3
