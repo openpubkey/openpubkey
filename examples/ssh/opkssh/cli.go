@@ -255,38 +255,52 @@ func log(line string) {
 	}
 }
 
-// Refer this issue: https://github.com/openpubkey/openpubkey/issues/215
+// OpenSSH used to impose a 4096-octet limit on the string buffers available to 
+// the percent_expand function. In October 2019 as part of the 8.1 release, 
+// that limit was removed. If you exceeded this amount it would fail with 
+// fatal: percent_expand: string too long
+// The following two functions check whether the OpenSSH version on the
+// system running the verifier is greater than or equal to 8.1;
+// if not then prints a warning
 func checkOpenSSHVersion() {
-	cmd := exec.Command("ssh", "-V")
+	cmd := exec.Command("sshd", "-V")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Error executing ssh -V:", err)
 		return
 	}
 
-	versionStr := strings.TrimPrefix(
-		strings.Split(string(output), ", ")[0],
-		"OpenSSH_",
-	)
+	if ok, _ := isOpenSSHVersion8Dot1OrGreater(string(output)); !ok {
+		fmt.Println("OpenPubkey SSH requires OpenSSH v. 8.1 or greater")
+		log("OpenPubkey SSH requires OpenSSH v. 8.1 or greater")
+	}
+}
 
+func isOpenSSHVersion8Dot1OrGreater(opensshVersion string) (bool, error) {
 	// To handle versions like 9.9p1; we only need the initial numeric part for the comparison
 	re, err := regexp.Compile(`^(\d+(?:\.\d+)*).*`)
 	if err != nil {
 		fmt.Println("Error compiling regex:", err)
-		return
+		return false, err
 	}
 
-	matches := re.FindStringSubmatch(versionStr)
+	opensshVersion = strings.TrimPrefix(
+		strings.Split(opensshVersion, ", ")[0],
+		"OpenSSH_",
+	)
+
+	matches := re.FindStringSubmatch(opensshVersion)
 
 	if matches == nil || len(matches) <= 0 {
 		fmt.Println("Invalid OpenSSH version")
-		return
+		return false, errors.New("invalid OpenSSH version")
 	}
 
 	version := matches[1]
 
-	if version < "8.1" {
-		fmt.Println("OpenPubkey SSH requires OpenSSH v. 8.1 or greater")
-		log(fmt.Sprint("OpenPubkey SSH requires OpenSSH v. 8.1 or greater"))
+	if version >= "8.1" {
+		return true, nil
 	}
+
+	return false, nil
 }
