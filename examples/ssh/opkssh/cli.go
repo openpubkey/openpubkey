@@ -21,7 +21,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"os"
@@ -67,6 +69,8 @@ func main() {
 		}
 	case "ver":
 		{
+			checkOpenSSHVersion()
+
 			log(strings.Join(os.Args, " "))
 			policyEnforcer := NewSimpleFilePolicyEnforcer("/etc/opk/policy")
 
@@ -248,5 +252,41 @@ func log(line string) {
 		if _, err = f.WriteString(line + "\n"); err != nil {
 			fmt.Println("Couldn't write to file")
 		}
+	}
+}
+
+// Refer this issue: https://github.com/openpubkey/openpubkey/issues/215
+func checkOpenSSHVersion() {
+	cmd := exec.Command("ssh", "-V")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Error executing ssh -V:", err)
+		return
+	}
+
+	versionStr := strings.TrimPrefix(
+		strings.Split(string(output), ", ")[0],
+		"OpenSSH_",
+	)
+
+	// To handle versions like 9.9p1; we only need the initial numeric part for the comparison
+	re, err := regexp.Compile(`^(\d+(?:\.\d+)*).*`)
+	if err != nil {
+		fmt.Println("Error compiling regex:", err)
+		return
+	}
+
+	matches := re.FindStringSubmatch(versionStr)
+
+	if matches == nil || len(matches) <= 0 {
+		fmt.Println("Invalid OpenSSH version")
+		return
+	}
+
+	version := matches[1]
+
+	if version < "8.1" {
+		fmt.Println("OpenPubkey SSH requires OpenSSH v. 8.1 or greater")
+		log(fmt.Sprint("OpenPubkey SSH requires OpenSSH v. 8.1 or greater"))
 	}
 }
