@@ -165,8 +165,7 @@ func verifyPKToken(ctx context.Context, opConfig providers.Config, pkt *pktoken.
 	})
 	idToken, err := idtVerifier.Verify(ctx, string(idt))
 	if err != nil {
-		// return err
-		return fmt.Errorf("failed to verify ID token: %w, idt: %v", err, idt)
+		return fmt.Errorf("failed to verify ID token: %w", err)
 	}
 
 	// If the id token is expired, verify against the refreshed id token
