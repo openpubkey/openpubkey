@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -29,7 +28,6 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -170,17 +168,11 @@ func TestSshCertCreation(t *testing.T) {
 		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId))
 	}
 
-	pktB64, ok := sshCert.Extensions["openpubkey-pkt"]
+	pktCom, ok := sshCert.Extensions["openpubkey-pkt"]
 	if !ok {
 		t.Error(err)
 	}
-	pktExtJson, err := util.Base64DecodeForJWT([]byte(pktB64))
-	if err != nil {
-		t.Error(err)
-	}
-
-	var pktExt *pktoken.PKToken
-	err = json.Unmarshal(pktExtJson, &pktExt)
+	pktExt, err := pktoken.NewFromCompact([]byte(pktCom))
 	if err != nil {
 		t.Error(err)
 	}

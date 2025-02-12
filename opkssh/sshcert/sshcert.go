@@ -27,7 +27,6 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/ssh"
 )
@@ -51,11 +50,10 @@ func New(pkt *pktoken.PKToken, principals []string) (*SshCertSmuggler, error) {
 	if err != nil {
 		return nil, err
 	}
-	pktJson, err := json.Marshal(pkt)
+	pktCom, err := pkt.Compact()
 	if err != nil {
 		return nil, err
 	}
-	pktB64 := string(util.Base64EncodeForJWT(pktJson))
 	sshSmuggler := SshCertSmuggler{
 		SshCert: &ssh.Certificate{
 			Key:             pubkeySsh,
@@ -70,7 +68,7 @@ func New(pkt *pktoken.PKToken, principals []string) (*SshCertSmuggler, error) {
 					"permit-port-forwarding":  "",
 					"permit-pty":              "",
 					"permit-user-rc":          "",
-					"openpubkey-pkt":          pktB64,
+					"openpubkey-pkt":          string(pktCom),
 				},
 			},
 		},
@@ -109,17 +107,13 @@ func (s *SshCertSmuggler) VerifyCaSig(caPubkey ssh.PublicKey) error {
 }
 
 func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
-	pktB64, ok := s.SshCert.Extensions["openpubkey-pkt"]
+	pktCom, ok := s.SshCert.Extensions["openpubkey-pkt"]
 	if !ok {
 		return nil, fmt.Errorf("cert is missing required openpubkey-pkt extension")
 	}
-	pktJson, err := util.Base64DecodeForJWT([]byte(pktB64))
+	pkt, err := pktoken.NewFromCompact([]byte(pktCom))
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
-	}
-	var pkt *pktoken.PKToken
-	if err = json.Unmarshal(pktJson, &pkt); err != nil {
-		return nil, err
 	}
 	return pkt, nil
 }
@@ -177,18 +171,14 @@ func verifyPKToken(ctx context.Context, opConfig providers.Config, pkt *pktoken.
 
 	// If the id token is expired, verify against the refreshed id token
 	if time.Now().After(idToken.Expiry) {
-		token, ok := pkt.Op.PublicHeaders().Get("refreshed_id_token")
-		if !ok {
+		refreshedIdToken := pkt.FreshIDToken
+		if refreshedIdToken == nil {
 			return fmt.Errorf("ID token is expired and no refresh token found")
 		}
 
-		refreshedIdToken, ok := token.(string)
-		if !ok {
-			return fmt.Errorf("failed to cast refreshed_id_token to string")
-		}
 		// TODO: Use a provider verifier with expiration policy
 		idtExpVerifier := provider.Verifier(&oidc.Config{ClientID: opConfig.ClientID()})
-		if _, err = idtExpVerifier.Verify(ctx, refreshedIdToken); err != nil {
+		if _, err = idtExpVerifier.Verify(ctx, string(refreshedIdToken)); err != nil {
 			return err
 		}
 	}

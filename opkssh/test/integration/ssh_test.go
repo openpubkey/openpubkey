@@ -41,7 +41,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/util"
 
 	"github.com/melbahja/goph"
 	"github.com/stretchr/testify/assert"
@@ -547,17 +546,15 @@ func TestEndToEndSSHWithRefresh(t *testing.T) {
 	certSigner, sshCert := createOpkSshSigner(t, pubKey, secKeyFilePath)
 
 	// Wait for id_token to expire (should not take longer than 10 seconds)
-	pktB64, ok := sshCert.Extensions["openpubkey-pkt"]
+	pktCom, ok := sshCert.Extensions["openpubkey-pkt"]
 	require.True(t, ok, "expected to find openpubkey-pkt extension")
-	pktJson, err := util.Base64DecodeForJWT([]byte(pktB64))
-	require.NoError(t, err)
-	var pkt *pktoken.PKToken
-	err = json.Unmarshal(pktJson, &pkt)
+	pkt, err := pktoken.NewFromCompact([]byte(pktCom))
 	require.NoError(t, err)
 	var claims struct {
 		Expiration int64 `json:"exp"`
 	}
 	err = json.Unmarshal(pkt.Payload, &claims)
+
 	require.NoError(t, err)
 	expTime := time.Unix(claims.Expiration, 0)
 	untilExpired := time.Until(expTime)

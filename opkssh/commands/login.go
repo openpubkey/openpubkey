@@ -126,15 +126,7 @@ func LoginWithRefresh(ctx context.Context, provider providers.RefreshableOpenIdP
 			if err != nil {
 				return err
 			}
-
-			// TODO: This isn't how we store refreshed id tokens anymore in the PKToken, update this to new version
-			if loginResult.pkt.Op.PublicHeaders() == nil {
-				loginResult.pkt.Op.SetPublicHeaders(jws.NewHeaders())
-			}
-			err = loginResult.pkt.Op.PublicHeaders().Set("refreshed_id_token", string(refreshedPkt.FreshIDToken))
-			if err != nil {
-				return err
-			}
+			loginResult.pkt = refreshedPkt
 
 			certBytes, seckeySshPem, err := createSSHCert(ctx, loginResult.pkt, loginResult.signer, loginResult.principals)
 			if err != nil {
