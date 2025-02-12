@@ -35,14 +35,12 @@ import (
 
 var (
 	issuer       = "https://accounts.google.com"
-	clientID     = "878305696756-dd5ns57fccufrruii19fd7ed6jpd155r.apps.googleusercontent.com"
-	clientSecret = "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"
+	clientID     = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
+	clientSecret = "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"
 	redirectURIs = []string{
-		"http://localhost:49172/login-callback",
-		"http://localhost:51252/login-callback",
-		"http://localhost:58243/login-callback",
-		"http://localhost:59360/login-callback",
-		"http://localhost:62109/login-callback",
+		"http://localhost:3000/login-callback",
+		"http://localhost:10001/login-callback",
+		"http://localhost:11110/login-callback",
 	}
 )
 
