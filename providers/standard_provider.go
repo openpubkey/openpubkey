@@ -34,8 +34,8 @@ import (
 )
 
 type StandardOp struct {
-	ClientID                  string
-	ClientSecret              string
+	clientID                  string
+	clientSecret              string
 	Scopes                    []string
 	RedirectURIs              []string
 	GQSign                    bool
@@ -90,7 +90,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	// here, but in RefreshTokens we don't want that option set because
 	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
-		s.issuer, s.ClientID, s.ClientSecret, redirectURI.String(),
+		s.issuer, s.clientID, s.clientSecret, redirectURI.String(),
 		s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -174,6 +174,8 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		defer shutdownServer()
 	}
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case err := <-chErr:
 		if s.httpSessionHook != nil {
 			defer shutdownServer()
@@ -232,8 +234,8 @@ func (s *StandardOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*s
 	// client_id, client_secret, grant_type, refresh_token, and scope.
 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
 	redirectURI := ""
-	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.ClientID,
-		s.ClientSecret, redirectURI, s.Scopes, options...)
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
+		s.clientSecret, redirectURI, s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
@@ -267,12 +269,16 @@ func (s *StandardOp) Issuer() string {
 	return s.issuer
 }
 
+func (s *StandardOp) ClientID() string {
+	return s.clientID
+}
+
 func (s *StandardOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(
 		s.issuer,
 		ProviderVerifierOpts{
 			CommitType:        CommitTypesEnum.NONCE_CLAIM,
-			ClientID:          s.ClientID,
+			ClientID:          s.clientID,
 			DiscoverPublicKey: &s.publicKeyFinder,
 			// For user access we override the ID Token expiration claim
 			// and instead have tokens expire after 24 hours so that
@@ -295,8 +301,8 @@ func (s *StandardOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte,
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
 	redirectURI := ""
-	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.ClientID,
-		s.ClientSecret, redirectURI, s.Scopes, options...)
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
+		s.clientSecret, redirectURI, s.Scopes, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}

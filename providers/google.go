@@ -99,8 +99,8 @@ func NewGoogleOp() BrowserOpenIdProvider {
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 	return &StandardOp{
-		ClientID:                  opts.ClientID,
-		ClientSecret:              opts.ClientSecret,
+		clientID:                  opts.ClientID,
+		clientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,

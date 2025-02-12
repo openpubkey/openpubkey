@@ -22,3 +22,9 @@ go.work
 
 configs/
 .vscode/
+
+# For policy files that exist while testing
+policy.yml
+opk-ssh
+opk-ssh-login
+*DS_Store
