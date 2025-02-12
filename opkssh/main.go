@@ -119,7 +119,7 @@ func run() int {
 
 		// These arguments are sent by sshd and dictated by the pattern as defined in the sshd config
 		// Example line in sshd config:
-		// 		AuthorizedKeysCommand /etc/opk/opk-ssh verify %u %k %t
+		// 		AuthorizedKeysCommand /etc/opk/opkssh verify %u %k %t
 		//
 		//	%u The desired user being assumed on the target (aka requested principal).
 		//	%k The base64-encoded public key for authentication.
@@ -149,7 +149,7 @@ func run() int {
 		// script to inject user entries into the policy file
 		//
 		// Example line to add a user:
-		// 		./opk-ssh add %e %p
+		// 		./opkssh add %e %p
 		//
 		//  %e The email of the user to be added to the policy file.
 		//	%p The desired principal being assumed on the target (aka requested principal).

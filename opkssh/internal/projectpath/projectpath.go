@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package projectpath is used internally by the integration tests to get the
-// root folder of the opk-ssh project
+// root folder of the opkssh project
 package projectpath
 
 import (
@@ -27,6 +27,6 @@ import (
 var (
 	_, b, _, _ = runtime.Caller(0)
 
-	// Root is the root folder of the opk-ssh project
+	// Root is the root folder of the opkssh project
 	Root = filepath.Join(filepath.Dir(b), "../../..")
 )

@@ -59,7 +59,7 @@ const (
 
 	// networkName is the name of the Docker network that the test containers
 	// are connected to
-	networkName = "opk-ssh-integration-test-net"
+	networkName = "opkssh-integration-test-net"
 )
 
 // oidcHttpClientTransport wraps an existing http.RoundTripper and sets the
@@ -164,7 +164,7 @@ func createOpkSshSigner(t *testing.T, pubKey ssh.PublicKey, secKeyFilePath strin
 }
 
 // createZitadelOPKSshProvider creates an OPK SSH provider, the same one used by
-// opk-ssh, except the issuer has been configured to be the fake OIDC server
+// opkssh, except the issuer has been configured to be the fake OIDC server
 // running in a Docker container
 //
 // This function returns both an OPK SSH provider and an HTTP transport that has
@@ -209,7 +209,7 @@ func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, auth
 }
 
 // spawnTestContainers spawns a container running an example OIDC issuer and a
-// linux container configured with sshd and opk-ssh as the
+// linux container configured with sshd and opkssh as the
 // AuthorizedKeysCommand.
 //
 // Test cleanup functions are registered to cleanup the containers after the
@@ -258,7 +258,7 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 		}
 	})
 
-	// Start linux container with opk-ssh installed and configured to verify
+	// Start linux container with opkssh installed and configured to verify
 	// incoming PK tokens against the OIDC issuer created above
 	issuerIp, err := oidcContainer.ContainerIP(TestCtx)
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 		require.NoError(t, serverContainer.Terminate(TestCtx), "failed to terminate SSH container")
 	})
 
-	// Use backdoor (non-OPK) SSH client to dump opk-ssh logs if test fails
+	// Use backdoor (non-OPK) SSH client to dump opkssh logs if test fails
 	auth := goph.Password(serverContainer.Password)
 	nonOpkSshClient, err := goph.NewConn(&goph.Config{
 		User:     serverContainer.User,
@@ -287,7 +287,7 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if t.Failed() {
-			// Get opk-ssh error logs
+			// Get opkssh error logs
 			_, err := nonOpkSshClient.Run("sudo chmod 777 /var/log/openpubkey.log")
 			if assert.NoError(t, err) {
 				errorLog, err := nonOpkSshClient.Run("cat /var/log/openpubkey.log")
@@ -302,10 +302,10 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 }
 
 func TestEndToEndSSH(t *testing.T) {
-	// Test opk-ssh e2e by performing an SSH connection to a linux container.
+	// Test opkssh e2e by performing an SSH connection to a linux container.
 	//
 	// Tests login, policy, and verify against an example OIDC server and
-	// container configured with opk-ssh in the "AuthorizedKeysCommand"
+	// container configured with opkssh in the "AuthorizedKeysCommand"
 	var err error
 
 	// Spawn test containers to run these tests
@@ -369,7 +369,7 @@ func TestEndToEndSSH(t *testing.T) {
 }
 
 func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
-	// Test usecase of unprivileged user using opk-ssh e2e by performing an SSH
+	// Test usecase of unprivileged user using opkssh e2e by performing an SSH
 	// connection to a linux container.
 	//
 	// This user has policy access via their user policy--not the root policy
@@ -382,7 +382,7 @@ func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
 	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
 
 	// Give integration test user access to test2 via user policy
-	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", "/home/test2/.opk/opk-ssh add \"test-user@zitadel.ch\" \"test2\""}, "test2")
+	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", "/home/test2/.opk/opkssh add \"test-user@zitadel.ch\" \"test2\""}, "test2")
 	require.Equal(t, 0, code, "failed to update user policy")
 
 	// Call login
@@ -457,7 +457,7 @@ func updateIdTokenLifetime(t *testing.T, oidcContainerMappedPort int, duration s
 }
 
 func TestEndToEndSSHWithRefresh(t *testing.T) {
-	// Test refresh flow of opk-ssh e2e by first attempting to SSH with an
+	// Test refresh flow of opkssh e2e by first attempting to SSH with an
 	// expired id_token (and expect a failure). Then, let the background refresh
 	// process get a new unexpired id_token, and then attempt a successful SSH
 	// connection.

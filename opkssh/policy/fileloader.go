@@ -26,11 +26,11 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// SystemDefaultPolicyPath is the default filepath where opk-ssh policy is
+// SystemDefaultPolicyPath is the default filepath where opkssh policy is
 // defined
 const SystemDefaultPolicyPath = "/etc/opk/policy.yml"
 
-// ModeOnlyOwner is the expected permission bits that should be set for opk-ssh
+// ModeOnlyOwner is the expected permission bits that should be set for opkssh
 // policy files. This mode means that only the owner of the file can read/write
 const ModeOnlyOwner = fs.FileMode(0600)
 
@@ -49,7 +49,7 @@ func NewOsUserLookup() UserLookup {
 }
 func (OsUserLookup) Lookup(username string) (*user.User, error) { return user.Lookup(username) }
 
-// FileLoader contains methods to read/write the opk-ssh policy file from/to an
+// FileLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
 type FileLoader struct {
@@ -57,7 +57,7 @@ type FileLoader struct {
 	UserLookup UserLookup
 }
 
-// NewFileLoader returns an opk-ssh policy loader that uses the os library to
+// NewFileLoader returns an opkssh policy loader that uses the os library to
 // read/write policy from/to the filesystem.
 func NewFileLoader() *FileLoader {
 	return &FileLoader{
@@ -99,7 +99,7 @@ func (l *FileLoader) LoadPolicyAtPath(path string) (*Policy, error) {
 	return policy, nil
 }
 
-// LoadSystemDefaultPolicy reads the opk-ssh policy at SystemDefaultPolicyPath.
+// LoadSystemDefaultPolicy reads the opkssh policy at SystemDefaultPolicyPath.
 // An error is returned if the file cannot be read or if the permissions bits
 // are not correct.
 func (l *FileLoader) LoadSystemDefaultPolicy() (*Policy, error) {
@@ -111,7 +111,7 @@ func (l *FileLoader) LoadSystemDefaultPolicy() (*Policy, error) {
 	return policy, nil
 }
 
-// LoadUserPolicy reads the user's opk-ssh policy at ~/.opk/policy.yml (where ~
+// LoadUserPolicy reads the user's opkssh policy at ~/.opk/policy.yml (where ~
 // maps to username's home directory) and returns the filepath read. An error is
 // returned if the file cannot be read, if the permission bits are not correct,
 // or if there is no user with username or has no home directory.

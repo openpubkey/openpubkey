@@ -53,7 +53,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 }
 
 func TestAdd(t *testing.T) {
-	// Test adding an allowed principal to an opk-ssh policy
+	// Test adding an allowed principal to an opkssh policy
 
 	tests := []struct {
 		name             string
@@ -65,7 +65,7 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name:             "sudoer user can update root policy",
-			binaryPath:       "/etc/opk/opk-ssh",
+			binaryPath:       "/etc/opk/opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: SudoerUser,
@@ -73,7 +73,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "sudoer user can update root policy with principal != self",
-			binaryPath:       "/etc/opk/opk-ssh",
+			binaryPath:       "/etc/opk/opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: UnprivUser,
@@ -81,7 +81,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "unprivileged user can update their user policy",
-			binaryPath:       "/home/test2/.opk/opk-ssh",
+			binaryPath:       "/home/test2/.opk/opkssh",
 			useSudo:          false,
 			cmdUser:          UnprivUser,
 			desiredPrincipal: UnprivUser,
@@ -89,7 +89,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "unprivileged user cannot add principal != self",
-			binaryPath:       "/home/test2/.opk/opk-ssh",
+			binaryPath:       "/home/test2/.opk/opkssh",
 			useSudo:          false,
 			cmdUser:          UnprivUser,
 			desiredPrincipal: SudoerUser,

@@ -23,7 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// User is an opk-ssh policy user entry
+// User is an opkssh policy user entry
 type User struct {
 	// Email is the user's email. It is the expected value used when comparing
 	// against an id_token's email claim
@@ -33,7 +33,7 @@ type User struct {
 	// Sub        string   `yaml:"sub,omitempty"`
 }
 
-// Policy represents an opk-ssh policy
+// Policy represents an opkssh policy
 type Policy struct {
 	// Users is a list of all user entries in the policy
 	Users []User `yaml:"users"`
@@ -102,9 +102,9 @@ func (p *Policy) ToYAML() ([]byte, error) {
 }
 
 // Source declares the minimal interface to describe the source of a fetched
-// opk-ssh policy (i.e. where the policy is retrieved from)
+// opkssh policy (i.e. where the policy is retrieved from)
 type Source interface {
-	// Source returns a string describing the source of an opk-ssh policy. The
+	// Source returns a string describing the source of an opkssh policy. The
 	// returned value is empty if there is no information about its source
 	Source() string
 }
@@ -117,10 +117,10 @@ type EmptySource struct{}
 
 func (EmptySource) Source() string { return "" }
 
-// Loader declares the minimal interface to retrieve an opk-ssh policy from an
+// Loader declares the minimal interface to retrieve an opkssh policy from an
 // arbitrary source
 type Loader interface {
-	// Load fetches an opk-ssh policy and returns information describing its
+	// Load fetches an opkssh policy and returns information describing its
 	// source. If an error occurs, all return values are nil except the error
 	// value
 	Load() (*Policy, Source, error)

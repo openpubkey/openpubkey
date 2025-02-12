@@ -24,7 +24,7 @@ import (
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 )
 
-// AddCmd provides functionality to read and update the opk-ssh policy file
+// AddCmd provides functionality to read and update the opkssh policy file
 type AddCmd struct {
 	PolicyFileLoader *policy.FileLoader
 
@@ -35,7 +35,7 @@ type AddCmd struct {
 	Username string
 }
 
-// LoadPolicy reads the opk-ssh policy at the policy.SystemDefaultPolicyPath. If
+// LoadPolicy reads the opkssh policy at the policy.SystemDefaultPolicyPath. If
 // there is a permission error when reading this file, then the user's local
 // policy file (defined as ~/.opk/policy.yml where ~ maps to AddCmd.Username's
 // home directory) is read instead.
