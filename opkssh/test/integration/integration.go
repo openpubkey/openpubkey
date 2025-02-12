@@ -18,7 +18,7 @@
 
 // Package integration contains integration tests.
 //
-// These tests test opk-ssh e2e using external dependencies.
+// These tests test opkssh e2e using external dependencies.
 package integration
 
 import (
@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	// LoginCallbackServerTimeout is the amount of time to wait for the opk-ssh
+	// LoginCallbackServerTimeout is the amount of time to wait for the opkssh
 	// login callback server to startup
 	LoginCallbackServerTimeout = 5 * time.Second
 )

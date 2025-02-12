@@ -26,7 +26,7 @@ import (
 func TestAddAllowedPrincipal(t *testing.T) {
 	t.Parallel()
 
-	// Test adding an allowed principal to an opk-ssh policy
+	// Test adding an allowed principal to an opkssh policy
 	tests := []struct {
 		name           string
 		principal      string

@@ -24,13 +24,13 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// Enforcer evaluates opk-ssh policy to determine if the desired principal is
+// Enforcer evaluates opkssh policy to determine if the desired principal is
 // permitted
 type Enforcer struct {
 	PolicyLoader Loader
 }
 
-// CheckPolicy loads the opk-ssh policy and checks to see if there is a policy
+// CheckPolicy loads the opkssh policy and checks to see if there is a policy
 // permitting access to principalDesired for the user identified by the PKT's
 // email claim. Returns nil if access is granted. Otherwise, an error is
 // returned.

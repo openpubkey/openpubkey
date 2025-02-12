@@ -73,8 +73,8 @@ func (v *VerifyCmd) Verify(ctx context.Context, username string, pubkey string, 
 	}
 }
 
-// OpkPolicyEnforcerAsAuthFunc returns an opk-ssh policy.Enforcer that can be
-// used in the opk-ssh verify command.
+// OpkPolicyEnforcerAsAuthFunc returns an opkssh policy.Enforcer that can be
+// used in the opkssh verify command.
 func OpkPolicyEnforcerAsAuthFunc(username string) AuthFunc {
 	policyEnforcer := &policy.Enforcer{
 		PolicyLoader: &policy.MultiFileLoader{
