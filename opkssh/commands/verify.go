@@ -26,9 +26,9 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// AuthFunc returns nil if the supplied PK token is permitted to login as
+// PolicyEnforcerFunc returns nil if the supplied PK token is permitted to login as
 // username. Otherwise, an error is returned indicating the reason for rejection
-type AuthFunc func(username string, pkt *pktoken.PKToken) error
+type PolicyEnforcerFunc func(username string, pkt *pktoken.PKToken) error
 
 // VerifyCmd provides functionality to verify OPK tokens contained in SSH
 // certificates and authorize requests to SSH as a specific username using a
@@ -38,44 +38,60 @@ type VerifyCmd struct {
 	// OPConfig returns configuration values used to verify the PK token
 	// contained in the SSH certificate
 	OPConfig providers.Config
-	// Auth determines whether the verified PK token is permitted to SSH as a
+	// CheckPolicy determines whether the verified PK token is permitted to SSH as a
 	// specific user
-	Auth AuthFunc
+	CheckPolicy PolicyEnforcerFunc
 }
 
-// Verify verifies the OPK PK token contained in the base64-encoded SSH pubkey;
+// This function is called by the SSH server as the AuthorizedKeysCommand:
+//
+// The following lines are added to /etc/ssh/sshd_config:
+//
+//	AuthorizedKeysCommand /etc/opk/opkssh ver %u %k %t
+//	AuthorizedKeysCommandUser root
+//
+// The parameters specified in the config map the parameters sent to the function below.
+// We prepend "Arg" to specify which ones are arguments sent by sshd. They are:
+//
+//	%u The username (requested principal) - userArg
+//	%t The public key type - typArg - in this case a certificate being used as a public key
+//	%k The base64-encoded public key for authentication - certB64Arg - the public key is also a certificate
+//
+// AuthorizedKeysCommand verifies the OPK PK token contained in the base64-encoded SSH pubkey;
 // the pubkey is expected to be an SSH certificate. pubkeyType is used to
 // determine how to parse the pubkey as one of the SSH certificate types.
 //
-// After verifying the PK token with the OP (OpenID provider), v.Auth is used to
-// check if the supplied username is permitted.
+// This function:
+// 1. Verifying the PK token with the OP (OpenID Provider)
+// 2. Enforcing policy by checking if the identity is allowed to assume
+// the username (principal) requested.
 //
 // If all steps of verification succeed, then the expected authorized_keys file
 // format string is returned (i.e. the expected line to produce on standard
 // output when using sshd's AuthorizedKeysCommand feature). Otherwise, a non-nil
 // error is returned.
-func (v *VerifyCmd) Verify(ctx context.Context, username string, pubkey string, pubkeyType string) (string, error) {
+func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, typArg string, certB64Arg string) (string, error) {
 	// Parse the b64 pubkey and expect it to be an ssh certificate
-	cert, err := sshcert.NewFromAuthorizedKey(pubkeyType, pubkey)
+	cert, err := sshcert.NewFromAuthorizedKey(typArg, certB64Arg)
 	if err != nil {
 		return "", err
 	}
 	if pkt, err := cert.VerifySshPktCert(ctx, v.OPConfig); err != nil { // Verify the PKT contained in the cert
 		return "", err
-	} else if err := v.Auth(username, pkt); err != nil { // Check if username is authorized
+	} else if err := v.CheckPolicy(userArg, pkt); err != nil { // Check if username is authorized
 		return "", err
 	} else { // Success!
 		// sshd expects the public key in the cert, not the cert itself. This
-		// public key is key of the CA the signs the cert, in our setting there
+		// public key is key of the CA that signs the cert, in our setting there
 		// is no CA.
 		pubkeyBytes := ssh.MarshalAuthorizedKey(cert.SshCert.SignatureKey)
 		return "cert-authority " + string(pubkeyBytes), nil
 	}
 }
 
-// OpkPolicyEnforcerAsAuthFunc returns an opkssh policy.Enforcer that can be
+// OpkPolicyEnforcerAuthFunc returns an opkssh policy.Enforcer that can be
 // used in the opkssh verify command.
-func OpkPolicyEnforcerAsAuthFunc(username string) AuthFunc {
+func OpkPolicyEnforcerFunc(username string) PolicyEnforcerFunc {
 	policyEnforcer := &policy.Enforcer{
 		PolicyLoader: &policy.MultiFileLoader{
 			FileLoader: policy.NewFileLoader(),
