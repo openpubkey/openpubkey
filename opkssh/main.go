@@ -18,13 +18,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -113,7 +116,10 @@ func run() int {
 			log.SetOutput(logFile)
 		}
 
-		// The "verify" command is designed to be used by sshd and specified as an AuthorizedKeysCommand
+		// Logs if using an unsupported OpenSSH version
+		checkOpenSSHVersion()
+
+		// The "AuthorizedKeysCommand" func is designed to be used by sshd and specified as an AuthorizedKeysCommand
 		// ref: https://man.openbsd.org/sshd_config#AuthorizedKeysCommand
 		log.Println(strings.Join(os.Args, " "))
 
@@ -129,15 +135,15 @@ func run() int {
 			return 1
 		}
 		userArg := os.Args[2]
-		certB64 := os.Args[3]
-		pubkeyType := os.Args[4]
+		certB64Arg := os.Args[3]
+		typArg := os.Args[4]
 
 		// Execute verify command
 		v := commands.VerifyCmd{
-			OPConfig: provider,
-			Auth:     commands.OpkPolicyEnforcerAsAuthFunc(userArg),
+			OPConfig:    provider,
+			CheckPolicy: commands.OpkPolicyEnforcerFunc(userArg),
 		}
-		if authKey, err := v.Verify(ctx, userArg, certB64, pubkeyType); err != nil {
+		if authKey, err := v.AuthorizedKeysCommand(ctx, userArg, typArg, certB64Arg); err != nil {
 			log.Println("failed to verify:", err)
 			return 1
 		} else {
@@ -179,7 +185,51 @@ func run() int {
 	return 0
 }
 
-// TODO: Added this to make the provider compatible with the ProviderConfig. Should be removed after integration is complete
-type ConfigAdapter struct {
-	*providers.StandardOp
+// OpenSSH used to impose a 4096-octet limit on the string buffers available to
+// the percent_expand function. In October 2019 as part of the 8.1 release,
+// that limit was removed. If you exceeded this amount it would fail with
+// fatal: percent_expand: string too long
+// The following two functions check whether the OpenSSH version on the
+// system running the verifier is greater than or equal to 8.1;
+// if not then prints a warning
+func checkOpenSSHVersion() {
+	cmd := exec.Command("sshd", "-V")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Error executing ssh -V:", err)
+		return
+	}
+
+	if ok, _ := isOpenSSHVersion8Dot1OrGreater(string(output)); !ok {
+		log.Println("OpenPubkey SSH requires OpenSSH v. 8.1 or greater")
+	}
+}
+
+func isOpenSSHVersion8Dot1OrGreater(opensshVersion string) (bool, error) {
+	// To handle versions like 9.9p1; we only need the initial numeric part for the comparison
+	re, err := regexp.Compile(`^(\d+(?:\.\d+)*).*`)
+	if err != nil {
+		fmt.Println("Error compiling regex:", err)
+		return false, err
+	}
+
+	opensshVersion = strings.TrimPrefix(
+		strings.Split(opensshVersion, ", ")[0],
+		"OpenSSH_",
+	)
+
+	matches := re.FindStringSubmatch(opensshVersion)
+
+	if matches == nil || len(matches) <= 0 {
+		fmt.Println("Invalid OpenSSH version")
+		return false, errors.New("invalid OpenSSH version")
+	}
+
+	version := matches[1]
+
+	if version >= "8.1" {
+		return true, nil
+	}
+
+	return false, nil
 }

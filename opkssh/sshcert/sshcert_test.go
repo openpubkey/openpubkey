@@ -88,18 +88,13 @@ func TestCASignerCreation(t *testing.T) {
 	t.Parallel()
 
 	caSigner, err := newSshSignerFromPem(caSecretKey)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	sshSig, err := caSigner.Sign(rand.Reader, testMsg)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
 	err = caPubkey.Verify(badTestMsg, sshSig)
-	if err == nil {
-		t.Error(fmt.Errorf("expected for signature to fail as the wrong message is used"))
-	}
+	require.Error(t, err, "expected for signature to fail as the wrong message is used")
 }
 
 func TestInvalidSshPublicKey(t *testing.T) {
@@ -125,13 +120,6 @@ func TestInvalidSshPublicKey(t *testing.T) {
 func TestSshCertCreation(t *testing.T) {
 	t.Parallel()
 
-	caSigner, err := newSshSignerFromPem(caSecretKey)
-	if err != nil {
-		t.Error(err)
-	}
-
-	principals := []string{"guest", "dev"}
-
 	providerOpts := providers.DefaultMockProviderOpts()
 	op, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
@@ -145,49 +133,38 @@ func TestSshCertCreation(t *testing.T) {
 	pkt, err := client.Auth(context.Background())
 	require.NoError(t, err)
 
+	principals := []string{"guest", "dev"}
 	cert, err := New(pkt, principals)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
+
+	caSigner, err := newSshSignerFromPem(caSecretKey)
+	require.NoError(t, err)
 
 	sshCert, err := cert.SignCert(caSigner)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
-	if err := cert.VerifyCaSig(caPubkey); err != nil {
-		t.Error(err)
-	}
+	err = cert.VerifyCaSig(caPubkey)
+	require.NoError(t, err)
 
 	checker := ssh.CertChecker{}
-	if err = checker.CheckCert("guest", sshCert); err != nil {
-		t.Error(err)
-	}
+	err = checker.CheckCert("guest", sshCert)
+	require.NoError(t, err)
 
-	if sshCert.KeyId != mockEmail {
-		t.Error(fmt.Errorf("expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId))
-	}
+	require.Equal(t, sshCert.KeyId, mockEmail, "expected KeyId to be (%s) but was (%s)", mockEmail, sshCert.KeyId)
 
 	pktCom, ok := sshCert.Extensions["openpubkey-pkt"]
-	if !ok {
-		t.Error(err)
-	}
+	require.True(t, ok, "expected to find openpubkey-pkt extension in sshCert")
+
 	pktExt, err := pktoken.NewFromCompact([]byte(pktCom))
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 
 	cic, err := pktExt.GetCicValues()
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 	upk := cic.PublicKey()
 
 	cryptoCertKey := (sshCert.Key.(ssh.CryptoPublicKey)).CryptoPublicKey()
 	jwkCertKey, err := jwk.FromRaw(cryptoCertKey)
-	if err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, err)
 	if !jwk.Equal(upk, jwkCertKey) {
 		t.Error(fmt.Errorf("expected upk to be equal to the value in sshCert.Key"))
 	}
