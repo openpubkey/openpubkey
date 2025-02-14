@@ -34,6 +34,7 @@ import (
 	"github.com/openpubkey/openpubkey/opkssh/commands"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 var (
@@ -138,9 +139,18 @@ func run() int {
 		certB64Arg := os.Args[3]
 		typArg := os.Args[4]
 
+		pktVerifier, err := verifier.New(
+			provider,
+			verifier.WithExpirationPolicy(verifier.ExpirationPolicies.OIDC_REFRESHED),
+		)
+		if err != nil {
+			log.Println("failed to create pk token verifier (likely bad configuration):", err)
+			return 1
+		}
+
 		// Execute verify command
 		v := commands.VerifyCmd{
-			OPConfig:    provider,
+			PktVerifier: *pktVerifier,
 			CheckPolicy: commands.OpkPolicyEnforcerFunc(userArg),
 		}
 		if authKey, err := v.AuthorizedKeysCommand(ctx, userArg, typArg, certB64Arg); err != nil {

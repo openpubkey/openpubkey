@@ -23,10 +23,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/ssh"
 )
@@ -118,13 +116,15 @@ func (s *SshCertSmuggler) GetPKToken() (*pktoken.PKToken, error) {
 	return pkt, nil
 }
 
-func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig providers.Config) (*pktoken.PKToken, error) {
+func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, pktVerifier verifier.Verifier) (*pktoken.PKToken, error) {
 	pkt, err := s.GetPKToken()
 	if err != nil {
 		return nil, fmt.Errorf("openpubkey-pkt extension in cert failed deserialization: %w", err)
 	}
 
-	err = verifyPKToken(ctx, opConfig, pkt)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err = pktVerifier.VerifyPKToken(ctxWithTimeout, pkt)
 	if err != nil {
 		return nil, err
 	}
@@ -146,56 +146,6 @@ func (s *SshCertSmuggler) VerifySshPktCert(ctx context.Context, opConfig provide
 	} else {
 		return nil, fmt.Errorf("public key 'upk' in PK Token does not match public key in certificate")
 	}
-}
-
-func verifyPKToken(ctx context.Context, opConfig providers.Config, pkt *pktoken.PKToken) error {
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	provider, err := oidc.NewProvider(ctxWithTimeout, opConfig.Issuer())
-	if err != nil {
-		return err
-	}
-
-	idt := pkt.OpToken
-
-	// Verify ID token
-	idtVerifier := provider.Verifier(&oidc.Config{
-		ClientID:        opConfig.ClientID(),
-		SkipExpiryCheck: true,
-	})
-	idToken, err := idtVerifier.Verify(ctx, string(idt))
-	if err != nil {
-		return fmt.Errorf("failed to verify ID token: %w", err)
-	}
-
-	// If the id token is expired, verify against the refreshed id token
-	if time.Now().After(idToken.Expiry) {
-		refreshedIdToken := pkt.FreshIDToken
-		if refreshedIdToken == nil {
-			return fmt.Errorf("ID token is expired and no refresh token found")
-		}
-
-		// TODO: Use a provider verifier with expiration policy
-		idtExpVerifier := provider.Verifier(&oidc.Config{ClientID: opConfig.ClientID()})
-		if _, err = idtExpVerifier.Verify(ctx, string(refreshedIdToken)); err != nil {
-			return err
-		}
-	}
-
-	op := providers.NewGoogleOpWithOptions(
-		&providers.GoogleOptions{
-			Issuer:   opConfig.Issuer(),
-			ClientID: opConfig.ClientID(),
-		},
-	)
-	ver, err := verifier.New(op)
-	if err != nil {
-		return err
-	}
-	if err := ver.VerifyPKToken(ctx, pkt); err != nil {
-		return fmt.Errorf("failed to verify PK token: %w", err)
-	}
-	return nil
 }
 
 func sshPubkeyFromPKT(pkt *pktoken.PKToken) (ssh.PublicKey, error) {

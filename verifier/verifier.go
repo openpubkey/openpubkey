@@ -54,6 +54,13 @@ func RequireRefreshedIDToken() VerifierOpts {
 	}
 }
 
+func WithExpirationPolicy(expirationPolicy ExpirationPolicy) VerifierOpts {
+	return func(v *Verifier) error {
+		v.expirationPolicy = &expirationPolicy
+		return nil
+	}
+}
+
 func WithCosignerVerifiers(verifiers ...*cosigner.DefaultCosignerVerifier) VerifierOpts {
 	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
@@ -95,8 +102,10 @@ func GQOnly() Check {
 }
 
 type Verifier struct {
-	providers               map[string]ProviderVerifier
-	cosigners               map[string]CosignerVerifier
+	providers map[string]ProviderVerifier
+	cosigners map[string]CosignerVerifier
+	// Sets the expiration policy to use
+	expirationPolicy        *ExpirationPolicy
 	requireRefreshedIDToken bool
 }
 
@@ -106,12 +115,21 @@ func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) 
 			verifier.Issuer(): verifier,
 		},
 		cosigners: map[string]CosignerVerifier{},
+		// For user access we override the ID Token expiration claim
+		// and instead have tokens expire after 24 hours so that
+		// users don't have log back in every hour.
+		expirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
 	}
 
 	for _, option := range options {
 		if err := option(v); err != nil {
 			return nil, err
 		}
+	}
+
+	if v.expirationPolicy == nil {
+		// Default to 24 hours if no expiration policy is set
+		v.expirationPolicy = &ExpirationPolicies.MAX_AGE_24HOURS
 	}
 
 	return v, nil
@@ -145,6 +163,9 @@ func (v *Verifier) VerifyPKToken(
 		return err
 	}
 	if err := providerVerifier.VerifyIDToken(ctx, pkt.OpToken, cic); err != nil {
+		return err
+	}
+	if err := v.expirationPolicy.CheckExpiration(pkt); err != nil {
 		return err
 	}
 
