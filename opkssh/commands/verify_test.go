@@ -17,72 +17,79 @@
 package commands
 
 // TODO: Undisable this test once we can take a verifier as an argument
-// import (
-// 	"context"
-// 	"strings"
-// 	"testing"
+import (
+	"context"
+	"strings"
+	"testing"
 
-// 	"github.com/lestrrat-go/jwx/v2/jwa"
-// 	"github.com/openpubkey/openpubkey/client"
-// 	"github.com/openpubkey/openpubkey/opkssh/sshcert"
-// 	"github.com/openpubkey/openpubkey/pktoken"
-// 	"github.com/openpubkey/openpubkey/providers"
-// 	"github.com/openpubkey/openpubkey/util"
-// 	"github.com/stretchr/testify/require"
-// 	"golang.org/x/crypto/ssh"
-// )
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/opkssh/sshcert"
+	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/util"
+	"github.com/openpubkey/openpubkey/verifier"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+)
 
-// func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
-// 	return nil
-// }
+func AllowAllPolicyEnforcer(userDesired string, pkt *pktoken.PKToken) error {
+	return nil
+}
 
-// func TestAuthorizedKeysCommand(t *testing.T) {
-// 	alg := jwa.ES256
-// 	signer, err := util.GenKeyPair(alg)
-// 	require.NoError(t, err)
+func TestAuthorizedKeysCommand(t *testing.T) {
+	alg := jwa.ES256
+	signer, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
 
-// 	providerOpts := providers.DefaultMockProviderOpts()
-// 	op, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
-// 	require.NoError(t, err)
+	providerOpts := providers.DefaultMockProviderOpts()
+	op, _, idtTemplate, err := providers.NewMockProvider(providerOpts)
+	require.NoError(t, err)
 
-// 	mockEmail := "arthur.aardvark@example.com"
-// 	idtTemplate.ExtraClaims = map[string]any{
-// 		"email": mockEmail,
-// 	}
+	mockEmail := "arthur.aardvark@example.com"
+	idtTemplate.ExtraClaims = map[string]any{
+		"email": mockEmail,
+	}
 
-// 	client, err := client.New(op, client.WithSigner(signer, alg))
-// 	require.NoError(t, err)
+	client, err := client.New(op, client.WithSigner(signer, alg))
+	require.NoError(t, err)
 
-// 	pkt, err := client.Auth(context.Background())
-// 	require.NoError(t, err)
+	pkt, err := client.Auth(context.Background())
+	require.NoError(t, err)
 
-// 	principals := []string{"guest", "dev"}
-// 	cert, err := sshcert.New(pkt, principals)
-// 	require.NoError(t, err)
+	principals := []string{"guest", "dev"}
+	cert, err := sshcert.New(pkt, principals)
+	require.NoError(t, err)
 
-// 	sshSigner, err := ssh.NewSignerFromSigner(signer)
-// 	require.NoError(t, err)
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	require.NoError(t, err)
 
-// 	signerMas, err := ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner),
-// 		[]string{ssh.KeyAlgoECDSA256})
-// 	require.NoError(t, err)
+	signerMas, err := ssh.NewSignerWithAlgorithms(sshSigner.(ssh.AlgorithmSigner),
+		[]string{ssh.KeyAlgoECDSA256})
+	require.NoError(t, err)
 
-// 	sshCert, err := cert.SignCert(signerMas)
-// 	require.NoError(t, err)
+	sshCert, err := cert.SignCert(signerMas)
+	require.NoError(t, err)
 
-// 	certTypeAndCertB64 := ssh.MarshalAuthorizedKey(sshCert)
-// 	typeArg := strings.Split(string(certTypeAndCertB64), " ")[0]
-// 	certB64Arg := strings.Split(string(certTypeAndCertB64), " ")[1]
+	certTypeAndCertB64 := ssh.MarshalAuthorizedKey(sshCert)
+	typeArg := strings.Split(string(certTypeAndCertB64), " ")[0]
+	certB64Arg := strings.Split(string(certTypeAndCertB64), " ")[1]
 
-// 	userArg := "user"
-// 	ver := VerifyCmd{
-// 		OPConfig:    op,
-// 		CheckPolicy: AllowAllPolicyEnforcer,
-// 	}
+	verPkt, err := verifier.New(
+		op,
+		verifier.WithExpirationPolicy(verifier.ExpirationPolicies.NEVER_EXPIRE),
+	)
+	require.NoError(t, err)
 
-// 	pubkeyList, err := ver.AuthorizedKeysCommand(context.Background(), userArg, typeArg, certB64Arg)
-// 	require.NoError(t, err)
+	userArg := "user"
+	ver := VerifyCmd{
+		PktVerifier: *verPkt,
+		CheckPolicy: AllowAllPolicyEnforcer,
+	}
 
-// 	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256"
-// 	require.Contains(t, pubkeyList, expectedPubkeyList)
-// }
+	pubkeyList, err := ver.AuthorizedKeysCommand(context.Background(), userArg, typeArg, certB64Arg)
+	require.NoError(t, err)
+
+	expectedPubkeyList := "cert-authority ecdsa-sha2-nistp256"
+	require.Contains(t, pubkeyList, expectedPubkeyList)
+}

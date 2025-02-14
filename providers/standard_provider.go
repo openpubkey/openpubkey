@@ -280,10 +280,6 @@ func (s *StandardOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clienti
 			CommitType:        CommitTypesEnum.NONCE_CLAIM,
 			ClientID:          s.clientID,
 			DiscoverPublicKey: &s.publicKeyFinder,
-			// For user access we override the ID Token expiration claim
-			// and instead have tokens expire after 24 hours so that
-			// users don't have log back in every hour.
-			ExpirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
 		})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }

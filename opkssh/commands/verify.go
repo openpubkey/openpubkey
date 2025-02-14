@@ -22,7 +22,7 @@ import (
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/opkssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/verifier"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -35,9 +35,9 @@ type PolicyEnforcerFunc func(username string, pkt *pktoken.PKToken) error
 // configurable authorization system. It is designed to be used in conjunction
 // with sshd's AuthorizedKeysCommand feature.
 type VerifyCmd struct {
-	// OPConfig returns configuration values used to verify the PK token
+	// PktVerifier is responsible for verifying the PK token
 	// contained in the SSH certificate
-	OPConfig providers.Config
+	PktVerifier verifier.Verifier
 	// CheckPolicy determines whether the verified PK token is permitted to SSH as a
 	// specific user
 	CheckPolicy PolicyEnforcerFunc
@@ -76,7 +76,7 @@ func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, t
 	if err != nil {
 		return "", err
 	}
-	if pkt, err := cert.VerifySshPktCert(ctx, v.OPConfig); err != nil { // Verify the PKT contained in the cert
+	if pkt, err := cert.VerifySshPktCert(ctx, v.PktVerifier); err != nil { // Verify the PKT contained in the cert
 		return "", err
 	} else if err := v.CheckPolicy(userArg, pkt); err != nil { // Check if username is authorized
 		return "", err

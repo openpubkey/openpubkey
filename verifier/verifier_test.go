@@ -234,6 +234,39 @@ func TestVerifierRefreshedIDToken(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestVerifierExpirationPolicy(t *testing.T) {
+	issuer := "issuer-provider"
+	clientID := "verifier"
+
+	noGQSign := false
+	provider, mockBackend, err := NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+		"aud": clientID,
+	})
+	require.NoError(t, err)
+
+	// Set the expiration time to 1 second past January 1, 1970
+	mockBackend.IDTokensTemplate.ExtraClaims = map[string]any{"exp": 1}
+
+	opkClient, err := client.New(provider)
+	require.NoError(t, err)
+	pkt, err := opkClient.Auth(context.Background())
+	require.NoError(t, err)
+
+	pktVerifier, err := verifier.New(provider,
+		verifier.WithExpirationPolicy(verifier.ExpirationPolicies.NEVER_EXPIRE),
+	)
+	require.NoError(t, err)
+	err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+	require.NoError(t, err)
+
+	pktVerifierWithExp, err := verifier.New(provider,
+		verifier.WithExpirationPolicy(verifier.ExpirationPolicies.OIDC),
+	)
+	require.NoError(t, err)
+	err = pktVerifierWithExp.VerifyPKToken(context.Background(), pkt)
+	require.ErrorContains(t, err, "the ID token has expired (exp = 1)")
+}
+
 func TestCICSignature(t *testing.T) {
 	clientID := "test_client_id"
 	alg := jwa.ES256
