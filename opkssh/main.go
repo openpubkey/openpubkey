@@ -31,6 +31,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/opkssh/commands"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/providers"
@@ -94,8 +95,25 @@ func run() int {
 				log.SetOutput(multiWriter)
 			}
 		}
+		googleOpOptions := providers.GetDefaultGoogleOpOptions()
+		googleOpOptions.GQSign = false
+		googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
-		var err error
+		azureOpOptions := providers.GetDefaultAzureOpOptions()
+		azureOpOptions.GQSign = false
+		azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
+
+		op, err := choosers.NewWebChooser(
+			[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+		).ChooseOp(context.Background())
+		if err != nil {
+			log.Println("ERROR selecting op:", err)
+			return 1
+		}
+
+		// TODO: We need some logic here to determine if a provider can handle token refresh
+		provider := op.(providers.RefreshableOpenIdProvider)
+
 		// Execute login command
 		if *autoRefresh {
 			err = commands.LoginWithRefresh(ctx, provider)
