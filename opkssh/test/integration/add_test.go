@@ -54,6 +54,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 
 func TestAdd(t *testing.T) {
 	// Test adding an allowed principal to an opkssh policy
+	issuer := fmt.Sprintf("http://oidc.local:%s/", issuerPort)
 
 	tests := []struct {
 		name             string
@@ -114,7 +115,7 @@ func TestAdd(t *testing.T) {
 			})
 
 			// Build add command based on sub-test options
-			addCmd := fmt.Sprintf("add foo@example.com %s", tt.desiredPrincipal)
+			addCmd := fmt.Sprintf("add %s foo@example.com %s", tt.desiredPrincipal, issuer)
 			cmd := []string{tt.binaryPath, addCmd}
 			if tt.useSudo {
 				cmd = append([]string{"sudo"}, cmd...)
@@ -153,6 +154,7 @@ func TestAdd(t *testing.T) {
 						{
 							Email:      "foo@example.com",
 							Principals: []string{tt.desiredPrincipal},
+							Issuer:     issuer,
 						},
 					},
 				}

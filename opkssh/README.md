@@ -33,7 +33,7 @@ will also need to have a opkssh binary available to use in the same directory.
 sudo touch /etc/opk/policy.yml
 sudo chown root /etc/opk/policy.yml
 sudo chmod 600 /etc/opk/policy.yml
-sudo /etc/opk/opkssh add {EMAIL} {USER}
+sudo /etc/opk/opkssh add {USER} {EMAIL} {ISSUER}
 ```
 6. Add the folowing lines to the sshd file `/etc/ssh/sshd_config`
 ```bash

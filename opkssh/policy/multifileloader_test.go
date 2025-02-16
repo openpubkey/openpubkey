@@ -73,11 +73,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com": {Email: "alice@example.com", Principals: []string{"test"}},
+				"alice@example.com": {Email: "alice@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -87,11 +88,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{ValidUser.Username, "bob"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com": {Email: "alice@example.com", Principals: []string{ValidUser.Username}},
+				"alice@example.com": {Email: "alice@example.com", Principals: []string{ValidUser.Username}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -101,10 +103,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -113,17 +117,19 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{ValidUser.Username},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "bob@example.com",
 						Principals: []string{ValidUser.Username},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test", ValidUser.Username}},
-				"bob@example.com":     {Email: "bob@example.com", Principals: []string{ValidUser.Username}},
-				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}},
+				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test", ValidUser.Username}, Issuer: "https://example.com"},
+				"bob@example.com":     {Email: "bob@example.com", Principals: []string{ValidUser.Username}, Issuer: "https://example.com"},
+				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -133,10 +139,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -145,20 +153,23 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "bob@example.com",
 						Principals: []string{"test", "test2"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test", "test2", "test3"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test"}},
-				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}},
+				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
+				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 	}

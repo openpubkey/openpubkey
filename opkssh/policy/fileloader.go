@@ -145,6 +145,7 @@ func (l *FileLoader) LoadUserPolicy(username string, skipInvalidEntries bool) (*
 				validUserPolicy.Users = append(validUserPolicy.Users, User{
 					Email:      user.Email,
 					Principals: []string{username},
+					Issuer:     user.Issuer,
 				})
 			}
 		}

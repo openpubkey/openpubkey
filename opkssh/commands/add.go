@@ -69,7 +69,7 @@ func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 //
 // If successful, returns the policy filepath updated. Otherwise, returns a
 // non-nil error
-func (a *AddCmd) Add(userEmail string, principal string) (string, error) {
+func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string, error) {
 	// Read current policy
 	currentPolicy, policyFilePath, err := a.LoadPolicy()
 	if err != nil {
@@ -77,7 +77,7 @@ func (a *AddCmd) Add(userEmail string, principal string) (string, error) {
 	}
 
 	// Update policy
-	currentPolicy.AddAllowedPrincipal(principal, userEmail)
+	currentPolicy.AddAllowedPrincipal(principal, userEmail, issuer)
 
 	// Dump contents back to disk
 	err = a.PolicyFileLoader.Dump(currentPolicy, policyFilePath)

@@ -381,8 +381,10 @@ func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
 	// container's issuer server
 	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
 
+	issuer := zitadelOp.Issuer() // fmt.Sprintf("http://oidc.local:%s/", issuerPort)
 	// Give integration test user access to test2 via user policy
-	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", "/home/test2/.opk/opkssh add \"test-user@zitadel.ch\" \"test2\""}, "test2")
+	cmdString := fmt.Sprintf("/home/test2/.opk/opkssh add \"test2\" \"test-user@zitadel.ch\" \"%s\"", issuer)
+	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", cmdString}, "test2")
 	require.Equal(t, 0, code, "failed to update user policy")
 
 	// Call login

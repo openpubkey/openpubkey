@@ -141,6 +141,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 			{
 				Email:      "alice@example.com",
 				Principals: []string{"test"},
+				Issuer:     "https://example.com",
 			},
 		},
 	}
@@ -171,18 +172,22 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 			{
 				Email:      "alice@example.com",
 				Principals: []string{"test"},
+				Issuer:     "https://example.com",
 			},
 			{
 				Email:      "bob@example.com",
 				Principals: []string{"test"},
+				Issuer:     "https://example.com",
 			},
 			{
 				Email:      "charlie@example.com",
 				Principals: []string{ValidUser.Username},
+				Issuer:     "https://example.com",
 			},
 			{
 				Email:      "daniel@example.com",
 				Principals: []string{ValidUser.Username, "test", "test2"},
+				Issuer:     "https://example.com",
 			},
 		},
 	}
@@ -192,10 +197,12 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 			{
 				Email:      "charlie@example.com",
 				Principals: []string{ValidUser.Username},
+				Issuer:     "https://example.com",
 			},
 			{
 				Email:      "daniel@example.com",
 				Principals: []string{ValidUser.Username},
+				Issuer:     "https://example.com",
 			},
 		},
 	}
@@ -302,6 +309,7 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 			{
 				Email:      "alice@example.com",
 				Principals: []string{"test"},
+				Issuer:     "https://example.com",
 			},
 		},
 	}
@@ -326,6 +334,7 @@ func TestDump_Success(t *testing.T) {
 			{
 				Email:      "alice@example.com",
 				Principals: []string{"test"},
+				Issuer:     "https://example.com",
 			},
 		},
 	}

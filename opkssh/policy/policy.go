@@ -31,6 +31,7 @@ type User struct {
 	// Principals is a list of allowed principals
 	Principals []string `yaml:"principals"`
 	// Sub        string   `yaml:"sub,omitempty"`
+	Issuer string `yaml:"issuer"`
 }
 
 // Policy represents an opkssh policy
@@ -46,13 +47,14 @@ func FromTable(input []byte) (*Policy, error) {
 	errors := []error{}
 	for _, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
-		if len(row) != 2 {
+		if len(row) != 3 {
 			errors = append(errors, fmt.Errorf("invalid row: %v", row))
 			continue
 		}
 		user := User{
-			Email:      row[0],
-			Principals: []string{row[1]},
+			Principals: []string{row[0]},
+			Email:      row[1],
+			Issuer:     row[2],
 		}
 		policy.Users = append(policy.Users, user)
 	}
@@ -69,14 +71,14 @@ func FromTable(input []byte) (*Policy, error) {
 // new user entry is added with an initial allowed principals list containing
 // principal. No changes are made if the principal is already allowed for this
 // user.
-func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
+func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer string) {
 	userExists := false
 	if len(p.Users) != 0 {
 		// search to see if the current user already has an entry in the policy
 		// file
 		for i := range p.Users {
 			user := &p.Users[i]
-			if user.Email == userEmail {
+			if user.Email == userEmail && user.Issuer == issuer {
 				principalExists := false
 				for _, p := range user.Principals {
 					// if the principal already exists for this user, then skip
@@ -88,6 +90,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 
 				if !principalExists {
 					user.Principals = append(user.Principals, principal)
+					user.Issuer = issuer
 					log.Printf("Successfully added user with email %s with principal %s to the policy file\n", userEmail, principal)
 				}
 				userExists = true
@@ -101,6 +104,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 		newUser := User{
 			Email:      userEmail,
 			Principals: []string{principal},
+			Issuer:     issuer,
 		}
 		// add the new user to the list of users in the policy
 		p.Users = append(p.Users, newUser)
@@ -108,21 +112,11 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 }
 
 // ToYAML encodes the policy into YAML
-// func (p *Policy) ToYAML() ([]byte, error) {
-// 	marshaledData, err := yaml.Marshal(p)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to marshal policy: %w", err)
-// 	}
-
-// 	return marshaledData, nil
-// }
-
 func (p *Policy) ToTable() ([]byte, error) {
 	table := config.Table{}
 	for _, user := range p.Users {
-		// 			table.AddRow(user.Email, principal)
 		for _, principal := range user.Principals {
-			table.AddRow(user.Email, principal)
+			table.AddRow(principal, user.Email, user.Issuer)
 		}
 	}
 	return table.ToBytes(), nil

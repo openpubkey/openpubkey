@@ -185,23 +185,32 @@ func run() int {
 		// script to inject user entries into the policy file
 		//
 		// Example line to add a user:
-		// 		./opkssh add %e %p
-		//
-		//  %e The email of the user to be added to the policy file.
+		// 		./opkssh add %p %e %i
 		//	%p The desired principal being assumed on the target (aka requested principal).
-		if len(os.Args) != 4 {
-			fmt.Println("Invalid number of arguments for verify, expected: `<Email (TOKEN e)> <Principal (TOKEN p)>`")
+		//  %e The email of the user to be added to the policy file.
+		//	%i The desired OpenID Provider for email, e.g. https://accounts.google.com.
+		if len(os.Args) != 5 {
+			fmt.Println("Invalid number of arguments for add, expected: `<Email (TOKEN e)> <Issuer (TOKEN i) <Principal (TOKEN p)>`")
 			return 1
 		}
-		inputEmail := os.Args[2]
-		inputPrincipal := os.Args[3]
+		inputPrincipal := os.Args[2]
+		inputEmail := os.Args[3]
+		inputIssuer := os.Args[4]
+
+		// Convenience aliases to save user time (who is going to remember the hidious Azure issuer string)
+		switch inputIssuer {
+		case "google":
+			inputIssuer = "https://accounts.google.com"
+		case "azure", "microsoft":
+			inputIssuer = "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+		}
 
 		// Execute add command
 		a := commands.AddCmd{
 			PolicyFileLoader: policy.NewFileLoader(),
 			Username:         inputPrincipal,
 		}
-		if policyFilePath, err := a.Add(inputEmail, inputPrincipal); err != nil {
+		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {
 			log.Println("failed to add to policy:", err)
 			return 1
 		} else {

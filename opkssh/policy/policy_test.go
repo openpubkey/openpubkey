@@ -26,6 +26,8 @@ import (
 func TestAddAllowedPrincipal(t *testing.T) {
 	t.Parallel()
 
+	defaultIssuer := "https://example.com"
+
 	// Test adding an allowed principal to an opkssh policy
 	tests := []struct {
 		name           string
@@ -44,6 +46,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -57,6 +60,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test", "test2"},
+						Issuer:     "https://example.com",
 					},
 				}},
 			expectedPolicy: &policy.Policy{
@@ -64,10 +68,12 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "bob@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test", "test2"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -81,6 +87,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test", "test2"},
+						Issuer:     "https://example.com",
 					},
 				}},
 			expectedPolicy: &policy.Policy{
@@ -88,6 +95,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test", "test2", "test3"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -101,6 +109,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				}},
 			expectedPolicy: &policy.Policy{
@@ -108,6 +117,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -117,7 +127,7 @@ func TestAddAllowedPrincipal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("AddAllowedPrincipal(principal=%s, userEmail=%s)", tt.principal, tt.userEmail)
 			t.Logf("Initial policy: %#v", tt.initialPolicy)
-			tt.initialPolicy.AddAllowedPrincipal(tt.principal, tt.userEmail)
+			tt.initialPolicy.AddAllowedPrincipal(tt.principal, tt.userEmail, defaultIssuer)
 			assert.ElementsMatch(t, tt.expectedPolicy.Users, tt.initialPolicy.Users)
 		})
 	}
