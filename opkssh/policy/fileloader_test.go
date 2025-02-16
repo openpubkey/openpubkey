@@ -144,7 +144,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToYAML()
+	testPolicyYaml, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
 	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
@@ -199,7 +199,7 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToYAML()
+	testPolicyYaml, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
 	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
@@ -305,7 +305,7 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToYAML()
+	testPolicyYaml, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyYaml, 0600)
 	require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestDump_Success(t *testing.T) {
 			},
 		},
 	}
-	expectedContents, err := testPolicy.ToYAML()
+	expectedContents, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs

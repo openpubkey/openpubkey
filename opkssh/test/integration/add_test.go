@@ -146,7 +146,7 @@ func TestAdd(t *testing.T) {
 				// Assert that the correct policy file is updated
 				code, policyContents := executeCommandAsUser(t, container.Container, []string{"cat", expectedPolicyFilepath}, RootUser)
 				require.Equal(t, 0, code, "failed to read policy file")
-				gotPolicy, err := policy.FromYAML([]byte(policyContents))
+				gotPolicy, err := policy.FromTable([]byte(policyContents))
 				require.NoError(t, err)
 				expectedPolicy := &policy.Policy{
 					Users: []policy.User{

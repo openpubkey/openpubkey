@@ -90,8 +90,7 @@ func (l *FileLoader) LoadPolicyAtPath(path string) (*Policy, error) {
 		return nil, err
 	}
 
-	// Convert from YAML
-	policy, err := FromYAML(content)
+	policy, err := FromTable(content)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +170,7 @@ func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
 // Dump encodes the policy into YAML and writes the contents to the filepath
 // path
 func (l *FileLoader) Dump(policy *Policy, path string) error {
-	yamlBytes, err := policy.ToYAML()
+	yamlBytes, err := policy.ToTable()
 	if err != nil {
 		return err
 	}

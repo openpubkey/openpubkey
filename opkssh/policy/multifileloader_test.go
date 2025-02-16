@@ -177,14 +177,14 @@ func TestLoad(t *testing.T) {
 			// Create files at expected paths
 			expectedPaths := []string{}
 			if tt.rootPolicy != nil {
-				policyYaml, err := tt.rootPolicy.ToYAML()
+				policyYaml, err := tt.rootPolicy.ToTable()
 				require.NoError(t, err)
 				err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, policyYaml, 0600)
 				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, policy.SystemDefaultPolicyPath)
 			}
 			if tt.userPolicy != nil {
-				policyYaml, err := tt.userPolicy.ToYAML()
+				policyYaml, err := tt.userPolicy.ToTable()
 				require.NoError(t, err)
 				expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
 				err = afero.WriteFile(mockFs, expectedPath, policyYaml, 0600)

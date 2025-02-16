@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"log"
 
-	"gopkg.in/yaml.v3"
+	"github.com/openpubkey/openpubkey/opkssh/config"
 )
 
 // User is an opkssh policy user entry
@@ -39,11 +39,27 @@ type Policy struct {
 	Users []User `yaml:"users"`
 }
 
-// FromYAML decodes YAML encoded input into policy.Policy
-func FromYAML(input []byte) (*Policy, error) {
+// FromTable decodes whitespace delimited input into policy.Policy
+func FromTable(input []byte) (*Policy, error) {
+	table := config.ToTable(input)
 	policy := &Policy{}
-	if err := yaml.Unmarshal(input, policy); err != nil {
-		return nil, fmt.Errorf("error unmarshalling input to policy.Policy: %w", err)
+	errors := []error{}
+	for _, row := range table.GetRows() {
+		// Error should not break everyone's ability to login, skip those rows
+		if len(row) != 2 {
+			errors = append(errors, fmt.Errorf("invalid row: %v", row))
+			continue
+		}
+		user := User{
+			Email:      row[0],
+			Principals: []string{row[1]},
+		}
+		policy.Users = append(policy.Users, user)
+	}
+
+	// TODO: We should log non-critical errors rather than failing.
+	if len(errors) > 0 {
+		return nil, errors[0]
 	}
 	return policy, nil
 }
@@ -92,13 +108,24 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 }
 
 // ToYAML encodes the policy into YAML
-func (p *Policy) ToYAML() ([]byte, error) {
-	marshaledData, err := yaml.Marshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal policy: %w", err)
-	}
+// func (p *Policy) ToYAML() ([]byte, error) {
+// 	marshaledData, err := yaml.Marshal(p)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to marshal policy: %w", err)
+// 	}
 
-	return marshaledData, nil
+// 	return marshaledData, nil
+// }
+
+func (p *Policy) ToTable() ([]byte, error) {
+	table := config.Table{}
+	for _, user := range p.Users {
+		// 			table.AddRow(user.Email, principal)
+		for _, principal := range user.Principals {
+			table.AddRow(user.Email, principal)
+		}
+	}
+	return table.ToBytes(), nil
 }
 
 // Source declares the minimal interface to describe the source of a fetched
