@@ -110,13 +110,15 @@ func run() int {
 			log.Println("ERROR selecting op:", err)
 			return 1
 		}
-
-		// TODO: We need some logic here to determine if a provider can handle token refresh
-		provider := op.(providers.RefreshableOpenIdProvider)
-
 		// Execute login command
 		if *autoRefresh {
-			err = commands.LoginWithRefresh(ctx, provider)
+			if providerRefreshable, ok := op.(providers.RefreshableOpenIdProvider); ok {
+				err = commands.LoginWithRefresh(ctx, providerRefreshable)
+			} else {
+				errString := fmt.Sprintf("Error OpenID Provider (%v) does not support auto-refresh and auto-refresh argument set to true", provider.Issuer())
+				log.Println(errString)
+				return 1
+			}
 		} else {
 			err = commands.Login(ctx, provider)
 		}
