@@ -197,6 +197,7 @@ func run() int {
 			log.Println("failed to verify:", err)
 			return 1
 		} else {
+			log.Println("successfully verified")
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
 			fmt.Println(authKey)
 		}
@@ -217,7 +218,7 @@ func run() int {
 		inputEmail := os.Args[3]
 		inputIssuer := os.Args[4]
 
-		// Convenience aliases to save user time (who is going to remember the hidious Azure issuer string)
+		// Convenience aliases to save user time (who is going to remember the hideous Azure issuer string)
 		switch inputIssuer {
 		case "google":
 			inputIssuer = "https://accounts.google.com"
