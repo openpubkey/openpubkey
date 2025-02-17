@@ -188,8 +188,6 @@ func run() int {
 			return 1
 		}
 
-		log.Println("Debugging in prod =(: ")
-
 		// Execute verify command
 		v := commands.VerifyCmd{
 			PktVerifier: *pktVerifier,
