@@ -76,14 +76,17 @@ var policyTest = &policy.Policy{
 		{
 			Email:      "alice@bastionzero.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 		{
 			Email:      "arthur.aardvark@example.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 		{
 			Email:      "bob@example.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 	},
 }

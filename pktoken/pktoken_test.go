@@ -51,6 +51,10 @@ func TestPkToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mockIssuer", actualIssuer)
 
+	actualAudience, err := pkt.Audience()
+	require.NoError(t, err)
+	require.Equal(t, "empty", actualAudience)
+
 	actualAlg, ok := pkt.ProviderAlgorithm()
 	require.True(t, ok)
 	require.Equal(t, "RS256", actualAlg.String())
