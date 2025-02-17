@@ -185,7 +185,7 @@ func run() int {
 		pktVerifier, err := providerPolicy.CreateVerifier()
 		if err != nil {
 			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
-			return 1
+			return 0
 		}
 
 		log.Println("Debugging in prod =(: ")
