@@ -2,8 +2,11 @@ package policy
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/openpubkey/openpubkey/opkssh/config"
+	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/spf13/afero"
 )
 
@@ -13,6 +16,26 @@ type ProvidersPolicyRow struct {
 	ExpirationPolicy string
 }
 
+func (p ProvidersPolicyRow) GetExpirationPolicy() (verifier.ExpirationPolicy, error) {
+	switch p.ExpirationPolicy {
+	case "24h":
+		return verifier.ExpirationPolicies.MAX_AGE_24HOURS, nil
+	case "48h":
+		return verifier.ExpirationPolicies.MAX_AGE_48HOURS, nil
+	case "1week":
+		return verifier.ExpirationPolicies.MAX_AGE_1WEEK, nil
+	case "oidc":
+		return verifier.ExpirationPolicies.OIDC, nil
+	case "oidc_refreshed":
+		return verifier.ExpirationPolicies.OIDC_REFRESHED, nil
+	case "never":
+		return verifier.ExpirationPolicies.NEVER_EXPIRE, nil
+	default:
+		return verifier.ExpirationPolicy{}, fmt.Errorf("invalid expiration policy: %s", p.ExpirationPolicy)
+	}
+
+}
+
 type ProviderPolicy struct {
 	FileLoader
 	rows []ProvidersPolicyRow
@@ -20,6 +43,49 @@ type ProviderPolicy struct {
 
 func (p *ProviderPolicy) AddRow(row ProvidersPolicyRow) {
 	p.rows = append(p.rows, row)
+}
+
+func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
+	ops := []verifier.ProviderVerifier{}
+	var expirationPolicy verifier.ExpirationPolicy
+	var err error
+	for _, row := range p.rows {
+		// TODO: This just overwrites the expiration policy for all providers. We need to modify the verifier to support a expiration policies per provider
+		expirationPolicy, err = row.GetExpirationPolicy()
+		if err != nil {
+			return nil, err
+		}
+		// TODO: We should handle this issuer matching in a more generic way
+		if row.Issuer == "https://accounts.google.com" {
+			opts := providers.GetDefaultGoogleOpOptions()
+			opts.Issuer = row.Issuer
+			opts.ClientID = row.ClientID
+			provider := providers.NewGoogleOpWithOptions(opts)
+			ops = append(ops, provider)
+		} else if strings.HasPrefix(row.Issuer, "https://login.microsoftonline.com") {
+			opts := providers.GetDefaultAzureOpOptions()
+			opts.Issuer = row.Issuer
+			opts.ClientID = row.ClientID
+			provider := providers.NewAzureOpWithOptions(opts)
+			ops = append(ops, provider)
+		} else {
+			return nil, fmt.Errorf("unsupported issuer: %s", row.Issuer)
+		}
+	}
+
+	if len(ops) == 0 {
+		return nil, fmt.Errorf("no providers configured")
+	}
+
+	pktVerifier, err := verifier.New(
+		ops[0],
+		verifier.WithExpirationPolicy(expirationPolicy),
+		verifier.AddProviderVerifiers(ops[1:]...),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return pktVerifier, nil
 }
 
 type ProvidersFileLoader struct {

@@ -35,7 +35,6 @@ import (
 	"github.com/openpubkey/openpubkey/opkssh/commands"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 var (
@@ -159,12 +158,15 @@ func run() int {
 		certB64Arg := os.Args[3]
 		typArg := os.Args[4]
 
-		pktVerifier, err := verifier.New(
-			provider,
-			verifier.WithExpirationPolicy(verifier.ExpirationPolicies.OIDC_REFRESHED),
-		)
+		providerPolicyPath := "/etc/opk/providers"
+		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
 		if err != nil {
-			log.Println("failed to create pk token verifier (likely bad configuration):", err)
+			log.Println("Failed to open /etc/opk/providers:", err)
+			return 1
+		}
+		pktVerifier, err := providerPolicy.CreateVerifier()
+		if err != nil {
+			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
 			return 1
 		}
 
