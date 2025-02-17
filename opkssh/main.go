@@ -176,7 +176,7 @@ func run() int {
 		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
 		log.Println("Providers loaded", providerPolicy.ToString())
 
-		printConfigProblems()
+		// printConfigProblems()
 
 		if err != nil {
 			log.Println("Failed to open /etc/opk/providers:", err)
