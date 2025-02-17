@@ -32,9 +32,8 @@ RUN touch /etc/opk/auth_id
 RUN chown root /etc/opk/auth_id
 RUN chmod 600 /etc/opk/auth_id
 RUN touch /etc/opk/providers
-RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
-RUN chown root /etc/opk/providers
-RUN chmod 600 /etc/opk/providers
+RUN cat /etc/opk/providers
+
 
 
 # Setup OPK directories/files (unprivileged "test2" user)
@@ -77,6 +76,10 @@ ARG ISSUER_PORT="9998"
 RUN go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret" ./opkssh
 RUN chmod 700 /etc/opk/opkssh
 
+RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
+RUN chown root /etc/opk/providers
+RUN chmod 600 /etc/opk/providers
+
 # Copy binary to unprivileged user's home directory
 RUN cp /etc/opk/opkssh /home/test2/.opk/opkssh
 RUN chown test2:test2 /home/test2/.opk/opkssh
@@ -84,6 +87,7 @@ RUN chown test2:test2 /home/test2/.opk/opkssh
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
 ARG BOOTSTRAP_POLICY
+ENV ISSUER_PORT="9998"
 RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
 
 # Start SSH server on container startup

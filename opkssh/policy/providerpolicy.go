@@ -33,7 +33,10 @@ func (p ProvidersPolicyRow) GetExpirationPolicy() (verifier.ExpirationPolicy, er
 	default:
 		return verifier.ExpirationPolicy{}, fmt.Errorf("invalid expiration policy: %s", p.ExpirationPolicy)
 	}
+}
 
+func (p ProvidersPolicyRow) ToString() string {
+	return p.Issuer + " " + p.ClientID + " " + p.ExpirationPolicy
 }
 
 type ProviderPolicy struct {
@@ -52,7 +55,11 @@ func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
 	for _, row := range p.rows {
 		var provider verifier.ProviderVerifier
 		// TODO: We should handle this issuer matching in a more generic way
-		if row.Issuer == "https://accounts.google.com" || strings.HasPrefix(row.Issuer, "http://oidc.local") { // oidc.local is a test issuer
+		// oidc.local and localhost: are a test issuers
+		if row.Issuer == "https://accounts.google.com" ||
+			strings.HasPrefix(row.Issuer, "http://oidc.local") ||
+			strings.HasPrefix(row.Issuer, "http://localhost:") {
+
 			opts := providers.GetDefaultGoogleOpOptions()
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
@@ -89,6 +96,14 @@ func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
 		return nil, err
 	}
 	return pktVerifier, nil
+}
+
+func (p ProviderPolicy) ToString() string {
+	var sb strings.Builder
+	for _, row := range p.rows {
+		sb.WriteString(row.ToString() + "\n")
+	}
+	return sb.String()
 }
 
 type ProvidersFileLoader struct {

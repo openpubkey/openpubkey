@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"log"
+
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/exp/slices"
 )
@@ -65,9 +67,10 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 	for _, user := range policy.Users {
 		// check each entry to see if the user in the claims is included
 		if string(claims.Email) == user.Email {
-			if issuer != user.Issuer {
-				continue
-			}
+			// if issuer != user.Issuer {
+			// 	continue
+			// }
+			log.Printf("claims.email %s, user.Email %s, issuer %s, user.Issuer %s \n", claims.Email, user.Email, issuer, user.Issuer)
 
 			// if they are, then check if the desired principal is allowed
 			if slices.Contains(user.Principals, principalDesired) {

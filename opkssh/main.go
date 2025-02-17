@@ -38,14 +38,13 @@ import (
 )
 
 var (
-	issuer       = "https://accounts.google.com"
-	clientID     = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
-	clientSecret = "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"
-	redirectURIs = []string{
-		"http://localhost:3000/login-callback",
-		"http://localhost:10001/login-callback",
-		"http://localhost:11110/login-callback",
-	}
+
+	// These can be overridden at build time using ldflags. For example:
+	// go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
+	issuer       = ""
+	clientID     = ""
+	clientSecret = ""
+	redirectURIs = "" //TODO: parse
 )
 
 func main() {
@@ -59,13 +58,6 @@ func run() int {
 	}
 	command := os.Args[1]
 
-	opts := providers.GetDefaultGoogleOpOptions()
-	opts.Issuer = issuer
-	opts.ClientID = clientID
-	opts.ClientSecret = clientSecret
-	opts.RedirectURIs = redirectURIs
-	provider := providers.NewGoogleOpWithOptions(opts)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -73,6 +65,16 @@ func run() int {
 		<-sigs
 		cancel()
 	}()
+
+	var providerFromEnv providers.OpenIdProvider
+	if issuer != "" {
+		opts := providers.GetDefaultGoogleOpOptions() // TODO: Create default google like provider
+		opts.Issuer = issuer
+		opts.ClientID = clientID
+		opts.ClientSecret = clientSecret
+		opts.RedirectURIs = strings.Split(redirectURIs, ",")
+		providerFromEnv = providers.NewGoogleOpWithOptions(opts)
+	}
 
 	switch command {
 	case "login":
@@ -94,38 +96,49 @@ func run() int {
 				log.SetOutput(multiWriter)
 			}
 		}
-		googleOpOptions := providers.GetDefaultGoogleOpOptions()
-		googleOpOptions.GQSign = false
-		googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
-		azureOpOptions := providers.GetDefaultAzureOpOptions()
-		azureOpOptions.GQSign = false
-		azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
+		var provider providers.OpenIdProvider
+		if providerFromEnv != nil {
+			provider = providerFromEnv
+		} else {
+			googleOpOptions := providers.GetDefaultGoogleOpOptions()
+			googleOpOptions.GQSign = false
+			googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
-		op, err := choosers.NewWebChooser(
-			[]providers.BrowserOpenIdProvider{googleOp, azureOp},
-		).ChooseOp(context.Background())
-		if err != nil {
-			log.Println("ERROR selecting op:", err)
-			return 1
+			azureOpOptions := providers.GetDefaultAzureOpOptions()
+			azureOpOptions.GQSign = false
+			azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
+
+			var err error
+			provider, err = choosers.NewWebChooser(
+				[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+			).ChooseOp(context.Background())
+			if err != nil {
+				log.Println("ERROR selecting op:", err)
+				return 1
+			}
 		}
+
 		// Execute login command
 		if *autoRefresh {
-			if providerRefreshable, ok := op.(providers.RefreshableOpenIdProvider); ok {
-				err = commands.LoginWithRefresh(ctx, providerRefreshable)
+			if providerRefreshable, ok := provider.(providers.RefreshableOpenIdProvider); ok {
+				err := commands.LoginWithRefresh(ctx, providerRefreshable)
+				if err != nil {
+					log.Println("ERROR logging in:", err)
+				}
 			} else {
-				errString := fmt.Sprintf("Error OpenID Provider (%v) does not support auto-refresh and auto-refresh argument set to true", provider.Issuer())
+				errString := fmt.Sprintf("ERROR OpenID Provider (%v) does not support auto-refresh and auto-refresh argument set to true", provider.Issuer())
 				log.Println(errString)
 				return 1
 			}
 		} else {
-			err = commands.Login(ctx, provider)
+			err := commands.Login(ctx, provider)
+			if err != nil {
+				log.Println("ERROR logging in:", err)
+				return 1
+			}
 		}
 
-		if err != nil {
-			log.Println("ERROR logging in:", err)
-			return 1
-		}
 	case "verify":
 		// Setup logger
 		logFile, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
@@ -160,6 +173,8 @@ func run() int {
 
 		providerPolicyPath := "/etc/opk/providers"
 		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
+		log.Println("Providers loaded", providerPolicy.ToString())
+
 		if err != nil {
 			log.Println("Failed to open /etc/opk/providers:", err)
 			return 1

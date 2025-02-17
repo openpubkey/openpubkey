@@ -161,7 +161,11 @@ func (v *Verifier) VerifyPKToken(
 
 	providerVerifier, ok := v.providers[issuer]
 	if !ok {
-		return fmt.Errorf("unrecognized issuer: %s", issuer)
+		var knownIssuers []string
+		for k := range v.providers {
+			knownIssuers = append(knownIssuers, k)
+		}
+		return fmt.Errorf("unrecognized issuer: %s, issuers known: %v", issuer, knownIssuers)
 	}
 
 	cic, err := pkt.GetCicValues()
