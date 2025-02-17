@@ -87,7 +87,6 @@ RUN chown test2:test2 /home/test2/.opk/opkssh
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
 ARG BOOTSTRAP_POLICY
-ENV ISSUER_PORT="9998"
 RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
 
 # Start SSH server on container startup
