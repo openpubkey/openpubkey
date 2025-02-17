@@ -46,41 +46,44 @@ func (p *ProviderPolicy) AddRow(row ProvidersPolicyRow) {
 }
 
 func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
-	ops := []verifier.ProviderVerifier{}
+	pvs := []verifier.ProviderVerifier{}
 	var expirationPolicy verifier.ExpirationPolicy
 	var err error
 	for _, row := range p.rows {
-		// TODO: This just overwrites the expiration policy for all providers. We need to modify the verifier to support a expiration policies per provider
-		expirationPolicy, err = row.GetExpirationPolicy()
-		if err != nil {
-			return nil, err
-		}
+		var provider verifier.ProviderVerifier
 		// TODO: We should handle this issuer matching in a more generic way
 		if row.Issuer == "https://accounts.google.com" {
 			opts := providers.GetDefaultGoogleOpOptions()
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
-			provider := providers.NewGoogleOpWithOptions(opts)
-			ops = append(ops, provider)
+			provider = providers.NewGoogleOpWithOptions(opts)
 		} else if strings.HasPrefix(row.Issuer, "https://login.microsoftonline.com") {
 			opts := providers.GetDefaultAzureOpOptions()
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
 			provider := providers.NewAzureOpWithOptions(opts)
-			ops = append(ops, provider)
+			pvs = append(pvs, provider)
 		} else {
 			return nil, fmt.Errorf("unsupported issuer: %s", row.Issuer)
 		}
+
+		expirationPolicy, err = row.GetExpirationPolicy()
+		if err != nil {
+			return nil, err
+		}
+		pv := verifier.ProviderVerifierExpires{
+			ProviderVerifier: provider,
+			Expiration:       expirationPolicy,
+		}
+		pvs = append(pvs, pv)
 	}
 
-	if len(ops) == 0 {
+	if len(pvs) == 0 {
 		return nil, fmt.Errorf("no providers configured")
 	}
-
-	pktVerifier, err := verifier.New(
-		ops[0],
+	pktVerifier, err := verifier.NewFromMany(
+		pvs,
 		verifier.WithExpirationPolicy(expirationPolicy),
-		verifier.AddProviderVerifiers(ops[1:]...),
 	)
 	if err != nil {
 		return nil, err

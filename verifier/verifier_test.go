@@ -98,7 +98,7 @@ func TestVerifier(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if it handles more than one verifier
-	pktVerifierTwoProviders, err := verifier.New(provider, verifier.AddProviderVerifiers(providerGQ))
+	pktVerifierTwoProviders, err := verifier.NewFromMany([]verifier.ProviderVerifier{provider, providerGQ})
 	require.NoError(t, err)
 
 	opkClient, err = client.New(providerGQ)
