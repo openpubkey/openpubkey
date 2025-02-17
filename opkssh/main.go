@@ -174,14 +174,13 @@ func run() int {
 
 		providerPolicyPath := "/etc/opk/providers"
 		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
-		log.Println("Providers loaded", providerPolicy.ToString())
-
-		// printConfigProblems()
 
 		if err != nil {
 			log.Println("Failed to open /etc/opk/providers:", err)
 			return 1
 		}
+		log.Println("Providers loaded", providerPolicy.ToString())
+
 		pktVerifier, err := providerPolicy.CreateVerifier()
 		if err != nil {
 			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
