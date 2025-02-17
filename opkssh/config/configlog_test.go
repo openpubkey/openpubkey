@@ -27,7 +27,7 @@ func TestLog(t *testing.T) {
 	tests := []struct {
 		name          string
 		clearWhenDone bool
-		input         *[]Entry
+		input         *[]ConfigProblem
 		output        string
 	}{
 		{
@@ -39,7 +39,7 @@ func TestLog(t *testing.T) {
 		{
 			name:          "single entry",
 			clearWhenDone: true,
-			input: &[]Entry{
+			input: &[]ConfigProblem{
 				{
 					Filepath:            "/path/to/file",
 					OffendingLine:       "offending line",
@@ -53,7 +53,7 @@ func TestLog(t *testing.T) {
 		{
 			name:          "multiple entries",
 			clearWhenDone: false,
-			input: &[]Entry{
+			input: &[]ConfigProblem{
 				{
 					Filepath:            "/path/to/fileA",
 					OffendingLine:       "offending line 1",
@@ -74,7 +74,7 @@ func TestLog(t *testing.T) {
 		{
 			name:          "make sure that the log persists",
 			clearWhenDone: true,
-			input: &[]Entry{
+			input: &[]ConfigProblem{
 				{
 					Filepath:            "/path/to/filec",
 					OffendingLine:       "offending line 2",
@@ -94,11 +94,11 @@ func TestLog(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configLog := ConfigLogSingleton()
+			configLog := ConfigProblems()
 
 			if tt.input != nil {
 				for _, entry := range *tt.input {
-					configLog.WriteEntry(entry)
+					configLog.RecordProblem(entry)
 				}
 			}
 			assert.Equal(t, tt.output, configLog.String())

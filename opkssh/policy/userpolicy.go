@@ -19,6 +19,7 @@ package policy
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/openpubkey/openpubkey/opkssh/config"
 )
@@ -41,13 +42,23 @@ type Policy struct {
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
-func FromTable(input []byte) (*Policy, error) {
+func FromTable(input []byte, path string) (*Policy, error) {
+
 	table := config.NewTable(input)
 	policy := &Policy{}
 	errors := []error{}
-	for _, row := range table.GetRows() {
+	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
+			configProblem := config.ConfigProblem{
+				Filepath:            path,
+				OffendingLine:       strings.Join(row, " "),
+				OffendingLineNumber: i,
+				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
+				Source:              "user policy file",
+			}
+			config.ConfigProblems().RecordProblem(configProblem)
+
 			errors = append(errors, fmt.Errorf("invalid row: %v", row))
 			continue
 		}

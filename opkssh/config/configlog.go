@@ -22,7 +22,7 @@ import (
 	"sync"
 )
 
-type Entry struct {
+type ConfigProblem struct {
 	Filepath            string
 	OffendingLine       string
 	OffendingLineNumber int
@@ -30,32 +30,32 @@ type Entry struct {
 	Source              string
 }
 
-func (e Entry) String() string {
+func (e ConfigProblem) String() string {
 	return "encountered error: " + e.ErrorMessage + ", reading " + e.OffendingLine + " in " + e.Filepath + " at line " + fmt.Sprint(e.OffendingLineNumber)
 }
 
 type ConfigLog struct {
-	log      []Entry
+	log      []ConfigProblem
 	logMutex sync.Mutex
 }
 
-func (c *ConfigLog) WriteEntry(entry Entry) {
+func (c *ConfigLog) RecordProblem(entry ConfigProblem) {
 	c.logMutex.Lock()
 	defer c.logMutex.Unlock()
 	c.log = append(c.log, entry)
 }
 
-func (c *ConfigLog) GetLogs() []Entry {
+func (c *ConfigLog) GetProblems() []ConfigProblem {
 	c.logMutex.Lock()
 	defer c.logMutex.Unlock()
-	logCopy := make([]Entry, len(c.log))
+	logCopy := make([]ConfigProblem, len(c.log))
 	copy(logCopy, c.log)
 	return logCopy
 }
 
 func (c *ConfigLog) String() string {
 	// No mutex needed since GetLogs handles the mutex
-	logs := c.GetLogs()
+	logs := c.GetProblems()
 	logsStrings := []string{}
 	for _, log := range logs {
 		logsStrings = append(logsStrings, log.String())
@@ -66,7 +66,7 @@ func (c *ConfigLog) String() string {
 func (c *ConfigLog) Clear() {
 	c.logMutex.Lock()
 	defer c.logMutex.Unlock()
-	c.log = []Entry{}
+	c.log = []ConfigProblem{}
 }
 
 var (
@@ -74,10 +74,10 @@ var (
 	once      sync.Once
 )
 
-func ConfigLogSingleton() *ConfigLog {
+func ConfigProblems() *ConfigLog {
 	once.Do(func() {
 		singleton = &ConfigLog{
-			log:      []Entry{},
+			log:      []ConfigProblem{},
 			logMutex: sync.Mutex{},
 		}
 	})

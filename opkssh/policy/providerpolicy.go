@@ -139,7 +139,6 @@ func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) config.Table {
 // FromTable decodes whitespace delimited input into policy.Policy
 // Path is passed only for logging purposes
 func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPolicy {
-	configLog := config.ConfigLogSingleton()
 	table := config.NewTable(input)
 	policy := &ProviderPolicy{
 		rows: []ProvidersPolicyRow{},
@@ -147,14 +146,14 @@ func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPoli
 	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
-			configProblem := config.Entry{
+			configProblem := config.ConfigProblem{
 				Filepath:            path,
 				OffendingLine:       strings.Join(row, " "),
 				OffendingLineNumber: i,
 				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
 				Source:              "providers policy file",
 			}
-			configLog.WriteEntry(configProblem)
+			config.ConfigProblems().RecordProblem(configProblem)
 			continue
 		}
 		policyRow := ProvidersPolicyRow{

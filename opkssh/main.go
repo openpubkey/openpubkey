@@ -45,7 +45,7 @@ var (
 	issuer       = ""
 	clientID     = ""
 	clientSecret = ""
-	redirectURIs = "" //TODO: parse
+	redirectURIs = ""
 )
 
 func main() {
@@ -245,7 +245,7 @@ func run() int {
 }
 
 func printConfigProblems() {
-	problems := config.ConfigLogSingleton().GetLogs()
+	problems := config.ConfigProblems().GetProblems()
 	if len(problems) > 0 {
 		fmt.Fprintln(os.Stderr, "Warning: Encountered the following configuration problems:")
 		for _, problem := range problems {
