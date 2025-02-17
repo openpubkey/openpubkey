@@ -185,7 +185,7 @@ func run() int {
 		pktVerifier, err := providerPolicy.CreateVerifier()
 		if err != nil {
 			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
-			return 0
+			return 1
 		}
 
 		log.Println("Debugging in prod =(: ")
@@ -202,7 +202,7 @@ func run() int {
 			log.Println("successfully verified")
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
 			fmt.Println(authKey)
-			return 1
+			return 0
 		}
 	case "add":
 		// The "add" command is designed to be used by the client configuration
