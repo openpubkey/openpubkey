@@ -33,6 +33,7 @@ import (
 
 	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/opkssh/commands"
+	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/providers"
 )
@@ -175,6 +176,8 @@ func run() int {
 		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
 		log.Println("Providers loaded", providerPolicy.ToString())
 
+		printConfigProblems()
+
 		if err != nil {
 			log.Println("Failed to open /etc/opk/providers:", err)
 			return 1
@@ -239,6 +242,16 @@ func run() int {
 	}
 
 	return 0
+}
+
+func printConfigProblems() {
+	problems := config.ConfigLogSingleton().GetLogs()
+	if len(problems) > 0 {
+		fmt.Fprintln(os.Stderr, "Warning: Encountered the following configuration problems:")
+		for _, problem := range problems {
+			fmt.Fprintln(os.Stderr, problem.String())
+		}
+	}
 }
 
 // OpenSSH used to impose a 4096-octet limit on the string buffers available to

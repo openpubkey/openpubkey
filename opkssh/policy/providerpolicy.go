@@ -123,11 +123,8 @@ func (o *ProvidersFileLoader) LoadProviderPolicy(path string) (*ProviderPolicy, 
 	if err != nil {
 		return nil, err
 	}
-	policy, err := o.FromTable(content)
-	if err != nil {
-		return nil, err
-	}
-	return policy, err
+	policy := o.FromTable(content, path)
+	return policy, nil
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
@@ -140,25 +137,24 @@ func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) config.Table {
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
-func (o *ProvidersFileLoader) FromTable(input []byte) (*ProviderPolicy, error) {
+// Path is passed only for logging purposes
+func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPolicy {
 	configLog := config.ConfigLogSingleton()
 	table := config.NewTable(input)
 	policy := &ProviderPolicy{
 		rows: []ProvidersPolicyRow{},
 	}
-	errors := []error{}
-	for _, row := range table.GetRows() {
+	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
 			configProblem := config.Entry{
-				Filepath:            "/path/to/file",
-				OffendingLine:       "offending line",
-				OffendingLineNumber: 5,
-				ErrorMessage:        "wrong number of arguments",
-				Source:              "test 1",
+				Filepath:            path,
+				OffendingLine:       strings.Join(row, " "),
+				OffendingLineNumber: i,
+				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
+				Source:              "providers policy file",
 			}
 			configLog.WriteEntry(configProblem)
-			errors = append(errors, fmt.Errorf("invalid row: %v", row))
 			continue
 		}
 		policyRow := ProvidersPolicyRow{
@@ -168,10 +164,5 @@ func (o *ProvidersFileLoader) FromTable(input []byte) (*ProviderPolicy, error) {
 		}
 		policy.AddRow(policyRow)
 	}
-
-	// TODO: We should log non-critical errors rather than failing.
-	if len(errors) > 0 {
-		return nil, errors[0]
-	}
-	return policy, nil
+	return policy
 }
