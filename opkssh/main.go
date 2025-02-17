@@ -200,6 +200,7 @@ func run() int {
 			log.Println("successfully verified")
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
 			fmt.Println(authKey)
+			return 1
 		}
 	case "add":
 		// The "add" command is designed to be used by the client configuration
@@ -248,9 +249,9 @@ func run() int {
 func printConfigProblems() {
 	problems := config.ConfigProblems().GetProblems()
 	if len(problems) > 0 {
-		fmt.Fprintln(os.Stderr, "Warning: Encountered the following configuration problems:")
+		log.Println("Warning: Encountered the following configuration problems:")
 		for _, problem := range problems {
-			fmt.Fprintln(os.Stderr, problem.String())
+			log.Println(os.Stderr, problem.String())
 		}
 	}
 }
