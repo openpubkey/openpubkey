@@ -179,13 +179,16 @@ func run() int {
 			log.Println("Failed to open /etc/opk/providers:", err)
 			return 1
 		}
-		log.Println("Providers loaded", providerPolicy.ToString())
+		printConfigProblems()
+		log.Println("Providers loaded: ", providerPolicy.ToString())
 
 		pktVerifier, err := providerPolicy.CreateVerifier()
 		if err != nil {
 			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
 			return 1
 		}
+
+		log.Println("Debugging in prod =(: ")
 
 		// Execute verify command
 		v := commands.VerifyCmd{
