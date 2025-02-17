@@ -68,12 +68,7 @@ COPY . ./
 
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
-# Configure the OpenIdProvider (GoogleOp) verifier code to use expected clientId
-# (web), clientSecret (secret), and issuer URL (http://oidc.local:9998/). Host
-# "oidc.local" should be mapped to the IP of the docker container running the
-# zitadel dynamic exampleop server (configure ExtraHosts when running this
-# container).
-RUN go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret" ./opkssh
+RUN go build -v -o /etc/opk/opkssh ./opkssh
 RUN chmod 700 /etc/opk/opkssh
 
 RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
