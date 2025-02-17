@@ -251,7 +251,7 @@ func printConfigProblems() {
 	if len(problems) > 0 {
 		log.Println("Warning: Encountered the following configuration problems:")
 		for _, problem := range problems {
-			log.Println(os.Stderr, problem.String())
+			log.Println(problem.String())
 		}
 	}
 }
