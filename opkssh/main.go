@@ -207,7 +207,7 @@ func run() int {
 
 		// Execute add command
 		a := commands.AddCmd{
-			PolicyFileLoader: policy.NewFileLoader(),
+			PolicyFileLoader: policy.NewUserFileLoader(),
 			Username:         inputPrincipal,
 		}
 		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {

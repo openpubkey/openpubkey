@@ -26,7 +26,7 @@ import (
 
 // AddCmd provides functionality to read and update the opkssh policy file
 type AddCmd struct {
-	PolicyFileLoader *policy.FileLoader
+	PolicyFileLoader *policy.UserPolicyLoader
 
 	// Username is the username to lookup when the system policy file cannot be
 	// read and we fallback to the user's policy file.

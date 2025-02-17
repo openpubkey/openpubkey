@@ -22,7 +22,7 @@ import (
 	"strings"
 )
 
-var _ Loader = &MultiFileLoader{}
+var _ Loader = &UserMultiFileLoader{}
 
 // FileSource implements policy.Source by returning a string that is expected to
 // be a filepath
@@ -32,16 +32,16 @@ func (s FileSource) Source() string {
 	return string(s)
 }
 
-// MultiFileLoader implements policy.Loader by reading both the system default
+// UserMultiFileLoader implements policy.Loader by reading both the system default
 // policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
-type MultiFileLoader struct {
-	*FileLoader
+type UserMultiFileLoader struct {
+	*UserPolicyLoader
 
 	Username string
 }
 
-func (l *MultiFileLoader) Load() (*Policy, Source, error) {
+func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy

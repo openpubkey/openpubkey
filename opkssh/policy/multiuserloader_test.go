@@ -176,11 +176,11 @@ func TestLoad(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Init SUT on each sub-test
-			multiFileLoader := &policy.MultiFileLoader{
-				FileLoader: NewTestPolicyFileLoader(afero.NewMemMapFs(), &MockUserLookup{User: ValidUser}),
-				Username:   ValidUser.Username,
+			multiFileLoader := &policy.UserMultiFileLoader{
+				UserPolicyLoader: NewTestPolicyFileLoader(afero.NewMemMapFs(), &MockUserLookup{User: ValidUser}),
+				Username:         ValidUser.Username,
 			}
-			mockFs := multiFileLoader.Fs
+			mockFs := multiFileLoader.FileLoader.Fs
 
 			t.Logf("Root policy: %#v", tt.rootPolicy)
 			t.Logf("User policy: %#v", tt.userPolicy)
