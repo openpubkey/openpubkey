@@ -31,6 +31,11 @@ RUN mkdir -p /etc/opk
 RUN touch /etc/opk/auth_id
 RUN chown root /etc/opk/auth_id
 RUN chmod 600 /etc/opk/auth_id
+RUN touch /etc/opk/providers
+RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
+RUN chown root /etc/opk/providers
+RUN chmod 600 /etc/opk/providers
+
 
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 

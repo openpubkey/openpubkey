@@ -52,7 +52,7 @@ func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
 	for _, row := range p.rows {
 		var provider verifier.ProviderVerifier
 		// TODO: We should handle this issuer matching in a more generic way
-		if row.Issuer == "https://accounts.google.com" {
+		if row.Issuer == "https://accounts.google.com" || strings.HasPrefix(row.Issuer, "http://oidc.local") { // oidc.local is a test issuer
 			opts := providers.GetDefaultGoogleOpOptions()
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
