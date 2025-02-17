@@ -202,7 +202,7 @@ func run() int {
 			log.Println("successfully verified")
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
 			fmt.Println(authKey)
-			return 0
+			return 1
 		}
 	case "add":
 		// The "add" command is designed to be used by the client configuration
@@ -214,7 +214,7 @@ func run() int {
 		//  %e The email of the user to be added to the policy file.
 		//	%i The desired OpenID Provider for email, e.g. https://accounts.google.com.
 		if len(os.Args) != 5 {
-			fmt.Println("Invalid number of arguments for add, expected: `<Email (TOKEN e)> <Issuer (TOKEN i) <Principal (TOKEN p)>`")
+			fmt.Println("Invalid number of arguments for add, expected: `<Principal (TOKEN p)> <Email (TOKEN e)> <Issuer (TOKEN i)`")
 			return 1
 		}
 		inputPrincipal := os.Args[2]
