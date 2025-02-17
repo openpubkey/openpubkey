@@ -40,7 +40,6 @@ func (p ProvidersPolicyRow) ToString() string {
 }
 
 type ProviderPolicy struct {
-	FileLoader
 	rows []ProvidersPolicyRow
 }
 
@@ -108,6 +107,7 @@ func (p ProviderPolicy) ToString() string {
 
 type ProvidersFileLoader struct {
 	FileLoader
+	Path string
 }
 
 func NewProviderFileLoader() *ProvidersFileLoader {
@@ -141,6 +141,7 @@ func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) config.Table {
 
 // FromTable decodes whitespace delimited input into policy.Policy
 func (o *ProvidersFileLoader) FromTable(input []byte) (*ProviderPolicy, error) {
+	configLog := config.ConfigLogSingleton()
 	table := config.NewTable(input)
 	policy := &ProviderPolicy{
 		rows: []ProvidersPolicyRow{},
@@ -149,6 +150,14 @@ func (o *ProvidersFileLoader) FromTable(input []byte) (*ProviderPolicy, error) {
 	for _, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
+			configProblem := config.Entry{
+				Filepath:            "/path/to/file",
+				OffendingLine:       "offending line",
+				OffendingLineNumber: 5,
+				ErrorMessage:        "wrong number of arguments",
+				Source:              "test 1",
+			}
+			configLog.WriteEntry(configProblem)
 			errors = append(errors, fmt.Errorf("invalid row: %v", row))
 			continue
 		}
