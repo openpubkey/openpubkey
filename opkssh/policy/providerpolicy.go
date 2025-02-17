@@ -67,8 +67,7 @@ func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
 			opts := providers.GetDefaultAzureOpOptions()
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
-			provider := providers.NewAzureOpWithOptions(opts)
-			pvs = append(pvs, provider)
+			provider = providers.NewAzureOpWithOptions(opts)
 		} else {
 			return nil, fmt.Errorf("unsupported issuer: %s", row.Issuer)
 		}
