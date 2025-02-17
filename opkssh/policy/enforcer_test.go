@@ -134,7 +134,7 @@ func TestPolicyApproved(t *testing.T) {
 		PolicyLoader: &MockPolicyLoader{Policy: policyTest},
 	}
 
-	// Check that policy yaml is properly parsed and checked
+	// Check that policy file is properly parsed and checked
 	err = policyEnforcer.CheckPolicy("test", pkt)
 	require.NoError(t, err)
 }

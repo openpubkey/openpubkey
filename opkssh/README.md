@@ -26,13 +26,13 @@ sudo mv ~/opkssh /etc/opk
 sudo chown root /etc/opk/opkssh
 sudo chmod 700 /etc/opk/opkssh 
 ```
-5. Create our policy on the server at /etc/opk/policy.yml. If you do not have root access,
-create a new policy.yml file in at ~/policy.yml and use that instead. You
+5. Create our policy on the server at /etc/opk/auth_id. If you do not have root access,
+create a new auth_id file in at ~/auth_id and use that instead. You
 will also need to have a opkssh binary available to use in the same directory.
 ```bash
-sudo touch /etc/opk/policy.yml
-sudo chown root /etc/opk/policy.yml
-sudo chmod 600 /etc/opk/policy.yml
+sudo touch /etc/opk/auth_id
+sudo chown root /etc/opk/auth_id
+sudo chmod 600 /etc/opk/auth_id
 sudo /etc/opk/opkssh add {USER} {EMAIL} {ISSUER}
 ```
 6. Add the folowing lines to the sshd file `/etc/ssh/sshd_config`

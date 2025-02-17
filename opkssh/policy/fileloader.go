@@ -28,7 +28,7 @@ import (
 
 // SystemDefaultPolicyPath is the default filepath where opkssh policy is
 // defined
-const SystemDefaultPolicyPath = "/etc/opk/policy.yml"
+const SystemDefaultPolicyPath = "/etc/opk/auth_id"
 
 // ModeOnlyOwner is the expected permission bits that should be set for opkssh
 // policy files. This mode means that only the owner of the file can read/write
@@ -110,7 +110,7 @@ func (l *FileLoader) LoadSystemDefaultPolicy() (*Policy, error) {
 	return policy, nil
 }
 
-// LoadUserPolicy reads the user's opkssh policy at ~/.opk/policy.yml (where ~
+// LoadUserPolicy reads the user's opkssh policy at ~/.opk/auth_id (where ~
 // maps to username's home directory) and returns the filepath read. An error is
 // returned if the file cannot be read, if the permission bits are not correct,
 // or if there is no user with username or has no home directory.
@@ -128,7 +128,7 @@ func (l *FileLoader) LoadUserPolicy(username string, skipInvalidEntries bool) (*
 		return nil, "", fmt.Errorf("user %s does not have a home directory", username)
 	}
 
-	policyFilePath := path.Join(userHomeDirectory, ".opk", "policy.yml")
+	policyFilePath := path.Join(userHomeDirectory, ".opk", "auth_id")
 	policy, err := l.LoadPolicyAtPath(policyFilePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to read user policy file %s: %w", policyFilePath, err)
@@ -168,16 +168,16 @@ func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
 	return nil
 }
 
-// Dump encodes the policy into YAML and writes the contents to the filepath
+// Dump encodes the policy into file and writes the contents to the filepath
 // path
 func (l *FileLoader) Dump(policy *Policy, path string) error {
-	yamlBytes, err := policy.ToTable()
+	fileBytes, err := policy.ToTable()
 	if err != nil {
 		return err
 	}
 
 	// Write to disk
-	if err := afero.WriteFile(l.Fs, path, yamlBytes, ModeOnlyOwner); err != nil {
+	if err := afero.WriteFile(l.Fs, path, fileBytes, ModeOnlyOwner); err != nil {
 		return fmt.Errorf("failed to write to policy file %s: %w", path, err)
 	}
 

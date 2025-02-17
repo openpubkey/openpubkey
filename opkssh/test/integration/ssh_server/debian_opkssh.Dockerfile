@@ -28,18 +28,18 @@ RUN mkdir /var/run/sshd
 
 # Setup OPK directories/files (root policy)
 RUN mkdir -p /etc/opk
-RUN touch /etc/opk/policy.yml
-RUN chown root /etc/opk/policy.yml
-RUN chmod 600 /etc/opk/policy.yml
+RUN touch /etc/opk/auth_id
+RUN chown root /etc/opk/auth_id
+RUN chmod 600 /etc/opk/auth_id
 
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 
 RUN chown test2:test2 /home/test2/.opk
 RUN chmod 700 /home/test2/.opk
-# Create personal policy yaml in user's home directory
-RUN touch /home/test2/.opk/policy.yml
-RUN chown test2:test2 /home/test2/.opk/policy.yml
-RUN chmod 600 /home/test2/.opk/policy.yml
+# Create personal policy file in user's home directory
+RUN touch /home/test2/.opk/auth_id
+RUN chown test2:test2 /home/test2/.opk/auth_id
+RUN chmod 600 /home/test2/.opk/auth_id
 
 # Comment out existing AuthorizedKeysCommand configuration
 RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config

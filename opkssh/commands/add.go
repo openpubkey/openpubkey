@@ -37,7 +37,7 @@ type AddCmd struct {
 
 // LoadPolicy reads the opkssh policy at the policy.SystemDefaultPolicyPath. If
 // there is a permission error when reading this file, then the user's local
-// policy file (defined as ~/.opk/policy.yml where ~ maps to AddCmd.Username's
+// policy file (defined as ~/.opk/auth_id where ~ maps to AddCmd.Username's
 // home directory) is read instead.
 //
 // If successful, returns the parsed policy and filepath used to read the

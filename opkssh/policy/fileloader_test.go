@@ -110,15 +110,15 @@ func TestLoadUserPolicy_NoUserHomeDir(t *testing.T) {
 	require.Empty(t, path, "should not return path if error")
 }
 
-func TestLoadUserPolicy_ErrorYAML(t *testing.T) {
-	// Test that LoadUserPolicy returns an error when the YAML is invalid
+func TestLoadUserPolicy_ErrorFile(t *testing.T) {
+	// Test that LoadUserPolicy returns an error when the file is invalid
 	t.Parallel()
 
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
-	// Create policy file at user policy path with invalid yaml
-	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "policy.yml"), []byte("{"), 0600)
+	// Create policy file at user policy path with invalid data
+	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "auth_id"), []byte("{"), 0600)
 	require.NoError(t, err)
 
 	policy, path, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
@@ -135,7 +135,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
-	// Create policy file at path with valid yaml
+	// Create policy file at path with valid file
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
@@ -145,10 +145,10 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToTable()
+	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
-	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
+	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
 	require.NoError(t, err)
 
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
@@ -166,7 +166,7 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
-	// Create policy file at path with valid yaml
+	// Create policy file at path with valid file
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
@@ -206,10 +206,10 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToTable()
+	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
-	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-	err = afero.WriteFile(mockFs, expectedPath, testPolicyYaml, 0600)
+	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
 	require.NoError(t, err)
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, true)
 
@@ -226,7 +226,7 @@ func TestLoadPolicyAtPath_FileMissing(t *testing.T) {
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
-	contents, err := policyLoader.LoadPolicyAtPath("/policy.yml")
+	contents, err := policyLoader.LoadPolicyAtPath("/auth_id")
 
 	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Nil(t, contents, "should not return contents if error")
@@ -278,15 +278,15 @@ func TestLoadPolicyAtPath_ReadError(t *testing.T) {
 	require.Nil(t, contents, "should not return contents if error")
 }
 
-func TestLoadSystemDefaultPolicy_ErrorYAML(t *testing.T) {
-	// Test that LoadSystemDefaultPolicy returns an error when the YAML is
+func TestLoadSystemDefaultPolicy_ErrorFile(t *testing.T) {
+	// Test that LoadSystemDefaultPolicy returns an error when the file is
 	// invalid
 	t.Parallel()
 
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
-	// Create policy file at default path with invalid yaml
+	// Create policy file at default path with invalid file
 	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0600)
 	require.NoError(t, err)
 	policy, err := policyLoader.LoadSystemDefaultPolicy()
@@ -303,7 +303,7 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 	mockUserLookup := &MockUserLookup{User: ValidUser}
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.Fs
-	// Create policy file at default path with valid yaml
+	// Create policy file at default path with valid file
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
@@ -313,9 +313,9 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 			},
 		},
 	}
-	testPolicyYaml, err := testPolicy.ToTable()
+	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
-	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyYaml, 0600)
+	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyFile, 0600)
 	require.NoError(t, err)
 	gotPolicy, err := policyLoader.LoadSystemDefaultPolicy()
 

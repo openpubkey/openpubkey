@@ -27,17 +27,17 @@ import (
 type User struct {
 	// Email is the user's email. It is the expected value used when comparing
 	// against an id_token's email claim
-	Email string `yaml:"email"`
+	Email string
 	// Principals is a list of allowed principals
-	Principals []string `yaml:"principals"`
-	// Sub        string   `yaml:"sub,omitempty"`
-	Issuer string `yaml:"issuer"`
+	Principals []string
+	// Sub        string
+	Issuer string
 }
 
 // Policy represents an opkssh policy
 type Policy struct {
 	// Users is a list of all user entries in the policy
-	Users []User `yaml:"users"`
+	Users []User
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
@@ -111,7 +111,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer 
 	}
 }
 
-// ToYAML encodes the policy into YAML
+// ToTable encodes the policy into a whitespace delimited table
 func (p *Policy) ToTable() ([]byte, error) {
 	table := config.Table{}
 	for _, user := range p.Users {

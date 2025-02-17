@@ -131,7 +131,7 @@ func TestAdd(t *testing.T) {
 				expectedUser = "root"
 				expectedGroup = "root"
 			} else {
-				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "policy.yml")
+				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser
 				expectedGroup = tt.cmdUser
 			}

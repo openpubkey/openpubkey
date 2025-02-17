@@ -33,7 +33,7 @@ func (s FileSource) Source() string {
 }
 
 // MultiFileLoader implements policy.Loader by reading both the system default
-// policy (root policy) and user policy (~/.opk/policy.yml where ~ maps to
+// policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
 type MultiFileLoader struct {
 	*FileLoader
