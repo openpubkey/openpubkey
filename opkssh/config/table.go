@@ -6,7 +6,7 @@ type Table struct {
 	rows [][]string
 }
 
-func ToTable(content []byte) *Table {
+func NewTable(content []byte) *Table {
 	table := [][]string{}
 	rows := strings.Split(string(content), "\n")
 	for _, row := range rows {

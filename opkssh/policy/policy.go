@@ -42,7 +42,7 @@ type Policy struct {
 
 // FromTable decodes whitespace delimited input into policy.Policy
 func FromTable(input []byte) (*Policy, error) {
-	table := config.ToTable(input)
+	table := config.NewTable(input)
 	policy := &Policy{}
 	errors := []error{}
 	for _, row := range table.GetRows() {

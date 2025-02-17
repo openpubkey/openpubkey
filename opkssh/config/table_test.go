@@ -63,7 +63,7 @@ https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 bd34
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inputBytes := []byte(tt.input)
-			assert.Equal(t, tt.output, ToTable(inputBytes).GetRows())
+			assert.Equal(t, tt.output, NewTable(inputBytes).GetRows())
 		})
 	}
 }
