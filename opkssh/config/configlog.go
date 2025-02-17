@@ -53,6 +53,12 @@ func (c *ConfigLog) GetProblems() []ConfigProblem {
 	return logCopy
 }
 
+func (c *ConfigLog) NoProblems() bool {
+	c.logMutex.Lock()
+	defer c.logMutex.Unlock()
+	return len(c.log) == 0
+}
+
 func (c *ConfigLog) String() string {
 	// No mutex needed since GetLogs handles the mutex
 	logs := c.GetProblems()

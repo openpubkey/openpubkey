@@ -42,11 +42,10 @@ type Policy struct {
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
-func FromTable(input []byte, path string) (*Policy, error) {
+func FromTable(input []byte, path string) *Policy {
 
 	table := config.NewTable(input)
 	policy := &Policy{}
-	errors := []error{}
 	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
@@ -58,8 +57,6 @@ func FromTable(input []byte, path string) (*Policy, error) {
 				Source:              "user policy file",
 			}
 			config.ConfigProblems().RecordProblem(configProblem)
-
-			errors = append(errors, fmt.Errorf("invalid row: %v", row))
 			continue
 		}
 		user := User{
@@ -69,12 +66,7 @@ func FromTable(input []byte, path string) (*Policy, error) {
 		}
 		policy.Users = append(policy.Users, user)
 	}
-
-	// TODO: We should log non-critical errors rather than failing.
-	if len(errors) > 0 {
-		return nil, errors[0]
-	}
-	return policy, nil
+	return policy
 }
 
 // AddAllowedPrincipal adds a new allowed principal to the user whose email is

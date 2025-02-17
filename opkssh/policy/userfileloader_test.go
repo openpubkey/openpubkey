@@ -23,6 +23,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -124,10 +125,12 @@ func TestLoadUserPolicy_ErrorFile(t *testing.T) {
 	require.NoError(t, err)
 
 	policy, path, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
+	require.NoError(t, err)
+	require.False(t, config.ConfigProblems().NoProblems())
+	config.ConfigProblems().Clear()
 
-	require.Error(t, err)
-	require.Nil(t, policy, "should not return policy if error")
-	require.Empty(t, path, "should not return path if error")
+	require.NotNil(t, policy, "should return policy even if error")
+	require.NotEmpty(t, path, "should return path even if error")
 }
 
 func TestLoadUserPolicy_Success(t *testing.T) {
@@ -292,9 +295,11 @@ func TestLoadSystemDefaultPolicy_ErrorFile(t *testing.T) {
 	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0600)
 	require.NoError(t, err)
 	policy, err := policyLoader.LoadSystemDefaultPolicy()
+	require.NoError(t, err)
+	require.False(t, config.ConfigProblems().NoProblems())
+	config.ConfigProblems().Clear()
 
-	require.Error(t, err)
-	require.Nil(t, policy, "should not return policy if error")
+	require.NotNil(t, policy, "should return policy even if problems encountered")
 }
 
 func TestLoadSystemDefaultPolicy_Success(t *testing.T) {

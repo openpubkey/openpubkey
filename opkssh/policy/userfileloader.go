@@ -74,11 +74,7 @@ func (l *UserPolicyLoader) LoadPolicyAtPath(path string) (*Policy, error) {
 		return nil, err
 	}
 
-	policy, err := FromTable(content, path)
-	if err != nil {
-		return nil, err
-	}
-
+	policy := FromTable(content, path)
 	return policy, nil
 }
 
