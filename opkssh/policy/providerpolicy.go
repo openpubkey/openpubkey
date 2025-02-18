@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openpubkey/openpubkey/opkssh/config"
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/verifier"
 	"github.com/spf13/afero"
@@ -143,8 +143,8 @@ func (o *ProvidersFileLoader) LoadProviderPolicy(path string) (*ProviderPolicy, 
 }
 
 // FromTable decodes whitespace delimited input into policy.Policy
-func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) config.Table {
-	table := config.Table{}
+func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) files.Table {
+	table := files.Table{}
 	for _, opPolicy := range opPolicies.rows {
 		table.AddRow(opPolicy.Issuer, opPolicy.ClientID, opPolicy.ExpirationPolicy)
 	}
@@ -154,21 +154,21 @@ func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) config.Table {
 // FromTable decodes whitespace delimited input into policy.Policy
 // Path is passed only for logging purposes
 func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPolicy {
-	table := config.NewTable(input)
+	table := files.NewTable(input)
 	policy := &ProviderPolicy{
 		rows: []ProvidersPolicyRow{},
 	}
 	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
-			configProblem := config.ConfigProblem{
+			configProblem := files.ConfigProblem{
 				Filepath:            path,
 				OffendingLine:       strings.Join(row, " "),
 				OffendingLineNumber: i,
 				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
 				Source:              "providers policy file",
 			}
-			config.ConfigProblems().RecordProblem(configProblem)
+			files.ConfigProblems().RecordProblem(configProblem)
 			continue
 		}
 		policyRow := ProvidersPolicyRow{

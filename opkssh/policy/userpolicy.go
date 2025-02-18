@@ -21,7 +21,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/openpubkey/openpubkey/opkssh/config"
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 )
 
 // User is an opkssh policy user entry
@@ -44,19 +44,19 @@ type Policy struct {
 // FromTable decodes whitespace delimited input into policy.Policy
 func FromTable(input []byte, path string) *Policy {
 
-	table := config.NewTable(input)
+	table := files.NewTable(input)
 	policy := &Policy{}
 	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
 		if len(row) != 3 {
-			configProblem := config.ConfigProblem{
+			configProblem := files.ConfigProblem{
 				Filepath:            path,
 				OffendingLine:       strings.Join(row, " "),
 				OffendingLineNumber: i,
 				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
 				Source:              "user policy file",
 			}
-			config.ConfigProblems().RecordProblem(configProblem)
+			files.ConfigProblems().RecordProblem(configProblem)
 			continue
 		}
 		user := User{
@@ -116,7 +116,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer 
 
 // ToTable encodes the policy into a whitespace delimited table
 func (p *Policy) ToTable() ([]byte, error) {
-	table := config.Table{}
+	table := files.Table{}
 	for _, user := range p.Users {
 		for _, principal := range user.Principals {
 			table.AddRow(principal, user.Email, user.Issuer)
