@@ -57,11 +57,6 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 	if err != nil {
 		return fmt.Errorf("error getting issuer from pk token: %w", err)
 	}
-	// TODO: We don't need the audience yet, but we will when checking provider policies
-	// aud, err := pkt.Audience()
-	// if err != nil {
-	// 	return fmt.Errorf("error getting audience from pk token: %w", err)
-	// }
 	for _, user := range policy.Users {
 		// check each entry to see if the user in the claims is included
 		if string(claims.Email) == user.Email {
