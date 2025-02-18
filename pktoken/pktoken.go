@@ -113,7 +113,7 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 	return pkt, nil
 }
 
-// Issuer returns the issuer of the ID Token in the PKToken.
+// Issuer returns the issuer (`iss`) of the ID Token in the PKToken.
 // It extracts the issuer from the PKToken payload and returns it as a string.
 func (p *PKToken) Issuer() (string, error) {
 	var claims struct {
@@ -123,6 +123,18 @@ func (p *PKToken) Issuer() (string, error) {
 		return "", fmt.Errorf("malformatted PK token claims: %w", err)
 	}
 	return claims.Issuer, nil
+}
+
+// Audience returns the audience (`aud`) of the ID Token in the PKToken.
+// The audience is also known as the client ID.
+func (p *PKToken) Audience() (string, error) {
+	var claims struct {
+		Audience string `json:"aud"`
+	}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return "", fmt.Errorf("malformatted PK token claims: %w", err)
+	}
+	return claims.Audience, nil
 }
 
 // Signs PK Token and then returns only the payload, header and signature as a JWT

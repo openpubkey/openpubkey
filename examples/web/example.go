@@ -128,7 +128,8 @@ func login(outputDir string, gqSign bool) error {
 	fmt.Println("Compact", len(pktCom), string(pktCom))
 
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	pktVerifier, err := verifier.New(googleOp, verifier.AddProviderVerifiers(azureOp), verifier.RequireRefreshedIDToken())
+	ops := []verifier.ProviderVerifier{googleOp, azureOp}
+	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err
 	}

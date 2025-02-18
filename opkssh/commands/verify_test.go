@@ -16,7 +16,6 @@
 
 package commands
 
-// TODO: Undisable this test once we can take a verifier as an argument
 import (
 	"context"
 	"strings"

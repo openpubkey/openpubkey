@@ -68,7 +68,7 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 	// If principals is empty the server does not enforce any principal. The OPK
 	// verifier should use policy to make this decision.
 	principals := []string{}
-	certBytes, seckeySshPem, err := createSSHCert(ctx, pkt, signer, principals)
+	certBytes, seckeySshPem, err := createSSHCert(pkt, signer, principals)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate SSH cert: %w", err)
 	}
@@ -128,7 +128,7 @@ func LoginWithRefresh(ctx context.Context, provider providers.RefreshableOpenIdP
 			}
 			loginResult.pkt = refreshedPkt
 
-			certBytes, seckeySshPem, err := createSSHCert(ctx, loginResult.pkt, loginResult.signer, loginResult.principals)
+			certBytes, seckeySshPem, err := createSSHCert(loginResult.pkt, loginResult.signer, loginResult.principals)
 			if err != nil {
 				return fmt.Errorf("failed to generate SSH cert: %w", err)
 			}
@@ -159,7 +159,7 @@ func LoginWithRefresh(ctx context.Context, provider providers.RefreshableOpenIdP
 	}
 }
 
-func createSSHCert(ctx context.Context, pkt *pktoken.PKToken, signer crypto.Signer, principals []string) ([]byte, []byte, error) {
+func createSSHCert(pkt *pktoken.PKToken, signer crypto.Signer, principals []string) ([]byte, []byte, error) {
 	cert, err := sshcert.New(pkt, principals)
 	if err != nil {
 		return nil, nil, err

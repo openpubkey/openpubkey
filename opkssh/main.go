@@ -31,21 +31,21 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/opkssh/commands"
+	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/verifier"
 )
 
 var (
-	issuer       = "https://accounts.google.com"
-	clientID     = "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com"
-	clientSecret = "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"
-	redirectURIs = []string{
-		"http://localhost:3000/login-callback",
-		"http://localhost:10001/login-callback",
-		"http://localhost:11110/login-callback",
-	}
+
+	// These can be overridden at build time using ldflags. For example:
+	// go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
+	issuer       = ""
+	clientID     = ""
+	clientSecret = ""
+	redirectURIs = ""
 )
 
 func main() {
@@ -59,13 +59,6 @@ func run() int {
 	}
 	command := os.Args[1]
 
-	opts := providers.GetDefaultGoogleOpOptions()
-	opts.Issuer = issuer
-	opts.ClientID = clientID
-	opts.ClientSecret = clientSecret
-	opts.RedirectURIs = redirectURIs
-	provider := providers.NewGoogleOpWithOptions(opts)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -73,6 +66,16 @@ func run() int {
 		<-sigs
 		cancel()
 	}()
+
+	var providerFromEnv providers.OpenIdProvider
+	if issuer != "" {
+		opts := providers.GetDefaultGoogleOpOptions() // TODO: Create default google like provider
+		opts.Issuer = issuer
+		opts.ClientID = clientID
+		opts.ClientSecret = clientSecret
+		opts.RedirectURIs = strings.Split(redirectURIs, ",")
+		providerFromEnv = providers.NewGoogleOpWithOptions(opts)
+	}
 
 	switch command {
 	case "login":
@@ -95,18 +98,48 @@ func run() int {
 			}
 		}
 
-		var err error
-		// Execute login command
-		if *autoRefresh {
-			err = commands.LoginWithRefresh(ctx, provider)
+		var provider providers.OpenIdProvider
+		if providerFromEnv != nil {
+			provider = providerFromEnv
 		} else {
-			err = commands.Login(ctx, provider)
+			googleOpOptions := providers.GetDefaultGoogleOpOptions()
+			googleOpOptions.GQSign = false
+			googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
+
+			azureOpOptions := providers.GetDefaultAzureOpOptions()
+			azureOpOptions.GQSign = false
+			azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
+
+			var err error
+			provider, err = choosers.NewWebChooser(
+				[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+			).ChooseOp(context.Background())
+			if err != nil {
+				log.Println("ERROR selecting op:", err)
+				return 1
+			}
 		}
 
-		if err != nil {
-			log.Println("ERROR logging in:", err)
-			return 1
+		// Execute login command
+		if *autoRefresh {
+			if providerRefreshable, ok := provider.(providers.RefreshableOpenIdProvider); ok {
+				err := commands.LoginWithRefresh(ctx, providerRefreshable)
+				if err != nil {
+					log.Println("ERROR logging in:", err)
+				}
+			} else {
+				errString := fmt.Sprintf("ERROR OpenID Provider (%v) does not support auto-refresh and auto-refresh argument set to true", provider.Issuer())
+				log.Println(errString)
+				return 1
+			}
+		} else {
+			err := commands.Login(ctx, provider)
+			if err != nil {
+				log.Println("ERROR logging in:", err)
+				return 1
+			}
 		}
+
 	case "verify":
 		// Setup logger
 		logFile, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
@@ -139,12 +172,19 @@ func run() int {
 		certB64Arg := os.Args[3]
 		typArg := os.Args[4]
 
-		pktVerifier, err := verifier.New(
-			provider,
-			verifier.WithExpirationPolicy(verifier.ExpirationPolicies.OIDC_REFRESHED),
-		)
+		providerPolicyPath := "/etc/opk/providers"
+		providerPolicy, err := policy.NewProviderFileLoader().LoadProviderPolicy(providerPolicyPath)
+
 		if err != nil {
-			log.Println("failed to create pk token verifier (likely bad configuration):", err)
+			log.Println("Failed to open /etc/opk/providers:", err)
+			return 1
+		}
+		printConfigProblems()
+		log.Println("Providers loaded: ", providerPolicy.ToString())
+
+		pktVerifier, err := providerPolicy.CreateVerifier()
+		if err != nil {
+			log.Println("Failed to create pk token verifier (likely bad configuration):", err)
 			return 1
 		}
 
@@ -157,31 +197,42 @@ func run() int {
 			log.Println("failed to verify:", err)
 			return 1
 		} else {
+			log.Println("successfully verified")
 			// sshd is awaiting a specific line, which we print here. Printing anything else before or after will break our solution
 			fmt.Println(authKey)
+			return 0
 		}
 	case "add":
 		// The "add" command is designed to be used by the client configuration
 		// script to inject user entries into the policy file
 		//
 		// Example line to add a user:
-		// 		./opkssh add %e %p
-		//
-		//  %e The email of the user to be added to the policy file.
+		// 		./opkssh add %p %e %i
 		//	%p The desired principal being assumed on the target (aka requested principal).
-		if len(os.Args) != 4 {
-			fmt.Println("Invalid number of arguments for verify, expected: `<Email (TOKEN e)> <Principal (TOKEN p)>`")
+		//  %e The email of the user to be added to the policy file.
+		//	%i The desired OpenID Provider for email, e.g. https://accounts.google.com.
+		if len(os.Args) != 5 {
+			fmt.Println("Invalid number of arguments for add, expected: `<Principal (TOKEN p)> <Email (TOKEN e)> <Issuer (TOKEN i)`")
 			return 1
 		}
-		inputEmail := os.Args[2]
-		inputPrincipal := os.Args[3]
+		inputPrincipal := os.Args[2]
+		inputEmail := os.Args[3]
+		inputIssuer := os.Args[4]
+
+		// Convenience aliases to save user time (who is going to remember the hideous Azure issuer string)
+		switch inputIssuer {
+		case "google":
+			inputIssuer = "https://accounts.google.com"
+		case "azure", "microsoft":
+			inputIssuer = "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+		}
 
 		// Execute add command
 		a := commands.AddCmd{
-			PolicyFileLoader: policy.NewFileLoader(),
+			PolicyFileLoader: policy.NewUserFileLoader(),
 			Username:         inputPrincipal,
 		}
-		if policyFilePath, err := a.Add(inputEmail, inputPrincipal); err != nil {
+		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {
 			log.Println("failed to add to policy:", err)
 			return 1
 		} else {
@@ -193,6 +244,16 @@ func run() int {
 	}
 
 	return 0
+}
+
+func printConfigProblems() {
+	problems := config.ConfigProblems().GetProblems()
+	if len(problems) > 0 {
+		log.Println("Warning: Encountered the following configuration problems:")
+		for _, problem := range problems {
+			log.Println(problem.String())
+		}
+	}
 }
 
 // OpenSSH used to impose a 4096-octet limit on the string buffers available to

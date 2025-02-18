@@ -76,14 +76,17 @@ var policyTest = &policy.Policy{
 		{
 			Email:      "alice@bastionzero.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 		{
 			Email:      "arthur.aardvark@example.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 		{
 			Email:      "bob@example.com",
 			Principals: []string{"test"},
+			Issuer:     "https://accounts.example.com",
 		},
 	},
 }
@@ -134,7 +137,7 @@ func TestPolicyApproved(t *testing.T) {
 		PolicyLoader: &MockPolicyLoader{Policy: policyTest},
 	}
 
-	// Check that policy yaml is properly parsed and checked
+	// Check that policy file is properly parsed and checked
 	err = policyEnforcer.CheckPolicy("test", pkt)
 	require.NoError(t, err)
 }

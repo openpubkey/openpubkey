@@ -1,4 +1,5 @@
 # OpenPubkey
+
 [![Go Coverage](https://github.com/openpubkey/openpubkey/wiki/coverage.svg)](https://raw.githack.com/wiki/openpubkey/openpubkey/coverage.html)
 
 ## Overview
@@ -93,7 +94,7 @@ signatures: [
 ]
 ```
 
-At this point, Alice has an ID Token, signed by `google.com` (the OP). Anyone can download the OP's (`google.com`) public keys from `google.com`'s well-known JSON Web Key Set (JWKS) URI (https://www.googleapis.com/oauth2/v3/certs) and verify that this ID Token committing to Alice's public key was actually signed by `google.com`. If Alice reveals the values of `alice-pubkey`, `alg`, and `rz`, anyone can verify that the `nonce` in the ID Token is the hash of  `upk=alice-pubkey, alg=ES256, rz=crypto.Rand()`. Thus, Alice now has a ID Token signed by Google that cryptography binding her identity, `alice@acme.co`, to her public key, `alice-pubkey`.
+At this point, Alice has an ID Token, signed by `google.com` (the OP). Anyone can download the OP's (`google.com`) public keys from `google.com`'s well-known JSON Web Key Set (JWKS) URI )[www.googleapis.com/oauth2/v3/cert](https://www.googleapis.com/oauth2/v3/cert)) and verify that this ID Token committing to Alice's public key was actually signed by `google.com`. If Alice reveals the values of `alice-pubkey`, `alg`, and `rz`, anyone can verify that the `nonce` in the ID Token is the hash of  `upk=alice-pubkey, alg=ES256, rz=crypto.Rand()`. Thus, Alice now has a ID Token signed by Google that cryptography binding her identity, `alice@acme.co`, to her public key, `alice-pubkey`.
 
 ### PK Tokens
 

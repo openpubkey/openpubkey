@@ -24,7 +24,7 @@ configs/
 .vscode/
 
 # For policy files that exist while testing
-policy.yml
+auth_id
 opk-ssh
 opk-ssh-login
 *DS_Store

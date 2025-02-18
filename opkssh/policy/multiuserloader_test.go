@@ -73,11 +73,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com": {Email: "alice@example.com", Principals: []string{"test"}},
+				"alice@example.com": {Email: "alice@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -87,11 +88,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{ValidUser.Username, "bob"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com": {Email: "alice@example.com", Principals: []string{ValidUser.Username}},
+				"alice@example.com": {Email: "alice@example.com", Principals: []string{ValidUser.Username}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -101,10 +103,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -113,17 +117,19 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{ValidUser.Username},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "bob@example.com",
 						Principals: []string{ValidUser.Username},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test", ValidUser.Username}},
-				"bob@example.com":     {Email: "bob@example.com", Principals: []string{ValidUser.Username}},
-				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}},
+				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test", ValidUser.Username}, Issuer: "https://example.com"},
+				"bob@example.com":     {Email: "bob@example.com", Principals: []string{ValidUser.Username}, Issuer: "https://example.com"},
+				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 		{
@@ -133,10 +139,12 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
@@ -145,31 +153,34 @@ func TestLoad(t *testing.T) {
 					{
 						Email:      "alice@example.com",
 						Principals: []string{"test"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "bob@example.com",
 						Principals: []string{"test", "test2"},
+						Issuer:     "https://example.com",
 					},
 					{
 						Email:      "charlie@example.com",
 						Principals: []string{"test", "test2", "test3"},
+						Issuer:     "https://example.com",
 					},
 				},
 			},
 			expectedUsers: map[string]policy.User{
-				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test"}},
-				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}},
+				"alice@example.com":   {Email: "alice@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
+				"charlie@example.com": {Email: "charlie@example.com", Principals: []string{"test"}, Issuer: "https://example.com"},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Init SUT on each sub-test
-			multiFileLoader := &policy.MultiFileLoader{
-				FileLoader: NewTestPolicyFileLoader(afero.NewMemMapFs(), &MockUserLookup{User: ValidUser}),
-				Username:   ValidUser.Username,
+			multiFileLoader := &policy.UserMultiFileLoader{
+				UserPolicyLoader: NewTestPolicyFileLoader(afero.NewMemMapFs(), &MockUserLookup{User: ValidUser}),
+				Username:         ValidUser.Username,
 			}
-			mockFs := multiFileLoader.Fs
+			mockFs := multiFileLoader.FileLoader.Fs
 
 			t.Logf("Root policy: %#v", tt.rootPolicy)
 			t.Logf("User policy: %#v", tt.userPolicy)
@@ -177,17 +188,17 @@ func TestLoad(t *testing.T) {
 			// Create files at expected paths
 			expectedPaths := []string{}
 			if tt.rootPolicy != nil {
-				policyYaml, err := tt.rootPolicy.ToYAML()
+				policyFile, err := tt.rootPolicy.ToTable()
 				require.NoError(t, err)
-				err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, policyYaml, 0600)
+				err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, policyFile, 0600)
 				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, policy.SystemDefaultPolicyPath)
 			}
 			if tt.userPolicy != nil {
-				policyYaml, err := tt.userPolicy.ToYAML()
+				policyFile, err := tt.userPolicy.ToTable()
 				require.NoError(t, err)
-				expectedPath := path.Join(ValidUser.HomeDir, ".opk", "policy.yml")
-				err = afero.WriteFile(mockFs, expectedPath, policyYaml, 0600)
+				expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
+				err = afero.WriteFile(mockFs, expectedPath, policyFile, 0600)
 				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, expectedPath)
 			}

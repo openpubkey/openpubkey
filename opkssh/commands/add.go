@@ -26,7 +26,7 @@ import (
 
 // AddCmd provides functionality to read and update the opkssh policy file
 type AddCmd struct {
-	PolicyFileLoader *policy.FileLoader
+	PolicyFileLoader *policy.UserPolicyLoader
 
 	// Username is the username to lookup when the system policy file cannot be
 	// read and we fallback to the user's policy file.
@@ -37,7 +37,7 @@ type AddCmd struct {
 
 // LoadPolicy reads the opkssh policy at the policy.SystemDefaultPolicyPath. If
 // there is a permission error when reading this file, then the user's local
-// policy file (defined as ~/.opk/policy.yml where ~ maps to AddCmd.Username's
+// policy file (defined as ~/.opk/auth_id where ~ maps to AddCmd.Username's
 // home directory) is read instead.
 //
 // If successful, returns the parsed policy and filepath used to read the
@@ -69,7 +69,7 @@ func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 //
 // If successful, returns the policy filepath updated. Otherwise, returns a
 // non-nil error
-func (a *AddCmd) Add(userEmail string, principal string) (string, error) {
+func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string, error) {
 	// Read current policy
 	currentPolicy, policyFilePath, err := a.LoadPolicy()
 	if err != nil {
@@ -77,7 +77,7 @@ func (a *AddCmd) Add(userEmail string, principal string) (string, error) {
 	}
 
 	// Update policy
-	currentPolicy.AddAllowedPrincipal(principal, userEmail)
+	currentPolicy.AddAllowedPrincipal(principal, userEmail, issuer)
 
 	// Dump contents back to disk
 	err = a.PolicyFileLoader.Dump(currentPolicy, policyFilePath)

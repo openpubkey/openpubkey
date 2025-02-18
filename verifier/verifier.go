@@ -33,6 +33,15 @@ type ProviderVerifier interface {
 	VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
+type ProviderVerifierExpires struct {
+	ProviderVerifier
+	Expiration ExpirationPolicy
+}
+
+func (p ProviderVerifierExpires) ExpirationPolicy() ExpirationPolicy {
+	return p.Expiration
+}
+
 type RefreshableProviderVerifier interface {
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
@@ -56,7 +65,7 @@ func RequireRefreshedIDToken() VerifierOpts {
 
 func WithExpirationPolicy(expirationPolicy ExpirationPolicy) VerifierOpts {
 	return func(v *Verifier) error {
-		v.expirationPolicy = &expirationPolicy
+		v.defaultExpirationPolicy = &expirationPolicy
 		return nil
 	}
 }
@@ -68,18 +77,6 @@ func WithCosignerVerifiers(verifiers ...*cosigner.DefaultCosignerVerifier) Verif
 				return fmt.Errorf("cosigner verifier found with duplicate issuer: %s", verifier.Issuer())
 			}
 			v.cosigners[verifier.Issuer()] = verifier
-		}
-		return nil
-	}
-}
-
-func AddProviderVerifiers(verifiers ...ProviderVerifier) VerifierOpts {
-	return func(v *Verifier) error {
-		for _, verifier := range verifiers {
-			if _, ok := v.providers[verifier.Issuer()]; ok {
-				return fmt.Errorf("provider verifier found with duplicate issuer: %s", verifier.Issuer())
-			}
-			v.providers[verifier.Issuer()] = verifier
 		}
 		return nil
 	}
@@ -104,21 +101,30 @@ func GQOnly() Check {
 type Verifier struct {
 	providers map[string]ProviderVerifier
 	cosigners map[string]CosignerVerifier
-	// Sets the expiration policy to use
-	expirationPolicy        *ExpirationPolicy
+	// Sets the default expiration policy to use
+	defaultExpirationPolicy *ExpirationPolicy
 	requireRefreshedIDToken bool
 }
 
 func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) {
+	return NewFromMany([]ProviderVerifier{verifier}, options...)
+}
+
+func NewFromMany(verifiers []ProviderVerifier, options ...VerifierOpts) (*Verifier, error) {
 	v := &Verifier{
-		providers: map[string]ProviderVerifier{
-			verifier.Issuer(): verifier,
-		},
+		providers: map[string]ProviderVerifier{},
 		cosigners: map[string]CosignerVerifier{},
 		// For user access we override the ID Token expiration claim
 		// and instead have tokens expire after 24 hours so that
 		// users don't have log back in every hour.
-		expirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
+		defaultExpirationPolicy: &ExpirationPolicies.MAX_AGE_24HOURS,
+	}
+
+	for _, verifier := range verifiers {
+		if _, ok := v.providers[verifier.Issuer()]; ok {
+			return nil, fmt.Errorf("provider verifier found with duplicate issuer: %s", verifier.Issuer())
+		}
+		v.providers[verifier.Issuer()] = verifier
 	}
 
 	for _, option := range options {
@@ -127,9 +133,9 @@ func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) 
 		}
 	}
 
-	if v.expirationPolicy == nil {
+	if v.defaultExpirationPolicy == nil {
 		// Default to 24 hours if no expiration policy is set
-		v.expirationPolicy = &ExpirationPolicies.MAX_AGE_24HOURS
+		v.defaultExpirationPolicy = &ExpirationPolicies.MAX_AGE_24HOURS
 	}
 
 	return v, nil
@@ -155,7 +161,11 @@ func (v *Verifier) VerifyPKToken(
 
 	providerVerifier, ok := v.providers[issuer]
 	if !ok {
-		return fmt.Errorf("unrecognized issuer: %s", issuer)
+		var knownIssuers []string
+		for k := range v.providers {
+			knownIssuers = append(knownIssuers, k)
+		}
+		return fmt.Errorf("unrecognized issuer: %s, issuers known: %v", issuer, knownIssuers)
 	}
 
 	cic, err := pkt.GetCicValues()
@@ -165,7 +175,14 @@ func (v *Verifier) VerifyPKToken(
 	if err := providerVerifier.VerifyIDToken(ctx, pkt.OpToken, cic); err != nil {
 		return err
 	}
-	if err := v.expirationPolicy.CheckExpiration(pkt); err != nil {
+
+	// If expiration has been set for this provider verifier use it to check expiration
+	if providerVerifierExpires, ok := providerVerifier.(ProviderVerifierExpires); ok {
+		if err := providerVerifierExpires.ExpirationPolicy().CheckExpiration(pkt); err != nil {
+			return err
+		}
+	} else if err := v.defaultExpirationPolicy.CheckExpiration(pkt); err != nil {
+		// Otherwise use the default expiration policy
 		return err
 	}
 

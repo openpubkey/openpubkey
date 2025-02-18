@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
 	"github.com/openpubkey/openpubkey/opkssh/test/integration/ssh_server"
 	"github.com/testcontainers/testcontainers-go"
@@ -54,6 +55,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 
 func TestAdd(t *testing.T) {
 	// Test adding an allowed principal to an opkssh policy
+	issuer := fmt.Sprintf("http://oidc.local:%s/", issuerPort)
 
 	tests := []struct {
 		name             string
@@ -114,7 +116,7 @@ func TestAdd(t *testing.T) {
 			})
 
 			// Build add command based on sub-test options
-			addCmd := fmt.Sprintf("add foo@example.com %s", tt.desiredPrincipal)
+			addCmd := fmt.Sprintf("add %s foo@example.com %s", tt.desiredPrincipal, issuer)
 			cmd := []string{tt.binaryPath, addCmd}
 			if tt.useSudo {
 				cmd = append([]string{"sudo"}, cmd...)
@@ -130,7 +132,7 @@ func TestAdd(t *testing.T) {
 				expectedUser = "root"
 				expectedGroup = "root"
 			} else {
-				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "policy.yml")
+				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser
 				expectedGroup = tt.cmdUser
 			}
@@ -146,13 +148,15 @@ func TestAdd(t *testing.T) {
 				// Assert that the correct policy file is updated
 				code, policyContents := executeCommandAsUser(t, container.Container, []string{"cat", expectedPolicyFilepath}, RootUser)
 				require.Equal(t, 0, code, "failed to read policy file")
-				gotPolicy, err := policy.FromYAML([]byte(policyContents))
-				require.NoError(t, err)
+				gotPolicy := policy.FromTable([]byte(policyContents), "test-path")
+				require.True(t, config.ConfigProblems().NoProblems())
+
 				expectedPolicy := &policy.Policy{
 					Users: []policy.User{
 						{
 							Email:      "foo@example.com",
 							Principals: []string{tt.desiredPrincipal},
+							Issuer:     issuer,
 						},
 					},
 				}

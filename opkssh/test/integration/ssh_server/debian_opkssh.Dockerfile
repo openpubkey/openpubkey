@@ -28,18 +28,22 @@ RUN mkdir /var/run/sshd
 
 # Setup OPK directories/files (root policy)
 RUN mkdir -p /etc/opk
-RUN touch /etc/opk/policy.yml
-RUN chown root /etc/opk/policy.yml
-RUN chmod 600 /etc/opk/policy.yml
+RUN touch /etc/opk/auth_id
+RUN chown root /etc/opk/auth_id
+RUN chmod 600 /etc/opk/auth_id
+RUN touch /etc/opk/providers
+RUN cat /etc/opk/providers
+
+
 
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 
 RUN chown test2:test2 /home/test2/.opk
 RUN chmod 700 /home/test2/.opk
-# Create personal policy yaml in user's home directory
-RUN touch /home/test2/.opk/policy.yml
-RUN chown test2:test2 /home/test2/.opk/policy.yml
-RUN chmod 600 /home/test2/.opk/policy.yml
+# Create personal policy file in user's home directory
+RUN touch /home/test2/.opk/auth_id
+RUN chown test2:test2 /home/test2/.opk/auth_id
+RUN chmod 600 /home/test2/.opk/auth_id
 
 # Comment out existing AuthorizedKeysCommand configuration
 RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
@@ -64,13 +68,12 @@ COPY . ./
 
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
-# Configure the OpenIdProvider (GoogleOp) verifier code to use expected clientId
-# (web), clientSecret (secret), and issuer URL (http://oidc.local:9998/). Host
-# "oidc.local" should be mapped to the IP of the docker container running the
-# zitadel dynamic exampleop server (configure ExtraHosts when running this
-# container).
-RUN go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret" ./opkssh
+RUN go build -v -o /etc/opk/opkssh ./opkssh
 RUN chmod 700 /etc/opk/opkssh
+
+RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
+RUN chown root /etc/opk/providers
+RUN chmod 600 /etc/opk/providers
 
 # Copy binary to unprivileged user's home directory
 RUN cp /etc/opk/opkssh /home/test2/.opk/opkssh
@@ -79,7 +82,7 @@ RUN chown test2:test2 /home/test2/.opk/opkssh
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
 ARG BOOTSTRAP_POLICY
-RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opkssh add "test-user@zitadel.ch" "test" ; else echo "Will not init policy" ; fi
+RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
 
 # Start SSH server on container startup
 CMD ["/usr/sbin/sshd", "-D"]

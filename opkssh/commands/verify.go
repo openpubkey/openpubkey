@@ -93,9 +93,9 @@ func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, t
 // used in the opkssh verify command.
 func OpkPolicyEnforcerFunc(username string) PolicyEnforcerFunc {
 	policyEnforcer := &policy.Enforcer{
-		PolicyLoader: &policy.MultiFileLoader{
-			FileLoader: policy.NewFileLoader(),
-			Username:   username,
+		PolicyLoader: &policy.UserMultiFileLoader{
+			UserPolicyLoader: policy.NewUserFileLoader(),
+			Username:         username,
 		},
 	}
 	return policyEnforcer.CheckPolicy

@@ -19,33 +19,54 @@ package policy
 import (
 	"fmt"
 	"log"
+	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/openpubkey/openpubkey/opkssh/config"
 )
 
 // User is an opkssh policy user entry
 type User struct {
 	// Email is the user's email. It is the expected value used when comparing
 	// against an id_token's email claim
-	Email string `yaml:"email"`
+	Email string
 	// Principals is a list of allowed principals
-	Principals []string `yaml:"principals"`
-	// Sub        string   `yaml:"sub,omitempty"`
+	Principals []string
+	// Sub        string
+	Issuer string
 }
 
 // Policy represents an opkssh policy
 type Policy struct {
 	// Users is a list of all user entries in the policy
-	Users []User `yaml:"users"`
+	Users []User
 }
 
-// FromYAML decodes YAML encoded input into policy.Policy
-func FromYAML(input []byte) (*Policy, error) {
+// FromTable decodes whitespace delimited input into policy.Policy
+func FromTable(input []byte, path string) *Policy {
+
+	table := config.NewTable(input)
 	policy := &Policy{}
-	if err := yaml.Unmarshal(input, policy); err != nil {
-		return nil, fmt.Errorf("error unmarshalling input to policy.Policy: %w", err)
+	for i, row := range table.GetRows() {
+		// Error should not break everyone's ability to login, skip those rows
+		if len(row) != 3 {
+			configProblem := config.ConfigProblem{
+				Filepath:            path,
+				OffendingLine:       strings.Join(row, " "),
+				OffendingLineNumber: i,
+				ErrorMessage:        fmt.Sprintf("wrong number of arguments (expected=3, got=%d)", len(row)),
+				Source:              "user policy file",
+			}
+			config.ConfigProblems().RecordProblem(configProblem)
+			continue
+		}
+		user := User{
+			Principals: []string{row[0]},
+			Email:      row[1],
+			Issuer:     row[2],
+		}
+		policy.Users = append(policy.Users, user)
 	}
-	return policy, nil
+	return policy
 }
 
 // AddAllowedPrincipal adds a new allowed principal to the user whose email is
@@ -53,14 +74,14 @@ func FromYAML(input []byte) (*Policy, error) {
 // new user entry is added with an initial allowed principals list containing
 // principal. No changes are made if the principal is already allowed for this
 // user.
-func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
+func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer string) {
 	userExists := false
 	if len(p.Users) != 0 {
 		// search to see if the current user already has an entry in the policy
 		// file
 		for i := range p.Users {
 			user := &p.Users[i]
-			if user.Email == userEmail {
+			if user.Email == userEmail && user.Issuer == issuer {
 				principalExists := false
 				for _, p := range user.Principals {
 					// if the principal already exists for this user, then skip
@@ -72,6 +93,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 
 				if !principalExists {
 					user.Principals = append(user.Principals, principal)
+					user.Issuer = issuer
 					log.Printf("Successfully added user with email %s with principal %s to the policy file\n", userEmail, principal)
 				}
 				userExists = true
@@ -85,20 +107,22 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string) {
 		newUser := User{
 			Email:      userEmail,
 			Principals: []string{principal},
+			Issuer:     issuer,
 		}
 		// add the new user to the list of users in the policy
 		p.Users = append(p.Users, newUser)
 	}
 }
 
-// ToYAML encodes the policy into YAML
-func (p *Policy) ToYAML() ([]byte, error) {
-	marshaledData, err := yaml.Marshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal policy: %w", err)
+// ToTable encodes the policy into a whitespace delimited table
+func (p *Policy) ToTable() ([]byte, error) {
+	table := config.Table{}
+	for _, user := range p.Users {
+		for _, principal := range user.Principals {
+			table.AddRow(principal, user.Email, user.Issuer)
+		}
 	}
-
-	return marshaledData, nil
+	return table.ToBytes(), nil
 }
 
 // Source declares the minimal interface to describe the source of a fetched

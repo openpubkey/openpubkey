@@ -53,10 +53,18 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return fmt.Errorf("error unmarshalling pk token payload: %w", err)
 	}
-
+	issuer, err := pkt.Issuer()
+	if err != nil {
+		return fmt.Errorf("error getting issuer from pk token: %w", err)
+	}
 	for _, user := range policy.Users {
 		// check each entry to see if the user in the claims is included
 		if string(claims.Email) == user.Email {
+			if issuer != user.Issuer {
+				continue
+			}
+			// log.Printf("claims.email %s, user.Email %s, issuer %s, user.Issuer %s \n", claims.Email, user.Email, issuer, user.Issuer)
+
 			// if they are, then check if the desired principal is allowed
 			if slices.Contains(user.Principals, principalDesired) {
 				// access granted
@@ -65,5 +73,5 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 		}
 	}
 
-	return fmt.Errorf("no policy to allow %s to assume %s, check policy config at %s", claims.Email, principalDesired, sourceStr)
+	return fmt.Errorf("no policy to allow %s with (issuer=%s) to assume %s, check policy config at %s", claims.Email, issuer, principalDesired, sourceStr)
 }

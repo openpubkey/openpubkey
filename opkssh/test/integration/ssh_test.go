@@ -170,7 +170,7 @@ func createOpkSshSigner(t *testing.T, pubKey ssh.PublicKey, secKeyFilePath strin
 // This function returns both an OPK SSH provider and an HTTP transport that has
 // been modified from the http.DefaultTransport to send requests to 127.0.0.1
 // instead of oidc.local
-func createZitadelOPKSshProvider(t *testing.T, oidcContainerMappedPort int, authCallbackServerRedirectPort int) (zitadelOp providers.BrowserOpenIdProvider, httpTransport http.RoundTripper) {
+func createZitadelOPKSshProvider(oidcContainerMappedPort int, authCallbackServerRedirectPort int) (zitadelOp providers.BrowserOpenIdProvider, httpTransport http.RoundTripper) {
 	// Create custom HTTP client that sends HTTP requests to the correct port
 	// and valid IP of the container running the OIDC server instead of
 	// "oidc.local" (which is an unknown name on the host machine); "oidc.local"
@@ -312,7 +312,7 @@ func TestEndToEndSSH(t *testing.T) {
 	oidcContainer, authCallbackRedirectPort, serverContainer := spawnTestContainers(t)
 	// Create OPK SSH provider that is configured against the spawned OIDC
 	// container's issuer server
-	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
+	zitadelOp, customTransport := createZitadelOPKSshProvider(oidcContainer.Port, authCallbackRedirectPort)
 
 	// Call login
 	errCh := make(chan error)
@@ -379,10 +379,12 @@ func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
 	oidcContainer, authCallbackRedirectPort, serverContainer := spawnTestContainers(t)
 	// Create OPK SSH provider that is configured against the spawned OIDC
 	// container's issuer server
-	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
+	zitadelOp, customTransport := createZitadelOPKSshProvider(oidcContainer.Port, authCallbackRedirectPort)
 
 	// Give integration test user access to test2 via user policy
-	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", "/home/test2/.opk/opkssh add \"test-user@zitadel.ch\" \"test2\""}, "test2")
+	issuer := fmt.Sprintf("http://oidc.local:%s/", issuerPort)
+	cmdString := fmt.Sprintf("/home/test2/.opk/opkssh add \"test2\" \"test-user@zitadel.ch\" \"%s\"", issuer)
+	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", cmdString}, "test2")
 	require.Equal(t, 0, code, "failed to update user policy")
 
 	// Call login
@@ -470,7 +472,7 @@ func TestEndToEndSSHWithRefresh(t *testing.T) {
 	oidcContainer, authCallbackRedirectPort, serverContainer := spawnTestContainers(t)
 	// Create OPK SSH provider that is configured against the spawned OIDC
 	// container's issuer server
-	zitadelOp, customTransport := createZitadelOPKSshProvider(t, oidcContainer.Port, authCallbackRedirectPort)
+	zitadelOp, customTransport := createZitadelOPKSshProvider(oidcContainer.Port, authCallbackRedirectPort)
 
 	// Control when this provider is permitted to call refresh logic with the
 	// OP. We need fine control over refresh since this test modifies the OIDC
