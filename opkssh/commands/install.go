@@ -27,13 +27,6 @@ func Install() error {
 		return fmt.Errorf("this command must be run as root or sudo")
 	}
 
-	// 	cd /tmp
-	// git clone https://github.com/openpubkey/openpubkey.git
-	// cd openpubkey
-	// go build -v -o /etc/opk/opkssh ./opkssh
-	// chmod 700 /etc/opk/opkssh
-	// chown root /etc/opk/opkssh
-
 	opksshExePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %v", err)
@@ -58,12 +51,15 @@ if [ -s /etc/opk/providers ]; then
 	read -p "The providers policy file (/etc/opk/providers) is not empty. Do you wish to override the original values? (y/n): " choice
 	case "$choice" in 
 		y|Y ) sudo truncate -s 0 /etc/opk/providers
-     		echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
-      		echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
-	  	;;
+			echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
+			echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
+		;;
 		n|N ) echo "Keeping original providers values.";;
 		* ) echo "Invalid choice. Exiting." && exit 1;;
 	esac
+else
+	echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
+	echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
 fi
 
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
