@@ -23,8 +23,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 )
@@ -126,8 +126,8 @@ func TestLoadUserPolicy_ErrorFile(t *testing.T) {
 
 	policy, path, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
 	require.NoError(t, err)
-	require.False(t, config.ConfigProblems().NoProblems())
-	config.ConfigProblems().Clear()
+	require.False(t, files.ConfigProblems().NoProblems())
+	files.ConfigProblems().Clear()
 
 	require.NotNil(t, policy, "should return policy even if error")
 	require.NotEmpty(t, path, "should return path even if error")
@@ -296,8 +296,8 @@ func TestLoadSystemDefaultPolicy_ErrorFile(t *testing.T) {
 	require.NoError(t, err)
 	policy, err := policyLoader.LoadSystemDefaultPolicy()
 	require.NoError(t, err)
-	require.False(t, config.ConfigProblems().NoProblems())
-	config.ConfigProblems().Clear()
+	require.False(t, files.ConfigProblems().NoProblems())
+	files.ConfigProblems().Clear()
 
 	require.NotNil(t, policy, "should return policy even if problems encountered")
 }

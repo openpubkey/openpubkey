@@ -5,7 +5,6 @@ go 1.22
 require (
 	filippo.io/bigmod v0.0.3
 	github.com/awnumar/memguard v0.22.3
-	github.com/coreos/go-oidc/v3 v3.12.0
 	github.com/docker/go-connections v0.5.0
 	github.com/go-webauthn/webauthn v0.8.6
 	github.com/google/uuid v1.6.0
@@ -96,5 +95,5 @@ require (
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

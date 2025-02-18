@@ -25,8 +25,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/openpubkey/openpubkey/opkssh/test/integration/ssh_server"
 	"github.com/testcontainers/testcontainers-go"
 
@@ -149,7 +149,7 @@ func TestAdd(t *testing.T) {
 				code, policyContents := executeCommandAsUser(t, container.Container, []string{"cat", expectedPolicyFilepath}, RootUser)
 				require.Equal(t, 0, code, "failed to read policy file")
 				gotPolicy := policy.FromTable([]byte(policyContents), "test-path")
-				require.True(t, config.ConfigProblems().NoProblems())
+				require.True(t, files.ConfigProblems().NoProblems())
 
 				expectedPolicy := &policy.Policy{
 					Users: []policy.User{

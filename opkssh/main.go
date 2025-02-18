@@ -33,8 +33,8 @@ import (
 
 	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/opkssh/commands"
-	"github.com/openpubkey/openpubkey/opkssh/config"
 	"github.com/openpubkey/openpubkey/opkssh/policy"
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/openpubkey/openpubkey/providers"
 )
 
@@ -54,7 +54,7 @@ func main() {
 
 func run() int {
 	if len(os.Args) < 2 {
-		fmt.Println("Example SSH key generator using OpenPubkey: command choices are: login, verify, and add")
+		fmt.Println("Example SSH key generator using OpenPubkey: command choices are: login, verify, add, and install")
 		return 1
 	}
 	command := os.Args[1]
@@ -238,6 +238,20 @@ func run() int {
 		} else {
 			log.Println("Successfully added new policy to", policyFilePath)
 		}
+	case "install":
+		// The "install" command is sets up and installs opkssh on a server.
+		// It currently has only been tested on Ubuntu. It must be run as root.
+		//
+		// Example line:
+		// 		./opkssh install
+		err := commands.Install()
+		if err != nil {
+			log.Println("failed to install opkssh:", err)
+			return 1
+		} else {
+			log.Println("successfully installed opkssh")
+			return 0
+		}
 	default:
 		log.Println("ERROR! Unrecognized command:", command)
 		return 1
@@ -247,7 +261,7 @@ func run() int {
 }
 
 func printConfigProblems() {
-	problems := config.ConfigProblems().GetProblems()
+	problems := files.ConfigProblems().GetProblems()
 	if len(problems) > 0 {
 		log.Println("Warning: Encountered the following configuration problems:")
 		for _, problem := range problems {
