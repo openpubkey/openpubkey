@@ -48,15 +48,7 @@ sudo chown root /etc/opk/providers
 sudo chmod 600 /etc/opk/providers
 
 if [ -s /etc/opk/providers ]; then
-	read -p "The providers policy file (/etc/opk/providers) is not empty. Do you wish to override the original values? (y/n): " choice
-	case "$choice" in 
-		y|Y ) sudo truncate -s 0 /etc/opk/providers
-			echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
-			echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
-		;;
-		n|N ) echo "Keeping original providers values.";;
-		* ) echo "Invalid choice. Exiting." && exit 1;;
-	esac
+	echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"
 else
 	echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
 	echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers

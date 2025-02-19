@@ -144,7 +144,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
-				Email:      "alice@example.com",
+				EmailOrSub: "alice@example.com",
 				Principals: []string{"test"},
 				Issuer:     "https://example.com",
 			},
@@ -175,22 +175,22 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
-				Email:      "alice@example.com",
+				EmailOrSub: "alice@example.com",
 				Principals: []string{"test"},
 				Issuer:     "https://example.com",
 			},
 			{
-				Email:      "bob@example.com",
+				EmailOrSub: "bob@example.com",
 				Principals: []string{"test"},
 				Issuer:     "https://example.com",
 			},
 			{
-				Email:      "charlie@example.com",
+				EmailOrSub: "charlie@example.com",
 				Principals: []string{ValidUser.Username},
 				Issuer:     "https://example.com",
 			},
 			{
-				Email:      "daniel@example.com",
+				EmailOrSub: "daniel@example.com",
 				Principals: []string{ValidUser.Username, "test", "test2"},
 				Issuer:     "https://example.com",
 			},
@@ -200,12 +200,12 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	expectedPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
-				Email:      "charlie@example.com",
+				EmailOrSub: "charlie@example.com",
 				Principals: []string{ValidUser.Username},
 				Issuer:     "https://example.com",
 			},
 			{
-				Email:      "daniel@example.com",
+				EmailOrSub: "daniel@example.com",
 				Principals: []string{ValidUser.Username},
 				Issuer:     "https://example.com",
 			},
@@ -314,7 +314,7 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
-				Email:      "alice@example.com",
+				EmailOrSub: "alice@example.com",
 				Principals: []string{"test"},
 				Issuer:     "https://example.com",
 			},
@@ -339,7 +339,7 @@ func TestDump_Success(t *testing.T) {
 	testPolicy := &policy.Policy{
 		Users: []policy.User{
 			{
-				Email:      "alice@example.com",
+				EmailOrSub: "alice@example.com",
 				Principals: []string{"test"},
 				Issuer:     "https://example.com",
 			},

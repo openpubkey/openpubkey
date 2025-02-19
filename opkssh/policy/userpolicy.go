@@ -26,9 +26,10 @@ import (
 
 // User is an opkssh policy user entry
 type User struct {
-	// Email is the user's email. It is the expected value used when comparing
-	// against an id_token's email claim
-	Email string
+	// EmailOrSub is either the user's email or the user's subscriber ID. It is
+	// the expected value used when comparing against an id_token's email claim
+	// Subscriber ID is a unique identifier for the user at the OpenID Provider
+	EmailOrSub string
 	// Principals is a list of allowed principals
 	Principals []string
 	// Sub        string
@@ -61,7 +62,7 @@ func FromTable(input []byte, path string) *Policy {
 		}
 		user := User{
 			Principals: []string{row[0]},
-			Email:      row[1],
+			EmailOrSub: row[1],
 			Issuer:     row[2],
 		}
 		policy.Users = append(policy.Users, user)
@@ -81,7 +82,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer 
 		// file
 		for i := range p.Users {
 			user := &p.Users[i]
-			if user.Email == userEmail && user.Issuer == issuer {
+			if user.EmailOrSub == userEmail && user.Issuer == issuer {
 				principalExists := false
 				for _, p := range user.Principals {
 					// if the principal already exists for this user, then skip
@@ -105,7 +106,7 @@ func (p *Policy) AddAllowedPrincipal(principal string, userEmail string, issuer 
 	// new entry
 	if len(p.Users) == 0 || !userExists {
 		newUser := User{
-			Email:      userEmail,
+			EmailOrSub: userEmail,
 			Principals: []string{principal},
 			Issuer:     issuer,
 		}
@@ -119,7 +120,7 @@ func (p *Policy) ToTable() ([]byte, error) {
 	table := files.Table{}
 	for _, user := range p.Users {
 		for _, principal := range user.Principals {
-			table.AddRow(principal, user.Email, user.Issuer)
+			table.AddRow(principal, user.EmailOrSub, user.Issuer)
 		}
 	}
 	return table.ToBytes(), nil

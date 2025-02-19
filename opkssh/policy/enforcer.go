@@ -49,6 +49,7 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 
 	var claims struct {
 		Email string `json:"email"`
+		Sub   string `json:"sub"`
 	}
 	if err := json.Unmarshal(pkt.Payload, &claims); err != nil {
 		return fmt.Errorf("error unmarshalling pk token payload: %w", err)
@@ -59,12 +60,10 @@ func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) er
 	}
 	for _, user := range policy.Users {
 		// check each entry to see if the user in the claims is included
-		if string(claims.Email) == user.Email {
+		if string(claims.Email) == user.EmailOrSub || string(claims.Sub) == user.EmailOrSub {
 			if issuer != user.Issuer {
 				continue
 			}
-			// log.Printf("claims.email %s, user.Email %s, issuer %s, user.Issuer %s \n", claims.Email, user.Email, issuer, user.Issuer)
-
 			// if they are, then check if the desired principal is allowed
 			if slices.Contains(user.Principals, principalDesired) {
 				// access granted

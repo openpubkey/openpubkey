@@ -74,17 +74,17 @@ func NewMockOpenIdProvider2(gqSign bool, issuer string, clientID string, extraCl
 var policyTest = &policy.Policy{
 	Users: []policy.User{
 		{
-			Email:      "alice@bastionzero.com",
+			EmailOrSub: "alice@bastionzero.com",
 			Principals: []string{"test"},
 			Issuer:     "https://accounts.example.com",
 		},
 		{
-			Email:      "arthur.aardvark@example.com",
+			EmailOrSub: "arthur.aardvark@example.com",
 			Principals: []string{"test"},
 			Issuer:     "https://accounts.example.com",
 		},
 		{
-			Email:      "bob@example.com",
+			EmailOrSub: "bob@example.com",
 			Principals: []string{"test"},
 			Issuer:     "https://accounts.example.com",
 		},
@@ -94,11 +94,11 @@ var policyTest = &policy.Policy{
 var policyTestNoEntry = &policy.Policy{
 	Users: []policy.User{
 		{
-			Email:      "alice@bastionzero.com",
+			EmailOrSub: "alice@bastionzero.com",
 			Principals: []string{"test"},
 		},
 		{
-			Email:      "bob@example.com",
+			EmailOrSub: "bob@example.com",
 			Principals: []string{"test"},
 		},
 	},

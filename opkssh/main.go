@@ -233,10 +233,10 @@ func run() int {
 			Username:         inputPrincipal,
 		}
 		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {
-			log.Println("failed to add to policy:", err)
+			fmt.Println("failed to add to policy:", err)
 			return 1
 		} else {
-			log.Println("Successfully added new policy to", policyFilePath)
+			fmt.Println("Successfully added new policy to", policyFilePath)
 		}
 	case "install":
 		// The "install" command is sets up and installs opkssh on a server.
@@ -246,14 +246,14 @@ func run() int {
 		// 		./opkssh install
 		err := commands.Install()
 		if err != nil {
-			log.Println("failed to install opkssh:", err)
+			fmt.Println("failed to install opkssh:", err)
 			return 1
 		} else {
-			log.Println("successfully installed opkssh")
+			fmt.Println("successfully installed opkssh")
 			return 0
 		}
 	default:
-		log.Println("ERROR! Unrecognized command:", command)
+		fmt.Println("ERROR! Unrecognized command:", command)
 		return 1
 	}
 
