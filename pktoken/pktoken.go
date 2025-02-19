@@ -160,7 +160,7 @@ func (p *PKToken) IdentityString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s %s %s", sub, iss), nil
+	return fmt.Sprintf("%s %s", sub, iss), nil
 }
 
 // Signs PK Token and then returns only the payload, header and signature as a JWT
