@@ -22,6 +22,7 @@ import (
 	"os/exec"
 )
 
+// Install setups opkssh on a server
 func Install() error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("this command must be run as root or sudo")
@@ -61,11 +62,6 @@ sudo systemctl restart ssh
 
 `
 	installScript += fmt.Sprintf("sudo cp %s /etc/opk/opkssh\n", opksshExePath)
-
-	// removeScript :=`
-	// rm -rf /etc/opk
-	// rm -rf ~/.opk
-	// `
 
 	cmd := exec.Command("sh", "-c", installScript)
 	cmd.Stdout = os.Stdout
