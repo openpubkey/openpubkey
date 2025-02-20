@@ -123,7 +123,7 @@ func (l *UserPolicyLoader) LoadUserPolicy(username string, skipInvalidEntries bo
 			if slices.Contains(user.Principals, username) {
 				// Build clean entry that only gives access to username
 				validUserPolicy.Users = append(validUserPolicy.Users, User{
-					Email:      user.Email,
+					EmailOrSub: user.EmailOrSub,
 					Principals: []string{username},
 					Issuer:     user.Issuer,
 				})

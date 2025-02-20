@@ -78,6 +78,12 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 		return nil, fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
 	}
 
+	idStr, err := pkt.IdentityString()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ID Token: %w", err)
+	}
+	fmt.Printf("Keys generated for identity %s\n", idStr)
+
 	return &loginResult{
 		pkt:        pkt,
 		signer:     signer,
@@ -247,7 +253,7 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 		return err
 	}
 
-	log.Printf("writing opk ssh public key to %s and corresponding secret key to %s", pubkeyPath, seckeyPath)
+	fmt.Printf("Writing opk ssh public key to %s and corresponding secret key to %s", pubkeyPath, seckeyPath)
 
 	certBytes = append(certBytes, []byte(" openpubkey")...)
 	// Write ssh public key (certificate) to filesystem

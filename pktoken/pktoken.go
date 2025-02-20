@@ -137,6 +137,32 @@ func (p *PKToken) Audience() (string, error) {
 	return claims.Audience, nil
 }
 
+// Subscriber returns the subscriber (`sub`) of the ID Token in the PKToken.
+// This is a unique identifier for the user at the OpenID Provider.
+func (p *PKToken) Subscriber() (string, error) {
+	var claims struct {
+		Subscriber string `json:"sub"`
+	}
+	if err := json.Unmarshal(p.Payload, &claims); err != nil {
+		return "", fmt.Errorf("malformatted PK token claims: %w", err)
+	}
+	return claims.Subscriber, nil
+}
+
+// IdentityString string returns the three attributes that are used to uniquely identify a user
+// in the OpenID Connect protocol: the subscriber, the issuer
+func (p *PKToken) IdentityString() (string, error) {
+	sub, err := p.Subscriber()
+	if err != nil {
+		return "", err
+	}
+	iss, err := p.Issuer()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s %s", sub, iss), nil
+}
+
 // Signs PK Token and then returns only the payload, header and signature as a JWT
 func (p *PKToken) SignToken(
 	signer crypto.Signer,

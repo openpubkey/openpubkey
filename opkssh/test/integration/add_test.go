@@ -154,7 +154,7 @@ func TestAdd(t *testing.T) {
 				expectedPolicy := &policy.Policy{
 					Users: []policy.User{
 						{
-							Email:      "foo@example.com",
+							EmailOrSub: "foo@example.com",
 							Principals: []string{tt.desiredPrincipal},
 							Issuer:     issuer,
 						},

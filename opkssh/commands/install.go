@@ -22,6 +22,7 @@ import (
 	"os/exec"
 )
 
+// Install setups opkssh on a server
 func Install() error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("this command must be run as root or sudo")
@@ -48,15 +49,7 @@ sudo chown root /etc/opk/providers
 sudo chmod 600 /etc/opk/providers
 
 if [ -s /etc/opk/providers ]; then
-	read -p "The providers policy file (/etc/opk/providers) is not empty. Do you wish to override the original values? (y/n): " choice
-	case "$choice" in 
-		y|Y ) sudo truncate -s 0 /etc/opk/providers
-			echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
-			echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
-		;;
-		n|N ) echo "Keeping original providers values.";;
-		* ) echo "Invalid choice. Exiting." && exit 1;;
-	esac
+	echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"
 else
 	echo "$PROVIDER_GOOGLE" >> /etc/opk/providers
 	echo "$PROVIDER_MICROSOFT" >> /etc/opk/providers
@@ -69,11 +62,6 @@ sudo systemctl restart ssh
 
 `
 	installScript += fmt.Sprintf("sudo cp %s /etc/opk/opkssh\n", opksshExePath)
-
-	// removeScript :=`
-	// rm -rf /etc/opk
-	// rm -rf ~/.opk
-	// `
 
 	cmd := exec.Command("sh", "-c", installScript)
 	cmd.Stdout = os.Stdout
