@@ -32,6 +32,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/opkssh/sshcert"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
@@ -78,11 +79,11 @@ func login(ctx context.Context, provider client.OpenIdProvider) (*loginResult, e
 		return nil, fmt.Errorf("failed to write SSH keys to filesystem: %w", err)
 	}
 
-	idStr, err := pkt.IdentityString()
+	idStr, err := IdentityString(*pkt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ID Token: %w", err)
 	}
-	fmt.Printf("Keys generated for identity %s\n", idStr)
+	fmt.Printf("Keys generated for identity\n%s\n", idStr)
 
 	return &loginResult{
 		pkt:        pkt,
@@ -263,4 +264,17 @@ func writeKeys(seckeyPath string, pubkeyPath string, seckeySshPem []byte, certBy
 func fileExists(fPath string) bool {
 	_, err := os.Open(fPath)
 	return !errors.Is(err, os.ErrNotExist)
+}
+
+func IdentityString(pkt pktoken.PKToken) (string, error) {
+	idt, err := oidc.NewJwt(pkt.OpToken)
+	if err != nil {
+		return "", err
+	}
+	claims := idt.GetClaims()
+	if claims.Email == "" {
+		return "Sub, issuer, audience: \n" + claims.Subject + " " + claims.Issuer + " " + claims.Audience, nil
+	} else {
+		return "Email, sub, issuer, audience: \n" + claims.Email + " " + claims.Subject + " " + claims.Issuer + " " + claims.Audience, nil
+	}
 }
