@@ -69,10 +69,10 @@ type GoogleOptions struct {
 func GetDefaultGoogleOpOptions() *GoogleOptions {
 	return &GoogleOptions{
 		Issuer:   googleIssuer,
-		ClientID: "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
+		ClientID: "411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com",
 		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
 		// Google requires a ClientSecret even if this a public OIDC App
-		ClientSecret: "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", // The client secret is a public value
+		ClientSecret: "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", // The client secret is a public value
 		Scopes:       []string{"openid profile email"},
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
