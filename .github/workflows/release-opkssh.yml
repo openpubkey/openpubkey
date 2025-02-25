@@ -2,7 +2,7 @@ name: Build and Upload Release
 
 on:
   release:
-    types: [created]
+    types: [published]
 
 permissions:
   contents: write
@@ -40,5 +40,5 @@ jobs:
           tag_name: ${{ github.event.release.tag_name }}
           name: Release ${{ github.event.release.tag_name }}
           body: ${{ github.event.release.body }}
-          draft: true
+          draft: false
           prerelease: false
