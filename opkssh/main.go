@@ -42,6 +42,7 @@ var (
 
 	// These can be overridden at build time using ldflags. For example:
 	// go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
+	Version      = "unversioned"
 	issuer       = ""
 	clientID     = ""
 	clientSecret = ""
@@ -252,6 +253,8 @@ func run() int {
 			fmt.Println("successfully installed opkssh")
 			return 0
 		}
+	case "--version", "-v":
+		fmt.Println(Version)
 	default:
 		fmt.Println("ERROR! Unrecognized command:", command)
 		return 1
