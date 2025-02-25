@@ -57,11 +57,11 @@ fi
 
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
-echo "AuthorizedKeysCommand /etc/opk/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
 `
-	installScript += fmt.Sprintf("sudo cp %s /etc/opk/opkssh\n", opksshExePath)
+	installScript += fmt.Sprintf("sudo cp %s /usr/local/bin/opkssh\n", opksshExePath)
 
 	cmd := exec.Command("sh", "-c", installScript)
 	cmd.Stdout = os.Stdout
