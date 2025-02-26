@@ -17,14 +17,14 @@ This file contains a list of allow OPKSSH OPs (OpenID Providers) and associated 
 ### Columns
 
 - Column 1: Issuer
-- Column 2: Client-ID a.k.a. what to match on the audience claim in the ID Token 
+- Column 2: Client-ID a.k.a. what to match on the audience claim in the ID Token
 - Column 3: Expiration policy, options are: `24h`, `48h`, `1week`, `oidc`, `oidc-refreshed`
 
 ### Examples
 
 The file lives at `/etc/opk/providers` and the default values are:
 
-```
+```bash
 # Issuer Client-ID expiration-policy 
 https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com 24h
 https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096ce0a3-5e72-4da8-9c86-12924b294a01 24h
@@ -32,7 +32,7 @@ https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096c
 
 This PR does not support workload OPs like github-actions or gitlab-ci but the intent is for these to use a wildcard `*` for the Client ID (`aud`).
 
-```
+```bash
 https://token.actions.githubusercontent.com * oidc
 https://gitlab.com OPENPUBKEY-PKTOKEN:* oidc
 ```
@@ -46,7 +46,7 @@ Linux user accounts are typically referred to in SSH as *principals* and we cont
 
 This is a server wide policy file.
 
-```
+```bash
 # email/sub principal issuer 
 alice alice@example.com https://accounts.google.com
 guest alice@example.com https://accounts.google.com 
@@ -74,7 +74,7 @@ sudo chmod 600 /etc/opk/auth_id
 This is user/principal specific permissions.
 That is, if it is in `/home/alice/.opk/auth_id` it can only specify who can assume the principal `alice` on the server.
 
-```
+```bash
 # email/sub principal issuer 
 alice alice@example.com https://accounts.google.com
 ```
@@ -85,7 +85,6 @@ It requires the following permissions:
 chown {USER}:{USER} /home/{USER}/.opk/auth_id
 chmod 600 /home/{USER}/.opk/auth_id
 ```
-
 
 ## Setup
 

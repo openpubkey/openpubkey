@@ -55,7 +55,7 @@ func main() {
 
 func run() int {
 	if len(os.Args) < 2 {
-		fmt.Println("Example SSH key generator using OpenPubkey: command choices are: login, verify, add, and install")
+		fmt.Println("OPKSSH (OpenPubkey SSH) CLI: command choices are: login, verify, add, and install")
 		return 1
 	}
 	command := os.Args[1]
