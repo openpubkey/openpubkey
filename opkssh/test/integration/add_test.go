@@ -67,7 +67,7 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name:             "sudoer user can update root policy",
-			binaryPath:       "/etc/opk/opkssh",
+			binaryPath:       "/usr/local/bin/opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: SudoerUser,
@@ -75,7 +75,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "sudoer user can update root policy with principal != self",
-			binaryPath:       "/etc/opk/opkssh",
+			binaryPath:       "/usr/local/bin/opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: UnprivUser,

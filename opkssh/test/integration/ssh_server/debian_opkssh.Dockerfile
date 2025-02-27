@@ -51,7 +51,7 @@ RUN sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
 
 # Add our AuthorizedKeysCommand line so that the opk verifier is called when
 # ssh-ing in
-RUN echo "AuthorizedKeysCommand /etc/opk/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 
 # Expose SSH server so we can ssh in from the tests
 EXPOSE 22
@@ -68,21 +68,21 @@ COPY . ./
 
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
-RUN go build -v -o /etc/opk/opkssh ./opkssh
-RUN chmod 700 /etc/opk/opkssh
+RUN go build -v -o /usr/local/bin/opkssh ./opkssh
+RUN chmod 700 /usr/local/bin/opkssh
 
 RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
 RUN chown root /etc/opk/providers
 RUN chmod 600 /etc/opk/providers
 
 # Copy binary to unprivileged user's home directory
-RUN cp /etc/opk/opkssh /home/test2/.opk/opkssh
+RUN cp /usr/local/bin/opkssh /home/test2/.opk/opkssh
 RUN chown test2:test2 /home/test2/.opk/opkssh
 
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
 ARG BOOTSTRAP_POLICY
-RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then /etc/opk/opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
+RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
 
 # Start SSH server on container startup
 CMD ["/usr/sbin/sshd", "-D"]

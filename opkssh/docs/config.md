@@ -54,7 +54,7 @@ root alice@example.com https://accounts.google.com
 dev bob@microsoft.com https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096ce0a3-5e72-4da8-9c86-12924b294a01
 ```
 
-`sudo /etc/opk/opkssh add {USER} {EMAIL} {ISSUER}`
+`sudo opkssh add {USER} {EMAIL} {ISSUER}`
 
 These `auth_id` files can be edited by hand or you can use the add command to add new policies.
 For convenience you can use the shorthand `google` or `azure` rather than specifying the entire issuer.
@@ -67,7 +67,7 @@ sudo chown root /etc/opk/auth_id
 sudo chmod 600 /etc/opk/auth_id
 ```
 
-`sudo /etc/opk/opkssh add root alice@example.com google`
+`sudo opkssh add root alice@example.com google`
 
 ### `/home/{USER}/.opk/auth_id`
 
@@ -101,9 +101,9 @@ sudo chmod 600 /etc/opk/auth_id
 cd /tmp
 git clone https://github.com/openpubkey/openpubkey.git
 cd openpubkey
-sudo go build -v -o /etc/opk/opkssh ./opkssh
-sudo chmod 700 /etc/opk/opkssh
-sudo chown root /etc/opk/opkssh
+sudo go build -v -o /usr/local/bin/opkssh ./opkssh
+sudo chmod 700 /usr/local/bin/opkssh
+sudo chown root /usr/local/bin/opkssh
 
 sudo touch /etc/opk/providers
 sudo chown root /etc/opk/providers
@@ -112,7 +112,7 @@ sudo chmod 600 /etc/opk/providers
 sudo su
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
-echo "AuthorizedKeysCommand /etc/opk/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
 echo "https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com 24h" >> /etc/opk/providers
