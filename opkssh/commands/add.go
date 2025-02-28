@@ -75,6 +75,17 @@ func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string,
 	if err != nil {
 		return "", fmt.Errorf("failed to load current policy: %w", err)
 	}
+	// exists, err := afero.Exists(l.Fs, path)
+	// if err != nil {
+	// 	return err
+	// }
+	// if !exists {
+	// 	file, err := l.Fs.Create(path)
+	// 	if err != nil {
+	// 		return fmt.Errorf("failed to create file: %w", err)
+	// 	}
+	// 	file.Close()
+	// }
 
 	// Update policy
 	currentPolicy.AddAllowedPrincipal(principal, userEmail, issuer)

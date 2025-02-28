@@ -73,19 +73,6 @@ func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
 
 // Dump writes fileBytes to the filepath
 func (l *FileLoader) Dump(fileBytes []byte, path string) error {
-
-	exists, err := afero.Exists(l.Fs, path)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		file, err := l.Fs.Create(path)
-		if err != nil {
-			return fmt.Errorf("failed to create file: %w", err)
-		}
-		file.Close()
-	}
-
 	// Write to disk
 	if err := afero.WriteFile(l.Fs, path, fileBytes, ModeOnlyOwner); err != nil {
 		return err
