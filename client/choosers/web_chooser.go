@@ -99,15 +99,20 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		data := struct {
 			Google string
 			Azure  string
+			Gitlab string
 		}{
 			Google: "none",
 			Azure:  "none",
+			Gitlab: "none",
 		}
 		if _, ok := providerMap["google"]; ok {
 			data.Google = "block"
 		}
 		if _, ok := providerMap["azure"]; ok {
 			data.Azure = "block"
+		}
+		if _, ok := providerMap["gitlab"]; ok {
+			data.Gitlab = "block"
 		}
 		w.Header().Set("Content-Type", "text/html")
 		if err := chooserTemplate.Execute(w, data); err != nil {
@@ -190,6 +195,8 @@ func IssuerToName(issuer string) (string, error) {
 		return "google", nil
 	case strings.HasPrefix(issuer, "https://login.microsoftonline.com"):
 		return "azure", nil
+	case strings.HasPrefix(issuer, "https://gitlab.com"):
+		return "gitlab", nil
 	default:
 		return "", fmt.Errorf("unknown OpenID Provider issuer: %s", issuer)
 	}

@@ -38,6 +38,7 @@ func TestGoogleSelection(t *testing.T) {
 	}{
 		{name: "select google", providerName: "google", httpCodeExpected: http.StatusOK},
 		{name: "select azure", providerName: "azure", httpCodeExpected: http.StatusOK},
+		{name: "select gitlab", providerName: "gitlab", httpCodeExpected: http.StatusOK},
 		{name: "select bad provider", providerName: "fakeProvider", httpCodeExpected: http.StatusBadRequest, errorString: "unknown OpenID Provider"},
 		{name: "select no provider", providerName: "", httpCodeExpected: http.StatusBadRequest, errorString: "missing op parameter"},
 	}
@@ -50,8 +51,13 @@ func TestGoogleSelection(t *testing.T) {
 			azureOpOptions := providers.GetDefaultAzureOpOptions()
 			azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
 
+			gitlabOpOptions := providers.GetDefaultGitlabOpOptions()
+			gitlabOp := providers.NewGitlabOpWithOptions(gitlabOpOptions)
+
 			webChooser := WebChooser{
-				OpList:        []providers.BrowserOpenIdProvider{googleOp, azureOp},
+				OpList:        []providers.BrowserOpenIdProvider{
+					googleOp, azureOp, gitlabOp,
+				},
 				OpenBrowser:   false,
 				useMockServer: true,
 			}
@@ -81,6 +87,8 @@ func TestGoogleSelection(t *testing.T) {
 					googleOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				case "azure":
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
+				case "gitlab":
+					gitlabOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				default:
 					// Trigger azure even if the provider doesn't match to sure this test finishes
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
@@ -162,6 +170,10 @@ func TestIssuerToName(t *testing.T) {
 	name, err = IssuerToName("https://login.microsoftonline.com")
 	require.NoError(t, err)
 	require.Equal(t, "azure", name)
+
+	name, err = IssuerToName("https://gitlab.com")
+	require.NoError(t, err)
+	require.Equal(t, "gitlab", name)
 
 	name, err = IssuerToName("https://error.example.com")
 	require.ErrorContains(t, err, "unknown OpenID Provider")
