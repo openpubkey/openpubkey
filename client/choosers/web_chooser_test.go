@@ -55,7 +55,7 @@ func TestGoogleSelection(t *testing.T) {
 			gitlabOp := providers.NewGitlabOpWithOptions(gitlabOpOptions)
 
 			webChooser := WebChooser{
-				OpList:        []providers.BrowserOpenIdProvider{
+				OpList: []providers.BrowserOpenIdProvider{
 					googleOp, azureOp, gitlabOp,
 				},
 				OpenBrowser:   false,

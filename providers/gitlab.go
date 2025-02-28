@@ -62,9 +62,9 @@ type GitlabOptions struct {
 
 func GetDefaultGitlabOpOptions() *GitlabOptions {
 	return &GitlabOptions{
-		ClientID:     "8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923",
-		Issuer:       gitlabIssuer,
-		Scopes:       []string{"openid email"},
+		ClientID: "8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923",
+		Issuer:   gitlabIssuer,
+		Scopes:   []string{"openid email"},
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
