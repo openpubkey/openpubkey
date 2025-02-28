@@ -197,7 +197,7 @@ will also need to have a opkssh binary available to use in the same directory.
 sudo touch /etc/opk/auth_id
 sudo chown root /etc/opk/auth_id
 sudo chmod 600 /etc/opk/auth_id
-sudo /etc/opk/opkssh add {USER} {EMAIL} {ISSUER}
+sudo opkssh add {USER} {EMAIL} {ISSUER}
 ```
 
 **4: Configure sshd to use opkssh.** Add the following lines to the sshd configuration file `/etc/ssh/sshd_config`.

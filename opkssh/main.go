@@ -41,7 +41,7 @@ import (
 var (
 
 	// These can be overridden at build time using ldflags. For example:
-	// go build -v -o /etc/opk/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
+	// go build -v -o /usr/local/bin/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
 	Version      = "unversioned"
 	issuer       = ""
 	clientID     = ""
@@ -160,7 +160,7 @@ func run() int {
 
 		// These arguments are sent by sshd and dictated by the pattern as defined in the sshd config
 		// Example line in sshd config:
-		// 		AuthorizedKeysCommand /etc/opk/opkssh verify %u %k %t
+		// 		AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t
 		//
 		//	%u The desired user being assumed on the target (aka requested principal).
 		//	%k The base64-encoded public key for authentication.
