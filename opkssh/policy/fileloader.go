@@ -41,6 +41,9 @@ func (l FileLoader) CreateIfDoesNotExist(path string) error {
 		return err
 	}
 	if !exists {
+		if err := l.Fs.MkdirAll(afero.GetTempDir(l.Fs, path), 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
 		file, err := l.Fs.Create(path)
 		if err != nil {
 			return fmt.Errorf("failed to create file: %w", err)

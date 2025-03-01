@@ -90,12 +90,15 @@ func run() int {
 
 		// If a log directory was provided, write any logs to a file in that directory AND stdout
 		if *logFilePath != "" {
-			logFilePath := filepath.Join(*logFilePath, "openpubkey.log")
-			logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
+			logFilePath := filepath.Join(*logFilePath, "opkssh.log")
+			logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660)
 			if err == nil {
 				defer logFile.Close()
 				multiWriter := io.MultiWriter(os.Stdout, logFile)
 				log.SetOutput(multiWriter)
+				log.Println("Failed to open log for writing: %v \n", err)
+				// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
+				log.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePath, logFilePath, logFilePath)
 			}
 		}
 
@@ -146,7 +149,7 @@ func run() int {
 		}
 	case "verify":
 		// Setup logger
-		logFile, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
+		logFile, err := os.OpenFile("/var/log/opkssh.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
 		if err != nil {
 			fmt.Println("ERROR opening log file:", err)
 		} else {
@@ -255,7 +258,7 @@ func run() int {
 			fmt.Println("failed to install opkssh:", err)
 			return 1
 		} else {
-			fmt.Println("successfully installed opkssh")
+			fmt.Println("Successfully installed opkssh")
 			return 0
 		}
 	case "--version", "-v":

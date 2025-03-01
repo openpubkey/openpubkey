@@ -37,7 +37,7 @@ echo "Created group: $AUTH_CMD_USER"
 # If the AuthorizedKeysCommand user does not exist, create it and add it to the group
 if ! getent passwd "$AUTH_CMD_USER" >/dev/null; then
     sudo useradd -r -M -s /sbin/nologin -g "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
-    echo "Created user: $AUTH_CMD_USER and added to group: $AUTH_CMD_GROUP"
+    echo "Created user: $AUTH_CMD_USER with group: $AUTH_CMD_GROUP"
 else
     # If the AuthorizedKeysCommand user exist, ensure it is added to the group
     sudo usermod -aG "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
@@ -93,7 +93,10 @@ if command -v $BINARY_NAME &> /dev/null; then
     echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t" >> /etc/ssh/sshd_config
     echo "AuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 
-    sudo systemctl restart ssh
+    systemctl restart ssh
+
+    touch /var/log/opkssh.log
+    chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
 else
     echo "Installation failed."
     exit 1
