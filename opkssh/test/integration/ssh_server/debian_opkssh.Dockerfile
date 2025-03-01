@@ -88,6 +88,10 @@ RUN chmod 600 /etc/opk/providers
 RUN cp /usr/local/bin/opkssh /home/test2/.opk/opkssh
 RUN chown test2:test2 /home/test2/.opk/opkssh
 
+RUN touch /var/log/opkssh.log
+RUN chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
+RUN chmod 660 /var/log/opkssh.log
+
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
 ARG BOOTSTRAP_POLICY

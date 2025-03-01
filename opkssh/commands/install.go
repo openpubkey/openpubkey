@@ -78,6 +78,9 @@ sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
 echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
+touch /var/log/opkssh.log
+chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
+chmod 660 /var/log/opkssh.log
 `
 	installScript += fmt.Sprintf("sudo cp %s /usr/local/bin/opkssh\n", opksshExePath)
 

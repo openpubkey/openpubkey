@@ -96,9 +96,7 @@ func run() int {
 				defer logFile.Close()
 				multiWriter := io.MultiWriter(os.Stdout, logFile)
 				log.SetOutput(multiWriter)
-				log.Println("Failed to open log for writing: %v \n", err)
-				// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
-				log.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePath, logFilePath, logFilePath)
+				log.Printf("Failed to open log for writing: %v \n", err)
 			}
 		}
 
@@ -149,9 +147,13 @@ func run() int {
 		}
 	case "verify":
 		// Setup logger
-		logFile, err := os.OpenFile("/var/log/opkssh.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
+		// TODO: This should be a constant that can be overridden with an evn var
+		logFilePath := "/var/log/opkssh.log"
+		logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
 		if err != nil {
 			fmt.Println("ERROR opening log file:", err)
+			// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
+			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePath, logFilePath, logFilePath)
 		} else {
 			defer logFile.Close()
 			log.SetOutput(logFile)

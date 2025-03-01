@@ -97,6 +97,7 @@ if command -v $BINARY_NAME &> /dev/null; then
 
     touch /var/log/opkssh.log
     chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
+    chmod 660 /var/log/opkssh.log
 else
     echo "Installation failed."
     exit 1
