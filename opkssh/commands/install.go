@@ -40,14 +40,16 @@ PROVIDER_GOOGLE="https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7a
 PROVIDER_MICROSOFT="https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096ce0a3-5e72-4da8-9c86-12924b294a01 24h"
 PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923 24h"
 
+AUTH_CMD_USER="opksshuser"
+
 sudo mkdir -p /etc/opk
 sudo touch /etc/opk/auth_id
-sudo chown root /etc/opk/auth_id
-sudo chmod 600 /etc/opk/auth_id
+sudo chown $AUTH_CMD_USER /etc/opk/auth_id
+sudo chmod 400 /etc/opk/auth_id
 
 sudo touch /etc/opk/providers
-sudo chown root /etc/opk/providers
-sudo chmod 600 /etc/opk/providers
+sudo chown $AUTH_CMD_USER /etc/opk/providers
+sudo chmod 400 /etc/opk/providers
 
 if [ -s /etc/opk/providers ]; then
 	echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"
