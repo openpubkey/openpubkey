@@ -63,6 +63,10 @@ func NewUserFileLoader() *UserPolicyLoader {
 	}
 }
 
+func (l UserPolicyLoader) CreateIfDoesNotExist(path string) error {
+	return l.FileLoader.CreateIfDoesNotExist(path)
+}
+
 // LoadPolicyAtPath validates that the policy file at path exists, can be read
 // by the current process, and has the correct permission bits set. Parses the
 // contents and returns a policy.Policy if file permissions are valid and
@@ -90,6 +94,22 @@ func (l *UserPolicyLoader) LoadSystemDefaultPolicy() (*Policy, error) {
 	return policy, nil
 }
 
+// UserPolicyPath returns the path to the user's opkssh policy file at
+// ~/.opk/auth_id.
+func (l *UserPolicyLoader) UserPolicyPath(username string) (string, error) {
+	user, err := l.UserLookup.Lookup(username)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup username %s: %w", username, err)
+	}
+	userHomeDirectory := user.HomeDir
+	if userHomeDirectory == "" {
+		return "", fmt.Errorf("user %s does not have a home directory", username)
+	}
+
+	policyFilePath := path.Join(userHomeDirectory, ".opk", "auth_id")
+	return policyFilePath, nil
+}
+
 // LoadUserPolicy reads the user's opkssh policy at ~/.opk/auth_id (where ~
 // maps to username's home directory) and returns the filepath read. An error is
 // returned if the file cannot be read, if the permission bits are not correct,
@@ -99,16 +119,10 @@ func (l *UserPolicyLoader) LoadSystemDefaultPolicy() (*Policy, error) {
 // included in the returned policy. A user policy's entry is considered valid if
 // it gives username access. The returned policy is stripped of invalid entries.
 func (l *UserPolicyLoader) LoadUserPolicy(username string, skipInvalidEntries bool) (*Policy, string, error) {
-	user, err := l.UserLookup.Lookup(username)
+	policyFilePath, err := l.UserPolicyPath(username)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to lookup username %s: %w", username, err)
+		return nil, "", err
 	}
-	userHomeDirectory := user.HomeDir
-	if userHomeDirectory == "" {
-		return nil, "", fmt.Errorf("user %s does not have a home directory", username)
-	}
-
-	policyFilePath := path.Join(userHomeDirectory, ".opk", "auth_id")
 	policy, err := l.LoadPolicyAtPath(policyFilePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to read user policy file %s: %w", policyFilePath, err)

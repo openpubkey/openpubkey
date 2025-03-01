@@ -64,12 +64,44 @@ func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 	return systemPolicy, policy.SystemDefaultPolicyPath, nil
 }
 
+// GetPolicyPath returns the path to the policy file that the current command
+// will write to.
+func (a *AddCmd) GetPolicyPath(principal string, userEmail string, issuer string) (string, error) {
+	// Try to read system policy first
+	_, err := a.PolicyFileLoader.LoadSystemDefaultPolicy()
+	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			// If current process doesn't have permission, try reading the user
+			// policy file.
+			policyFilePath, err := a.PolicyFileLoader.UserPolicyPath(a.Username)
+			if err != nil {
+				return "", err
+			}
+			return policyFilePath, nil
+		} else {
+			// Non-permission error (e.g. system policy file missing or invalid
+			// permission bits set). Return error
+			return "", err
+		}
+	}
+	return policy.SystemDefaultPolicyPath, nil
+}
+
 // Add adds a new allowed principal to the user whose email is equal to
 // userEmail. The current policy file is read and modified.
 //
 // If successful, returns the policy filepath updated. Otherwise, returns a
 // non-nil error
 func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string, error) {
+	policyPath, err := a.GetPolicyPath(principal, userEmail, issuer)
+	if err != nil {
+		return "", fmt.Errorf("failed to load current policy: %w", err)
+	}
+	err = a.PolicyFileLoader.CreateIfDoesNotExist(policyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create policy file: %w", err)
+	}
+
 	// Read current policy
 	currentPolicy, policyFilePath, err := a.LoadPolicy()
 	if err != nil {
