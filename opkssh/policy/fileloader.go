@@ -45,6 +45,9 @@ func (l FileLoader) CreateIfDoesNotExist(path string) error {
 			return fmt.Errorf("failed to create file: %w", err)
 		}
 		file.Close()
+		if err := l.Fs.Chmod(path, ModeOnlyOwner); err != nil {
+			return fmt.Errorf("failed to set file permissions: %w", err)
+		}
 	}
 	return nil
 }
