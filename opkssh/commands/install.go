@@ -75,7 +75,7 @@ fi
 
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
-echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
 `
