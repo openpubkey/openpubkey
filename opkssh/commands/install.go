@@ -62,7 +62,7 @@ sudo chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
 sudo chmod 640 /etc/opk/auth_id
 
 sudo touch /etc/opk/providers
-sudo hown root:${AUTH_CMD_GROUP} /etc/opk/providers
+sudo chown root:${AUTH_CMD_GROUP} /etc/opk/providers
 sudo chmod 640 /etc/opk/providers
 
 if [ -s /etc/opk/providers ]; then
