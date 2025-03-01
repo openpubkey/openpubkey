@@ -111,9 +111,13 @@ func run() int {
 			azureOpOptions.GQSign = false
 			azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
 
+			gitlabOpOptions := providers.GetDefaultGitlabOpOptions()
+			gitlabOpOptions.GQSign = false
+			gitlabOp := providers.NewGitlabOpWithOptions(gitlabOpOptions)
+
 			var err error
 			provider, err = choosers.NewWebChooser(
-				[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+				[]providers.BrowserOpenIdProvider{googleOp, azureOp, gitlabOp},
 			).ChooseOp(context.Background())
 			if err != nil {
 				log.Println("ERROR selecting op:", err)
@@ -140,7 +144,6 @@ func run() int {
 				return 1
 			}
 		}
-
 	case "verify":
 		// Setup logger
 		logFile, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
@@ -226,6 +229,8 @@ func run() int {
 			inputIssuer = "https://accounts.google.com"
 		case "azure", "microsoft":
 			inputIssuer = "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0"
+		case "gitlab":
+			inputIssuer = "https://gitlab.com"
 		}
 
 		// Execute add command
@@ -284,7 +289,7 @@ func checkOpenSSHVersion() {
 	cmd := exec.Command("sshd", "-V")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("Error executing ssh -V:", err)
+		fmt.Println("Error executing sshd -V:", err)
 		return
 	}
 

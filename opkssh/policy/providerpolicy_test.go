@@ -95,6 +95,18 @@ func TestProviderPolicy_CreateVerifier_Azure(t *testing.T) {
 	require.NotNil(t, ver)
 }
 
+func TestProviderPolicy_CreateVerifier_Gitlab(t *testing.T) {
+	policy := &ProviderPolicy{}
+	policy.AddRow(ProvidersPolicyRow{
+		Issuer:           "https://gitlab.com",
+		ClientID:         "test-gitlab",
+		ExpirationPolicy: "24h",
+	})
+	ver, err := policy.CreateVerifier()
+	require.NoError(t, err)
+	require.NotNil(t, ver)
+}
+
 // Test ProviderPolicy.CreateVerifier with an unsupported issuer.
 func TestProviderPolicy_CreateVerifier_UnsupportedIssuer(t *testing.T) {
 	policy := &ProviderPolicy{}

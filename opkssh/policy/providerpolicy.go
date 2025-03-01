@@ -84,6 +84,11 @@ func (p *ProviderPolicy) CreateVerifier() (*verifier.Verifier, error) {
 			opts.Issuer = row.Issuer
 			opts.ClientID = row.ClientID
 			provider = providers.NewAzureOpWithOptions(opts)
+		} else if row.Issuer == "https://gitlab.com" {
+			opts := providers.GetDefaultGitlabOpOptions()
+			opts.Issuer = row.Issuer
+			opts.ClientID = row.ClientID
+			provider = providers.NewGitlabOpWithOptions(opts)
 		} else {
 			return nil, fmt.Errorf("unsupported issuer: %s", row.Issuer)
 		}
