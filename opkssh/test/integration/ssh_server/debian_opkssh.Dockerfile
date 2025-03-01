@@ -26,15 +26,19 @@ RUN  echo "test2:test" | chpasswd
 # Allow SSH access
 RUN mkdir /var/run/sshd
 
+ARG AUTH_CMD_USER="opksshuser"
+# Checks if the AuthorizedKeysCommand user exists, if not, creates it.
+RUN /usr/bin/getent passwd $AUTH_CMD_USER || /usr/sbin/useradd -r -M -s /sbin/nologin $AUTH_CMD_USER
+
 # Setup OPK directories/files (root policy)
 RUN mkdir -p /etc/opk
 RUN touch /etc/opk/auth_id
-RUN chown root /etc/opk/auth_id
-RUN chmod 600 /etc/opk/auth_id
+RUN chown ${AUTH_CMD_USER} /etc/opk/auth_id
+RUN chmod 400 /etc/opk/auth_id
 RUN touch /etc/opk/providers
+RUN chmod 400 /etc/opk/providers
 RUN cat /etc/opk/providers
-
-
+RUN chown ${AUTH_CMD_USER} /etc/opk/providers
 
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 
@@ -49,9 +53,12 @@ RUN chmod 600 /home/test2/.opk/auth_id
 RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 RUN sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
 
+
+
+
 # Add our AuthorizedKeysCommand line so that the opk verifier is called when
 # ssh-ing in
-RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 
 # Expose SSH server so we can ssh in from the tests
 EXPOSE 22
@@ -72,7 +79,7 @@ RUN go build -v -o /usr/local/bin/opkssh ./opkssh
 RUN chmod 700 /usr/local/bin/opkssh
 
 RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
-RUN chown root /etc/opk/providers
+RUN chown ${AUTH_CMD_USER} /etc/opk/providers
 RUN chmod 600 /etc/opk/providers
 
 # Copy binary to unprivileged user's home directory
