@@ -8,9 +8,14 @@ set -e  # Exit if any command fails
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="opkssh"
 GITHUB_REPO="openpubkey/openpubkey"
+
+# Define the default OpenID Providers
 PROVIDER_GOOGLE="https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com 24h"
 PROVIDER_MICROSOFT="https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096ce0a3-5e72-4da8-9c86-12924b294a01 24h"
 PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923 24h"
+
+# AuthorizedKeysCommand user
+AUTH_CMD_USER="opksshuser"
 
 # Ensure wget is installed
 if ! command -v wget &> /dev/null; then
@@ -22,6 +27,9 @@ if ! command -v jq &> /dev/null; then
     echo "Error: jq is required but not installed. Please install it first."
     exit 1
 fi
+
+# Checks if the AuthorizedKeysCommand user exists, if not, creates it.
+/usr/bin/getent passwd $AUTH_CMD_USER || /usr/sbin/useradd -r -M -s /sbin/nologin $AUTH_CMD_USER
 
 # Get the latest release version dynamically using wget
 LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | jq -r .tag_name)
@@ -41,7 +49,7 @@ wget -q --show-progress -O "$BINARY_NAME" "$BINARY_URL"
 chmod +x "$BINARY_NAME"
 
 # Move to installation directory
-sudo mv "$BINARY_NAME" "$INSTALL_DIR/"
+mv "$BINARY_NAME" "$INSTALL_DIR/"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
@@ -50,14 +58,14 @@ if command -v $BINARY_NAME &> /dev/null; then
 
     # Setup configuration
     echo "Configuring opkssh."
-    sudo mkdir -p /etc/opk
-    sudo touch /etc/opk/auth_id
-    sudo chown root /etc/opk/auth_id
-    sudo chmod 600 /etc/opk/auth_id
+    mkdir -p /etc/opk
+    touch /etc/opk/auth_id
+    chown ${AUTH_CMD_USER} /etc/opk/auth_id
+    chmod 400 /etc/opk/auth_id
 
-    sudo touch /etc/opk/providers
-    sudo chown root /etc/opk/providers
-    sudo chmod 600 /etc/opk/providers
+    touch /etc/opk/providers
+    chown ${AUTH_CMD_USER} /etc/opk/providers
+    chmod 400 /etc/opk/providers
 
     if [ -s /etc/opk/providers ]; then
         echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"
@@ -70,10 +78,9 @@ if command -v $BINARY_NAME &> /dev/null; then
     sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
     sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
     echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t" >> /etc/ssh/sshd_config
-    echo "AuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+    echo "AuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 
     sudo systemctl restart ssh
-
 else
     echo "Installation failed."
     exit 1
