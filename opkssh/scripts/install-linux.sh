@@ -16,6 +16,7 @@ PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd7
 
 # AuthorizedKeysCommand user
 AUTH_CMD_USER="opksshuser"
+AUTH_CMD_GROUP="opksshgroup"
 
 # Ensure wget is installed
 if ! command -v wget &> /dev/null; then
@@ -28,8 +29,20 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-# Checks if the AuthorizedKeysCommand user exists, if not, creates it.
-/usr/bin/getent passwd $AUTH_CMD_USER || /usr/sbin/useradd -r -M -s /sbin/nologin $AUTH_CMD_USER
+
+# Checks if the group and user used by the AuthorizedKeysCommand exists if not creates it
+/usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
+echo "Created group: $AUTH_CMD_USER"
+
+# If the AuthorizedKeysCommand user does not exist, create it and add it to the group
+if ! getent passwd "$AUTH_CMD_USER" >/dev/null; then
+    sudo useradd -r -M -s /sbin/nologin -g "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    echo "Created user: $AUTH_CMD_USER and added to group: $AUTH_CMD_GROUP"
+else
+    # If the AuthorizedKeysCommand user exist, ensure it is added to the group
+    sudo usermod -aG "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
+fi
 
 # Get the latest release version dynamically using wget
 LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | jq -r .tag_name)
@@ -60,12 +73,12 @@ if command -v $BINARY_NAME &> /dev/null; then
     echo "Configuring opkssh."
     mkdir -p /etc/opk
     touch /etc/opk/auth_id
-    chown ${AUTH_CMD_USER} /etc/opk/auth_id
-    chmod 400 /etc/opk/auth_id
+    chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
+    chmod 640 /etc/opk/auth_id
 
     touch /etc/opk/providers
-    chown ${AUTH_CMD_USER} /etc/opk/providers
-    chmod 400 /etc/opk/providers
+    chown root:${AUTH_CMD_GROUP} /etc/opk/providers
+    chmod 640 /etc/opk/providers
 
     if [ -s /etc/opk/providers ]; then
         echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"

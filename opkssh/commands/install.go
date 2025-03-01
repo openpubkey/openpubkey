@@ -41,15 +41,29 @@ PROVIDER_MICROSOFT="https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36
 PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923 24h"
 
 AUTH_CMD_USER="opksshuser"
+AUTH_CMD_GROUP="opksshgroup"
+
+/usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
+echo "Created group: $AUTH_CMD_USER"
+
+# If the AuthorizedKeysCommand user does not exist, create it and add it to the group
+if ! getent passwd "$AUTH_CMD_USER" >/dev/null; then
+    sudo useradd -r -M -s /sbin/nologin -g "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    echo "Created user: $AUTH_CMD_USER and added to group: $AUTH_CMD_GROUP"
+else
+    # If the AuthorizedKeysCommand user exist, ensure it is added to the group
+    sudo usermod -aG "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
+fi
 
 sudo mkdir -p /etc/opk
 sudo touch /etc/opk/auth_id
-sudo chown $AUTH_CMD_USER /etc/opk/auth_id
-sudo chmod 400 /etc/opk/auth_id
+sudo chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
+sudo chmod 640 /etc/opk/auth_id
 
 sudo touch /etc/opk/providers
-sudo chown $AUTH_CMD_USER /etc/opk/providers
-sudo chmod 400 /etc/opk/providers
+sudo hown root:${AUTH_CMD_GROUP} /etc/opk/providers
+sudo chmod 640 /etc/opk/providers
 
 if [ -s /etc/opk/providers ]; then
 	echo "The providers policy file (/etc/opk/providers) is not empty. Keeping existing values"

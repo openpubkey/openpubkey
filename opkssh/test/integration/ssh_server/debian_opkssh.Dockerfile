@@ -27,18 +27,20 @@ RUN  echo "test2:test" | chpasswd
 RUN mkdir /var/run/sshd
 
 ARG AUTH_CMD_USER="opksshuser"
-# Checks if the AuthorizedKeysCommand user exists, if not, creates it.
-RUN /usr/bin/getent passwd $AUTH_CMD_USER || /usr/sbin/useradd -r -M -s /sbin/nologin $AUTH_CMD_USER
+ARG AUTH_CMD_GROUP="opksshgroup"
+# Creates AuthorizedKeysCommand user and group
+RUN groupadd --system $AUTH_CMD_GROUP
+RUN /usr/sbin/useradd -r -M -s /sbin/nologin -g $AUTH_CMD_GROUP $AUTH_CMD_USER
 
 # Setup OPK directories/files (root policy)
 RUN mkdir -p /etc/opk
 RUN touch /etc/opk/auth_id
-RUN chown ${AUTH_CMD_USER} /etc/opk/auth_id
-RUN chmod 400 /etc/opk/auth_id
+RUN chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
+RUN chmod 640 /etc/opk/auth_id
 RUN touch /etc/opk/providers
-RUN chmod 400 /etc/opk/providers
+RUN chmod 640 /etc/opk/providers
 RUN cat /etc/opk/providers
-RUN chown ${AUTH_CMD_USER} /etc/opk/providers
+RUN chown root:${AUTH_CMD_GROUP} /etc/opk/providers
 
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 
@@ -46,8 +48,8 @@ RUN chown test2:test2 /home/test2/.opk
 RUN chmod 700 /home/test2/.opk
 # Create personal policy file in user's home directory
 RUN touch /home/test2/.opk/auth_id
-RUN chown test2:test2 /home/test2/.opk/auth_id
-RUN chmod 600 /home/test2/.opk/auth_id
+RUN chown test2:${AUTH_CMD_GROUP} /home/test2/.opk/auth_id
+RUN chmod 640 /home/test2/.opk/auth_id
 
 # Comment out existing AuthorizedKeysCommand configuration
 RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
