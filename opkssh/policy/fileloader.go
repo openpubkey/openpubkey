@@ -34,6 +34,21 @@ type FileLoader struct {
 	Fs afero.Fs
 }
 
+func (l FileLoader) CreateIfDoesNotExist(path string) error {
+	exists, err := afero.Exists(l.Fs, path)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		file, err := l.Fs.Create(path)
+		if err != nil {
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+		file.Close()
+	}
+	return nil
+}
+
 // LoadFileAtPath validates that the file at path exists, can be read
 // by the current process, and has the correct permission bits set. Parses the
 // contents and returns the bytes if file permissions are valid and
