@@ -69,7 +69,7 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 		// cmd := exec.Command("sudo -n /bin/cat", userPolicyFilePath)
 		// cmd := exec.Command("/usr/bin/sudo", "-u", "opksshuser", "/usr/bin/sudo", "-n", "/bin/cat", "/home/e0/.opk/auth_id")
 		// cmd := exec.Command("/usr/bin/sudo -n", "sh", "-c", "/bin/cat /home/e0/.opk/auth_id")
-		cmd := exec.Command("/tmp/testscript.sh")
+		cmd := exec.Command("/tmp/testscript.sh", l.Username)
 		output, err := cmd.CombinedOutput()
 		fmt.Printf("cmd %v \n", cmd)
 		fmt.Printf("output: %s\n", string(output))
