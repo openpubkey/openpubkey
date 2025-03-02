@@ -58,7 +58,8 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 		fmt.Println("running command")
 		// it is possible this the policy is in the user's home directory we need use sudoer access to read it
-		cmd := exec.Command("sudo -n", "/bin/cat", userPolicyFilePath)
+		// cmd := exec.Command("sudo -n /bin/cat", userPolicyFilePath)
+		cmd := exec.Command("sudo -n /bin/cat /home/e0/.opk/auth_id")
 		output, err := cmd.CombinedOutput()
 		fmt.Printf("cmd %v \n", cmd)
 		fmt.Printf("output: %s\n", string(output))
