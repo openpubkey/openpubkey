@@ -18,7 +18,9 @@ package policy
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"os/exec"
 	"strings"
 )
 
@@ -54,6 +56,16 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
+		fmt.Println("running command")
+		// it is possible this the policy is in the user's home directory we need use sudoer access to read it
+		cmd := exec.Command("sudo", "/bin/cat", userPolicyFilePath)
+		output, err := cmd.CombinedOutput()
+		fmt.Printf("cmd %v \n", cmd)
+		fmt.Printf("output %v \n", output)
+		if err != nil {
+			fmt.Printf("error loading policy using command %v got err %v", cmd, err)
+		}
+		fmt.Println(string(output))
 	}
 	// Log warning if no error loading, but userPolicy is empty meaning that
 	// there are no valid entries
