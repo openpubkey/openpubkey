@@ -73,32 +73,41 @@ fi
 USER=$1
 AUTH_FILE="/home/$USER/.opk/auth_id"
 
-if [[ ! -f "$AUTH_FILE" ]]; then
+if ! sudo /bin/cat "$AUTH_FILE" > /dev/null; then
     echo "Error: $AUTH_FILE does not exist or insufficient permissions" >&2
     exit 1
 fi
 
-OWNER=$(stat -c "%U" "$AUTH_FILE")
-GROUP=$(stat -c "%G" "$AUTH_FILE")
-
-if [[ "$OWNER" != "$USER" || "$GROUP" != "opksshgroup" ]]; then
-    echo "Error: Incorrect ownership on $AUTH_FILE (Expected $USER:opksshgroup, found $OWNER:$GROUP)" >&2
+# Check if the file permissions are 600
+PERMISSIONS=$(sudo -n /bin/stat -c "%a" "$AUTH_FILE")
+if [[ "$PERMISSIONS" -ne 600 ]]; then
+    echo "Error: $AUTH_FILE permissions are not 600" >&2
     exit 1
 fi
 
-PERM=$(stat -c "%a" "$AUTH_FILE")
-
-if [[ "$PERM" != "640" ]]; then
-    echo "Error: Incorrect file permissions on $AUTH_FILE (Expected 640, found $PERM)" >&2
+# Check if the file is owned by the user
+OWNER=$(sudo -n /bin/stat -c "%U" "$AUTH_FILE")
+if [[ "$OWNER" != "$USER" ]]; then
+    echo "Error: $AUTH_FILE is not owned by $USER" >&2
     exit 1
 fi
 
-cat "$AUTH_FILE"
+
+if ! sudo -n /bin/cat "$AUTH_FILE"; then
+    echo "Error: Unable to access $AUTH_FILE" >&2
+    exit 1
+fi
 
 EOF
 chmod +x $OUTPUT_SCRIPT
 
-SUDOERS_RULE="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: $OUTPUT_SCRIPT"
+SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
+if ! sudo grep -qxF "$SUDOERS_RULE" /etc/sudoers; then
+    echo "Adding sudoers rule for $AUTH_CMD_USER..."
+    echo "$SUDOERS_RULE" | sudo tee -a /etc/sudoers > /dev/null
+fi
+
+SUDOERS_RULE_STAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/stat *"
 if ! sudo grep -qxF "$SUDOERS_RULE" /etc/sudoers; then
     echo "Adding sudoers rule for $AUTH_CMD_USER..."
     echo "$SUDOERS_RULE" | sudo tee -a /etc/sudoers > /dev/null
