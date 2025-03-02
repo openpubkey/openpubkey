@@ -19,6 +19,7 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
 
 	"github.com/openpubkey/openpubkey/pktoken"
 	"golang.org/x/exp/slices"
@@ -39,7 +40,15 @@ type Enforcer struct {
 func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
 	policy, source, err := p.PolicyLoader.Load()
 	if err != nil {
-		return fmt.Errorf("error loading policy: %w", err)
+		// it is possible this the policy is in the user's home directory we need use sudoer access to read it
+		cmd := exec.Command("sudo", "/bin/cat", "/home/"+principalDesired+"/.opk/auth_id")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("error loading policy using command %v got err %w", cmd, err)
+		}
+		fmt.Println(string(output))
+
+		// return fmt.Errorf("error loading policy: %w", err)
 	}
 
 	sourceStr := source.Source()

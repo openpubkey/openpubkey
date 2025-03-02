@@ -56,6 +56,54 @@ else
     echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
 fi
 
+# Creates script that can read ~/.opk/auth_id
+OUTPUT_SCRIPT="/etc/opk/check_home.sh"
+cat << 'EOF' > $OUTPUT_SCRIPT
+#!/bin/bash
+
+# ensure script fails on any error
+set -euo pipefail
+
+# Ensure exactly one argument is passed (user)
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <user>" >&2
+    exit 1
+fi
+
+USER=$1
+AUTH_FILE="/home/$USER/.opk/auth_id"
+
+if [[ ! -f "$AUTH_FILE" ]]; then
+    echo "Error: $AUTH_FILE does not exist or insufficient permissions" >&2
+    exit 1
+fi
+
+OWNER=$(stat -c "%U" "$AUTH_FILE")
+GROUP=$(stat -c "%G" "$AUTH_FILE")
+
+if [[ "$OWNER" != "$USER" || "$GROUP" != "opksshgroup" ]]; then
+    echo "Error: Incorrect ownership on $AUTH_FILE (Expected $USER:opksshgroup, found $OWNER:$GROUP)" >&2
+    exit 1
+fi
+
+PERM=$(stat -c "%a" "$AUTH_FILE")
+
+if [[ "$PERM" != "640" ]]; then
+    echo "Error: Incorrect file permissions on $AUTH_FILE (Expected 640, found $PERM)" >&2
+    exit 1
+fi
+
+cat "$AUTH_FILE"
+
+EOF
+chmod +x $OUTPUT_SCRIPT
+
+SUDOERS_RULE="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: $OUTPUT_SCRIPT"
+if ! sudo grep -qxF "$SUDOERS_RULE" /etc/sudoers; then
+    echo "Adding sudoers rule for $AUTH_CMD_USER..."
+    echo "$SUDOERS_RULE" | sudo tee -a /etc/sudoers > /dev/null
+fi
+
 sudo mkdir -p /etc/opk
 sudo touch /etc/opk/auth_id
 sudo chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
