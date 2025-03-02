@@ -23,6 +23,21 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jws"
 )
 
+// Options configures VerifySignedMessage behavior
+type Options struct {
+	Typ string // Override for the expected typ value
+}
+
+// OptionFunc is a function that configures Options
+type OptionFunc func(*Options)
+
+// WithTyp sets a custom typ value for verification
+func WithTyp(typ string) OptionFunc {
+	return func(o *Options) {
+		o.Typ = typ
+	}
+}
+
 // NewSignedMessage signs a message with the signer provided. The signed
 // message is OSM (OpenPubkey Signed Message) which is a type of
 // JWS (JSON Web Signature). OSMs commit to the PK Token which was used
@@ -60,7 +75,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 	)
 }
 
-// NewSignedMessage verifies that an OSM (OpenPubkey Signed Message) using
+// VerifySignedMessage verifies that an OSM (OpenPubkey Signed Message) using
 // the public key in this PK Token. If verification is successful,
 // VerifySignedMessage returns the content of the signed message. Otherwise
 // it returns an error explaining why verification failed.
@@ -68,7 +83,16 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 // Note: VerifySignedMessage does not check this the PK Token is valid.
 // The PK Token should always be verified first before calling
 // VerifySignedMessage
-func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
+func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte, error) {
+	// Default options
+	opts := Options{
+		Typ: "osm", // Default to "osm" for backward compatibility
+	}
+	// Apply provided options
+	for _, opt := range options {
+		opt(&opts)
+	}
+
 	cic, err := p.GetCicValues()
 	if err != nil {
 		return nil, err
@@ -85,13 +109,13 @@ func (p *PKToken) VerifySignedMessage(osm []byte) ([]byte, error) {
 	}
 	protected := message.Signatures()[0].ProtectedHeaders()
 
-	// Verify typ header matches expected "osm" value
+	// Verify typ header matches expected value from options
 	typ, ok := protected.Get("typ")
 	if !ok {
 		return nil, fmt.Errorf("missing required header `typ`")
 	}
-	if typ != "osm" {
-		return nil, fmt.Errorf(`incorrect "typ" header, expected "osm" but received %s`, typ)
+	if typ != opts.Typ {
+		return nil, fmt.Errorf(`incorrect "typ" header, expected %q but received %s`, opts.Typ, typ)
 	}
 
 	// Verify key algorithm header matches cic
