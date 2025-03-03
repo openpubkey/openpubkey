@@ -18,7 +18,6 @@ package policy
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os/exec"
 	"strings"
@@ -57,19 +56,16 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 
-		log.Println("running command")
-		// it is possible this the policy is in the user's home directory we need use sudoer access to read it
-		// cmd := exec.Command("sudo -n /bin/cat", userPolicyFilePath)
-		// cmd := exec.Command("/usr/bin/sudo", "-u", "opksshuser", "/usr/bin/sudo", "-n", "/bin/cat", "/home/e0/.opk/auth_id")
-		// cmd := exec.Command("/usr/bin/sudo -n", "sh", "-c", "/bin/cat /home/e0/.opk/auth_id")
+		// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
+		// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
 		cmd := exec.Command("/etc/opk/check_home.sh", l.Username)
+		log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("error loading policy using command %v got err %v", cmd, err)
+			log.Printf("error loading policy using command %v got err %v", cmd, err)
 		} else {
 			userPolicy = FromTable(output, userPolicyFilePath)
 		}
-		log.Println(string(output))
 	}
 	// Log warning if no error loading, but userPolicy is empty meaning that
 	// there are no valid entries

@@ -95,6 +95,62 @@ if command -v $BINARY_NAME &> /dev/null; then
 
     systemctl restart ssh
 
+    # Creates script that can read ~/.opk/auth_id
+    OUTPUT_SCRIPT="/etc/opk/check_home.sh"
+    cat << 'EOF' > $OUTPUT_SCRIPT
+    #!/bin/bash
+
+    # ensure script fails on any error
+    set -euo pipefail
+
+    # Ensure exactly one argument is passed (user)
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: $0 <user>" >&2
+        exit 1
+    fi
+
+    USER=$1
+    AUTH_FILE="/home/$USER/.opk/auth_id"
+
+    if ! sudo /bin/cat "$AUTH_FILE" > /dev/null; then
+        echo "Error: $AUTH_FILE does not exist or insufficient permissions" >&2
+        exit 1
+    fi
+
+    # Check if the file permissions are 600
+    PERMISSIONS=$(sudo -n /bin/stat -c "%a" "$AUTH_FILE")
+    if [[ "$PERMISSIONS" -ne 600 ]]; then
+        echo "Error: $AUTH_FILE permissions are not 600" >&2
+        exit 1
+    fi
+
+    # Check if the file is owned by the user
+    OWNER=$(sudo -n /bin/stat -c "%U" "$AUTH_FILE")
+    if [[ "$OWNER" != "$USER" ]]; then
+        echo "Error: $AUTH_FILE is not owned by $USER" >&2
+        exit 1
+    fi
+
+
+    if ! sudo -n /bin/cat "$AUTH_FILE"; then
+        echo "Error: Unable to access $AUTH_FILE" >&2
+        exit 1
+    fi
+    EOF
+    chmod +x $OUTPUT_SCRIPT
+
+    SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
+    if ! sudo grep -qxF "$SUDOERS_RULE_CAT" /etc/sudoers; then
+        echo "Adding sudoers rule for $AUTH_CMD_USER..."
+        echo "$SUDOERS_RULE_CAT" | sudo tee -a /etc/sudoers > /dev/null
+    fi
+
+    SUDOERS_RULE_STAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/stat *"
+    if ! sudo grep -qxF "$SUDOERS_RULE_STAT" /etc/sudoers; then
+        echo "Adding sudoers rule for $AUTH_CMD_USER..."
+        echo "$SUDOERS_RULE_STAT" | sudo tee -a /etc/sudoers > /dev/null
+    fi
+
     touch /var/log/opkssh.log
     chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
     chmod 660 /var/log/opkssh.log

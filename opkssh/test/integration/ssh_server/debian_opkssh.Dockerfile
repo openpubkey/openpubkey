@@ -81,8 +81,8 @@ RUN go build -v -o /usr/local/bin/opkssh ./opkssh
 RUN chmod 700 /usr/local/bin/opkssh
 
 RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
-RUN chown ${AUTH_CMD_USER} /etc/opk/providers
-RUN chmod 600 /etc/opk/providers
+RUN chown root:${AUTH_CMD_USER} /etc/opk/providers
+RUN chmod 640 /etc/opk/providers
 
 # Copy binary to unprivileged user's home directory
 RUN cp /usr/local/bin/opkssh /home/test2/.opk/opkssh
