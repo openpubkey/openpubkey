@@ -56,27 +56,20 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
-		// Check if Go can find sudo
-		_, err := exec.LookPath("/usr/bin/sudo")
-		if err != nil {
-			fmt.Println("Error: /usr/bin/sudo not found")
-		} else {
-			fmt.Println("Found /usr/bin/sudo")
-		}
 
-		fmt.Println("running command")
+		log.Println("running command")
 		// it is possible this the policy is in the user's home directory we need use sudoer access to read it
 		// cmd := exec.Command("sudo -n /bin/cat", userPolicyFilePath)
 		// cmd := exec.Command("/usr/bin/sudo", "-u", "opksshuser", "/usr/bin/sudo", "-n", "/bin/cat", "/home/e0/.opk/auth_id")
 		// cmd := exec.Command("/usr/bin/sudo -n", "sh", "-c", "/bin/cat /home/e0/.opk/auth_id")
-		cmd := exec.Command("/tmp/testscript.sh", l.Username)
+		cmd := exec.Command("/etc/opk/check_home.sh", l.Username)
 		output, err := cmd.CombinedOutput()
-		fmt.Printf("cmd %v \n", cmd)
-		fmt.Printf("output: %s\n", string(output))
 		if err != nil {
 			fmt.Printf("error loading policy using command %v got err %v", cmd, err)
+		} else {
+			userPolicy = FromTable(output, userPolicyFilePath)
 		}
-		fmt.Println(string(output))
+		log.Println(string(output))
 	}
 	// Log warning if no error loading, but userPolicy is empty meaning that
 	// there are no valid entries
