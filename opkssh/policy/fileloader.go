@@ -26,7 +26,7 @@ import (
 // ModeOnlyOwner is the expected permission bits that should be set for opkssh
 // policy files. This mode means that only the owner of the file can read
 // TODO: Rename this as we using groups now
-const ModeOnlyOwner = fs.FileMode(0600)
+const ModeOnlyOwner = fs.FileMode(0640)
 
 // UserPolicyLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
@@ -87,7 +87,7 @@ func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
 
 	// only the owner of this file should be able to write to it
 	if mode.Perm() != ModeOnlyOwner {
-		return fmt.Errorf("expected (0600), got (%o)", mode.Perm())
+		return fmt.Errorf("expected (0640), got (%o)", mode.Perm())
 	}
 
 	return nil
