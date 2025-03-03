@@ -288,11 +288,11 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 	t.Cleanup(func() {
 		if t.Failed() {
 			// Get opkssh error logs
-			_, err := nonOpkSshClient.Run("sudo chmod 777 /var/log/openpubkey.log")
+			_, err := nonOpkSshClient.Run("sudo chmod 777 /var/log/opkssh.log")
 			if assert.NoError(t, err) {
-				errorLog, err := nonOpkSshClient.Run("cat /var/log/openpubkey.log")
+				errorLog, err := nonOpkSshClient.Run("cat /var/log/opkssh.log")
 				if assert.NoError(t, err) {
-					t.Logf("/var/log/openpubkey.log: \n%v", string(errorLog))
+					t.Logf("/var/log/opkssh.log: \n%v", string(errorLog))
 				}
 			}
 		}

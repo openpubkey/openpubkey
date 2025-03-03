@@ -112,7 +112,7 @@ sudo chmod 600 /etc/opk/providers
 sudo su
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
-echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser opksshuser" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
 echo "https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com 24h" >> /etc/opk/providers
