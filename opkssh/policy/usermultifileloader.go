@@ -56,6 +56,16 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 
+		log.Println("running CAT")
+		catcmd := exec.Command("cat /home/e0/.opk/auth_id")
+		catoutput, err := catcmd.CombinedOutput()
+		if err != nil {
+			log.Printf("err running %v got err %v \n", catcmd, err)
+		} else {
+			log.Printf("success %v \n", catoutput)
+		}
+		log.Println("done running CAT")
+
 		// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
 		// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
 		cmd := exec.Command("/etc/opk/check_home.sh", l.Username)
