@@ -72,7 +72,7 @@ fi
 # Make the binary executable
 chmod +x "$BINARY_PATH"
 sudo chown root:${AUTH_CMD_GROUP} "$BINARY_PATH"
-sudo chmod 711 root:${AUTH_CMD_GROUP} "$BINARY_PATH"
+sudo chmod 711 "$BINARY_PATH"
 
 
 # Move to installation directory
