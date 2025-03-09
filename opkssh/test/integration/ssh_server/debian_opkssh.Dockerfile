@@ -68,9 +68,9 @@ COPY . ./
 
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
-RUN go build -v -o ./opkssh/opkssh ./opkssh
+RUN go build -v -o opksshbuild ./opkssh
 RUN chmod +x ./opkssh/scripts/install-linux.sh
-RUN bash ./opkssh/scripts/install-linux.sh ./opkssh/opkssh --no-sshd-restart
+RUN bash ./opkssh/scripts/install-linux.sh --local-file=opksshbuild --no-sshd-restart
 # RUN chmod 700 /usr/local/bin/opkssh
 
 # Setup OPK directories/files (unprivileged "test2" user)

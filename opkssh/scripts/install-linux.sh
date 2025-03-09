@@ -30,10 +30,12 @@ if ! command -v jq &> /dev/null; then
 fi
 
 RESTART_SSH=true
+LOCAL_FILE=""
 for arg in "$@"; do
     if [ "$arg" == "--no-sshd-restart" ]; then
         RESTART_SSH=false
-        break
+    elif [[ "$arg" == --local_file=* ]]; then
+        LOCAL_FILE="${arg#*=}"
     fi
 done
 
@@ -51,8 +53,8 @@ else
     echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
 fi
 
-# Check if a path argument is provided
-if [ $# -eq 1 ]; then
+# Check if we should install from a local file
+if [ -n "$LOCAL_FILE" ]; then
     BINARY_PATH="$1"
     if [ ! -f "$BINARY_PATH" ]; then
         echo "Error: Specified binary path does not exist."
@@ -118,7 +120,7 @@ if command -v $BINARY_NAME &> /dev/null; then
     if [ "$RESTART_SSH" = true ]; then
         systemctl restart ssh
     else
-        echo "Skipping SSH restart as per --no-sshd-restart option."
+        echo "--no-sshd-restart option supplied, skipping SSH restart."
     fi
 
     # Creates script that can read ~/.opk/auth_id
