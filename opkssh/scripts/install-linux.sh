@@ -107,7 +107,7 @@ if command -v $BINARY_NAME &> /dev/null; then
     echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t" >> /etc/ssh/sshd_config
     echo "AuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 
-    systemctl restart ssh
+    # systemctl restart ssh
 
     # Creates script that can read ~/.opk/auth_id
     OUTPUT_SCRIPT=${INSTALL_DIR}"/opkssh_read_home.sh"
