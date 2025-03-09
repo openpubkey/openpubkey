@@ -30,12 +30,12 @@ if ! command -v jq &> /dev/null; then
 fi
 
 RESTART_SSH=true
-LOCAL_FILE=""
+LOCAL_INSTALL_FILE=""
 for arg in "$@"; do
     if [ "$arg" == "--no-sshd-restart" ]; then
         RESTART_SSH=false
-    elif [[ "$arg" == --local_file=* ]]; then
-        LOCAL_FILE="${arg#*=}"
+    elif [[ "$arg" == --install-from=* ]]; then
+        LOCAL_INSTALL_FILE="${arg#*=}"
     fi
 done
 
@@ -56,7 +56,7 @@ fi
 echo "Local_file is $LOCAL_FILE"
 # Check if we should install from a local file
 if [ -n "$LOCAL_FILE" ]; then
-    BINARY_PATH=$LOCAL_FILE
+    BINARY_PATH=$LOCAL_INSTALL_FILE
     if [ ! -f "$BINARY_PATH" ]; then
         echo "Error: Specified binary path does not exist."
         exit 1
