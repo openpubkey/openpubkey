@@ -72,6 +72,12 @@ fi
 # Make the binary executable
 chmod +x "$BINARY_PATH"
 
+# If binary exists from a prior install, delete it
+if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then
+    echo "Existing binary found at $INSTALL_DIR/$BINARY_NAME. Deleting it..."
+    sudo rm -f "$INSTALL_DIR/$BINARY_NAME"
+fi
+
 # Move to installation directory
 mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 
