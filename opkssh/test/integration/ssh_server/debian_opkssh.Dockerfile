@@ -6,6 +6,9 @@ RUN apt-get update -y && apt-get upgrade -y
 # Install dependencies, such as the SSH server
 RUN apt-get install -y sudo openssh-server telnet
 
+
+
+
 # Source:
 # https://medium.com/@ratnesh4209211786/simplified-ssh-server-setup-within-a-docker-container-77eedd87a320
 #
@@ -26,34 +29,27 @@ RUN  echo "test2:test" | chpasswd
 # Allow SSH access
 RUN mkdir /var/run/sshd
 
-ARG AUTH_CMD_USER="opksshuser"
+# ARG AUTH_CMD_USER="opksshuser"
 ARG AUTH_CMD_GROUP="opksshgroup"
 # Creates AuthorizedKeysCommand user and group
-RUN groupadd --system $AUTH_CMD_GROUP
-RUN /usr/sbin/useradd -r -M -s /sbin/nologin -g $AUTH_CMD_GROUP $AUTH_CMD_USER
+# RUN groupadd --system $AUTH_CMD_GROUP
+# RUN /usr/sbin/useradd -r -M -s /sbin/nologin -g $AUTH_CMD_GROUP $AUTH_CMD_USER
 
 # Setup OPK directories/files (root policy)
-RUN mkdir -p /etc/opk
-RUN touch /etc/opk/auth_id
-RUN chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
-RUN chmod 640 /etc/opk/auth_id
-RUN touch /etc/opk/providers
-RUN chmod 640 /etc/opk/providers
-RUN cat /etc/opk/providers
-RUN chown root:${AUTH_CMD_GROUP} /etc/opk/providers
+# RUN mkdir -p /etc/opk
+# RUN touch /etc/opk/auth_id
+# RUN chown root:${AUTH_CMD_GROUP} /etc/opk/auth_id
+# RUN chmod 640 /etc/opk/auth_id
+# RUN touch /etc/opk/providers
+# RUN chmod 640 /etc/opk/providers
+# RUN cat /etc/opk/providers
+# RUN chown root:${AUTH_CMD_GROUP} /etc/opk/providers
 
-# Setup OPK directories/files (unprivileged "test2" user)
-RUN mkdir -p /home/test2/.opk 
-RUN chown test2:test2 /home/test2/.opk
-RUN chmod 700 /home/test2/.opk
-# Create personal policy file in user's home directory
-RUN touch /home/test2/.opk/auth_id
-RUN chown test2:${AUTH_CMD_GROUP} /home/test2/.opk/auth_id
-RUN chmod 640 /home/test2/.opk/auth_id
+
 
 # Comment out existing AuthorizedKeysCommand configuration
-RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
-RUN sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
+# RUN sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
+# RUN sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
 
 
 
@@ -79,20 +75,32 @@ COPY . ./
 
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
-RUN go build -v -o /usr/local/bin/opkssh ./opkssh
-RUN chmod 700 /usr/local/bin/opkssh
+RUN go build -v -o ./opkssh/opkssh ./opkssh
+RUN chmod +x scripts/install-linux.sh
+RUN ./opkssh/scripts/install-linux.sh ./opkssh/opkssh
+# RUN chmod 700 /usr/local/bin/opkssh
+
+# Setup OPK directories/files (unprivileged "test2" user)
+RUN mkdir -p /home/test2/.opk 
+RUN chown test2:test2 /home/test2/.opk
+RUN chmod 700 /home/test2/.opk
+# Create personal policy file in user's home directory
+RUN touch /home/test2/.opk/auth_id
+# TODO: After the rearch we won't need this to be in the group. Change back to just test2
+RUN chown test2:opksshgroup /home/test2/.opk/auth_id
+RUN chmod 640 /home/test2/.opk/auth_id
 
 RUN echo "http://oidc.local:${ISSUER_PORT}/ web oidc_refreshed" >> /etc/opk/providers
-RUN chown root:${AUTH_CMD_GROUP} /etc/opk/providers
-RUN chmod 640 /etc/opk/providers
+# RUN chown root:${AUTH_CMD_GROUP} /etc/opk/providers
+# RUN chmod 640 /etc/opk/providers
 
 # Copy binary to unprivileged user's home directory
 RUN cp /usr/local/bin/opkssh /home/test2/.opk/opkssh
 RUN chown test2:test2 /home/test2/.opk/opkssh
 
-RUN touch /var/log/opkssh.log
-RUN chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
-RUN chmod 660 /var/log/opkssh.log
+# RUN touch /var/log/opkssh.log
+# RUN chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
+# RUN chmod 660 /var/log/opkssh.log
 
 # Add integration test user as allowed email in policy (this directly tests
 # policy "add" command)
