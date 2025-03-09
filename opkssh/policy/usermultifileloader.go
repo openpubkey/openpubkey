@@ -59,7 +59,7 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 			userPolicyFilePath := path.Join("/home", l.Username, ".opk", "auth_id")
 			// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
 			// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
-			cmd := exec.Command("/usr/local/bin/opkssh_read_home.sh", l.Username)
+			cmd := exec.Command("bash /usr/local/bin/opkssh_read_home.sh", l.Username)
 			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
