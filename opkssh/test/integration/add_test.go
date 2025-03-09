@@ -38,6 +38,7 @@ import (
 const SudoerUser string = "test"
 const UnprivUser string = "test2"
 const RootUser string = "root"
+const UserGroup string = "opksshgroup"
 
 func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd []string, user string) (int, string) {
 	// Execute command
@@ -129,8 +130,8 @@ func TestAdd(t *testing.T) {
 			var expectedPolicyFilepath, expectedUser, expectedGroup string
 			if tt.useSudo {
 				expectedPolicyFilepath = policy.SystemDefaultPolicyPath
-				expectedUser = "root"
-				expectedGroup = "root"
+				expectedUser = RootUser
+				expectedGroup = UserGroup
 			} else {
 				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser

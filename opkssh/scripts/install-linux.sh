@@ -29,7 +29,6 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-
 # Checks if the group and user used by the AuthorizedKeysCommand exists if not creates it
 /usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
 echo "Created group: $AUTH_CMD_USER"
@@ -44,25 +43,37 @@ else
     echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
 fi
 
-# Get the latest release version dynamically using wget
-LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | jq -r .tag_name)
+# Check if a path argument is provided
+if [ $# -eq 1 ]; then
+    BINARY_PATH="$1"
+    if [ ! -f "$BINARY_PATH" ]; then
+        echo "Error: Specified binary path does not exist."
+        exit 1
+    fi
+    echo "Using binary from specified path: $BINARY_PATH"
+else
+    # Get the latest release version dynamically using wget
+    LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | jq -r .tag_name)
 
-if [ "$LATEST_VERSION" == "null" ] || [ -z "$LATEST_VERSION" ]; then
-    echo "Error: Failed to fetch the latest release version."
-    exit 1
+    if [ "$LATEST_VERSION" == "null" ] || [ -z "$LATEST_VERSION" ]; then
+        echo "Error: Failed to fetch the latest release version."
+        exit 1
+    fi
+
+    BINARY_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/opkssh-linux-amd64"
+
+    # Download the binary
+    echo "Downloading $BINARY_NAME from $BINARY_URL..."
+    wget -q --show-progress -O "$BINARY_NAME" "$BINARY_URL"
+
+    BINARY_PATH="$BINARY_NAME"
 fi
 
-BINARY_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/opkssh-linux-amd64"
-
-# Download the binary
-echo "Downloading $BINARY_NAME from $BINARY_URL..."
-wget -q --show-progress -O "$BINARY_NAME" "$BINARY_URL"
-
 # Make the binary executable
-chmod +x "$BINARY_NAME"
+chmod +x "$BINARY_PATH"
 
 # Move to installation directory
-mv "$BINARY_NAME" "$INSTALL_DIR/"
+mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
