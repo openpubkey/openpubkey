@@ -60,7 +60,9 @@ RUN sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
 
 # Add our AuthorizedKeysCommand line so that the opk verifier is called when
 # ssh-ing in
-RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
+# RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
+# TODO: Use the unprivileged user for the AuthorizedKeysCommandUser
+RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 
 # Expose SSH server so we can ssh in from the tests
 EXPOSE 22
