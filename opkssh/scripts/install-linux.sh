@@ -29,6 +29,14 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
+RESTART_SSH=true
+for arg in "$@"; do
+    if [ "$arg" == "--no-sshd-restart" ]; then
+        RESTART_SSH=false
+        break
+    fi
+done
+
 # Checks if the group and user used by the AuthorizedKeysCommand exists if not creates it
 /usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
 echo "Created group: $AUTH_CMD_USER"
@@ -107,7 +115,11 @@ if command -v $BINARY_NAME &> /dev/null; then
     echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t" >> /etc/ssh/sshd_config
     echo "AuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 
-    # systemctl restart ssh
+    if [ "$RESTART_SSH" = true ]; then
+        systemctl restart ssh
+    else
+        echo "Skipping SSH restart as per --no-sshd-restart option."
+    fi
 
     # Creates script that can read ~/.opk/auth_id
     OUTPUT_SCRIPT=${INSTALL_DIR}"/opkssh_read_home.sh"

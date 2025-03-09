@@ -51,11 +51,7 @@ ARG AUTH_CMD_GROUP="opksshgroup"
 
 
 
-# Add our AuthorizedKeysCommand line so that the opk verifier is called when
-# ssh-ing in
-# RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
-# TODO: Use the unprivileged user for the AuthorizedKeysCommandUser
-RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+
 
 # Expose SSH server so we can ssh in from the tests
 EXPOSE 22
@@ -74,7 +70,7 @@ COPY . ./
 ARG ISSUER_PORT="9998"
 RUN go build -v -o ./opkssh/opkssh ./opkssh
 RUN chmod +x ./opkssh/scripts/install-linux.sh
-RUN bash ./opkssh/scripts/install-linux.sh ./opkssh/opkssh
+RUN bash ./opkssh/scripts/install-linux.sh ./opkssh/opkssh --no-sshd-restart
 # RUN chmod 700 /usr/local/bin/opkssh
 
 # Setup OPK directories/files (unprivileged "test2" user)
@@ -103,6 +99,12 @@ RUN chown test2:test2 /home/test2/.opk/opkssh
 # policy "add" command)
 ARG BOOTSTRAP_POLICY
 RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then opkssh add "test" "test-user@zitadel.ch" "http://oidc.local:${ISSUER_PORT}/"; else echo "Will not init policy" ; fi
+
+# Add our AuthorizedKeysCommand line so that the opk verifier is called when
+# ssh-ing in
+# RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
+# TODO: Use the unprivileged user for the AuthorizedKeysCommandUser
+RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 
 # Start SSH server on container startup
 CMD ["/usr/sbin/sshd", "-D"]
