@@ -121,7 +121,7 @@ func TestLoadUserPolicy_ErrorFile(t *testing.T) {
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.FileLoader.Fs
 	// Create policy file at user policy path with invalid data
-	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "auth_id"), []byte("{"), 0600)
+	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "auth_id"), []byte("{"), 0640)
 	require.NoError(t, err)
 
 	policy, path, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
@@ -153,7 +153,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
-	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0640)
 	require.NoError(t, err)
 
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, false)
@@ -214,7 +214,7 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
-	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
+	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0640)
 	require.NoError(t, err)
 	gotPolicy, gotPath, err := policyLoader.LoadUserPolicy(ValidUser.Username, true)
 
@@ -270,7 +270,7 @@ func TestLoadPolicyAtPath_ReadError(t *testing.T) {
 		mockUserLookup,
 	)
 	// Create empty policy file with correct permissions
-	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0600)
+	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte{}, 0640)
 	require.NoError(t, err)
 	// Now make it so mock filesystem returns error when reading the file (must
 	// do this after creating the SystemDefaultPolicyPath file above)
@@ -292,7 +292,7 @@ func TestLoadSystemDefaultPolicy_ErrorFile(t *testing.T) {
 	policyLoader := NewTestPolicyFileLoader(afero.NewMemMapFs(), mockUserLookup)
 	mockFs := policyLoader.FileLoader.Fs
 	// Create policy file at default path with invalid file
-	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0600)
+	err := afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, []byte("{"), 0640)
 	require.NoError(t, err)
 	policy, err := policyLoader.LoadSystemDefaultPolicy()
 	require.NoError(t, err)
@@ -322,7 +322,7 @@ func TestLoadSystemDefaultPolicy_Success(t *testing.T) {
 	}
 	testPolicyFile, err := testPolicy.ToTable()
 	require.NoError(t, err)
-	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyFile, 0600)
+	err = afero.WriteFile(mockFs, policy.SystemDefaultPolicyPath, testPolicyFile, 0640)
 	require.NoError(t, err)
 	gotPolicy, err := policyLoader.LoadSystemDefaultPolicy()
 

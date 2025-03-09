@@ -168,7 +168,7 @@ func TestAdd(t *testing.T) {
 				require.Len(t, statOutputSplit, 3, "expected stat command to return 3 values")
 				require.Equal(t, expectedUser, statOutputSplit[0])  // Assert user
 				require.Equal(t, expectedGroup, statOutputSplit[1]) // Assert group
-				require.Equal(t, "600", statOutputSplit[2])         // Assert permissions
+				require.Equal(t, "640", statOutputSplit[2])         // Assert permissions
 			}
 
 			// No matter what, if command fails or succeeds, the root policy
