@@ -55,7 +55,7 @@ fi
 
 echo "Local_file is $LOCAL_FILE"
 # Check if we should install from a local file
-if [ -n "$LOCAL_FILE" ]; then
+if [ -n "$LOCAL_INSTALL_FILE" ]; then
     BINARY_PATH=$LOCAL_INSTALL_FILE
     if [ ! -f "$BINARY_PATH" ]; then
         echo "Error: Specified binary path does not exist."
