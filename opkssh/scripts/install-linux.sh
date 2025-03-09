@@ -69,14 +69,13 @@ else
     BINARY_PATH="$BINARY_NAME"
 fi
 
-# Make the binary executable
-chmod +x "$BINARY_PATH"
-sudo chown root:${AUTH_CMD_GROUP} "$BINARY_PATH"
-sudo chmod 711 "$BINARY_PATH"
-
-
 # Move to installation directory
-mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
+sudo mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
+
+# Make the binary executable, correct permissions/ownership
+sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+sudo chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
+sudo chmod 711 "$INSTALL_DIR/$BINARY_NAME"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
