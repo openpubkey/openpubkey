@@ -154,6 +154,8 @@ if command -v $BINARY_NAME &> /dev/null; then
 EOF
     chmod +x $OUTPUT_SCRIPT
 
+    # TODO: Make sure no one but root can write to this file
+
     SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
     if ! sudo grep -qxF "$SUDOERS_RULE_CAT" /etc/sudoers; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
