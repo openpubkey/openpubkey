@@ -4,10 +4,7 @@ FROM golang:1.22-bookworm
 RUN apt-get update -y && apt-get upgrade -y
 
 # Install dependencies, such as the SSH server
-RUN apt-get install -y sudo openssh-server telnet
-
-
-
+RUN apt-get install -y sudo openssh-server telnet jq
 
 # Source:
 # https://medium.com/@ratnesh4209211786/simplified-ssh-server-setup-within-a-docker-container-77eedd87a320
