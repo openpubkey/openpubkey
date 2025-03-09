@@ -72,11 +72,11 @@ fi
 # Make the binary executable
 chmod +x "$BINARY_PATH"
 
-# If binary exists from a prior install, delete it
-if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then
-    echo "Existing binary found at $INSTALL_DIR/$BINARY_NAME. Deleting it..."
-    sudo rm -f "$INSTALL_DIR/$BINARY_NAME"
-fi
+# # If binary exists from a prior install, delete it
+# if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then
+#     echo "Existing binary found at $INSTALL_DIR/$BINARY_NAME. Deleting it..."
+#     sudo rm -f "$INSTALL_DIR/$BINARY_NAME"
+# fi
 
 # Move to installation directory
 mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
@@ -154,6 +154,7 @@ if command -v $BINARY_NAME &> /dev/null; then
         exit 1
     fi
     EOF
+
     chmod +x $OUTPUT_SCRIPT
 
     SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
