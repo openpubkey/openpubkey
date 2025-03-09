@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -38,8 +39,8 @@ func (s FileSource) Source() string {
 // Username's home directory)
 type UserMultiFileLoader struct {
 	*UserPolicyLoader
-
-	Username string
+	LoadWithScript bool
+	Username       string
 }
 
 func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
@@ -54,27 +55,20 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	// Try to load the user policy
 	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
 	if userPolicyErr != nil {
-		log.Println("warning: failed to load user policy:", userPolicyErr)
-
-		log.Println("running CAT")
-		catcmd := exec.Command("cat /home/e0/.opk/auth_id")
-		catoutput, err := catcmd.CombinedOutput()
-		if err != nil {
-			log.Printf("err running %v got err %v \n", catcmd, err)
+		if l.LoadWithScript {
+			userPolicyFilePath := path.Join("/home", l.Username, ".opk", "auth_id")
+			// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
+			// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
+			cmd := exec.Command("/etc/opk/check_home.sh", l.Username)
+			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				log.Printf("error loading policy using command %v got err %v", cmd, err)
+			} else {
+				userPolicy = FromTable(output, userPolicyFilePath)
+			}
 		} else {
-			log.Printf("success %v \n", catoutput)
-		}
-		log.Println("done running CAT")
-
-		// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
-		// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
-		cmd := exec.Command("/etc/opk/check_home.sh", l.Username)
-		log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Printf("error loading policy using command %v got err %v", cmd, err)
-		} else {
-			userPolicy = FromTable(output, userPolicyFilePath)
+			log.Println("warning: failed to load user policy:", userPolicyErr)
 		}
 	}
 	// Log warning if no error loading, but userPolicy is empty meaning that
