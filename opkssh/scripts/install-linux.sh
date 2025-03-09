@@ -76,12 +76,13 @@ sudo mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
 sudo chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
 sudo chmod 711 "$INSTALL_DIR/$BINARY_NAME"
+echo `ls -l opkssh`
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
-    sudo chown 700 /usr/local/bin/opkssh
-    sudo chmod +x /usr/local/bin/opkssh
-        echo "Installation successful! Run '$BINARY_NAME' to use it."
+    # sudo chown 700 /usr/local/bin/opkssh
+    # sudo chmod +x /usr/local/bin/opkssh
+    echo "Installation successful! Run '$BINARY_NAME' to use it."
 
     # Setup configuration
     echo "Configuring opkssh."
@@ -168,6 +169,8 @@ EOF
     touch /var/log/opkssh.log
     chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
     chmod 660 /var/log/opkssh.log
+
+    echo `ls -l opkssh`
 else
     echo "Installation failed."
     exit 1
