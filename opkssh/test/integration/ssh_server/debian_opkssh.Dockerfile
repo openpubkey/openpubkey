@@ -76,7 +76,7 @@ COPY . ./
 # Build "opkssh" binary and write to the opk directory
 ARG ISSUER_PORT="9998"
 RUN go build -v -o ./opkssh/opkssh ./opkssh
-RUN chmod +x scripts/install-linux.sh
+RUN chmod +x ./opkssh/scripts/install-linux.sh
 RUN ./opkssh/scripts/install-linux.sh ./opkssh/opkssh
 # RUN chmod 700 /usr/local/bin/opkssh
 
