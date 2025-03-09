@@ -110,7 +110,7 @@ if command -v $BINARY_NAME &> /dev/null; then
     systemctl restart ssh
 
     # Creates script that can read ~/.opk/auth_id
-    OUTPUT_SCRIPT="/etc/opk/check_home.sh"
+    OUTPUT_SCRIPT=${INSTALL_DIR}"/opkssh_read_home.sh"
     cat << 'EOF' > $OUTPUT_SCRIPT
     #!/bin/bash
 
