@@ -153,7 +153,7 @@ if command -v $BINARY_NAME &> /dev/null; then
 EOF
     # Ensure no one but root can write to this file
     sudo chown root $OUTPUT_SCRIPT
-    sudo chmod 711 $OUTPUT_SCRIPT
+    sudo chmod 755 $OUTPUT_SCRIPT
     sudo chmod +x $OUTPUT_SCRIPT
 
     SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
