@@ -153,7 +153,7 @@ if command -v $BINARY_NAME &> /dev/null; then
         echo "Error: Unable to access $AUTH_FILE" >&2
         exit 1
     fi
-    EOF
+EOF
 
     chmod +x $OUTPUT_SCRIPT
 
