@@ -76,8 +76,6 @@ sudo mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
 sudo chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
 sudo chmod 711 "$INSTALL_DIR/$BINARY_NAME"
-echo `ls -l /usr/local/bin/opkssh`
-echo "Set permissions for $INSTALL_DIR/$BINARY_NAME"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
@@ -153,9 +151,10 @@ if command -v $BINARY_NAME &> /dev/null; then
         exit 1
     fi
 EOF
-    chmod +x $OUTPUT_SCRIPT
-
-    # TODO: Make sure no one but root can write to this file
+    # Ensure no one but root can write to this file
+    sudo chown root $OUTPUT_SCRIPT
+    sudo chmod 711 $OUTPUT_SCRIPT
+    sudo chmod +x $OUTPUT_SCRIPT
 
     SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
     if ! sudo grep -qxF "$SUDOERS_RULE_CAT" /etc/sudoers; then
@@ -172,8 +171,6 @@ EOF
     touch /var/log/opkssh.log
     chown root:${AUTH_CMD_GROUP} /var/log/opkssh.log
     chmod 660 /var/log/opkssh.log
-
-    echo `ls -l opkssh`
 else
     echo "Installation failed."
     exit 1
