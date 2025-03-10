@@ -49,12 +49,11 @@ RUN bash ./opkssh/scripts/install-linux.sh --install-from=opksshbuild --no-sshd-
 # Setup OPK directories/files (unprivileged "test2" user)
 RUN mkdir -p /home/test2/.opk 
 RUN chown test2:test2 /home/test2/.opk
-RUN chmod 700 /home/test2/.opk
+RUN chmod 750 /home/test2/.opk
 # Create personal policy file in user's home directory
 RUN touch /home/test2/.opk/auth_id
-# TODO: After the rearch we won't need this to be in the group. Change back to just test2
-RUN chown test2:opksshgroup /home/test2/.opk/auth_id
-RUN chmod 640 /home/test2/.opk/auth_id
+RUN chown test2:test2 /home/test2/.opk/auth_id
+RUN chmod 600 /home/test2/.opk/auth_id
 
 
 

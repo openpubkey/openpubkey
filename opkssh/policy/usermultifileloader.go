@@ -19,8 +19,6 @@ package policy
 import (
 	"errors"
 	"log"
-	"os/exec"
-	"path"
 	"strings"
 )
 
@@ -38,38 +36,25 @@ func (s FileSource) Source() string {
 // policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
 type UserMultiFileLoader struct {
-	*UserPolicyLoader
-	LoadWithScript bool
-	Username       string
+	HomePolicyLoader   *HomePolicyLoader
+	SystemPolicyLoader *SystemPolicyLoader
+	LoadWithScript     bool
+	Username           string
 }
 
 func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy
-	rootPolicy, rootPolicyErr := l.LoadSystemDefaultPolicy()
+	// TODO: Actually use the source rather _
+	rootPolicy, _, rootPolicyErr := l.SystemPolicyLoader.LoadSystemPolicy()
 	if rootPolicyErr != nil {
 		log.Println("warning: failed to load system default policy:", rootPolicyErr)
 	}
-
 	// Try to load the user policy
-	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
+	userPolicy, userPolicyFilePath, userPolicyErr := l.HomePolicyLoader.LoadHomePolicy(l.Username, l.LoadWithScript, true)
 	if userPolicyErr != nil {
-		if l.LoadWithScript {
-			userPolicyFilePath := path.Join("/home", l.Username, ".opk", "auth_id")
-			// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
-			// TODO: This isn't a good place for this code. The file loaders need to be rearchitected
-			cmd := exec.Command("bash", "/usr/local/bin/opkssh_read_home.sh", l.Username)
-			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				log.Printf("error loading policy using command %v got output %v and err %v, ", cmd, string(output), err)
-			} else {
-				userPolicy = FromTable(output, userPolicyFilePath)
-			}
-		} else {
-			log.Println("warning: failed to load user policy:", userPolicyErr)
-		}
+		log.Println("warning: failed to load user policy:", userPolicyErr)
 	}
 	// Log warning if no error loading, but userPolicy is empty meaning that
 	// there are no valid entries

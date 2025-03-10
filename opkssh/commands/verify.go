@@ -94,9 +94,10 @@ func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, t
 func OpkPolicyEnforcerFunc(username string) PolicyEnforcerFunc {
 	policyEnforcer := &policy.Enforcer{
 		PolicyLoader: &policy.UserMultiFileLoader{
-			UserPolicyLoader: policy.NewUserFileLoader(),
-			Username:         username,
-			LoadWithScript:   true, // This is needed to load policy from the user's home directory
+			HomePolicyLoader:   policy.NewHomePolicyLoader(),
+			SystemPolicyLoader: policy.NewSystemPolicyLoader(),
+			Username:           username,
+			LoadWithScript:     true, // This is needed to load policy from the user's home directory
 		},
 	}
 	return policyEnforcer.CheckPolicy

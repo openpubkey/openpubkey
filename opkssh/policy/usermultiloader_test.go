@@ -175,12 +175,14 @@ func TestLoad(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockFs := afero.NewMemMapFs()
+
 			// Init SUT on each sub-test
 			multiFileLoader := &policy.UserMultiFileLoader{
-				UserPolicyLoader: NewTestPolicyFileLoader(afero.NewMemMapFs(), &MockUserLookup{User: ValidUser}),
-				Username:         ValidUser.Username,
+				HomePolicyLoader:   NewTestHomePolicyLoader(mockFs, &MockUserLookup{User: ValidUser}),
+				SystemPolicyLoader: NewTestSystemPolicyLoader(mockFs, &MockUserLookup{User: ValidUser}),
+				Username:           ValidUser.Username,
 			}
-			mockFs := multiFileLoader.FileLoader.Fs
 
 			t.Logf("Root policy: %#v", tt.rootPolicy)
 			t.Logf("User policy: %#v", tt.userPolicy)
@@ -198,7 +200,7 @@ func TestLoad(t *testing.T) {
 				policyFile, err := tt.userPolicy.ToTable()
 				require.NoError(t, err)
 				expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
-				err = afero.WriteFile(mockFs, expectedPath, policyFile, 0640)
+				err = afero.WriteFile(mockFs, expectedPath, policyFile, 0600)
 				require.NoError(t, err)
 				expectedPaths = append(expectedPaths, expectedPath)
 			}

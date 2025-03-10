@@ -23,16 +23,22 @@ import (
 	"github.com/spf13/afero"
 )
 
-// ModeOnlyOwner is the expected permission bits that should be set for opkssh
-// policy files. This mode means that only the owner of the file can read
-// TODO: Rename this as we using groups now
-const ModeOnlyOwner = fs.FileMode(0640)
+// ModeSystemPolicy is the expected permission bits that should be set for opkssh
+// system policy files (`/etc/opk/auth_id`, `/etc/opk/providers`). This mode means
+// that only the owner of the file can write/read to the file, but the group which
+// should be opksshgroup can read the file.
+const ModeSystemPolicy = fs.FileMode(0640)
+
+// ModeHomePolicy is the expected permission bits that should be set for opkssh
+// user home policy files `~/.opk/auth_id`.
+const ModeHomePolicy = fs.FileMode(0600)
 
 // UserPolicyLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
 type FileLoader struct {
-	Fs afero.Fs
+	Fs           afero.Fs
+	RequiredPerm fs.FileMode
 }
 
 func (l FileLoader) CreateIfDoesNotExist(path string) error {
@@ -41,7 +47,7 @@ func (l FileLoader) CreateIfDoesNotExist(path string) error {
 		return err
 	}
 	if !exists {
-		if err := l.Fs.MkdirAll(afero.GetTempDir(l.Fs, path), 0755); err != nil {
+		if err := l.Fs.MkdirAll(afero.GetTempDir(l.Fs, path), 0750); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 		file, err := l.Fs.Create(path)
@@ -49,7 +55,7 @@ func (l FileLoader) CreateIfDoesNotExist(path string) error {
 			return fmt.Errorf("failed to create file: %w", err)
 		}
 		file.Close()
-		if err := l.Fs.Chmod(path, ModeOnlyOwner); err != nil {
+		if err := l.Fs.Chmod(path, l.RequiredPerm); err != nil {
 			return fmt.Errorf("failed to set file permissions: %w", err)
 		}
 	}
@@ -86,17 +92,16 @@ func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
 	mode := fileInfo.Mode()
 
 	// only the owner of this file should be able to write to it
-	if mode.Perm() != ModeOnlyOwner {
-		return fmt.Errorf("expected (0640), got (%o)", mode.Perm())
+	if mode.Perm() != l.RequiredPerm {
+		return fmt.Errorf("expected (%o), got (%o)", l.RequiredPerm.Perm(), mode.Perm())
 	}
-
 	return nil
 }
 
 // Dump writes fileBytes to the filepath
 func (l *FileLoader) Dump(fileBytes []byte, path string) error {
 	// Write to disk
-	if err := afero.WriteFile(l.Fs, path, fileBytes, ModeOnlyOwner); err != nil {
+	if err := afero.WriteFile(l.Fs, path, fileBytes, l.RequiredPerm); err != nil {
 		return err
 	}
 	return nil

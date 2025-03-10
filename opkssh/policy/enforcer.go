@@ -35,7 +35,9 @@ type Enforcer struct {
 // email claim. Returns nil if access is granted. Otherwise, an error is
 // returned.
 //
-// It is recommended to verify the pkt first before calling this function.
+// It is security critical to verify the pkt first before calling this function.
+// This is because if this function is called first, a timing channel exists which
+// allows an attacker check what identities and principals are allowed by the policy.
 func (p *Enforcer) CheckPolicy(principalDesired string, pkt *pktoken.PKToken) error {
 	policy, source, err := p.PolicyLoader.Load()
 	if err != nil {

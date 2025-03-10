@@ -240,8 +240,9 @@ func run() int {
 
 		// Execute add command
 		a := commands.AddCmd{
-			PolicyFileLoader: policy.NewUserFileLoader(),
-			Username:         inputPrincipal,
+			HomePolicyLoader:   policy.NewHomePolicyLoader(),
+			SystemPolicyLoader: policy.NewSystemPolicyLoader(),
+			Username:           inputPrincipal,
 		}
 		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {
 			fmt.Println("failed to add to policy:", err)

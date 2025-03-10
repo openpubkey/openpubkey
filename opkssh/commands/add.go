@@ -26,7 +26,8 @@ import (
 
 // AddCmd provides functionality to read and update the opkssh policy file
 type AddCmd struct {
-	PolicyFileLoader *policy.UserPolicyLoader
+	HomePolicyLoader   *policy.HomePolicyLoader
+	SystemPolicyLoader *policy.SystemPolicyLoader
 
 	// Username is the username to lookup when the system policy file cannot be
 	// read and we fallback to the user's policy file.
@@ -44,12 +45,12 @@ type AddCmd struct {
 // policy. Otherwise, a non-nil error is returned.
 func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 	// Try to read system policy first
-	systemPolicy, err := a.PolicyFileLoader.LoadSystemDefaultPolicy()
+	systemPolicy, _, err := a.SystemPolicyLoader.LoadSystemPolicy()
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			// If current process doesn't have permission, try reading the user
 			// policy file.
-			userPolicy, policyFilePath, err := a.PolicyFileLoader.LoadUserPolicy(a.Username, false)
+			userPolicy, policyFilePath, err := a.HomePolicyLoader.LoadHomePolicy(a.Username, false, false)
 			if err != nil {
 				return nil, "", err
 			}
@@ -65,39 +66,48 @@ func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 }
 
 // GetPolicyPath returns the path to the policy file that the current command
-// will write to.
-func (a *AddCmd) GetPolicyPath(principal string, userEmail string, issuer string) (string, error) {
+// will write to and a boolean to flag the path is for home policy.
+// True means home policy, false means system policy.
+func (a *AddCmd) GetPolicyPath(principal string, userEmail string, issuer string) (string, bool, error) {
 	// Try to read system policy first
-	_, err := a.PolicyFileLoader.LoadSystemDefaultPolicy()
+	_, _, err := a.SystemPolicyLoader.LoadSystemPolicy()
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			// If current process doesn't have permission, try reading the user
 			// policy file.
-			policyFilePath, err := a.PolicyFileLoader.UserPolicyPath(a.Username)
+			policyFilePath, err := a.HomePolicyLoader.UserPolicyPath(a.Username)
 			if err != nil {
-				return "", err
+				return "", false, err
 			}
-			return policyFilePath, nil
+			return policyFilePath, false, nil
 		} else {
 			// Non-permission error (e.g. system policy file missing or invalid
 			// permission bits set). Return error
-			return "", err
+			return "", false, err
 		}
 	}
-	return policy.SystemDefaultPolicyPath, nil
+	return policy.SystemDefaultPolicyPath, true, nil
 }
 
 // Add adds a new allowed principal to the user whose email is equal to
-// userEmail. The current policy file is read and modified.
+// userEmail. The policy file is read and modified.
 //
 // If successful, returns the policy filepath updated. Otherwise, returns a
 // non-nil error
 func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string, error) {
-	policyPath, err := a.GetPolicyPath(principal, userEmail, issuer)
+	policyPath, homePolicy, err := a.GetPolicyPath(principal, userEmail, issuer)
 	if err != nil {
-		return "", fmt.Errorf("failed to load current policy: %w", err)
+		return "", fmt.Errorf("failed to load policy: %w", err)
 	}
-	err = a.PolicyFileLoader.CreateIfDoesNotExist(policyPath)
+
+	var policyLoader *policy.UserPolicyLoader
+	if homePolicy {
+		policyLoader = a.HomePolicyLoader.UserPolicyLoader
+	} else {
+		policyLoader = a.SystemPolicyLoader.UserPolicyLoader
+	}
+
+	err = policyLoader.CreateIfDoesNotExist(policyPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create policy file: %w", err)
 	}
@@ -112,7 +122,7 @@ func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string,
 	currentPolicy.AddAllowedPrincipal(principal, userEmail, issuer)
 
 	// Dump contents back to disk
-	err = a.PolicyFileLoader.Dump(currentPolicy, policyFilePath)
+	err = policyLoader.Dump(currentPolicy, policyFilePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to write updated policy: %w", err)
 	}

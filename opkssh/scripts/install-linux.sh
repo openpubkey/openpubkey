@@ -147,10 +147,9 @@ if command -v $BINARY_NAME &> /dev/null; then
     fi
 
     # Check if the file permissions are 600
-    # TODO: They are 640 as I finish the rearch. They should be changed back to 600 later
     PERMISSIONS=$(sudo -n /bin/stat -c "%a" "$AUTH_FILE")
-    if [[ "$PERMISSIONS" -ne 640 ]]; then
-        echo "Error: $AUTH_FILE permissions are not 640" >&2
+    if [[ "$PERMISSIONS" -ne 600 ]]; then
+        echo "Error: $AUTH_FILE permissions are not 600" >&2
         exit 1
     fi
 
@@ -169,7 +168,7 @@ if command -v $BINARY_NAME &> /dev/null; then
 EOF
     # Ensure no one but root can write to this file
     sudo chown root $OUTPUT_SCRIPT
-    sudo chmod 755 $OUTPUT_SCRIPT
+    sudo chmod 750 $OUTPUT_SCRIPT
     sudo chmod +x $OUTPUT_SCRIPT
 
     SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
