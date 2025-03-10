@@ -90,14 +90,14 @@ func TestAdd(t *testing.T) {
 			desiredPrincipal: UnprivUser,
 			shouldCmdFail:    false,
 		},
-		// {
-		// 	name:             "unprivileged user cannot add principal != self",
-		// 	binaryPath:       "opkssh",
-		// 	useSudo:          false,
-		// 	cmdUser:          UnprivUser,
-		// 	desiredPrincipal: SudoerUser,
-		// 	shouldCmdFail:    true,
-		// },
+		{
+			name:             "unprivileged user cannot add principal != self",
+			binaryPath:       "opkssh",
+			useSudo:          false,
+			cmdUser:          UnprivUser,
+			desiredPrincipal: SudoerUser,
+			shouldCmdFail:    true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

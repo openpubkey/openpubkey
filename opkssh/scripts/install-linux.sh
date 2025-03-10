@@ -147,9 +147,10 @@ if command -v $BINARY_NAME &> /dev/null; then
     fi
 
     # Check if the file permissions are 600
+    # TODO: They are 640 as I finish the rearch. They should be changed back to 600 later
     PERMISSIONS=$(sudo -n /bin/stat -c "%a" "$AUTH_FILE")
-    if [[ "$PERMISSIONS" -ne 600 ]]; then
-        echo "Error: $AUTH_FILE permissions are not 600" >&2
+    if [[ "$PERMISSIONS" -ne 640 ]]; then
+        echo "Error: $AUTH_FILE permissions are not 640" >&2
         exit 1
     fi
 
