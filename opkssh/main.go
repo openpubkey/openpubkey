@@ -55,7 +55,7 @@ func main() {
 
 func run() int {
 	if len(os.Args) < 2 {
-		fmt.Println("OPKSSH (OpenPubkey SSH) CLI: command choices are: login, verify, add, and install")
+		fmt.Println("OPKSSH (OpenPubkey SSH) CLI: command choices are: login, verify, and add")
 		return 1
 	}
 	command := os.Args[1]
@@ -249,20 +249,6 @@ func run() int {
 			return 1
 		} else {
 			fmt.Println("Successfully added new policy to", policyFilePath)
-		}
-	case "install":
-		// The "install" command is sets up and installs opkssh on a server.
-		// It currently has only been tested on Ubuntu. It must be run as root.
-		//
-		// Example line:
-		// 		./opkssh install
-		err := commands.Install()
-		if err != nil {
-			fmt.Println("failed to install opkssh:", err)
-			return 1
-		} else {
-			fmt.Println("Successfully installed opkssh")
-			return 0
 		}
 	case "--version", "-v":
 		fmt.Println(Version)
