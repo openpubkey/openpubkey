@@ -288,11 +288,11 @@ func spawnTestContainers(t *testing.T) (oidcContainer *testprovider.ExampleOpCon
 	t.Cleanup(func() {
 		if t.Failed() {
 			// Get opkssh error logs
-			_, err := nonOpkSshClient.Run("sudo chmod 777 /var/log/openpubkey.log")
+			_, err := nonOpkSshClient.Run("sudo chmod 777 /var/log/opkssh.log")
 			if assert.NoError(t, err) {
-				errorLog, err := nonOpkSshClient.Run("cat /var/log/openpubkey.log")
+				errorLog, err := nonOpkSshClient.Run("cat /var/log/opkssh.log")
 				if assert.NoError(t, err) {
-					t.Logf("/var/log/openpubkey.log: \n%v", string(errorLog))
+					t.Logf("/var/log/opkssh.log: \n%v", string(errorLog))
 				}
 			}
 		}
@@ -383,7 +383,7 @@ func TestEndToEndSSHAsUnprivilegedUser(t *testing.T) {
 
 	// Give integration test user access to test2 via user policy
 	issuer := fmt.Sprintf("http://oidc.local:%s/", issuerPort)
-	cmdString := fmt.Sprintf("/home/test2/.opk/opkssh add \"test2\" \"test-user@zitadel.ch\" \"%s\"", issuer)
+	cmdString := fmt.Sprintf("opkssh add \"test2\" \"test-user@zitadel.ch\" \"%s\"", issuer)
 	code, _ := executeCommandAsUser(t, serverContainer.Container, []string{"/bin/bash", "-c", cmdString}, "test2")
 	require.Equal(t, 0, code, "failed to update user policy")
 

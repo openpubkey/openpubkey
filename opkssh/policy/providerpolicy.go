@@ -133,7 +133,8 @@ type ProvidersFileLoader struct {
 func NewProviderFileLoader() *ProvidersFileLoader {
 	return &ProvidersFileLoader{
 		FileLoader: FileLoader{
-			Fs: afero.NewOsFs(),
+			Fs:           afero.NewOsFs(),
+			RequiredPerm: ModeSystemPolicy,
 		},
 	}
 }

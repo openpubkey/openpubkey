@@ -36,22 +36,23 @@ func (s FileSource) Source() string {
 // policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
 type UserMultiFileLoader struct {
-	*UserPolicyLoader
-
-	Username string
+	HomePolicyLoader   *HomePolicyLoader
+	SystemPolicyLoader *SystemPolicyLoader
+	LoadWithScript     bool
+	Username           string
 }
 
 func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy
-	rootPolicy, rootPolicyErr := l.LoadSystemDefaultPolicy()
+	// TODO: Actually use the source rather _
+	rootPolicy, _, rootPolicyErr := l.SystemPolicyLoader.LoadSystemPolicy()
 	if rootPolicyErr != nil {
 		log.Println("warning: failed to load system default policy:", rootPolicyErr)
 	}
-
 	// Try to load the user policy
-	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
+	userPolicy, userPolicyFilePath, userPolicyErr := l.HomePolicyLoader.LoadHomePolicy(l.Username, l.LoadWithScript, true)
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 	}

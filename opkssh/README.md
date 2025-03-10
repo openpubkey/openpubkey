@@ -204,7 +204,7 @@ sudo opkssh add {USER} {EMAIL} {ISSUER}
 
 ```bash
 AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t
-AuthorizedKeysCommandUser root
+AuthorizedKeysCommandUser opksshuser
 ```
 
 **5: Restart sshd.**

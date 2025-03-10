@@ -44,7 +44,6 @@ type Policy struct {
 
 // FromTable decodes whitespace delimited input into policy.Policy
 func FromTable(input []byte, path string) *Policy {
-
 	table := files.NewTable(input)
 	policy := &Policy{}
 	for i, row := range table.GetRows() {
