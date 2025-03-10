@@ -63,7 +63,7 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
-				log.Printf("error loading policy using command %v got err %v", cmd, err)
+				log.Printf("error loading policy using command %v got output %v and err %v, ", cmd, string(output), err)
 			} else {
 				userPolicy = FromTable(output, userPolicyFilePath)
 			}
