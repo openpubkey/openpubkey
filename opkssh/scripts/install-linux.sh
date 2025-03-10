@@ -18,6 +18,33 @@ PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd7
 AUTH_CMD_USER="opksshuser"
 AUTH_CMD_GROUP="opksshgroup"
 
+RESTART_SSH=true
+LOCAL_INSTALL_FILE=""
+INSTALL_VERSION="latest"
+for arg in "$@"; do
+    if [ "$arg" == "--no-sshd-restart" ]; then
+        RESTART_SSH=false
+    elif [[ "$arg" == --install-from=* ]]; then
+        LOCAL_INSTALL_FILE="${arg#*=}"
+    elif [[ "$arg" == --install-version=* ]]; then
+        INSTALL_VERSION="${arg#*=}"
+    fi
+done
+
+# Display help message
+if [[ "$1" == "--help" ]]; then
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --no-sshd-restart       Do not restart SSH after installation"
+    echo "  --install-from=FILEPATH Install using a local file"
+    echo "  --install-version=VER   Install a specific version from GitHub"
+    echo "  --help                  Display this help message"
+    exit 0
+fi
+
+
+
 # Ensure wget is installed
 if ! command -v wget &> /dev/null; then
     echo "Error: wget is not installed. Please install it first."
@@ -29,15 +56,6 @@ if ! command -v jq &> /dev/null; then
     exit 1
 fi
 
-RESTART_SSH=true
-LOCAL_INSTALL_FILE=""
-for arg in "$@"; do
-    if [ "$arg" == "--no-sshd-restart" ]; then
-        RESTART_SSH=false
-    elif [[ "$arg" == --install-from=* ]]; then
-        LOCAL_INSTALL_FILE="${arg#*=}"
-    fi
-done
 
 # Checks if the group and user used by the AuthorizedKeysCommand exists if not creates it
 /usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
@@ -63,18 +81,14 @@ if [ -n "$LOCAL_INSTALL_FILE" ]; then
     fi
     echo "Using binary from specified path: $BINARY_PATH"
 else
-    # Get the latest release version dynamically using wget
-    LATEST_VERSION=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | jq -r .tag_name)
-
-    if [ "$LATEST_VERSION" == "null" ] || [ -z "$LATEST_VERSION" ]; then
-        echo "Error: Failed to fetch the latest release version."
-        exit 1
+    if [ "$INSTALL_VERSION" == "latest" ]; then
+        BINARY_URL="https://github.com/$GITHUB_REPO/releases/latest/download/opkssh-linux-amd64"
+    else
+        BINARY_URL="https://github.com/$GITHUB_REPO/releases/download/$INSTALL_VERSION/opkssh-linux-amd64"
     fi
 
-    BINARY_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_VERSION/opkssh-linux-amd64"
-
     # Download the binary
-    echo "Downloading $BINARY_NAME from $BINARY_URL..."
+    echo "Downloading version $INSTALL_VERSION of $BINARY_NAME from $BINARY_URL..."
     wget -q --show-progress -O "$BINARY_NAME" "$BINARY_URL"
 
     BINARY_PATH="$BINARY_NAME"
