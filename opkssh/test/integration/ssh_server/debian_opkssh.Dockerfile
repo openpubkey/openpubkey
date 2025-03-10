@@ -26,8 +26,8 @@ RUN  echo "test2:test" | chpasswd
 # Allow SSH access
 RUN mkdir /var/run/sshd
 
-# ARG AUTH_CMD_USER="opksshuser"
-ARG AUTH_CMD_GROUP="opksshgroup"
+ARG AUTH_CMD_USER="opksshuser"
+# ARG AUTH_CMD_GROUP="opksshgroup"
 # Creates AuthorizedKeysCommand user and group
 # RUN groupadd --system $AUTH_CMD_GROUP
 # RUN /usr/sbin/useradd -r -M -s /sbin/nologin -g $AUTH_CMD_GROUP $AUTH_CMD_USER
@@ -104,7 +104,7 @@ RUN if [ -n "$BOOTSTRAP_POLICY" ] ; then opkssh add "test" "test-user@zitadel.ch
 # ssh-ing in
 # RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser ${AUTH_CMD_USER}" >> /etc/ssh/sshd_config
 # TODO: Use the unprivileged user for the AuthorizedKeysCommandUser
-RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+# RUN echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
 
 # Start SSH server on container startup
 CMD ["/usr/sbin/sshd", "-D"]
