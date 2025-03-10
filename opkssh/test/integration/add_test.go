@@ -127,15 +127,17 @@ func TestAdd(t *testing.T) {
 			code, _ := executeCommandAsUser(t, container.Container, []string{"/bin/bash", "-c", strings.Join(cmd, " ")}, tt.cmdUser)
 
 			// Determine expected values based on sub-test options
-			var expectedPolicyFilepath, expectedUser, expectedGroup string
+			var expectedPolicyFilepath, expectedUser, expectedGroup, expectedPerms string
 			if tt.useSudo {
 				expectedPolicyFilepath = policy.SystemDefaultPolicyPath
 				expectedUser = RootUser
 				expectedGroup = UserGroup
+				expectedPerms = "640"
 			} else {
 				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser
 				expectedGroup = tt.cmdUser
+				expectedPerms = "600"
 			}
 
 			if tt.shouldCmdFail {
@@ -169,7 +171,7 @@ func TestAdd(t *testing.T) {
 				require.Len(t, statOutputSplit, 3, "expected stat command to return 3 values")
 				require.Equal(t, expectedUser, statOutputSplit[0])  // Assert user
 				require.Equal(t, expectedGroup, statOutputSplit[1]) // Assert group
-				require.Equal(t, "640", statOutputSplit[2])         // Assert permissions
+				require.Equal(t, expectedPerms, statOutputSplit[2]) // Assert permissions
 			}
 
 			// No matter what, if command fails or succeeds, the root policy
