@@ -49,7 +49,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 	// Read stdout/stderr from command execution
 	b, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	t.Logf("Command `%s` returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), code, string(b))
+	t.Logf("Command `%s` being run as user, %s, returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), user, code, string(b))
 
 	return code, string(b)
 }
