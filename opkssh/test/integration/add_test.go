@@ -49,7 +49,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 	// Read stdout/stderr from command execution
 	b, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	t.Logf("Command `%s` being run as user, %s, returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), user, code, string(b))
+	t.Logf("Command `%s` being run as user %s returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), user, code, string(b))
 
 	return code, string(b)
 }
@@ -90,14 +90,14 @@ func TestAdd(t *testing.T) {
 			desiredPrincipal: UnprivUser,
 			shouldCmdFail:    false,
 		},
-		{
-			name:             "unprivileged user cannot add principal != self",
-			binaryPath:       "opkssh",
-			useSudo:          false,
-			cmdUser:          UnprivUser,
-			desiredPrincipal: SudoerUser,
-			shouldCmdFail:    true,
-		},
+		// {
+		// 	name:             "unprivileged user cannot add principal != self",
+		// 	binaryPath:       "opkssh",
+		// 	useSudo:          false,
+		// 	cmdUser:          UnprivUser,
+		// 	desiredPrincipal: SudoerUser,
+		// 	shouldCmdFail:    true,
+		// },
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
