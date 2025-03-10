@@ -135,7 +135,7 @@ func TestAdd(t *testing.T) {
 			} else {
 				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser
-				expectedGroup = UserGroup // TODO: After loader rearch, change this back
+				expectedGroup = tt.cmdUser
 			}
 
 			if tt.shouldCmdFail {
