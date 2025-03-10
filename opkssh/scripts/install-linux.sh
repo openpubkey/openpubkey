@@ -53,7 +53,7 @@ else
     echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
 fi
 
-echo "Local_file is $LOCAL_FILE"
+echo "--install-from option supplied, installing from local file: $LOCAL_INSTALL_FILE"
 # Check if we should install from a local file
 if [ -n "$LOCAL_INSTALL_FILE" ]; then
     BINARY_PATH=$LOCAL_INSTALL_FILE
