@@ -106,7 +106,7 @@ func TestLoadUserPolicy_FailUserLookup(t *testing.T) {
 	mockUserLookup := &MockUserLookup{Error: fakeError}
 
 	policyLoader := NewTestHomePolicyLoader(afero.NewMemMapFs(), mockUserLookup)
-	policy, path, err := policyLoader.LoadHomePolicy("", false, false)
+	policy, path, err := policyLoader.LoadHomePolicy("", false)
 
 	require.ErrorIs(t, err, fakeError)
 	require.Nil(t, policy, "should not return policy if error")
@@ -121,7 +121,7 @@ func TestLoadUserPolicy_NoUserHomeDir(t *testing.T) {
 	mockUserLookup := &MockUserLookup{User: &user.User{}}
 
 	policyLoader := NewTestHomePolicyLoader(afero.NewMemMapFs(), mockUserLookup)
-	policy, path, err := policyLoader.LoadHomePolicy("", false, false)
+	policy, path, err := policyLoader.LoadHomePolicy("", false)
 
 	require.Error(t, err, "should not read policy if user does not have a home directory")
 	require.Nil(t, policy, "should not return policy if error")
@@ -139,7 +139,7 @@ func TestLoadUserPolicy_ErrorFile(t *testing.T) {
 	err := afero.WriteFile(mockFs, path.Join(ValidUser.HomeDir, ".opk", "auth_id"), []byte("{"), 0600)
 	require.NoError(t, err)
 
-	policy, path, err := policyLoader.LoadHomePolicy(ValidUser.Username, false, false)
+	policy, path, err := policyLoader.LoadHomePolicy(ValidUser.Username, false)
 	require.NoError(t, err)
 	require.False(t, files.ConfigProblems().NoProblems())
 	files.ConfigProblems().Clear()
@@ -171,7 +171,7 @@ func TestLoadUserPolicy_Success(t *testing.T) {
 	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
 	require.NoError(t, err)
 
-	gotPolicy, gotPath, err := policyLoader.LoadHomePolicy(ValidUser.Username, false, false)
+	gotPolicy, gotPath, err := policyLoader.LoadHomePolicy(ValidUser.Username, false)
 
 	require.NoError(t, err)
 	require.Equal(t, testPolicy, gotPolicy)
@@ -231,7 +231,7 @@ func TestLoadUserPolicy_Success_SkipInvalidEntries(t *testing.T) {
 	expectedPath := path.Join(ValidUser.HomeDir, ".opk", "auth_id")
 	err = afero.WriteFile(mockFs, expectedPath, testPolicyFile, 0600)
 	require.NoError(t, err)
-	gotPolicy, gotPath, err := policyLoader.LoadHomePolicy(ValidUser.Username, false, true)
+	gotPolicy, gotPath, err := policyLoader.LoadHomePolicy(ValidUser.Username, true)
 
 	require.NoError(t, err)
 	require.Equal(t, expectedPolicy, gotPolicy)

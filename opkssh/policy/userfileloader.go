@@ -18,9 +18,6 @@ package policy
 
 import (
 	"fmt"
-	"io/fs"
-	"log"
-	"os/exec"
 	"os/user"
 	"path"
 
@@ -135,6 +132,8 @@ func (s *SystemPolicyLoader) LoadSystemPolicy() (*Policy, Source, error) {
 	return policy, FileSource(SystemDefaultPolicyPath), nil
 }
 
+type OptionalLoader func(h *HomePolicyLoader, username string) ([]byte, error)
+
 // HomePolicyLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
@@ -150,9 +149,10 @@ type HomePolicyLoader struct {
 // If skipInvalidEntries is true, then invalid user entries are skipped and not
 // included in the returned policy. A user policy's entry is considered valid if
 // it gives username access. The returned policy is stripped of invalid entries.
-func (h *HomePolicyLoader) LoadHomePolicy(username string, readUsingScript bool, skipInvalidEntries bool) (*Policy, string, error) {
-	// TODO: Replace readUsingScript with a optional function that can run the script
-
+// To specify an alternative Loader that will be used if we don't have sufficient
+// permissions to read the policy file in the user's home directory, pass the
+// alternative loader as the last argument.
+func (h *HomePolicyLoader) LoadHomePolicy(username string, skipInvalidEntries bool, optLoader ...OptionalLoader) (*Policy, string, error) {
 	policyFilePath, err := h.UserPolicyPath(username)
 	if err != nil {
 		return nil, "", fmt.Errorf("error getting user policy path for user %s: %w", username, err)
@@ -160,29 +160,14 @@ func (h *HomePolicyLoader) LoadHomePolicy(username string, readUsingScript bool,
 
 	policyBytes, userPolicyErr := h.FileLoader.LoadFileAtPath(policyFilePath)
 	if userPolicyErr != nil {
-		if readUsingScript {
-			// Ensure the script has the correct permissions and ownership
-			scriptPath := "/usr/local/bin/opkssh_read_home.sh"
-			scriptInfo, err := h.FileLoader.Fs.Stat(scriptPath)
+		if len(optLoader) == 1 {
+			// Try to read using the optional loader
+			policyBytes, err = optLoader[0](h, username)
 			if err != nil {
-				return nil, "", fmt.Errorf("failed to describe the expected script at path: %w", err)
+				return nil, "", fmt.Errorf("failed to read user policy file %s: %w", policyFilePath, err)
 			}
-			mode := scriptInfo.Mode()
-			// If a non-root user can write to the script, then we have enabled minor privilege escalation
-			onlyOwnerCanWrite := fs.FileMode(0755)
-			if mode.Perm() != fs.FileMode(0755) {
-				return nil, "", fmt.Errorf("script has unsafe file permissions expected (%o), got (%o)", onlyOwnerCanWrite, mode.Perm())
-			}
-
-			// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
-			cmd := exec.Command("bash", scriptPath, username)
-			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				return nil, "", fmt.Errorf("error loading policy using command %v got output %v and err %v, ", cmd, string(output), err)
-			} else {
-				policyBytes = output
-			}
+		} else if len(optLoader) > 1 {
+			return nil, "", fmt.Errorf("only one optional loaders allowed, got %d", len(optLoader))
 		} else {
 			return nil, "", fmt.Errorf("failed to read user policy file %s: %w", policyFilePath, err)
 		}

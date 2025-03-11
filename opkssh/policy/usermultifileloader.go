@@ -18,7 +18,10 @@ package policy
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"log"
+	"os/exec"
 	"strings"
 )
 
@@ -52,7 +55,7 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 		log.Println("warning: failed to load system default policy:", rootPolicyErr)
 	}
 	// Try to load the user policy
-	userPolicy, userPolicyFilePath, userPolicyErr := l.HomePolicyLoader.LoadHomePolicy(l.Username, l.LoadWithScript, true)
+	userPolicy, userPolicyFilePath, userPolicyErr := l.HomePolicyLoader.LoadHomePolicy(l.Username, true, ReadWithSudoScript)
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 	}
@@ -80,4 +83,35 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	}
 
 	return policy, FileSource(strings.Join(readPaths, ", ")), nil
+}
+
+// ReadWithSudoScript specifies additional way of loading the policy in the
+// user's home directory (`~/.opk/auth_id`). This is needed when the
+// AuthorizedKeysCommand user does not have privileges to transverse the user's
+// home directory. Instead we use a script and special sudoers permissions scoped
+// specifically to read the policy file.
+func ReadWithSudoScript(h *HomePolicyLoader, username string) ([]byte, error) {
+	// Ensure the script has the correct permissions and ownership
+	scriptPath := "/usr/local/bin/opkssh_read_home.sh"
+	scriptInfo, err := h.FileLoader.Fs.Stat(scriptPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe the expected script at path: %w", err)
+	}
+	mode := scriptInfo.Mode()
+	// Security critical: Only a root user should have permissions to write to the script as the
+	// script if called with sudo -u opksshuser and opksshuser has elevated permissions.
+	onlyOwnerCanWrite := fs.FileMode(0755)
+	if mode.Perm() != fs.FileMode(0755) {
+		return nil, fmt.Errorf("script has unsafe file permissions expected (%o), got (%o)", onlyOwnerCanWrite, mode.Perm())
+	}
+
+	// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
+	cmd := exec.Command("bash", scriptPath, username)
+	log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v, ", cmd, string(output), err)
+	} else {
+		return output, nil
+	}
 }

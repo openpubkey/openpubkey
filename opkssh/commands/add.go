@@ -50,7 +50,7 @@ func (a *AddCmd) LoadPolicy() (*policy.Policy, string, error) {
 		if errors.Is(err, os.ErrPermission) {
 			// If current process doesn't have permission, try reading the user
 			// policy file.
-			userPolicy, policyFilePath, err := a.HomePolicyLoader.LoadHomePolicy(a.Username, false, false)
+			userPolicy, policyFilePath, err := a.HomePolicyLoader.LoadHomePolicy(a.Username, false)
 			if err != nil {
 				return nil, "", err
 			}
