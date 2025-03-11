@@ -18,6 +18,7 @@ package policy
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os/exec"
 	"os/user"
@@ -160,8 +161,21 @@ func (h *HomePolicyLoader) LoadHomePolicy(username string, readUsingScript bool,
 	policyBytes, userPolicyErr := h.FileLoader.LoadFileAtPath(policyFilePath)
 	if userPolicyErr != nil {
 		if readUsingScript {
+			// Ensure the script has the correct permissions and ownership
+			scriptPath := "/usr/local/bin/opkssh_read_home.sh"
+			scriptInfo, err := h.FileLoader.Fs.Stat(scriptPath)
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to describe the expected script at path: %w", err)
+			}
+			mode := scriptInfo.Mode()
+			// If a non-root user can write to the script, then we have enabled minor privilege escalation
+			onlyOwnerCanWrite := fs.FileMode(0755)
+			if mode.Perm() != fs.FileMode(0755) {
+				return nil, "", fmt.Errorf("script has unsafe file permissions expected (%o), got (%o)", onlyOwnerCanWrite, mode.Perm())
+			}
+
 			// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
-			cmd := exec.Command("bash", "/usr/local/bin/opkssh_read_home.sh", username)
+			cmd := exec.Command("bash", scriptPath, username)
 			log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
