@@ -31,8 +31,6 @@ type FileLoader struct {
 	RequiredPerm fs.FileMode
 }
 
-//TODO: Maybe this should live in the files package
-
 func (l FileLoader) CreateIfDoesNotExist(path string) error {
 	exists, err := afero.Exists(l.Fs, path)
 	if err != nil {

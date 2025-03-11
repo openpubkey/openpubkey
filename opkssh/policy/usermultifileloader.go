@@ -51,7 +51,6 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy
-	// TODO: Actually use the source rather _
 	rootPolicy, _, rootPolicyErr := l.SystemPolicyLoader.LoadSystemPolicy()
 	if rootPolicyErr != nil {
 		log.Println("warning: failed to load system default policy:", rootPolicyErr)
