@@ -43,7 +43,7 @@ func TestProvidersPolicyRow_GetExpirationPolicy(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		row := ProvidersPolicyRow{ExpirationPolicy: tc.input}
+		row := ProvidersRow{ExpirationPolicy: tc.input}
 		res, err := row.GetExpirationPolicy()
 		if tc.expectErr {
 			if err == nil {
@@ -63,8 +63,8 @@ func TestProvidersPolicyRow_GetExpirationPolicy(t *testing.T) {
 // Test for ProviderPolicy.ToString.
 func TestProviderPolicy_ToString(t *testing.T) {
 	policy := ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{Issuer: "issuer1", ClientID: "client1", ExpirationPolicy: "24h"})
-	policy.AddRow(ProvidersPolicyRow{Issuer: "issuer2", ClientID: "client2", ExpirationPolicy: "48h"})
+	policy.AddRow(ProvidersRow{Issuer: "issuer1", ClientID: "client1", ExpirationPolicy: "24h"})
+	policy.AddRow(ProvidersRow{Issuer: "issuer2", ClientID: "client2", ExpirationPolicy: "48h"})
 	expected := "issuer1 client1 24h\nissuer2 client2 48h\n"
 	require.Equal(t, expected, policy.ToString())
 }
@@ -72,7 +72,7 @@ func TestProviderPolicy_ToString(t *testing.T) {
 // Test ProviderPolicy.CreateVerifier with a valid Google issuer.
 func TestProviderPolicy_CreateVerifier_Google(t *testing.T) {
 	policy := &ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "https://accounts.google.com",
 		ClientID:         "test-google",
 		ExpirationPolicy: "24h",
@@ -85,7 +85,7 @@ func TestProviderPolicy_CreateVerifier_Google(t *testing.T) {
 // Test ProviderPolicy.CreateVerifier with a valid Azure issuer.
 func TestProviderPolicy_CreateVerifier_Azure(t *testing.T) {
 	policy := &ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "https://login.microsoftonline.com/tenant",
 		ClientID:         "test-azure",
 		ExpirationPolicy: "48h",
@@ -97,7 +97,7 @@ func TestProviderPolicy_CreateVerifier_Azure(t *testing.T) {
 
 func TestProviderPolicy_CreateVerifier_Gitlab(t *testing.T) {
 	policy := &ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "https://gitlab.com",
 		ClientID:         "test-gitlab",
 		ExpirationPolicy: "24h",
@@ -110,7 +110,7 @@ func TestProviderPolicy_CreateVerifier_Gitlab(t *testing.T) {
 // Test ProviderPolicy.CreateVerifier with an unsupported issuer.
 func TestProviderPolicy_CreateVerifier_UnsupportedIssuer(t *testing.T) {
 	policy := &ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "https://unsupported.com",
 		ClientID:         "test-unsupported",
 		ExpirationPolicy: "24h",
@@ -123,7 +123,7 @@ func TestProviderPolicy_CreateVerifier_UnsupportedIssuer(t *testing.T) {
 // Test ProviderPolicy.CreateVerifier with an invalid expiration policy.
 func TestProviderPolicy_CreateVerifier_InvalidExpiration(t *testing.T) {
 	policy := &ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "https://accounts.google.com",
 		ClientID:         "test-google",
 		ExpirationPolicy: "invalid",
@@ -167,12 +167,12 @@ func TestProvidersFileLoader_FromTable(t *testing.T) {
 // Test ProvidersFileLoader.ToTable.
 func TestProvidersFileLoader_ToTable(t *testing.T) {
 	policy := ProviderPolicy{}
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "issuer1",
 		ClientID:         "client1",
 		ExpirationPolicy: "24h",
 	})
-	policy.AddRow(ProvidersPolicyRow{
+	policy.AddRow(ProvidersRow{
 		Issuer:           "issuer2",
 		ClientID:         "client2",
 		ExpirationPolicy: "48h",

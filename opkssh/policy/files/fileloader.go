@@ -31,6 +31,7 @@ type FileLoader struct {
 	RequiredPerm fs.FileMode
 }
 
+// CreateIfDoesNotExist creates a file at the given path if it does not exist.
 func (l FileLoader) CreateIfDoesNotExist(path string) error {
 	exists, err := afero.Exists(l.Fs, path)
 	if err != nil {
@@ -76,7 +77,7 @@ func (l *FileLoader) LoadFileAtPath(path string) ([]byte, error) {
 	return content, nil
 }
 
-// Dump writes fileBytes to the filepath
+// Dump writes the bytes in fileBytes to the filepath
 func (l *FileLoader) Dump(fileBytes []byte, path string) error {
 	// Write to disk
 	if err := afero.WriteFile(l.Fs, path, fileBytes, l.RequiredPerm); err != nil {

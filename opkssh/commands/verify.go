@@ -93,7 +93,7 @@ func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, t
 // used in the opkssh verify command.
 func OpkPolicyEnforcerFunc(username string) PolicyEnforcerFunc {
 	policyEnforcer := &policy.Enforcer{
-		PolicyLoader: &policy.UserMultiFileLoader{
+		PolicyLoader: &policy.MultiPolicyLoader{
 			HomePolicyLoader:   policy.NewHomePolicyLoader(),
 			SystemPolicyLoader: policy.NewSystemPolicyLoader(),
 			Username:           username,

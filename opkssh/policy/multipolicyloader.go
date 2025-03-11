@@ -27,7 +27,7 @@ import (
 	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 )
 
-var _ Loader = &UserMultiFileLoader{}
+var _ Loader = &MultiPolicyLoader{}
 
 // FileSource implements policy.Source by returning a string that is expected to
 // be a filepath
@@ -37,17 +37,17 @@ func (s FileSource) Source() string {
 	return string(s)
 }
 
-// UserMultiFileLoader implements policy.Loader by reading both the system default
+// MultiPolicyLoader implements policy.Loader by reading both the system default
 // policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
-type UserMultiFileLoader struct {
+type MultiPolicyLoader struct {
 	HomePolicyLoader   *HomePolicyLoader
 	SystemPolicyLoader *SystemPolicyLoader
 	LoadWithScript     bool
 	Username           string
 }
 
-func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
+func (l *MultiPolicyLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy

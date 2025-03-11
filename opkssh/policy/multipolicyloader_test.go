@@ -178,7 +178,7 @@ func TestLoad(t *testing.T) {
 			mockFs := afero.NewMemMapFs()
 
 			// Init SUT on each sub-test
-			multiFileLoader := &policy.UserMultiFileLoader{
+			multiFileLoader := &policy.MultiPolicyLoader{
 				HomePolicyLoader:   NewTestHomePolicyLoader(mockFs, &MockUserLookup{User: ValidUser}),
 				SystemPolicyLoader: NewTestSystemPolicyLoader(mockFs, &MockUserLookup{User: ValidUser}),
 				Username:           ValidUser.Username,

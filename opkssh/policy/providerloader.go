@@ -26,13 +26,13 @@ import (
 	"github.com/spf13/afero"
 )
 
-type ProvidersPolicyRow struct {
+type ProvidersRow struct {
 	Issuer           string
 	ClientID         string
 	ExpirationPolicy string
 }
 
-func (p ProvidersPolicyRow) GetExpirationPolicy() (verifier.ExpirationPolicy, error) {
+func (p ProvidersRow) GetExpirationPolicy() (verifier.ExpirationPolicy, error) {
 	switch p.ExpirationPolicy {
 	case "24h":
 		return verifier.ExpirationPolicies.MAX_AGE_24HOURS, nil
@@ -51,15 +51,15 @@ func (p ProvidersPolicyRow) GetExpirationPolicy() (verifier.ExpirationPolicy, er
 	}
 }
 
-func (p ProvidersPolicyRow) ToString() string {
+func (p ProvidersRow) ToString() string {
 	return p.Issuer + " " + p.ClientID + " " + p.ExpirationPolicy
 }
 
 type ProviderPolicy struct {
-	rows []ProvidersPolicyRow
+	rows []ProvidersRow
 }
 
-func (p *ProviderPolicy) AddRow(row ProvidersPolicyRow) {
+func (p *ProviderPolicy) AddRow(row ProvidersRow) {
 	p.rows = append(p.rows, row)
 }
 
@@ -162,7 +162,7 @@ func (o ProvidersFileLoader) ToTable(opPolicies ProviderPolicy) files.Table {
 func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPolicy {
 	table := files.NewTable(input)
 	policy := &ProviderPolicy{
-		rows: []ProvidersPolicyRow{},
+		rows: []ProvidersRow{},
 	}
 	for i, row := range table.GetRows() {
 		// Error should not break everyone's ability to login, skip those rows
@@ -177,7 +177,7 @@ func (o *ProvidersFileLoader) FromTable(input []byte, path string) *ProviderPoli
 			files.ConfigProblems().RecordProblem(configProblem)
 			continue
 		}
-		policyRow := ProvidersPolicyRow{
+		policyRow := ProvidersRow{
 			Issuer:           row[0],
 			ClientID:         row[1],
 			ExpirationPolicy: row[2], //TODO: Validate this so that we can determine the line number that has the error
