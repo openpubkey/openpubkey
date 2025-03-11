@@ -155,14 +155,17 @@ if command -v $BINARY_NAME &> /dev/null; then
         echo "Error: $AUTH_FILE does not exist or insufficient permissions" >&2
         exit 1
     fi
-
+    # Check if the file is a symlink, to prevent a user from linking to a file they don't have permission for
+    if [ -L "$AUTH_FILE" ]; then
+        echo "Error: $AUTH_FILE is a symlink" >&2
+        exit 1
+    fi
     # Check if the file permissions are 600
     PERMISSIONS=$(sudo -n /bin/stat -c "%a" "$AUTH_FILE")
     if [[ "$PERMISSIONS" -ne 600 ]]; then
         echo "Error: $AUTH_FILE permissions are not 600" >&2
         exit 1
     fi
-
     # Check if the file is owned by the user
     OWNER=$(sudo -n /bin/stat -c "%U" "$AUTH_FILE")
     if [[ "$OWNER" != "$USER" ]]; then
