@@ -1,18 +1,18 @@
 # OpenPubkey SSH (OPKSSH)
 
 opkssh is a tool which enables OpenID Connect to be used with ssh.
-It does not replace ssh, but rather generates ssh public keys that contain PK Tokens and then configures sshd to verify the PK Token in the ssh public keys.
+It does not replace ssh, but rather generates ssh public keys that contain PK Tokens and configures sshd to verify the PK Token in the ssh public keys.
 PK Tokens are a backwards compatible extension of ID Tokens which contain a public key.
 For more details on PK Tokens see [OpenPubkey](https://github.com/openpubkey/openpubkey/blob/main/README.md)
 
-Currently opkssh supports Google and Microsoft. If you have a gmail or microsoft email address you can ssh with that email address.
+Currently opkssh supports Google, Microsoft/Azure and Gitlab. If you have a gmail, microsoft or a gitlab account you can ssh with that account.
 
 ## Getting Started
 
 To configure a linux server to use opkssh simply run (root level privileges):
 
 ```bash
-wget -qO- "https://raw.githubusercontent.com/openpubkey/openpubkey/refs/tags/v0.5.2/opkssh/scripts/install-linux.sh"| sudo bash
+wget -qO- "https://raw.githubusercontent.com/openpubkey/openpubkey/main/opkssh/scripts/install-linux.sh" | sudo bash
 ```
 
  This will download the opkssh binary, install it as `/usr/local/bin/opkssh`, and then configure ssh to use opkssh as an additional authentication mechanism.
@@ -107,6 +107,13 @@ https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.g
 https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096ce0a3-5e72-4da8-9c86-12924b294a01 24h
 ```
 
+`/etc/opk/providers` requires the following permissions (by default we create all configuration files with the correct permissions):
+
+```bash
+sudo chown root:opksshgroup /etc/opk/providers
+sudo chmod 640 /etc/opk/providers
+```
+
 ## `/etc/opk/auth_id`
 
 `/etc/opk/auth_id` is the global authorized identities file.
@@ -140,8 +147,8 @@ This is especially useful in the case of azure where the issuer contains a long 
 `/etc/opk/auth_id` requires the following permissions (by default we create all configuration files with the correct permissions):
 
 ```bash
-sudo chown root /etc/opk/auth_id
-sudo chmod 600 /etc/opk/auth_id
+sudo chown root:opksshgroup /etc/opk/auth_id
+sudo chmod 640 /etc/opk/auth_id
 ```
 
 ### `~/.opk/auth_id`
@@ -164,58 +171,23 @@ chown {USER}:{USER} /home/{USER}/.opk/auth_id
 chmod 600 /home/{USER}/.opk/auth_id
 ```
 
-### Building From Scratch
+### AuthorizedKeysCommandUser
 
-**1: Build opkssh.** Run the following from the root directory, replace GOARCH and GOOS to match with server you wish to install OPKSSH. This will generate the opkssh binary.
-
-```bash
-go build ./opkssh
-```
-
-**2: Copy opkssh to server.** Copy the opkssh binary you just built in the previous step to the SSH server you want to configure
+As recommended we use a low privileged user for the SSH AuthorizedKeysCommandUser.
+Our install script creates this user and group automatically by running:
 
 ```bash
-scp opkssh ${USER}@${HOSTNAME}:~
+sudo groupadd --system opksshgroup
+sudo useradd -r -M -s /sbin/nologin -g opksshgroup opksshuser
 ```
 
-**3: Install opkssh on server.** SSH to the server
-
-Create the following file directory structure on the server and move the executable there:
-
-```bash
-sudo mkdir /etc/opk
-sudo sudo mv ~/opkssh /usr/local/bin/opkssh
-sudo chown root /usr/local/bin/opkssh
-sudo chmod 700 /usr/local/bin/opkssh
-```
-
-**3: Setup policy.** The file `/etc/opk/auth_id` controls which users and user identities can access the server using opkssh. If you do not have root access,
-create a new auth_id file in at ~/auth_id and use that instead. You
-will also need to have a opkssh binary available to use in the same directory.
-
-```bash
-sudo touch /etc/opk/auth_id
-sudo chown root /etc/opk/auth_id
-sudo chmod 600 /etc/opk/auth_id
-sudo opkssh add {USER} {EMAIL} {ISSUER}
-```
-
-**4: Configure sshd to use opkssh.** Add the following lines to the sshd configuration file `/etc/ssh/sshd_config`.
+We then add the following lines to `/etc/ssh/sshd_config`
 
 ```bash
 AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t
 AuthorizedKeysCommandUser opksshuser
 ```
 
-**5: Restart sshd.**
+## More information
 
-```bash
-sudo systemctl restart sshd
-```
-
-## Connecting via the Client
-
-You need to first make sure you have `opkssh`. You can build it locally in from the  `opkssh` directory in the `openpubkey` repo using `go build`.
-
-1. Run `./opkssh login` this will open a browser window to authenticate to your OpenID Provider. After authenticating opkssh will generate an ssh key in your default `.ssh` directory.
-2. Then ssh to the server as you would normally `ssh {user}@ssh-server`
+We document how to manually install opkssh [here](https://raw.githubusercontent.com/openpubkey/openpubkey/main/opkssh/scripts/installing.md).
