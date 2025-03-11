@@ -23,6 +23,8 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 )
 
 var _ Loader = &UserMultiFileLoader{}
@@ -91,18 +93,14 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 // home directory. Instead we use a script and special sudoers permissions scoped
 // specifically to read the policy file.
 func ReadWithSudoScript(h *HomePolicyLoader, username string) ([]byte, error) {
-	// Ensure the script has the correct permissions and ownership
 	scriptPath := "/usr/local/bin/opkssh_read_home.sh"
-	scriptInfo, err := h.FileLoader.Fs.Stat(scriptPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to describe the expected script at path: %w", err)
-	}
-	mode := scriptInfo.Mode()
+
 	// Security critical: Only a root user should have permissions to write to the script as the
 	// script if called with sudo -u opksshuser and opksshuser has elevated permissions.
 	onlyOwnerCanWrite := fs.FileMode(0755)
-	if mode.Perm() != fs.FileMode(0755) {
-		return nil, fmt.Errorf("script has unsafe file permissions expected (%o), got (%o)", onlyOwnerCanWrite, mode.Perm())
+	err := files.NewUnixFilePermsChecker().CheckPerm(scriptPath, onlyOwnerCanWrite, "root", "")
+	if err != nil {
+		return nil, fmt.Errorf("script may have insecure permissions: %w", err)
 	}
 
 	// it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
