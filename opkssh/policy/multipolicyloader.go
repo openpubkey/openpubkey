@@ -22,6 +22,8 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 )
 
 var _ Loader = &MultiPolicyLoader{}
@@ -89,39 +91,47 @@ func (l *MultiPolicyLoader) Load() (*Policy, Source, error) {
 // home directory. Instead we use a script and special sudoers permissions scoped
 // specifically to read the policy file.
 func ReadWithSudoScript(h *HomePolicyLoader, username string) ([]byte, error) {
-	// scriptPath := "/usr/local/bin/opkssh_read_home.sh"
-
 	path := "/home/" + username + "/.opk/auth_id"
+
+	statCmd := exec.Command("sudo", "-n", "/bin/stat", "-c", "%a", path)
+	statPerms, err := statCmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v", statCmd, string(statPerms), err)
+	}
+	expectedPerms := fmt.Sprintf("%o", files.ModeHomePerms.Perm())
+	if expectedPerms != strings.TrimSpace(string(statPerms)) {
+		return nil, fmt.Errorf("policy file %s has insecure permissions: %s", path, statPerms)
+	}
+
+	statCmd = exec.Command("sudo", "-n", "/bin/stat", "-c", "%U", path)
+	statOwner, err := statCmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v", statCmd, string(statOwner), err)
+	}
+	if username != strings.TrimSpace(string(statOwner)) {
+		return nil, fmt.Errorf("policy file %s has insecure permissions: %s", path, statPerms)
+	}
+
+	// Security critical: We reading this file as `sudo -u opksshuser`
+	// and opksshuser has elevated permissions to read any file whose
+	// path matches `/home/*/opk/auth_id`. We need to be cautious we do follow
+	// a symlink as it could be to a file the user is not permitted to read.
+	// This would not permit the user to read the file, but they might be able
+	// to determine the existence of the file.
+	statCmd = exec.Command("sudo", "-n", "/bin/stat", "-c", "%F", path)
+	statSymlink, err := statCmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v", statCmd, string(statSymlink), err)
+	}
+	if strings.TrimSpace(string(statSymlink)) != "regular file" {
+		return nil, fmt.Errorf("refusing to load unsafe policy file %s (file is a symlink): %s", path, statSymlink)
+	}
+
 	catCmd := exec.Command("sudo", "-n", "/bin/cat", path)
 	catOutput, err := catCmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v, ", catCmd, string(catOutput), err)
+		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v", catCmd, string(catOutput), err)
 	}
-
-	statCmd := exec.Command("sudo", "-n", "/bin/stat", "-c", "%a", path)
-	statOutput, err := statCmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v, ", statCmd, string(statOutput), err)
-	}
-	fmt.Printf("statOutput: %s\n", statOutput)
 
 	return catOutput, nil
-
-	// // Security critical: Only a root user should have permissions to write to the script as the
-	// // script if called with sudo -u opksshuser and opksshuser has elevated permissions.
-	// onlyOwnerCanWrite := fs.FileMode(0755)
-	// err := files.NewPermsChecker(h.FileLoader.Fs).CheckPerm(scriptPath, onlyOwnerCanWrite, "root", "")
-	// if err != nil {
-	// 	return nil, fmt.Errorf("script may have insecure permissions: %w", err)
-	// }
-
-	// // it is possible this the policy is in the user's home directory we need use to a script with sudoer access to read it
-	// cmd := exec.Command("bash", scriptPath, username)
-	// log.Println("running sudoer script to read auth_id in user's home directory, command: ", cmd)
-	// output, err := cmd.CombinedOutput()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error loading policy using command %v got output %v and err %v, ", cmd, string(output), err)
-	// } else {
-	// 	return output, nil
-	// }
 }
