@@ -42,11 +42,12 @@ var (
 
 	// These can be overridden at build time using ldflags. For example:
 	// go build -v -o /usr/local/bin/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
-	Version      = "unversioned"
-	issuer       = ""
-	clientID     = ""
-	clientSecret = ""
-	redirectURIs = ""
+	Version           = "unversioned"
+	issuer            = ""
+	clientID          = ""
+	clientSecret      = ""
+	redirectURIs      = ""
+	logFilePathServer = "/var/log/opkssh.log" // Remember if you change this, change it in the install script as well
 )
 
 func main() {
@@ -147,13 +148,11 @@ func run() int {
 		}
 	case "verify":
 		// Setup logger
-		// TODO: This should be a constant that can be overridden with an evn var
-		logFilePath := "/var/log/opkssh.log"
-		logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
+		logFile, err := os.OpenFile(logFilePathServer, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
 		if err != nil {
 			fmt.Println("ERROR opening log file:", err)
 			// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
-			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePath, logFilePath, logFilePath)
+			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePathServer, logFilePathServer, logFilePathServer)
 		} else {
 			defer logFile.Close()
 			log.SetOutput(logFile)
