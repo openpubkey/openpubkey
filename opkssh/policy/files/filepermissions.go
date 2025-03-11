@@ -33,8 +33,8 @@ type UnixFilePermsChecker struct {
 	cmdRunner func(string, ...string) ([]byte, error)
 }
 
-func NewUnixFilePermsChecker() *UnixFilePermsChecker {
-	return &UnixFilePermsChecker{Fs: afero.NewOsFs(), cmdRunner: execCmd}
+func NewUnixFilePermsChecker(fs afero.Fs) *UnixFilePermsChecker {
+	return &UnixFilePermsChecker{Fs: fs, cmdRunner: execCmd}
 }
 
 // CheckPerm checks the file at the given path if it has the desired permissions.

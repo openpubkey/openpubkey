@@ -98,7 +98,7 @@ func ReadWithSudoScript(h *HomePolicyLoader, username string) ([]byte, error) {
 	// Security critical: Only a root user should have permissions to write to the script as the
 	// script if called with sudo -u opksshuser and opksshuser has elevated permissions.
 	onlyOwnerCanWrite := fs.FileMode(0755)
-	err := files.NewUnixFilePermsChecker().CheckPerm(scriptPath, onlyOwnerCanWrite, "root", "")
+	err := files.NewUnixFilePermsChecker(h.FileLoader.Fs).CheckPerm(scriptPath, onlyOwnerCanWrite, "root", "")
 	if err != nil {
 		return nil, fmt.Errorf("script may have insecure permissions: %w", err)
 	}

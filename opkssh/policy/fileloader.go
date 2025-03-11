@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/spf13/afero"
 )
 
@@ -69,15 +70,13 @@ func (l FileLoader) CreateIfDoesNotExist(path string) error {
 // contents and returns the bytes if file permissions are valid and
 // reading is successful; otherwise returns an error.
 func (l *FileLoader) LoadFileAtPath(path string) ([]byte, error) {
-	// Get file info and check if file exists
-	info, err := l.Fs.Stat(path)
-	if err != nil {
+	// Check if file exists and we can access it
+	if _, err := l.Fs.Stat(path); err != nil {
 		return nil, fmt.Errorf("failed to describe the file at path: %w", err)
 	}
 
 	// Validate that file has correct permission bits set
-	err = l.validatePermissions(info)
-	if err != nil {
+	if err := files.NewUnixFilePermsChecker(l.Fs).CheckPerm(path, l.RequiredPerm, "", ""); err != nil {
 		return nil, fmt.Errorf("policy file has insecure permissions: %w", err)
 	}
 
@@ -90,15 +89,15 @@ func (l *FileLoader) LoadFileAtPath(path string) ([]byte, error) {
 	return content, nil
 }
 
-func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
-	mode := fileInfo.Mode()
+// func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
+// 	mode := fileInfo.Mode()
 
-	// only the owner of this file should be able to write to it
-	if mode.Perm() != l.RequiredPerm {
-		return fmt.Errorf("expected (%o), got (%o)", l.RequiredPerm.Perm(), mode.Perm())
-	}
-	return nil
-}
+// 	// only the owner of this file should be able to write to it
+// 	if mode.Perm() != l.RequiredPerm {
+// 		return fmt.Errorf("expected (%o), got (%o)", l.RequiredPerm.Perm(), mode.Perm())
+// 	}
+// 	return nil
+// }
 
 // Dump writes fileBytes to the filepath
 func (l *FileLoader) Dump(fileBytes []byte, path string) error {
