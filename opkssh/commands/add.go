@@ -100,11 +100,11 @@ func (a *AddCmd) Add(principal string, userEmail string, issuer string) (string,
 		return "", fmt.Errorf("failed to load policy: %w", err)
 	}
 
-	var policyLoader *policy.UserPolicyLoader
+	var policyLoader *policy.PolicyLoader
 	if homePolicy {
-		policyLoader = a.HomePolicyLoader.UserPolicyLoader
+		policyLoader = a.HomePolicyLoader.PolicyLoader
 	} else {
-		policyLoader = a.SystemPolicyLoader.UserPolicyLoader
+		policyLoader = a.SystemPolicyLoader.PolicyLoader
 	}
 
 	err = policyLoader.CreateIfDoesNotExist(policyPath)

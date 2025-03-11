@@ -74,10 +74,10 @@ func (m *MockFsOpenError) ErrorOn(fileName string, err error) {
 
 func NewTestHomePolicyLoader(fs afero.Fs, userLookup policy.UserLookup) *policy.HomePolicyLoader {
 	return &policy.HomePolicyLoader{
-		UserPolicyLoader: &policy.UserPolicyLoader{
-			FileLoader: policy.FileLoader{
+		PolicyLoader: &policy.PolicyLoader{
+			FileLoader: files.FileLoader{
 				Fs:           fs,
-				RequiredPerm: policy.ModeHomePolicy,
+				RequiredPerm: files.ModeHomePerms,
 			},
 			UserLookup: userLookup,
 		},
@@ -86,10 +86,10 @@ func NewTestHomePolicyLoader(fs afero.Fs, userLookup policy.UserLookup) *policy.
 
 func NewTestSystemPolicyLoader(fs afero.Fs, userLookup policy.UserLookup) *policy.SystemPolicyLoader {
 	return &policy.SystemPolicyLoader{
-		&policy.UserPolicyLoader{
-			FileLoader: policy.FileLoader{
+		&policy.PolicyLoader{
+			FileLoader: files.FileLoader{
 				Fs:           fs,
-				RequiredPerm: policy.ModeSystemPolicy,
+				RequiredPerm: files.ModeSystemPerms,
 			},
 			UserLookup: userLookup,
 		},

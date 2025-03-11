@@ -14,25 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package policy
+package files
 
 import (
 	"fmt"
 	"io/fs"
 
-	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/spf13/afero"
 )
-
-// ModeSystemPolicy is the expected permission bits that should be set for opkssh
-// system policy files (`/etc/opk/auth_id`, `/etc/opk/providers`). This mode means
-// that only the owner of the file can write/read to the file, but the group which
-// should be opksshgroup can read the file.
-const ModeSystemPolicy = fs.FileMode(0640)
-
-// ModeHomePolicy is the expected permission bits that should be set for opkssh
-// user home policy files `~/.opk/auth_id`.
-const ModeHomePolicy = fs.FileMode(0600)
 
 // UserPolicyLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
@@ -76,7 +65,7 @@ func (l *FileLoader) LoadFileAtPath(path string) ([]byte, error) {
 	}
 
 	// Validate that file has correct permission bits set
-	if err := files.NewUnixFilePermsChecker(l.Fs).CheckPerm(path, l.RequiredPerm, "", ""); err != nil {
+	if err := NewPermsChecker(l.Fs).CheckPerm(path, l.RequiredPerm, "", ""); err != nil {
 		return nil, fmt.Errorf("policy file has insecure permissions: %w", err)
 	}
 
@@ -88,16 +77,6 @@ func (l *FileLoader) LoadFileAtPath(path string) ([]byte, error) {
 	}
 	return content, nil
 }
-
-// func (l *FileLoader) validatePermissions(fileInfo fs.FileInfo) error {
-// 	mode := fileInfo.Mode()
-
-// 	// only the owner of this file should be able to write to it
-// 	if mode.Perm() != l.RequiredPerm {
-// 		return fmt.Errorf("expected (%o), got (%o)", l.RequiredPerm.Perm(), mode.Perm())
-// 	}
-// 	return nil
-// }
 
 // Dump writes fileBytes to the filepath
 func (l *FileLoader) Dump(fileBytes []byte, path string) error {

@@ -26,22 +26,32 @@ import (
 	"github.com/spf13/afero"
 )
 
-// UnixFilePermsChecker contains methods to check the ownership, group
+// ModeSystemPerms is the expected permission bits that should be set for opkssh
+// system policy files (`/etc/opk/auth_id`, `/etc/opk/providers`). This mode means
+// that only the owner of the file can write/read to the file, but the group which
+// should be opksshgroup can read the file.
+const ModeSystemPerms = fs.FileMode(0640)
+
+// ModeHomePerms is the expected permission bits that should be set for opkssh
+// user home policy files `~/.opk/auth_id`.
+const ModeHomePerms = fs.FileMode(0600)
+
+// PermsChecker contains methods to check the ownership, group
 // and file permissions of a file on a Unix-like system.
-type UnixFilePermsChecker struct {
+type PermsChecker struct {
 	Fs        afero.Fs
 	cmdRunner func(string, ...string) ([]byte, error)
 }
 
-func NewUnixFilePermsChecker(fs afero.Fs) *UnixFilePermsChecker {
-	return &UnixFilePermsChecker{Fs: fs, cmdRunner: execCmd}
+func NewPermsChecker(fs afero.Fs) *PermsChecker {
+	return &PermsChecker{Fs: fs, cmdRunner: execCmd}
 }
 
 // CheckPerm checks the file at the given path if it has the desired permissions.
 // If the requiredOwner or requiredGroup are not empty then the function will also
 // that the owner and group of the file match the requiredOwner and requiredGroup
 // specified and fail if they do not.
-func (u *UnixFilePermsChecker) CheckPerm(path string, requirePerm fs.FileMode, requiredOwner string, requiredGroup string) error {
+func (u *PermsChecker) CheckPerm(path string, requirePerm fs.FileMode, requiredOwner string, requiredGroup string) error {
 	fileInfo, err := u.Fs.Stat(path)
 	if err != nil {
 		return fmt.Errorf("failed to describe the file at path: %w", err)

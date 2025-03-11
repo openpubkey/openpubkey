@@ -126,15 +126,15 @@ func (p ProviderPolicy) ToString() string {
 }
 
 type ProvidersFileLoader struct {
-	FileLoader
+	files.FileLoader
 	Path string
 }
 
 func NewProviderFileLoader() *ProvidersFileLoader {
 	return &ProvidersFileLoader{
-		FileLoader: FileLoader{
+		FileLoader: files.FileLoader{
 			Fs:           afero.NewOsFs(),
-			RequiredPerm: ModeSystemPolicy,
+			RequiredPerm: files.ModeSystemPerms,
 		},
 	}
 }

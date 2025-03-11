@@ -155,7 +155,7 @@ func TestPermissionsChecker(t *testing.T) {
 			}
 
 			mockFs := afero.NewMemMapFs()
-			permChecker := UnixFilePermsChecker{
+			permChecker := PermsChecker{
 				Fs:        mockFs,
 				cmdRunner: execCmdMock,
 			}

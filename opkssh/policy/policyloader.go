@@ -21,6 +21,7 @@ import (
 	"os/user"
 	"path"
 
+	"github.com/openpubkey/openpubkey/opkssh/policy/files"
 	"github.com/spf13/afero"
 	"golang.org/x/exp/slices"
 )
@@ -44,43 +45,15 @@ func NewOsUserLookup() UserLookup {
 }
 func (OsUserLookup) Lookup(username string) (*user.User, error) { return user.Lookup(username) }
 
-// UserPolicyLoader contains methods to read/write the opkssh policy file from/to an
+// PolicyLoader contains methods to read/write the opkssh policy file from/to an
 // arbitrary filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
-type UserPolicyLoader struct {
-	FileLoader FileLoader
+type PolicyLoader struct {
+	FileLoader files.FileLoader
 	UserLookup UserLookup
 }
 
-// NewHomePolicyLoader returns an opkssh policy loader that uses the os library to
-// read/write policy from/to the user's home directory, e.g. `~/.opk/auth_id`,
-func NewHomePolicyLoader() *HomePolicyLoader {
-	return &HomePolicyLoader{
-		UserPolicyLoader: &UserPolicyLoader{
-			FileLoader: FileLoader{
-				Fs:           afero.NewOsFs(),
-				RequiredPerm: ModeHomePolicy,
-			},
-			UserLookup: NewOsUserLookup(),
-		},
-	}
-}
-
-// NewSystemPolicyLoader returns an opkssh policy loader that uses the os library to
-// read/write system policy from/to the filesystem.
-func NewSystemPolicyLoader() *SystemPolicyLoader {
-	return &SystemPolicyLoader{
-		UserPolicyLoader: &UserPolicyLoader{
-			FileLoader: FileLoader{
-				Fs:           afero.NewOsFs(),
-				RequiredPerm: ModeSystemPolicy,
-			},
-			UserLookup: NewOsUserLookup(),
-		},
-	}
-}
-
-func (l UserPolicyLoader) CreateIfDoesNotExist(path string) error {
+func (l PolicyLoader) CreateIfDoesNotExist(path string) error {
 	return l.FileLoader.CreateIfDoesNotExist(path)
 }
 
@@ -88,7 +61,7 @@ func (l UserPolicyLoader) CreateIfDoesNotExist(path string) error {
 // by the current process, and has the correct permission bits set. Parses the
 // contents and returns a policy.Policy if file permissions are valid and
 // reading is successful; otherwise returns an error.
-func (l *UserPolicyLoader) LoadPolicyAtPath(path string) (*Policy, error) {
+func (l *PolicyLoader) LoadPolicyAtPath(path string) (*Policy, error) {
 	content, err := l.FileLoader.LoadFileAtPath(path)
 	if err != nil {
 		return nil, err
@@ -100,7 +73,7 @@ func (l *UserPolicyLoader) LoadPolicyAtPath(path string) (*Policy, error) {
 
 // Dump encodes the policy into file and writes the contents to the filepath
 // path
-func (l *UserPolicyLoader) Dump(policy *Policy, path string) error {
+func (l *PolicyLoader) Dump(policy *Policy, path string) error {
 	fileBytes, err := policy.ToTable()
 	if err != nil {
 		return err
@@ -114,11 +87,25 @@ func (l *UserPolicyLoader) Dump(policy *Policy, path string) error {
 	return nil
 }
 
-// SystemPolicyLoader contains methods to read/write the opkssh policy file from/to an
-// arbitrary filesystem. All methods that read policy from the filesystem fail
+// NewSystemPolicyLoader returns an opkssh policy loader that uses the os library to
+// read/write system policy from/to the filesystem.
+func NewSystemPolicyLoader() *SystemPolicyLoader {
+	return &SystemPolicyLoader{
+		PolicyLoader: &PolicyLoader{
+			FileLoader: files.FileLoader{
+				Fs:           afero.NewOsFs(),
+				RequiredPerm: files.ModeSystemPerms,
+			},
+			UserLookup: NewOsUserLookup(),
+		},
+	}
+}
+
+// SystemPolicyLoader contains methods to read/write the system wide  opkssh policy file
+// from/to a filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
 type SystemPolicyLoader struct {
-	*UserPolicyLoader
+	*PolicyLoader
 }
 
 // LoadSystemPolicy reads the opkssh policy at SystemDefaultPolicyPath.
@@ -134,11 +121,25 @@ func (s *SystemPolicyLoader) LoadSystemPolicy() (*Policy, Source, error) {
 
 type OptionalLoader func(h *HomePolicyLoader, username string) ([]byte, error)
 
-// HomePolicyLoader contains methods to read/write the opkssh policy file from/to an
-// arbitrary filesystem. All methods that read policy from the filesystem fail
+// HomePolicyLoader contains methods to read/write the opkssh policy file stored in
+// `~/.opk/ssh` from/to a filesystem. All methods that read policy from the filesystem fail
 // and return an error immediately if the permission bits are invalid.
 type HomePolicyLoader struct {
-	*UserPolicyLoader
+	*PolicyLoader
+}
+
+// NewHomePolicyLoader returns an opkssh policy loader that uses the os library to
+// read/write policy from/to the user's home directory, e.g. `~/.opk/auth_id`,
+func NewHomePolicyLoader() *HomePolicyLoader {
+	return &HomePolicyLoader{
+		PolicyLoader: &PolicyLoader{
+			FileLoader: files.FileLoader{
+				Fs:           afero.NewOsFs(),
+				RequiredPerm: files.ModeHomePerms,
+			},
+			UserLookup: NewOsUserLookup(),
+		},
+	}
 }
 
 // LoadHomePolicy reads the user's opkssh policy at ~/.opk/auth_id (where ~
