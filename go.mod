@@ -1,6 +1,7 @@
 module github.com/openpubkey/openpubkey
+go 1.22.0
 
-go 1.22
+toolchain go1.22
 
 require (
 	filippo.io/bigmod v0.0.3
