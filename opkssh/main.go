@@ -256,7 +256,7 @@ func run() int {
 		// read the user's home policy file (`~/.opk/auth_id`) with sudoer permissions.
 		// This allows us to use an unprivileged user as the AuthorizedKeysCommand user.
 
-		if len(os.Args) != 2 {
+		if len(os.Args) != 3 {
 			fmt.Println("Invalid number of arguments for readhome, expected: `<username>`")
 			return 1
 		}
