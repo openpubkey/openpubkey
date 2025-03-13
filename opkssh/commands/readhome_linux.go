@@ -46,7 +46,7 @@ func ReadHome(username string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user %s", username)
 	}
-	homePolicyPath := filepath.Join(userObj.HomeDir, "opk", "auth_id")
+	homePolicyPath := filepath.Join(userObj.HomeDir, ".opk", "auth_id")
 
 	// Security critical: We reading this file as `sudo -u opksshuser`
 	// and opksshuser has elevated permissions to read any file whose
