@@ -251,6 +251,16 @@ func run() int {
 		}
 	case "--version", "-v":
 		fmt.Println(Version)
+	case "readhome":
+		// This command called as part of AuthorizedKeysCommand. It is used to
+		// read the user's home policy file (`~/.opk/auth_id`) with sudoer permissions.
+		// This allows us to use an unprivileged user as the AuthorizedKeysCommand user.
+		if fileBytes, err := commands.ReadHome("e0"); err != nil {
+			fmt.Printf("Failed to read user's home policy file: %v", err)
+			return 1
+		} else {
+			fmt.Println(string(fileBytes))
+		}
 	default:
 		fmt.Println("ERROR! Unrecognized command:", command)
 		return 1

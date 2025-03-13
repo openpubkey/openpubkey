@@ -134,16 +134,11 @@ if command -v $BINARY_NAME &> /dev/null; then
         echo "--no-sshd-restart option supplied, skipping SSH restart."
     fi
 
-    SUDOERS_RULE_CAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/cat /home/*/.opk/auth_id"
+    # Sudo regex support was added in 1.9.10. If you are using an older version of sudoer home policy will not work unless you set the AuthroizedKeysCommand user to root
+    SUDOERS_RULE_READ_HOME="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome ^[a-zA-Z0-9_-]+$"
     if ! sudo grep -qxF "$SUDOERS_RULE_CAT" /etc/sudoers; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
-        echo "$SUDOERS_RULE_CAT" | sudo tee -a /etc/sudoers > /dev/null
-    fi
-
-    SUDOERS_RULE_STAT="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /bin/stat *"
-    if ! sudo grep -qxF "$SUDOERS_RULE_STAT" /etc/sudoers; then
-        echo "Adding sudoers rule for $AUTH_CMD_USER..."
-        echo "$SUDOERS_RULE_STAT" | sudo tee -a /etc/sudoers > /dev/null
+        echo "$SUDOERS_RULE_READ_HOME" | sudo tee -a /etc/sudoers > /dev/null
     fi
 
     touch /var/log/opkssh.log
