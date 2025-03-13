@@ -136,7 +136,7 @@ if command -v $BINARY_NAME &> /dev/null; then
 
     # Sudo regex support was added in 1.9.10. If you are using an older version of sudoer home policy will not work unless you set the AuthroizedKeysCommand user to root
     SUDOERS_RULE_READ_HOME="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome ^[a-zA-Z0-9_-]+$"
-    if ! sudo grep -qxF "$SUDOERS_RULE_CAT" /etc/sudoers; then
+    if ! sudo grep -qxF "$SUDOERS_RULE_READ_HOME" /etc/sudoers; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
         echo "$SUDOERS_RULE_READ_HOME" | sudo tee -a /etc/sudoers > /dev/null
     fi
