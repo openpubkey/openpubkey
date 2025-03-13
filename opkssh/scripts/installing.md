@@ -60,7 +60,7 @@ https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096c
 `/etc/opk/providers` requires the following permissions (by default we create all configuration files with the correct permissions):
 
 ```bash
-sudo chown root:opksshgroup /etc/opk/providers
+sudo chown root:opksshuser /etc/opk/providers
 sudo chmod 640 /etc/opk/providers
 ```
 
@@ -69,7 +69,7 @@ If you do not have root access, you can create a new auth_id file in at ~/auth_i
 
 ```bash
 sudo touch /etc/opk/auth_id
-sudo chown root:opksshgroup /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
 sudo chmod 640 /etc/opk/auth_id
 sudo opkssh add {USER} {EMAIL} {ISSUER}
 ```
@@ -84,8 +84,8 @@ AuthorizedKeysCommandUser opksshuser
 Then create the required AuthorizedKeysCommandUser and group
 
 ```bash
-sudo groupadd --system opksshgroup
-sudo useradd -r -M -s /sbin/nologin -g opksshgroup opksshuser
+sudo groupadd --system opksshuser
+sudo useradd -r -M -s /sbin/nologin -g opksshuser opksshuser
 ```
 
 **5: Restart sshd.**

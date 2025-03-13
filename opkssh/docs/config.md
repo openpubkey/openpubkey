@@ -63,7 +63,7 @@ This is especially useful in the case of azure where the issuer contains a long 
 It require the following permissions:
 
 ```bash
-sudo chown root:opksshgroup /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
 sudo chmod 640 /etc/opk/auth_id
 ```
 
@@ -95,7 +95,7 @@ sudo apt install openssh-server
 
 sudo mkdir -p /etc/opk
 sudo touch /etc/opk/auth_id
-sudo chown root:opksshgroup /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
 sudo chmod 640 /etc/opk/auth_id
 
 cd /tmp
@@ -106,7 +106,7 @@ sudo chmod 711 /usr/local/bin/opkssh
 sudo chown root /usr/local/bin/opkssh
 
 sudo touch /etc/opk/providers
-sudo chown root:opksshgroup /etc/opk/providers
+sudo chown root:opksshuser /etc/opk/providers
 sudo chmod 640 /etc/opk/providers
 
 sudo su

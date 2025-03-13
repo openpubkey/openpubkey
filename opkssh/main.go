@@ -152,7 +152,7 @@ func run() int {
 		if err != nil {
 			fmt.Println("ERROR opening log file:", err)
 			// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
-			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshgroup %v; chmod 660 %v\n", logFilePathServer, logFilePathServer, logFilePathServer)
+			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshuser %v; chmod 660 %v\n", logFilePathServer, logFilePathServer, logFilePathServer)
 		} else {
 			defer logFile.Close()
 			log.SetOutput(logFile)

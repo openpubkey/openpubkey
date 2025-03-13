@@ -16,7 +16,7 @@ PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd7
 
 # AuthorizedKeysCommand user
 AUTH_CMD_USER="opksshuser"
-AUTH_CMD_GROUP="opksshgroup"
+AUTH_CMD_GROUP="opksshuser"
 
 RESTART_SSH=true
 LOCAL_INSTALL_FILE=""

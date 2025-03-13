@@ -38,7 +38,7 @@ import (
 const SudoerUser string = "test"
 const UnprivUser string = "test2"
 const RootUser string = "root"
-const UserGroup string = "opksshgroup"
+const UserGroup string = "opksshuser"
 
 func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd []string, user string) (int, string) {
 	// Execute command

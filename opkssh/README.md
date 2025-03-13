@@ -110,7 +110,7 @@ https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 096c
 `/etc/opk/providers` requires the following permissions (by default we create all configuration files with the correct permissions):
 
 ```bash
-sudo chown root:opksshgroup /etc/opk/providers
+sudo chown root:opksshuser /etc/opk/providers
 sudo chmod 640 /etc/opk/providers
 ```
 
@@ -147,7 +147,7 @@ This is especially useful in the case of azure where the issuer contains a long 
 `/etc/opk/auth_id` requires the following permissions (by default we create all configuration files with the correct permissions):
 
 ```bash
-sudo chown root:opksshgroup /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
 sudo chmod 640 /etc/opk/auth_id
 ```
 
@@ -177,8 +177,8 @@ As recommended we use a low privileged user for the SSH AuthorizedKeysCommandUse
 Our install script creates this user and group automatically by running:
 
 ```bash
-sudo groupadd --system opksshgroup
-sudo useradd -r -M -s /sbin/nologin -g opksshgroup opksshuser
+sudo groupadd --system opksshuser
+sudo useradd -r -M -s /sbin/nologin -g opksshuser opksshuser
 ```
 
 We then add the following lines to `/etc/ssh/sshd_config`
