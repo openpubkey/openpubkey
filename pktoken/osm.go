@@ -28,7 +28,6 @@ type Options struct {
 	Typ string // Override for the expected typ value
 }
 
-// OptionFunc is a function that configures Options
 type OptionFunc func(*Options)
 
 // WithTyp sets a custom typ value for verification
