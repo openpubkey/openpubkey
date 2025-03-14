@@ -3,7 +3,7 @@ name: Go Checks
 on:
   pull_request:
     paths:
-      - "**/*.go"
+      - "**.go"
       - "go.mod"
       - "go.sum"
 
@@ -17,7 +17,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: golangci-lint
-        timeout-minutes: 30
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.7
@@ -38,4 +37,4 @@ jobs:
         run: go mod download
 
       - name: Test
-        run: go test -v ./...
+        run: go test ./...
