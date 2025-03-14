@@ -320,7 +320,7 @@ func isOpenSSHVersion8Dot1OrGreater(opensshVersion string) (bool, error) {
 
 	matches := re.FindStringSubmatch(opensshVersion)
 
-	if matches == nil || len(matches) <= 0 {
+	if len(matches) <= 0 {
 		fmt.Println("Invalid OpenSSH version")
 		return false, errors.New("invalid OpenSSH version")
 	}
