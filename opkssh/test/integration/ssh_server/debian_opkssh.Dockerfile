@@ -1,4 +1,4 @@
-FROM golang:1.22-bookworm
+FROM golang:1.23
 
 # Update/Upgrade
 RUN apt-get update -y && apt-get upgrade -y

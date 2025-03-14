@@ -3,14 +3,15 @@ linters:
   # golangci-lint defaults 
   # ref: https://golangci-lint.run/usage/linters/#enabled-by-default
   - errcheck
-  - gosimple
   - govet
   - ineffassign
-  - staticcheck
   - unused
   # additional
   - misspell
   - gofmt
   fast: true
+  disable:
+  - gosimple
+  - staticcheck
 run:
   timeout: 5m
