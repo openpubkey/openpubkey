@@ -38,6 +38,7 @@ import (
 const SudoerUser string = "test"
 const UnprivUser string = "test2"
 const RootUser string = "root"
+const UserGroup string = "opksshuser"
 
 func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd []string, user string) (int, string) {
 	// Execute command
@@ -48,7 +49,7 @@ func executeCommandAsUser(t *testing.T, container testcontainers.Container, cmd 
 	// Read stdout/stderr from command execution
 	b, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	t.Logf("Command `%s` returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), code, string(b))
+	t.Logf("Command `%s` being run as user %s returned exit code %d and the following stdout/stderr:\n%s", strings.Join(cmd, " "), user, code, string(b))
 
 	return code, string(b)
 }
@@ -67,7 +68,7 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name:             "sudoer user can update root policy",
-			binaryPath:       "/usr/local/bin/opkssh",
+			binaryPath:       "opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: SudoerUser,
@@ -75,7 +76,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "sudoer user can update root policy with principal != self",
-			binaryPath:       "/usr/local/bin/opkssh",
+			binaryPath:       "opkssh",
 			useSudo:          true,
 			cmdUser:          SudoerUser,
 			desiredPrincipal: UnprivUser,
@@ -83,7 +84,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "unprivileged user can update their user policy",
-			binaryPath:       "/home/test2/.opk/opkssh",
+			binaryPath:       "opkssh",
 			useSudo:          false,
 			cmdUser:          UnprivUser,
 			desiredPrincipal: UnprivUser,
@@ -91,7 +92,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:             "unprivileged user cannot add principal != self",
-			binaryPath:       "/home/test2/.opk/opkssh",
+			binaryPath:       "opkssh",
 			useSudo:          false,
 			cmdUser:          UnprivUser,
 			desiredPrincipal: SudoerUser,
@@ -126,15 +127,17 @@ func TestAdd(t *testing.T) {
 			code, _ := executeCommandAsUser(t, container.Container, []string{"/bin/bash", "-c", strings.Join(cmd, " ")}, tt.cmdUser)
 
 			// Determine expected values based on sub-test options
-			var expectedPolicyFilepath, expectedUser, expectedGroup string
+			var expectedPolicyFilepath, expectedUser, expectedGroup, expectedPerms string
 			if tt.useSudo {
 				expectedPolicyFilepath = policy.SystemDefaultPolicyPath
-				expectedUser = "root"
-				expectedGroup = "root"
+				expectedUser = RootUser
+				expectedGroup = UserGroup
+				expectedPerms = "640"
 			} else {
 				expectedPolicyFilepath = path.Join("/home/", tt.cmdUser, ".opk", "auth_id")
 				expectedUser = tt.cmdUser
 				expectedGroup = tt.cmdUser
+				expectedPerms = "600"
 			}
 
 			if tt.shouldCmdFail {
@@ -168,7 +171,7 @@ func TestAdd(t *testing.T) {
 				require.Len(t, statOutputSplit, 3, "expected stat command to return 3 values")
 				require.Equal(t, expectedUser, statOutputSplit[0])  // Assert user
 				require.Equal(t, expectedGroup, statOutputSplit[1]) // Assert group
-				require.Equal(t, "600", statOutputSplit[2])         // Assert permissions
+				require.Equal(t, expectedPerms, statOutputSplit[2]) // Assert permissions
 			}
 
 			// No matter what, if command fails or succeeds, the root policy

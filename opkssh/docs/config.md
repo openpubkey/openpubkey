@@ -63,8 +63,8 @@ This is especially useful in the case of azure where the issuer contains a long 
 It require the following permissions:
 
 ```bash
-sudo chown root /etc/opk/auth_id
-sudo chmod 600 /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
+sudo chmod 640 /etc/opk/auth_id
 ```
 
 `sudo opkssh add root alice@example.com google`
@@ -95,24 +95,24 @@ sudo apt install openssh-server
 
 sudo mkdir -p /etc/opk
 sudo touch /etc/opk/auth_id
-sudo chown root /etc/opk/auth_id
-sudo chmod 600 /etc/opk/auth_id
+sudo chown root:opksshuser /etc/opk/auth_id
+sudo chmod 640 /etc/opk/auth_id
 
 cd /tmp
 git clone https://github.com/openpubkey/openpubkey.git
 cd openpubkey
 sudo go build -v -o /usr/local/bin/opkssh ./opkssh
-sudo chmod 700 /usr/local/bin/opkssh
+sudo chmod 711 /usr/local/bin/opkssh
 sudo chown root /usr/local/bin/opkssh
 
 sudo touch /etc/opk/providers
-sudo chown root /etc/opk/providers
-sudo chmod 600 /etc/opk/providers
+sudo chown root:opksshuser /etc/opk/providers
+sudo chmod 640 /etc/opk/providers
 
 sudo su
 sed -i '/^AuthorizedKeysCommand /s/^/#/' /etc/ssh/sshd_config
 sed -i '/^AuthorizedKeysCommandUser /s/^/#/' /etc/ssh/sshd_config
-echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser root" >> /etc/ssh/sshd_config
+echo "AuthorizedKeysCommand /usr/local/bin/opkssh verify %u %k %t\nAuthorizedKeysCommandUser opksshuser" >> /etc/ssh/sshd_config
 sudo systemctl restart ssh
 
 echo "https://accounts.google.com 411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com 24h" >> /etc/opk/providers

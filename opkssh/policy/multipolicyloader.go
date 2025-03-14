@@ -18,11 +18,13 @@ package policy
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"os/exec"
 	"strings"
 )
 
-var _ Loader = &UserMultiFileLoader{}
+var _ Loader = &MultiPolicyLoader{}
 
 // FileSource implements policy.Source by returning a string that is expected to
 // be a filepath
@@ -32,26 +34,26 @@ func (s FileSource) Source() string {
 	return string(s)
 }
 
-// UserMultiFileLoader implements policy.Loader by reading both the system default
+// MultiPolicyLoader implements policy.Loader by reading both the system default
 // policy (root policy) and user policy (~/.opk/auth_id where ~ maps to
 // Username's home directory)
-type UserMultiFileLoader struct {
-	*UserPolicyLoader
-
-	Username string
+type MultiPolicyLoader struct {
+	HomePolicyLoader   *HomePolicyLoader
+	SystemPolicyLoader *SystemPolicyLoader
+	LoadWithScript     bool
+	Username           string
 }
 
-func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
+func (l *MultiPolicyLoader) Load() (*Policy, Source, error) {
 	policy := new(Policy)
 
 	// Try to load the root policy
-	rootPolicy, rootPolicyErr := l.LoadSystemDefaultPolicy()
+	rootPolicy, _, rootPolicyErr := l.SystemPolicyLoader.LoadSystemPolicy()
 	if rootPolicyErr != nil {
 		log.Println("warning: failed to load system default policy:", rootPolicyErr)
 	}
-
 	// Try to load the user policy
-	userPolicy, userPolicyFilePath, userPolicyErr := l.LoadUserPolicy(l.Username, true)
+	userPolicy, userPolicyFilePath, userPolicyErr := l.HomePolicyLoader.LoadHomePolicy(l.Username, true, ReadWithSudoScript)
 	if userPolicyErr != nil {
 		log.Println("warning: failed to load user policy:", userPolicyErr)
 	}
@@ -79,4 +81,25 @@ func (l *UserMultiFileLoader) Load() (*Policy, Source, error) {
 	}
 
 	return policy, FileSource(strings.Join(readPaths, ", ")), nil
+}
+
+// ReadWithSudoScript specifies additional way of loading the policy in the
+// user's home directory (`~/.opk/auth_id`). This is needed when the
+// AuthorizedKeysCommand user does not have privileges to transverse the user's
+// home directory. Instead we call run a command which uses special
+// sudoers permissions to read the policy file.
+//
+// Doing this is more secure than simply giving opkssh sudoer access because
+// if there was an RCE in opkssh could be triggered an SSH request via
+// AuthorizedKeysCommand, the new opkssh process we use to perform the read
+// would not be compromised. Thus, the compromised opkssh process could not assume
+// full root privileges.
+func ReadWithSudoScript(h *HomePolicyLoader, username string) ([]byte, error) {
+	// opkssh readhome ensures the file is not a symlink and has the permissions/ownership.
+	cmd := exec.Command("sudo", "-n", "/usr/local/bin/opkssh", "readhome", username)
+	homePolicyFileBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("error reading %s home policy using command %v got output %v and err %v", username, cmd, string(homePolicyFileBytes), err)
+	}
+	return homePolicyFileBytes, nil
 }

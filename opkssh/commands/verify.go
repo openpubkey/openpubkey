@@ -48,7 +48,7 @@ type VerifyCmd struct {
 // The following lines are added to /etc/ssh/sshd_config:
 //
 //	AuthorizedKeysCommand /usr/local/bin/opkssh ver %u %k %t
-//	AuthorizedKeysCommandUser root
+//	AuthorizedKeysCommandUser opksshuser
 //
 // The parameters specified in the config map the parameters sent to the function below.
 // We prepend "Arg" to specify which ones are arguments sent by sshd. They are:
@@ -93,9 +93,11 @@ func (v *VerifyCmd) AuthorizedKeysCommand(ctx context.Context, userArg string, t
 // used in the opkssh verify command.
 func OpkPolicyEnforcerFunc(username string) PolicyEnforcerFunc {
 	policyEnforcer := &policy.Enforcer{
-		PolicyLoader: &policy.UserMultiFileLoader{
-			UserPolicyLoader: policy.NewUserFileLoader(),
-			Username:         username,
+		PolicyLoader: &policy.MultiPolicyLoader{
+			HomePolicyLoader:   policy.NewHomePolicyLoader(),
+			SystemPolicyLoader: policy.NewSystemPolicyLoader(),
+			Username:           username,
+			LoadWithScript:     true, // This is needed to load policy from the user's home directory
 		},
 	}
 	return policyEnforcer.CheckPolicy

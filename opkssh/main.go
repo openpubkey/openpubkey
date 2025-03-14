@@ -42,11 +42,12 @@ var (
 
 	// These can be overridden at build time using ldflags. For example:
 	// go build -v -o /usr/local/bin/opkssh -ldflags "-X main.issuer=http://oidc.local:${ISSUER_PORT}/ -X main.clientID=web -X main.clientSecret=secret"
-	Version      = "unversioned"
-	issuer       = ""
-	clientID     = ""
-	clientSecret = ""
-	redirectURIs = ""
+	Version           = "unversioned"
+	issuer            = ""
+	clientID          = ""
+	clientSecret      = ""
+	redirectURIs      = ""
+	logFilePathServer = "/var/log/opkssh.log" // Remember if you change this, change it in the install script as well
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 
 func run() int {
 	if len(os.Args) < 2 {
-		fmt.Println("OPKSSH (OpenPubkey SSH) CLI: command choices are: login, verify, add, and install")
+		fmt.Println("OPKSSH (OpenPubkey SSH) CLI: command choices are: login, verify, and add")
 		return 1
 	}
 	command := os.Args[1]
@@ -90,12 +91,13 @@ func run() int {
 
 		// If a log directory was provided, write any logs to a file in that directory AND stdout
 		if *logFilePath != "" {
-			logFilePath := filepath.Join(*logFilePath, "openpubkey.log")
-			logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
+			logFilePath := filepath.Join(*logFilePath, "opkssh.log")
+			logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660)
 			if err == nil {
 				defer logFile.Close()
 				multiWriter := io.MultiWriter(os.Stdout, logFile)
 				log.SetOutput(multiWriter)
+				log.Printf("Failed to open log for writing: %v \n", err)
 			}
 		}
 
@@ -146,9 +148,11 @@ func run() int {
 		}
 	case "verify":
 		// Setup logger
-		logFile, err := os.OpenFile("/var/log/openpubkey.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0700)
+		logFile, err := os.OpenFile(logFilePathServer, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0660) // Owner and group can read/write
 		if err != nil {
 			fmt.Println("ERROR opening log file:", err)
+			// It could be very difficult to figure out what is going on if the log file was deleted. Hopefully this message saves someone an hour of debugging.
+			fmt.Printf("Check if log exists at %v, if it does not create it with permissions: chown root:opksshuser %v; chmod 660 %v\n", logFilePathServer, logFilePathServer, logFilePathServer)
 		} else {
 			defer logFile.Close()
 			log.SetOutput(logFile)
@@ -235,8 +239,9 @@ func run() int {
 
 		// Execute add command
 		a := commands.AddCmd{
-			PolicyFileLoader: policy.NewUserFileLoader(),
-			Username:         inputPrincipal,
+			HomePolicyLoader:   policy.NewHomePolicyLoader(),
+			SystemPolicyLoader: policy.NewSystemPolicyLoader(),
+			Username:           inputPrincipal,
 		}
 		if policyFilePath, err := a.Add(inputPrincipal, inputEmail, inputIssuer); err != nil {
 			fmt.Println("failed to add to policy:", err)
@@ -244,22 +249,24 @@ func run() int {
 		} else {
 			fmt.Println("Successfully added new policy to", policyFilePath)
 		}
-	case "install":
-		// The "install" command is sets up and installs opkssh on a server.
-		// It currently has only been tested on Ubuntu. It must be run as root.
-		//
-		// Example line:
-		// 		./opkssh install
-		err := commands.Install()
-		if err != nil {
-			fmt.Println("failed to install opkssh:", err)
-			return 1
-		} else {
-			fmt.Println("successfully installed opkssh")
-			return 0
-		}
 	case "--version", "-v":
 		fmt.Println(Version)
+	case "readhome":
+		// This command called as part of AuthorizedKeysCommand. It is used to
+		// read the user's home policy file (`~/.opk/auth_id`) with sudoer permissions.
+		// This allows us to use an unprivileged user as the AuthorizedKeysCommand user.
+
+		if len(os.Args) != 3 {
+			fmt.Println("Invalid number of arguments for readhome, expected: `<username>`")
+			return 1
+		}
+		userArg := os.Args[2]
+		if fileBytes, err := commands.ReadHome(userArg); err != nil {
+			fmt.Printf("Failed to read user's home policy file: %v\n", err)
+			return 1
+		} else {
+			fmt.Println(string(fileBytes))
+		}
 	default:
 		fmt.Println("ERROR! Unrecognized command:", command)
 		return 1
