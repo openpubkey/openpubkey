@@ -38,7 +38,7 @@ import (
 // This function is only available on Linux and Darwin because it relies on
 // syscall.Stat_t to determine the owner of the file.
 func ReadHome(username string) ([]byte, error) {
-	if matched, _ := regexp.MatchString("^[a-z0-9_-]+$", username); !matched {
+	if matched, _ := regexp.MatchString("^[a-z0-9_-.]+$", username); !matched {
 		return nil, fmt.Errorf("%s is not a valid linux username", username)
 	}
 

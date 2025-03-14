@@ -17,6 +17,14 @@ PROVIDER_GITLAB="https://gitlab.com 8d8b7024572c7fd501f64374dec6bba37096783dfcd7
 # AuthorizedKeysCommand user
 AUTH_CMD_USER="opksshuser"
 AUTH_CMD_GROUP="opksshuser"
+SUDOERS_PATH="/etc/sudoers.d/opkssh"
+
+if ! command -v sudo &> /dev/null && [ "$EUID" -ne 0 ]; then
+    echo "Error: This script must be run as root."
+    echo "sudo $0"
+    exit 1
+fi
+
 
 RESTART_SSH=true
 LOCAL_INSTALL_FILE=""
@@ -100,7 +108,7 @@ sudo mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 # Make the binary executable, correct permissions/ownership
 sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
 sudo chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
-sudo chmod 711 "$INSTALL_DIR/$BINARY_NAME"
+sudo chmod 755 "$INSTALL_DIR/$BINARY_NAME"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
@@ -134,11 +142,15 @@ if command -v $BINARY_NAME &> /dev/null; then
         echo "--no-sshd-restart option supplied, skipping SSH restart."
     fi
 
-    # Sudo regex support was added in 1.9.10. If you are using an older version of sudoer home policy will not work unless you set the AuthroizedKeysCommand user to root
+    if [ ! -f "$SUDOERS_PATH" ]; then
+        echo "Creating sudoers file at $SUDOERS_PATH..."
+        sudo touch "$SUDOERS_PATH"
+        sudo chmod 440 "$SUDOERS_PATH"
+    fi
     SUDOERS_RULE_READ_HOME="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome *"
-    if ! sudo grep -qxF "$SUDOERS_RULE_READ_HOME" /etc/sudoers; then
+    if ! sudo grep -qxF "$SUDOERS_RULE_READ_HOME" "$SUDOERS_PATH"; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
-        echo "$SUDOERS_RULE_READ_HOME" | sudo tee -a /etc/sudoers > /dev/null
+        echo "$SUDOERS_RULE_READ_HOME" | sudo tee -a "$SUDOERS_PATH" > /dev/null
     fi
 
     touch /var/log/opkssh.log
