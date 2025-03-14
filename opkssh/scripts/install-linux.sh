@@ -19,7 +19,7 @@ AUTH_CMD_USER="opksshuser"
 AUTH_CMD_GROUP="opksshuser"
 SUDOERS_PATH="/etc/sudoers.d/opkssh"
 
-if ! command -v sudo &> /dev/null && [ "$EUID" -ne 0 ]; then
+if [ "$EUID" -ne 0 ]; then
     echo "Error: This script must be run as root."
     echo "sudo $0"
     exit 1
