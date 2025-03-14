@@ -152,6 +152,7 @@ if command -v $BINARY_NAME &> /dev/null; then
     SUDOERS_RULE_READ_HOME="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome *"
     if ! grep -qxF "$SUDOERS_RULE_READ_HOME" "$SUDOERS_PATH"; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
+        echo "# This allows opkssh to call opkssh readhome <username> to read the user's policy file in /home/<username>/auth_id" >> "$SUDOERS_PATH"
         echo "$SUDOERS_RULE_READ_HOME" >> "$SUDOERS_PATH"
     fi
 

@@ -90,6 +90,16 @@ sudo useradd -r -M -s /sbin/nologin -g opksshuser opksshuser
 
 **5: Restart sshd.**
 
+Configures a sudoer command so that the opkssh AuthorizedKeysCommand process can call out to the shell to run `opkssh readhome <username>` and thereby read the policy file for the user in `/home/<username>/.opk/auth_id`.
+
+```bash
+"opksshuser ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome *"
+```
+
+This config lives in `/etc/sudoers.d/opkssh` and must have the permissions `440` with root being the owner.
+
+**6: Restart sshd.**
+
 ```bash
 sudo systemctl restart sshd
 ```
