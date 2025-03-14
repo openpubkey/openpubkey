@@ -66,16 +66,18 @@ fi
 
 
 # Checks if the group and user used by the AuthorizedKeysCommand exists if not creates it
-/usr/bin/getent group $AUTH_CMD_GROUP || groupadd --system $AUTH_CMD_GROUP
-echo "Created group: $AUTH_CMD_USER"
+if ! getent group "$AUTH_CMD_GROUP" >/dev/null; then
+    groupadd --system "$AUTH_CMD_GROUP"
+    echo "Created group: $AUTH_CMD_GROUP"
+fi
 
 # If the AuthorizedKeysCommand user does not exist, create it and add it to the group
 if ! getent passwd "$AUTH_CMD_USER" >/dev/null; then
-    sudo useradd -r -M -s /sbin/nologin -g "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    useradd -r -M -s /sbin/nologin -g "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
     echo "Created user: $AUTH_CMD_USER with group: $AUTH_CMD_GROUP"
 else
     # If the AuthorizedKeysCommand user exist, ensure it is added to the group
-    sudo usermod -aG "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
+    usermod -aG "$AUTH_CMD_GROUP" "$AUTH_CMD_USER"
     echo "Added $AUTH_CMD_USER to group: $AUTH_CMD_GROUP"
 fi
 
@@ -103,12 +105,12 @@ else
 fi
 
 # Move to installation directory
-sudo mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
+mv "$BINARY_PATH" "$INSTALL_DIR/$BINARY_NAME"
 
 # Make the binary executable, correct permissions/ownership
-sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
-sudo chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
-sudo chmod 755 "$INSTALL_DIR/$BINARY_NAME"
+chmod +x "$INSTALL_DIR/$BINARY_NAME"
+chown root:${AUTH_CMD_GROUP} "$INSTALL_DIR/$BINARY_NAME"
+chmod 755 "$INSTALL_DIR/$BINARY_NAME"
 
 # Verify installation
 if command -v $BINARY_NAME &> /dev/null; then
@@ -144,13 +146,13 @@ if command -v $BINARY_NAME &> /dev/null; then
 
     if [ ! -f "$SUDOERS_PATH" ]; then
         echo "Creating sudoers file at $SUDOERS_PATH..."
-        sudo touch "$SUDOERS_PATH"
-        sudo chmod 440 "$SUDOERS_PATH"
+        touch "$SUDOERS_PATH"
+        chmod 440 "$SUDOERS_PATH"
     fi
     SUDOERS_RULE_READ_HOME="$AUTH_CMD_USER ALL=(ALL) NOPASSWD: /usr/local/bin/opkssh readhome *"
-    if ! sudo grep -qxF "$SUDOERS_RULE_READ_HOME" "$SUDOERS_PATH"; then
+    if ! grep -qxF "$SUDOERS_RULE_READ_HOME" "$SUDOERS_PATH"; then
         echo "Adding sudoers rule for $AUTH_CMD_USER..."
-        echo "$SUDOERS_RULE_READ_HOME" | sudo tee -a "$SUDOERS_PATH" > /dev/null
+        echo "$SUDOERS_RULE_READ_HOME" >> "$SUDOERS_PATH"
     fi
 
     touch /var/log/opkssh.log
