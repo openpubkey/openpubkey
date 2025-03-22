@@ -27,7 +27,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
+	"syscall"
 
 	"github.com/awnumar/memguard"
 
@@ -90,9 +92,18 @@ func login(outputDir string, gqSign bool) error {
 	azureOpOptions.GQSign = gqSign
 	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		fmt.Printf("Received shutdown signal, exiting... %v\n", sigs)
+		cancel()
+	}()
+
 	op, err := choosers.NewWebChooser(
 		[]providers.BrowserOpenIdProvider{googleOp, azureOp},
-	).ChooseOp(context.Background())
+	).ChooseOp(ctx)
 	if err != nil {
 		return err
 	}
@@ -102,7 +113,7 @@ func login(outputDir string, gqSign bool) error {
 		return err
 	}
 
-	pkt, err := opkClient.Auth(context.Background(),
+	pkt, err := opkClient.Auth(ctx,
 		client.WithExtraClaim("extra", "yes"))
 	if err != nil {
 		return err
@@ -115,7 +126,7 @@ func login(outputDir string, gqSign bool) error {
 	}
 	fmt.Println(string(pktJson))
 
-	newPkt, err := opkClient.Refresh(context.Background())
+	newPkt, err := opkClient.Refresh(ctx)
 	if err != nil {
 		return err
 	}
