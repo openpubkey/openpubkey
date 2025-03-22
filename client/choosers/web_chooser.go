@@ -126,7 +126,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		shutdownServer := func() {
 			go func() { // Put this in a go func so that it will not block the redirect
 				if wc.server != nil {
-					if err := wc.server.Shutdown(context.Background()); err != nil {
+					if err := wc.server.Shutdown(ctx); err != nil {
 						logrus.Errorf("Failed to shutdown http server: %v", err)
 					}
 				}
@@ -183,6 +183,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	}
 
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case err := <-errCh:
 		return nil, err
 	case wc.opSelected = <-opCh:
