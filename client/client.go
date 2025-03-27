@@ -189,7 +189,7 @@ func (o *OpkClient) oidcAuth(
 	verifierChecks := []verifier.Check{}
 
 	// Use our signing key to generate a JWK key and set the "alg" header
-	jwkKey, err := jwk.PublicKeyOf(signer)
+	jwkKey, err := jwk.PublicKeyOf(signer.Public())
 	if err != nil {
 		return nil, err
 	}
