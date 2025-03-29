@@ -158,7 +158,7 @@ func TestUnknownProviderError(t *testing.T) {
 		useMockServer: true,
 	}
 	op, err := webChooser.ChooseOp(context.Background())
-	require.ErrorContains(t, err, "unknown OpenID Provider issuer")
+	require.ErrorContains(t, err, "provider issuer is not a valid openid issuer: https://unknown-issuer.example.com/.well-known/openid-configuration not found")
 	require.Nil(t, op)
 }
 
@@ -175,7 +175,11 @@ func TestIssuerToName(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "gitlab", name)
 
-	name, err = IssuerToName("https://error.example.com")
-	require.ErrorContains(t, err, "unknown OpenID Provider")
+	name, err = IssuerToName("https://noterror.example.com")
+	require.NoError(t, err)
+	require.Equal(t, "noterror.example.com", name)
+
+	name, err = IssuerToName("error.example.com")
+	require.ErrorContains(t, err, "invalid OpenID Provider issuer: error.example.com")
 	require.Equal(t, "", name)
 }
