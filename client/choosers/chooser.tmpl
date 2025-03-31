@@ -19,17 +19,20 @@
         </div>
         <br>
         <div style="background-color: grey; padding: 20px; display: inline-block;">
-            <div style="display:{{.Google}};">
-                <a href="/select?op=google"><img src="static/buttons/google-light.svg" alt="Sign in with Google" style="width:200px;" /></a>
+        {{range .Providers}}
+            <div>
+                <a href="/select?op={{.Name}}">
+                {{if .Button}}
+                    <img src="static/buttons/{{.Button}}" alt="Sign in with {{.Name}}" style="width:200px;" />
+                {{else}}
+                <button style="width:200px; height:50px; background-color: #4CAF50; color: white; border: none; cursor: pointer;">
+                    Sign in with {{.Name}}
+                </button>
+                {{end}}
+                </a>
             </div>
             <br>
-            <div style="visibility:{{.Azure}};">
-                <a href="/select?op=azure"><img src="static/buttons/azure-dark.svg" alt="Sign in with Azure" style="width:200px;" /></a>
-            </div>
-            <br>
-            <div style="visibility:{{.Gitlab}};">
-                <a href="/select?op=gitlab"><img src="static/buttons/gitlab-dark.svg" alt="Sign in with Gitlab" style="width:200px;" /></a>
-            </div>
+        {{end}}
         </div>
 
     </body>

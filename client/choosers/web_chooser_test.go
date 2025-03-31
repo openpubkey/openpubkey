@@ -147,21 +147,6 @@ func TestDuplicateProviderError(t *testing.T) {
 	require.Nil(t, op)
 }
 
-func TestUnknownProviderError(t *testing.T) {
-	googleOpOptions := providers.GetDefaultGoogleOpOptions()
-	googleOpOptions.Issuer = "https://unknown-issuer.example.com"
-	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
-
-	webChooser := WebChooser{
-		OpList:        []providers.BrowserOpenIdProvider{googleOp},
-		OpenBrowser:   false,
-		useMockServer: true,
-	}
-	op, err := webChooser.ChooseOp(context.Background())
-	require.ErrorContains(t, err, "unknown OpenID Provider issuer")
-	require.Nil(t, op)
-}
-
 func TestIssuerToName(t *testing.T) {
 	name, err := IssuerToName("https://accounts.google.com")
 	require.NoError(t, err)
@@ -175,7 +160,11 @@ func TestIssuerToName(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "gitlab", name)
 
-	name, err = IssuerToName("https://error.example.com")
-	require.ErrorContains(t, err, "unknown OpenID Provider")
+	name, err = IssuerToName("https://noterror.example.com")
+	require.NoError(t, err)
+	require.Equal(t, "noterror.example.com", name)
+
+	name, err = IssuerToName("error.example.com")
+	require.ErrorContains(t, err, "invalid OpenID Provider issuer: error.example.com")
 	require.Equal(t, "", name)
 }

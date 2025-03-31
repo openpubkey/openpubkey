@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 
 	"github.com/openpubkey/openpubkey/providers"
@@ -97,24 +98,51 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	}
 
 	mux.HandleFunc("/chooser", func(w http.ResponseWriter, r *http.Request) {
+		type Provider struct {
+			Name   string
+			Button string
+		}
+
 		data := struct {
-			Google string
-			Azure  string
-			Gitlab string
-		}{
-			Google: "none",
-			Azure:  "none",
-			Gitlab: "none",
+			Providers []Provider
+		}{}
+
+		sortedProviderNames := make([]string, 0)
+		for providerName := range providerMap {
+			sortedProviderNames = append(sortedProviderNames, providerName)
 		}
-		if _, ok := providerMap["google"]; ok {
-			data.Google = "block"
+		// Sort the provider names
+		sort.Strings(sortedProviderNames)
+
+		for _, providerName := range sortedProviderNames {
+			if providerName == "google" {
+				data.Providers = append(data.Providers, Provider{
+					Name:   providerName,
+					Button: "google-light.svg",
+				})
+				continue
+			}
+			if providerName == "azure" {
+				data.Providers = append(data.Providers, Provider{
+					Name:   providerName,
+					Button: "azure-dark.svg",
+				})
+				continue
+			}
+			if providerName == "gitlab" {
+				data.Providers = append(data.Providers, Provider{
+					Name:   providerName,
+					Button: "gitlab-light.svg",
+				})
+				continue
+			}
+			data.Providers = append(data.Providers, Provider{
+				Name:   providerName,
+				Button: "",
+			})
+
 		}
-		if _, ok := providerMap["azure"]; ok {
-			data.Azure = "block"
-		}
-		if _, ok := providerMap["gitlab"]; ok {
-			data.Gitlab = "block"
-		}
+
 		w.Header().Set("Content-Type", "text/html")
 		if err := chooserTemplate.Execute(w, data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -201,6 +229,12 @@ func IssuerToName(issuer string) (string, error) {
 	case strings.HasPrefix(issuer, "https://gitlab.com"):
 		return "gitlab", nil
 	default:
-		return "", fmt.Errorf("unknown OpenID Provider issuer: %s", issuer)
+		if strings.HasPrefix(issuer, "https://") {
+			// Returns issuer without the "https://" prefix and without any path remaining on the url
+			// e.g. https://accounts.google.com/fdsfa/fdsafsad -> accounts.google.com
+			return strings.Split(strings.TrimPrefix(issuer, "https://"), "/")[0], nil
+
+		}
+		return "", fmt.Errorf("invalid OpenID Provider issuer: %s", issuer)
 	}
 }
