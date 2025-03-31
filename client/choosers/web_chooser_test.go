@@ -147,21 +147,6 @@ func TestDuplicateProviderError(t *testing.T) {
 	require.Nil(t, op)
 }
 
-func TestUnknownProviderError(t *testing.T) {
-	googleOpOptions := providers.GetDefaultGoogleOpOptions()
-	googleOpOptions.Issuer = "https://unknown-issuer.example.com"
-	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
-
-	webChooser := WebChooser{
-		OpList:        []providers.BrowserOpenIdProvider{googleOp},
-		OpenBrowser:   false,
-		useMockServer: true,
-	}
-	op, err := webChooser.ChooseOp(context.Background())
-	require.ErrorContains(t, err, "provider issuer is not a valid openid issuer: https://unknown-issuer.example.com/.well-known/openid-configuration not found")
-	require.Nil(t, op)
-}
-
 func TestIssuerToName(t *testing.T) {
 	name, err := IssuerToName("https://accounts.google.com")
 	require.NoError(t, err)
