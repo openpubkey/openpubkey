@@ -58,10 +58,10 @@ type WebChooser struct {
 	server        *http.Server
 }
 
-func NewWebChooser(opList []providers.BrowserOpenIdProvider) *WebChooser {
+func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
 	return &WebChooser{
 		OpList:        opList,
-		OpenBrowser:   true,
+		OpenBrowser:   openBrowser,
 		useMockServer: false,
 	}
 }
@@ -201,12 +201,24 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			}
 		}()
 
+		var loginURI string
+		if listener.Addr().(*net.TCPAddr).IP.String() == "127.0.0.1" {
+			// For consistency in output messages in our code base we use localhost rather than 127.0.0.1
+			port := listener.Addr().(*net.TCPAddr).Port
+			loginURI = fmt.Sprintf("http://localhost:%d/chooser", port)
+		} else {
+			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
+		}
+
 		if wc.OpenBrowser {
-			loginURI := fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 			logrus.Infof("Opening browser to %s", loginURI)
 			if err := util.OpenUrl(loginURI); err != nil {
 				logrus.Errorf("Failed to open url: %v", err)
 			}
+		} else {
+			// If wc.OpenBrowser is false, tell the user what URL to open.
+			// This is useful when a user wants to use a different browser than the default one.
+			logrus.Infof("Open your browser to: %s ", loginURI)
 		}
 	}
 
