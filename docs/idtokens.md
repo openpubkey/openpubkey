@@ -113,3 +113,35 @@ This document contains example ID Tokens from different providers. We do include
     }
 }
 ```
+
+## Hello.dev
+
+### ID Token
+
+This was generated using <https://playground.hello.dev/> with gitlab claims enabled
+
+```json
+{
+"payload": {
+    "iss": "https://issuer.hello.coop",
+    "aud": "app_HelloDeveloperPlayground_Iq2",
+    "nonce": "26fe2dc0-b405-40cb-bfdc-e26aee0564ce",
+    "jti": "jti_0FmofYWcyShupLOb9X3YwaIl_EVL",
+    "sub": "8dfb4b1a-2b9e-4f59-a2dc-33e6806f3fe0",
+    "tenant": "personal",
+    "email": "alice@gmail.com",
+    "email_verified": true,
+    "gitlab": {
+        "id": "76205622",
+        "username": "Alice"
+    },
+    "iat": 1743381952,
+    "exp": 1743382252
+}
+"protected": {
+    "alg": "RS256",
+    "typ": "JWT",
+    "kid": "2025-01-15T16:56:49.668Z_735-1c5"
+    },
+}
+```
