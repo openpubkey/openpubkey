@@ -19,11 +19,12 @@ package providers
 import (
 	"crypto/rand"
 	"fmt"
-	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 	"io"
 	"net"
 	"net/url"
 	"strings"
+	
+	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
 // FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
