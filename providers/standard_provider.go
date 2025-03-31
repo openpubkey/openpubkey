@@ -158,7 +158,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	if s.reuseBrowserWindowHook != nil {
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
-		logrus.Infof("Opening browser to on http://%s/", loginURI)
+		logrus.Infof("Opening browser to on %s/", loginURI)
 		if err := util.OpenUrl(loginURI); err != nil {
 			logrus.Errorf("Failed to open url: %v", err)
 		}
