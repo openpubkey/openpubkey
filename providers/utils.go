@@ -19,14 +19,11 @@ package providers
 import (
 	"crypto/rand"
 	"fmt"
+	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
 // FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try
@@ -75,24 +72,4 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// WithUnsecure() is equivalent to not setting the 'secure' attribute
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
-}
-
-func CheckURLStatus(url string) bool {
-	client := http.Client{
-		Timeout: 10 * time.Second, // Static timeout of 10 seconds
-	}
-
-	resp, err := client.Get(url)
-	if err != nil {
-		return false
-	}
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("Error closing response body: %v\n", err)
-		}
-	}(resp.Body)
-
-	return resp.StatusCode == http.StatusOK
 }

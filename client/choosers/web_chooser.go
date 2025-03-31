@@ -73,17 +73,13 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 
 	providerMap := map[string]providers.BrowserOpenIdProvider{}
 	for _, provider := range wc.OpList {
-		if providers.CheckURLStatus(provider.Issuer() + "/.well-known/openid-configuration") {
-			if providerName, err := IssuerToName(provider.Issuer()); err != nil {
-				return nil, err
-			} else {
-				if _, ok := providerMap[providerName]; ok {
-					return nil, fmt.Errorf("provider in web chooser found with duplicate issuer: %s", provider.Issuer())
-				}
-				providerMap[providerName] = provider
-			}
+		if providerName, err := IssuerToName(provider.Issuer()); err != nil {
+			return nil, err
 		} else {
-			return nil, fmt.Errorf("provider issuer is not a valid openid issuer: %s", provider.Issuer()+"/.well-known/openid-configuration not found")
+			if _, ok := providerMap[providerName]; ok {
+				return nil, fmt.Errorf("provider in web chooser found with duplicate issuer: %s", provider.Issuer())
+			}
+			providerMap[providerName] = provider
 		}
 	}
 
