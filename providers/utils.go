@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
 
