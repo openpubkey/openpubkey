@@ -65,8 +65,8 @@ type HelloOptions struct {
 
 func GetDefaultHelloOpOptions() *GoogleOptions {
 	return &GoogleOptions{
-		Issuer:   googleIssuer,
-		ClientID: "TODO:",
+		Issuer:   helloIssuer,
+		ClientID: "app_xejobTKEsDNSRd5vofKB2iay_2rN",
 		Scopes:   []string{"openid profile email"},
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",

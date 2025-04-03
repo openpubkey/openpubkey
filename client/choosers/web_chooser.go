@@ -136,6 +136,13 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 				})
 				continue
 			}
+			if providerName == "Hello" {
+				data.Providers = append(data.Providers, Provider{
+					Name:   providerName,
+					Button: "",
+				})
+				continue
+			}
 			data.Providers = append(data.Providers, Provider{
 				Name:   providerName,
 				Button: "",
@@ -228,6 +235,8 @@ func IssuerToName(issuer string) (string, error) {
 		return "azure", nil
 	case strings.HasPrefix(issuer, "https://gitlab.com"):
 		return "gitlab", nil
+	case strings.HasPrefix(issuer, "https://issuer.hello.coop"):
+		return "hello", nil
 	default:
 		if strings.HasPrefix(issuer, "https://") {
 			// Returns issuer without the "https://" prefix and without any path remaining on the url
