@@ -105,8 +105,10 @@ func login(outputDir string, gqSign bool) error {
 		cancel()
 	}()
 
+	openBrowser := true
 	op, err := choosers.NewWebChooser(
 		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp},
+		openBrowser,
 	).ChooseOp(ctx)
 	if err != nil {
 		return err

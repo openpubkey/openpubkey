@@ -158,10 +158,14 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	if s.reuseBrowserWindowHook != nil {
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
-		logrus.Infof("Opening browser to on %s/", loginURI)
+		logrus.Infof("Opening browser to %s ", loginURI)
 		if err := util.OpenUrl(loginURI); err != nil {
 			logrus.Errorf("Failed to open url: %v", err)
 		}
+	} else {
+		// If s.OpenBrowser is false, tell the user what URL to open.
+		// This is useful when a user wants to use a different browser than the default one.
+		logrus.Infof("Open your browser to: %s ", loginURI)
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
