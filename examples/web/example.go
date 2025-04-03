@@ -92,6 +92,10 @@ func login(outputDir string, gqSign bool) error {
 	azureOpOptions.GQSign = gqSign
 	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
 
+	helloOpOptions := providers.GetDefaultHelloOpOptions()
+	helloOpOptions.GQSign = gqSign
+	helloOp := providers.NewHelloOpWithOptions(helloOpOptions)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -103,7 +107,7 @@ func login(outputDir string, gqSign bool) error {
 
 	openBrowser := true
 	op, err := choosers.NewWebChooser(
-		[]providers.BrowserOpenIdProvider{googleOp, azureOp},
+		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp},
 		openBrowser,
 	).ChooseOp(ctx)
 	if err != nil {
