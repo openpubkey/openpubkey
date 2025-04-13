@@ -136,10 +136,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 				})
 				continue
 			}
-			if providerName == "Hello" {
+			if providerName == "hello" {
 				data.Providers = append(data.Providers, Provider{
 					Name:   providerName,
-					Button: "",
+					Button: "hello-dark.png",
 				})
 				continue
 			}
