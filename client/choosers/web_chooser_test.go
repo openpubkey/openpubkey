@@ -60,7 +60,7 @@ func TestGoogleSelection(t *testing.T) {
 
 			webChooser := WebChooser{
 				OpList: []providers.BrowserOpenIdProvider{
-					googleOp, azureOp, gitlabOp,
+					googleOp, azureOp, gitlabOp, helloOp,
 				},
 				OpenBrowser:   false,
 				useMockServer: true,
