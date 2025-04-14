@@ -78,20 +78,28 @@ func GetDefaultGitlabOpOptions() *GitlabOptions {
 }
 
 func NewGitlabOpWithOptions(opts *GitlabOptions) BrowserOpenIdProvider {
-	return &StandardOp{
-		clientID:                  opts.ClientID,
-		Scopes:                    opts.Scopes,
-		RedirectURIs:              opts.RedirectURIs,
-		GQSign:                    opts.GQSign,
-		OpenBrowser:               opts.OpenBrowser,
-		HttpClient:                opts.HttpClient,
-		IssuedAtOffset:            opts.IssuedAtOffset,
-		issuer:                    opts.Issuer,
-		requestTokensOverrideFunc: nil,
-		publicKeyFinder: discover.PublicKeyFinder{
-			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
-				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+	return &GitlabOp{
+		StandardOp{
+			clientID:                  opts.ClientID,
+			Scopes:                    opts.Scopes,
+			RedirectURIs:              opts.RedirectURIs,
+			GQSign:                    opts.GQSign,
+			OpenBrowser:               opts.OpenBrowser,
+			HttpClient:                opts.HttpClient,
+			IssuedAtOffset:            opts.IssuedAtOffset,
+			issuer:                    opts.Issuer,
+			requestTokensOverrideFunc: nil,
+			publicKeyFinder: discover.PublicKeyFinder{
+				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+					return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+				},
 			},
 		},
 	}
 }
+
+type GitlabOp = StandardOpRefreshable
+
+var _ OpenIdProvider = (*GitlabOp)(nil)
+var _ BrowserOpenIdProvider = (*GitlabOp)(nil)
+var _ RefreshableOpenIdProvider = (*GitlabOp)(nil)

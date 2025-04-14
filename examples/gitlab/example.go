@@ -39,7 +39,7 @@ func SignWithGitlab(opts ...Opts) error {
 		op = opts[0].altOp
 	} else {
 		// Creates OpenID Provider (OP) configuration, this will be used to request the ID Token from Gitlab
-		op = providers.NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+		op = providers.NewGitlabCiOpFromEnvironment("OPENPUBKEY_JWT")
 	}
 
 	// Creates a new OpenPubkey client

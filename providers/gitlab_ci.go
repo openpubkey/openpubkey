@@ -28,23 +28,23 @@ import (
 
 const gitlabIssuer = "https://gitlab.com"
 
-type GitlabOp struct {
+type GitlabCiOp struct {
 	issuer                    string // Change issuer to point this to a test issuer
 	publicKeyFinder           discover.PublicKeyFinder
 	tokenEnvVar               string
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
 
-func NewGitlabOpFromEnvironmentDefault() *GitlabOp {
-	return NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+func NewGitlabCiOpFromEnvironmentDefault() *GitlabCiOp {
+	return NewGitlabCiOpFromEnvironment("OPENPUBKEY_JWT")
 }
 
-func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabOp {
-	return NewGitlabOp(gitlabIssuer, tokenEnvVar)
+func NewGitlabCiOpFromEnvironment(tokenEnvVar string) *GitlabCiOp {
+	return NewGitlabCiOp(gitlabIssuer, tokenEnvVar)
 }
 
-func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
-	op := &GitlabOp{
+func NewGitlabCiOp(issuer string, tokenEnvVar string) *GitlabCiOp {
+	op := &GitlabCiOp{
 		issuer:                    issuer,
 		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
 		tokenEnvVar:               tokenEnvVar,
@@ -53,15 +53,15 @@ func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabOp {
 	return op
 }
 
-func (g *GitlabOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
+func (g *GitlabCiOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
 }
 
-func (g *GitlabOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
+func (g *GitlabCiOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
 	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
 }
 
-func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
+func (g *GitlabCiOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
@@ -96,11 +96,11 @@ func (g *GitlabOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims
 	return &simpleoidc.Tokens{IDToken: []byte(gqToken)}, nil
 }
 
-func (g *GitlabOp) Issuer() string {
+func (g *GitlabCiOp) Issuer() string {
 	return g.issuer
 }
 
-func (g *GitlabOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+func (g *GitlabCiOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(g.issuer,
 		ProviderVerifierOpts{CommitType: CommitTypesEnum.GQ_BOUND, GQOnly: true, SkipClientIDCheck: true},
 	)

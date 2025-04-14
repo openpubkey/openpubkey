@@ -33,7 +33,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	providerOverride, err := mocks.NewMockProviderBackend(issuer, 2)
 	require.NoError(t, err)
 
-	op := &GitlabOp{
+	op := &GitlabCiOp{
 		issuer:                    gitlabIssuer,
 		publicKeyFinder:           providerOverride.PublicKeyFinder,
 		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,

@@ -39,6 +39,7 @@ func TestGoogleSelection(t *testing.T) {
 		{name: "select google", providerName: "google", httpCodeExpected: http.StatusOK},
 		{name: "select azure", providerName: "azure", httpCodeExpected: http.StatusOK},
 		{name: "select gitlab", providerName: "gitlab", httpCodeExpected: http.StatusOK},
+		{name: "select hello", providerName: "hello", httpCodeExpected: http.StatusOK},
 		{name: "select bad provider", providerName: "fakeProvider", httpCodeExpected: http.StatusBadRequest, errorString: "unknown OpenID Provider"},
 		{name: "select no provider", providerName: "", httpCodeExpected: http.StatusBadRequest, errorString: "missing op parameter"},
 	}
@@ -54,9 +55,12 @@ func TestGoogleSelection(t *testing.T) {
 			gitlabOpOptions := providers.GetDefaultGitlabOpOptions()
 			gitlabOp := providers.NewGitlabOpWithOptions(gitlabOpOptions)
 
+			helloOpOptions := providers.GetDefaultHelloOpOptions()
+			helloOp := providers.NewHelloOpWithOptions(helloOpOptions)
+
 			webChooser := WebChooser{
 				OpList: []providers.BrowserOpenIdProvider{
-					googleOp, azureOp, gitlabOp,
+					googleOp, azureOp, gitlabOp, helloOp,
 				},
 				OpenBrowser:   false,
 				useMockServer: true,
@@ -84,11 +88,13 @@ func TestGoogleSelection(t *testing.T) {
 				// trigger the redirect so the HTTP GET below will complete
 				switch tc.providerName {
 				case "google":
-					googleOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
+					googleOp.(*providers.GoogleOp).TriggerBrowserWindowHook(redirectUri)
 				case "azure":
-					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
+					azureOp.(*providers.AzureOp).TriggerBrowserWindowHook(redirectUri)
 				case "gitlab":
-					gitlabOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
+					gitlabOp.(*providers.GitlabOp).TriggerBrowserWindowHook(redirectUri)
+				case "hello":
+					helloOp.(*providers.HelloOp).TriggerBrowserWindowHook(redirectUri)
 				default:
 					// Trigger azure even if the provider doesn't match to sure this test finishes
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)

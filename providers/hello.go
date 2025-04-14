@@ -18,17 +18,19 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
 )
 
-// AzureOptions is an options struct that configures how providers.AzureOp
-// operates. See providers.GetDefaultAzureOpOptions for the recommended default
-// values to use when interacting with Azure as the OpenIdProvider.
-type AzureOptions struct {
+const helloIssuer = "https://issuer.hello.coop"
+
+// HelloOptions is an options struct that configures how providers.HelloOp
+// operates. See providers.GetDefaultGoogleOpOptions for the recommended default
+// values to use when interacting with Google as the OpenIdProvider.
+type HelloOptions struct {
 	// ClientID is the client ID of the OIDC application. It should be the
 	// expected "aud" claim in received ID tokens from the OP.
 	ClientID string
@@ -59,22 +61,13 @@ type AzureOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
-	// TenantID is the GUID  of the Azure tenant/organization. Azure has a
-	// different issuer URI for each tenant. Users that are not part of Azure
-	// organization, which microsoft nicknames consumers have a default
-	// tenant ID of "9188040d-6c67-4c5b-b112-36a304b66dad"
-	// More details can be found at
-	// https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens
-	TenantID string
 }
 
-func GetDefaultAzureOpOptions() *AzureOptions {
-	defaultTenantID := "9188040d-6c67-4c5b-b112-36a304b66dad"
-	return &AzureOptions{
-		Issuer:   azureIssuer(defaultTenantID),
-		ClientID: "096ce0a3-5e72-4da8-9c86-12924b294a01",
-		// Scopes:   []string{"openid profile email"},
-		Scopes: []string{"openid profile email offline_access"}, // offline_access is required for refresh tokens
+func GetDefaultHelloOpOptions() *HelloOptions {
+	return &HelloOptions{
+		Issuer:   helloIssuer,
+		ClientID: "app_xejobTKEsDNSRd5vofKB2iay_2rN",
+		Scopes:   []string{"openid profile email"},
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -87,44 +80,37 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 	}
 }
 
-// NewAzureOp creates a Azure OP (OpenID Provider) using the
+// NewHelloOp creates a Google OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
-func NewAzureOp() BrowserOpenIdProvider {
-	options := GetDefaultAzureOpOptions()
-	return NewAzureOpWithOptions(options)
+func NewHelloOp() BrowserOpenIdProvider {
+	options := GetDefaultHelloOpOptions()
+	return NewHelloOpWithOptions(options)
 }
 
-// NewAzureOpWithOptions creates a Azure OP with configuration specified
+// NewHelloOpWithOptions creates a Hello OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
-	return &AzureOp{
-		StandardOp{
-			clientID:                  opts.ClientID,
-			Scopes:                    opts.Scopes,
-			RedirectURIs:              opts.RedirectURIs,
-			GQSign:                    opts.GQSign,
-			OpenBrowser:               opts.OpenBrowser,
-			HttpClient:                opts.HttpClient,
-			IssuedAtOffset:            opts.IssuedAtOffset,
-			issuer:                    opts.Issuer,
-			requestTokensOverrideFunc: nil,
-			publicKeyFinder: discover.PublicKeyFinder{
-				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
-					return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
-				},
+func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
+	return &HelloOp{
+		clientID:                  opts.ClientID,
+		Scopes:                    opts.Scopes,
+		RedirectURIs:              opts.RedirectURIs,
+		GQSign:                    opts.GQSign,
+		OpenBrowser:               opts.OpenBrowser,
+		HttpClient:                opts.HttpClient,
+		IssuedAtOffset:            opts.IssuedAtOffset,
+		issuer:                    opts.Issuer,
+		requestTokensOverrideFunc: nil,
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 			},
 		},
 	}
 }
 
-type AzureOp = StandardOpRefreshable
+type HelloOp = StandardOp
 
-var _ OpenIdProvider = (*AzureOp)(nil)
-var _ BrowserOpenIdProvider = (*AzureOp)(nil)
-var _ RefreshableOpenIdProvider = (*AzureOp)(nil)
-
-func azureIssuer(tenantID string) string {
-	return fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
-}
+var _ OpenIdProvider = (*HelloOp)(nil)
+var _ BrowserOpenIdProvider = (*HelloOp)(nil)
