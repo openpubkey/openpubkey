@@ -50,9 +50,13 @@ type StandardOp struct {
 	reuseBrowserWindowHook    chan string
 }
 
+type StandardOpRefreshable struct {
+	StandardOp
+}
+
 var _ OpenIdProvider = (*StandardOp)(nil)
 var _ BrowserOpenIdProvider = (*StandardOp)(nil)
-var _ RefreshableOpenIdProvider = (*StandardOp)(nil)
+var _ RefreshableOpenIdProvider = (*StandardOpRefreshable)(nil)
 
 func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
 	if s.requestTokensOverrideFunc != nil {
@@ -216,7 +220,7 @@ func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 	return tokens, nil
 }
 
-func (s *StandardOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
+func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
 		return nil, err
@@ -288,7 +292,7 @@ func (s *StandardOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clienti
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
-func (s *StandardOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
 	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
 	}

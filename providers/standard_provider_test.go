@@ -35,9 +35,11 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &GoogleOp{
-		issuer:                    googleIssuer,
-		publicKeyFinder:           providerOverride.PublicKeyFinder,
-		requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
+		StandardOp{
+			issuer:                    googleIssuer,
+			publicKeyFinder:           providerOverride.PublicKeyFinder,
+			requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
+		},
 	}
 
 	cic := GenCIC(t)

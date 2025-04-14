@@ -99,25 +99,27 @@ func NewAzureOp() BrowserOpenIdProvider {
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
-	return &StandardOp{
-		clientID:                  opts.ClientID,
-		Scopes:                    opts.Scopes,
-		RedirectURIs:              opts.RedirectURIs,
-		GQSign:                    opts.GQSign,
-		OpenBrowser:               opts.OpenBrowser,
-		HttpClient:                opts.HttpClient,
-		IssuedAtOffset:            opts.IssuedAtOffset,
-		issuer:                    opts.Issuer,
-		requestTokensOverrideFunc: nil,
-		publicKeyFinder: discover.PublicKeyFinder{
-			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
-				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+	return &AzureOp{
+		StandardOp{
+			clientID:                  opts.ClientID,
+			Scopes:                    opts.Scopes,
+			RedirectURIs:              opts.RedirectURIs,
+			GQSign:                    opts.GQSign,
+			OpenBrowser:               opts.OpenBrowser,
+			HttpClient:                opts.HttpClient,
+			IssuedAtOffset:            opts.IssuedAtOffset,
+			issuer:                    opts.Issuer,
+			requestTokensOverrideFunc: nil,
+			publicKeyFinder: discover.PublicKeyFinder{
+				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+					return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+				},
 			},
 		},
 	}
 }
 
-type AzureOp = StandardOp
+type AzureOp = StandardOpRefreshable
 
 var _ OpenIdProvider = (*AzureOp)(nil)
 var _ BrowserOpenIdProvider = (*AzureOp)(nil)

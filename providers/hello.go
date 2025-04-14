@@ -63,8 +63,8 @@ type HelloOptions struct {
 	IssuedAtOffset time.Duration
 }
 
-func GetDefaultHelloOpOptions() *GoogleOptions {
-	return &GoogleOptions{
+func GetDefaultHelloOpOptions() *HelloOptions {
+	return &HelloOptions{
 		Issuer:   helloIssuer,
 		ClientID: "app_xejobTKEsDNSRd5vofKB2iay_2rN",
 		Scopes:   []string{"openid profile email"},
@@ -91,10 +91,9 @@ func NewHelloOp() BrowserOpenIdProvider {
 // NewHelloOpWithOptions creates a Hello OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewHelloOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
-	return &StandardOp{
+func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
+	return &HelloOp{
 		clientID:                  opts.ClientID,
-		clientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
@@ -113,6 +112,5 @@ func NewHelloOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 
 type HelloOp = StandardOp
 
-var _ OpenIdProvider = (*GoogleOp)(nil)
-var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
-var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
+var _ OpenIdProvider = (*HelloOp)(nil)
+var _ BrowserOpenIdProvider = (*HelloOp)(nil)

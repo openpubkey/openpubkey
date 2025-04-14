@@ -135,32 +135,50 @@ func login(outputDir string, gqSign bool) error {
 		return err
 	}
 	fmt.Println(string(pktJson))
-
-	newPkt, err := opkClient.Refresh(ctx)
-	if err != nil {
-		return err
-	}
-	fmt.Println("refreshed ID Token", string(newPkt.FreshIDToken))
-
 	pktCom, err := pkt.Compact()
 	if err != nil {
 		return err
 	}
 	fmt.Println("Compact", len(pktCom), string(pktCom))
 
-	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	ops := []verifier.ProviderVerifier{googleOp, azureOp}
-	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
-	if err != nil {
-		return err
-	}
-	err = pktVerifier.VerifyPKToken(context.Background(), newPkt)
-	if err != nil {
-		return err
+	if opkClient.Op != helloOp {
+		newPkt, err := opkClient.Refresh(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Println("refreshed ID Token", string(newPkt.FreshIDToken))
+
+		// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
+		ops := []verifier.ProviderVerifier{googleOp, azureOp, gitlabOp}
+		pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
+		if err != nil {
+			return err
+		}
+		err = pktVerifier.VerifyPKToken(context.Background(), newPkt)
+		if err != nil {
+			return err
+		}
+
+		// Save our signer and pktoken by writing them to a file
+		return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), newPkt)
+	} else {
+		// HelloOP does not support refresh tokens
+		fmt.Println("skipping ID Token refresh for Hello OP as it does not support refresh tokens")
+
+		ops := []verifier.ProviderVerifier{googleOp, azureOp, gitlabOp, helloOp}
+		pktVerifier, err := verifier.NewFromMany(ops)
+		if err != nil {
+			return err
+		}
+		err = pktVerifier.VerifyPKToken(context.Background(), pkt)
+		if err != nil {
+			return err
+		}
+
+		// Save our signer and pktoken by writing them to a file
+		return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), pkt)
 	}
 
-	// Save our signer and pktoken by writing them to a file
-	return saveLogin(outputDir, opkClient.GetSigner().(*ecdsa.PrivateKey), newPkt)
 }
 
 func sign(message string, outputDir string) error {
