@@ -35,15 +35,15 @@ type GitlabCiOp struct {
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 }
 
-func NewGitlabOpFromEnvironmentDefault() *GitlabCiOp {
-	return NewGitlabOpFromEnvironment("OPENPUBKEY_JWT")
+func NewGitlabCiOpFromEnvironmentDefault() *GitlabCiOp {
+	return NewGitlabCiOpFromEnvironment("OPENPUBKEY_JWT")
 }
 
-func NewGitlabOpFromEnvironment(tokenEnvVar string) *GitlabCiOp {
-	return NewGitlabOp(gitlabIssuer, tokenEnvVar)
+func NewGitlabCiOpFromEnvironment(tokenEnvVar string) *GitlabCiOp {
+	return NewGitlabCiOp(gitlabIssuer, tokenEnvVar)
 }
 
-func NewGitlabOp(issuer string, tokenEnvVar string) *GitlabCiOp {
+func NewGitlabCiOp(issuer string, tokenEnvVar string) *GitlabCiOp {
 	op := &GitlabCiOp{
 		issuer:                    issuer,
 		publicKeyFinder:           *discover.DefaultPubkeyFinder(),
