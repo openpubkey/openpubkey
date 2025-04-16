@@ -37,6 +37,11 @@ type GitlabOptions struct {
 	// Scopes is the list of scopes to send to the OP in the initial
 	// authorization request.
 	Scopes []string
+	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
+	// this is set to "consent".
+	PromptType string
+	// AccessType is the type of access to request from the OP. Typically this is set to "offline".
+	AccessType string
 	// RedirectURIs is the list of authorized redirect URIs that can be
 	// redirected to by the OP after the user completes the authorization code
 	// flow exchange. Ensure that your OIDC application is configured to accept
@@ -62,9 +67,11 @@ type GitlabOptions struct {
 
 func GetDefaultGitlabOpOptions() *GitlabOptions {
 	return &GitlabOptions{
-		ClientID: "8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923",
-		Issuer:   gitlabIssuer,
-		Scopes:   []string{"openid email"},
+		ClientID:   "8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923",
+		Issuer:     gitlabIssuer,
+		Scopes:     []string{"openid email"},
+		PromptType: "consent",
+		AccessType: "offline",
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -82,6 +89,8 @@ func NewGitlabOpWithOptions(opts *GitlabOptions) BrowserOpenIdProvider {
 		StandardOp{
 			clientID:                  opts.ClientID,
 			Scopes:                    opts.Scopes,
+			PromptType:                opts.PromptType,
+			AccessType:                opts.AccessType,
 			RedirectURIs:              opts.RedirectURIs,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
