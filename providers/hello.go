@@ -67,7 +67,7 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 	return &HelloOptions{
 		Issuer:   helloIssuer,
 		ClientID: "app_xejobTKEsDNSRd5vofKB2iay_2rN",
-		Scopes:   []string{"openid profile email"},
+		Scopes:   []string{"openid email"},
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",

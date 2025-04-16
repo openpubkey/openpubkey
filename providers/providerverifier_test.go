@@ -46,6 +46,7 @@ func TestProviderVerifier(t *testing.T) {
 		pvGQSign    bool
 		pvGQOnly    bool
 		tokenGQSign bool
+		providerAlg string
 
 		tokenCommitType   CommitType
 		pvCommitType      CommitType
@@ -53,55 +54,59 @@ func TestProviderVerifier(t *testing.T) {
 		IssuedAtClaim     int64
 		correctCicHash    bool
 	}{
-		{name: "Claim Commitment happy case", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+		{name: "Claim Commitment happy case (RS256)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
+			expError:       "",
+			correctCicHash: true},
+		{name: "Claim Commitment happy case (ES256)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
 			expError:       "",
 			correctCicHash: true},
 		{name: "Claim Commitment (aud) happy case",
-			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM,
+			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM, providerAlg: "RS256",
 			expError:          "",
 			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "Claim Commitment wrong audience", aud: "wrong clientID", clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
 			expError:       "audience does not contain clientID",
 			correctCicHash: true},
 		{name: "Claim Commitment no commitment claim", aud: clientID, clientID: clientID,
-			tokenCommitType: EMPTY_COMMIT, pvCommitType: EMPTY_COMMIT,
+			tokenCommitType: EMPTY_COMMIT, pvCommitType: EMPTY_COMMIT, providerAlg: "RS256",
 			expError:    "verifier configured with empty commitment claim",
 			tokenGQSign: false, correctCicHash: true},
 		{name: "Claim Commitment wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
 			expError:    "commitment claim doesn't match",
 			tokenGQSign: false, correctCicHash: false},
 		{name: "Claim Commitment GQ happy case", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
 			expError: "", tokenGQSign: true, correctCicHash: true},
 		{name: "Claim Commitment GQ wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
 			expError: "commitment claim doesn't match", tokenGQSign: true, correctCicHash: false},
 		{name: "GQ Commitment happy case", aud: correctAud,
 			expError:        "",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
+			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
 			tokenGQSign: true, pvGQOnly: true,
 			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment wrong aud prefix", aud: "bad value",
 			expError:        "audience claim in PK Token's GQCommitment must be prefixed by",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
+			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
 			tokenGQSign: true, pvGQOnly: true,
 			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment providerVerifier not using GQ Commitment", aud: correctAud,
 			expError:        "commitment claim doesn't match",
-			tokenCommitType: GQ_BOUND, pvCommitType: NONCE_CLAIM,
+			tokenCommitType: GQ_BOUND, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
 			tokenGQSign: true, pvGQOnly: true,
 			SkipClientIDCheck: true, correctCicHash: true},
 		{name: "GQ Commitment wrong CIC", aud: correctAud,
 			expError:        "commitment claim doesn't match",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
+			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
 			tokenGQSign: true, pvGQOnly: true,
 			SkipClientIDCheck: true, correctCicHash: false},
 		{name: "GQ Commitment check client id", aud: correctAud,
 			expError:        "GQCommitment requires that audience (aud) is not set to client-id",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND,
+			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
 			tokenGQSign: true, pvGQOnly: true},
 	}
 	for _, tc := range testCases {
@@ -111,7 +116,7 @@ func TestProviderVerifier(t *testing.T) {
 				Nonce:       "empty",
 				NoNonce:     false,
 				Aud:         "empty",
-				Alg:         "RS256",
+				Alg:         tc.providerAlg,
 				NoAlg:       false,
 				ExtraClaims: map[string]any{},
 			}
@@ -140,6 +145,7 @@ func TestProviderVerifier(t *testing.T) {
 
 			providerOpts := MockProviderOpts{
 				Issuer:     issuer,
+				Alg:        tc.providerAlg,
 				ClientID:   clientID,
 				GQSign:     tc.tokenGQSign,
 				NumKeys:    2,

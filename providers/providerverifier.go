@@ -18,6 +18,7 @@ package providers
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -131,14 +132,29 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		}
 
 		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
-		_, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey)
-		if !ok {
+		if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
 			return fmt.Errorf("public key is not an RSA public key")
 		}
 
 		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
+	case jwa.ES256:
+		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
+		if err != nil {
+			return fmt.Errorf("failed to get OP public key: %w", err)
+		}
+
+		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
+		if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
+			return fmt.Errorf("public key is not an ECDSA public key")
+		}
+
+		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported signature algorithm %s", alg)
 	}
 
 	if err := v.verifyCommitment(idt, cic); err != nil {

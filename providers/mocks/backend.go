@@ -41,10 +41,21 @@ type MockProviderBackend struct {
 	IDTokensTemplate      *IDTokenTemplate
 }
 
-func NewMockProviderBackend(issuer string, numKeys int) (*MockProviderBackend, error) {
-	providerSigningKeySet, providerPublicKeySet, err := CreateRS256KeySet(issuer, numKeys)
-	if err != nil {
-		return nil, err
+func NewMockProviderBackend(issuer string, alg string, numKeys int) (*MockProviderBackend, error) {
+
+	var providerSigningKeySet map[string]crypto.Signer
+	var providerPublicKeySet map[string]discover.PublicKeyRecord
+	var err error
+	if alg == "RS256" {
+		if providerSigningKeySet, providerPublicKeySet, err = CreateRS256KeySet(issuer, numKeys); err != nil {
+			return nil, err
+		}
+	} else if alg == "ES256" {
+		if providerSigningKeySet, providerPublicKeySet, err = CreateES256KeySet(issuer, numKeys); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("unsupported provider alg: %s", alg)
 	}
 
 	return &MockProviderBackend{

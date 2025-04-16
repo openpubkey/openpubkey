@@ -55,6 +55,7 @@ func TestClient(t *testing.T) {
 			var c *client.OpkClient
 			providerOpts := providers.MockProviderOpts{
 				Issuer:     "mockIssuer",
+				Alg:        "RS256",
 				ClientID:   clientID,
 				GQSign:     tc.gq,
 				NumKeys:    2,

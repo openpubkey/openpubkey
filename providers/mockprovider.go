@@ -34,6 +34,7 @@ var _ OpenIdProvider = (*MockProvider)(nil)
 
 type MockProviderOpts struct {
 	Issuer     string
+	Alg        string
 	ClientID   string
 	GQSign     bool
 	NumKeys    int
@@ -47,6 +48,7 @@ func DefaultMockProviderOpts() MockProviderOpts {
 	clientID := "test_client_id"
 	return MockProviderOpts{
 		Issuer:     "https://accounts.example.com",
+		Alg:        "RS256",
 		ClientID:   clientID,
 		GQSign:     false,
 		NumKeys:    2,
@@ -75,7 +77,10 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 	if opts.Issuer == "" {
 		opts.Issuer = mockProviderIssuer
 	}
-	mockBackend, err := mocks.NewMockProviderBackend(opts.Issuer, opts.NumKeys)
+	if opts.Alg == "" {
+		opts.Alg = "RS256"
+	}
+	mockBackend, err := mocks.NewMockProviderBackend(opts.Issuer, opts.Alg, opts.NumKeys)
 	if err != nil {
 		return nil, nil, nil, err
 	}

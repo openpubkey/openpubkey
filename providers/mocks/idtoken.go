@@ -18,7 +18,10 @@ package mocks
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -115,10 +118,23 @@ func (t *IDTokenTemplate) IssueToken() (*oidc.Tokens, error) {
 		return nil, err
 	}
 
+	var providerAlg jwa.KeyAlgorithm
+	if _, ok := t.SigningKey.Public().(*rsa.PublicKey); ok {
+		providerAlg = jwa.RS256
+	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {
+		providerAlg = jwa.ES256
+	} else {
+		return nil, fmt.Errorf("unsupported public key type")
+	}
+
+	if jwa.KeyAlgorithmFrom(t.Alg) != providerAlg {
+		return nil, fmt.Errorf("alg in template (%s) does not match providers signing key alg (%s)", t.Alg, providerAlg)
+	}
+
 	idToken, err := jws.Sign(
 		payloadBytes,
 		jws.WithKey(
-			jwa.KeyAlgorithmFrom(t.Alg),
+			providerAlg,
 			t.SigningKey,
 			jws.WithProtectedHeaders(headers),
 		),
