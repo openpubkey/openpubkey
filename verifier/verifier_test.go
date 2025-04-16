@@ -33,9 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewMockOpenIdProvider(gqSign bool, issuer string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *mocks.MockProviderBackend, error) {
+func NewMockOpenIdProvider(gqSign bool, issuer string, alg string, clientID string, extraClaims map[string]any) (providers.OpenIdProvider, *mocks.MockProviderBackend, error) {
 	providerOpts := providers.MockProviderOpts{
 		Issuer:     issuer,
+		Alg:        alg,
 		ClientID:   clientID,
 		GQSign:     gqSign,
 		NumKeys:    2,
@@ -76,12 +77,12 @@ func TestVerifier(t *testing.T) {
 
 	noGQSign := false
 	GQSign := true
-	provider, backend, err := NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+	provider, backend, err := NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
 
-	providerGQ, backendGQ, err := NewMockOpenIdProvider(GQSign, issuer+"-gq", clientID, map[string]any{
+	providerGQ, backendGQ, err := NewMockOpenIdProvider(GQSign, issuer+"-gq", "RS256", clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
@@ -143,7 +144,7 @@ func TestVerifier(t *testing.T) {
 	// If audience is a list of strings, make sure verification holds. We use
 	// extraClaims because it is resolved just token creation time, allowing
 	// us to bypass the clientID being set by the constructor.
-	provider, backend, err = NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+	provider, backend, err = NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
 		"aud": []string{clientID},
 	})
 	require.NoError(t, err)
@@ -212,7 +213,7 @@ func TestVerifierRefreshedIDToken(t *testing.T) {
 	// commitType := providers.CommitTypesEnum.NONCE_CLAIM
 
 	noGQSign := false
-	provider, _, err := NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+	provider, _, err := NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
@@ -239,7 +240,7 @@ func TestVerifierExpirationPolicy(t *testing.T) {
 	clientID := "verifier"
 
 	noGQSign := false
-	provider, mockBackend, err := NewMockOpenIdProvider(noGQSign, issuer, clientID, map[string]any{
+	provider, mockBackend, err := NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
 		"aud": clientID,
 	})
 	require.NoError(t, err)
@@ -363,6 +364,7 @@ func TestGQCommitment(t *testing.T) {
 
 			clientID := "test_client_id"
 			providerOpts := providers.MockProviderOpts{
+				Alg:        "RS256",
 				ClientID:   clientID,
 				GQSign:     tc.gqSign,
 				NumKeys:    2,

@@ -33,7 +33,7 @@ import (
 func TestSimpleBackendOverride(t *testing.T) {
 
 	issuer := "https://accounts.example.com/"
-	mockBackend, err := NewMockProviderBackend(issuer, 3)
+	mockBackend, err := NewMockProviderBackend(issuer, "RS256", 3)
 	require.NoError(t, err)
 
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()

@@ -31,7 +31,7 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	gqSign := false
 
 	issuer := googleIssuer
-	providerOverride, err := mocks.NewMockProviderBackend(issuer, 2)
+	providerOverride, err := mocks.NewMockProviderBackend(issuer, "RS256", 2)
 	require.NoError(t, err)
 
 	op := &GoogleOp{
