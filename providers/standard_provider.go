@@ -33,13 +33,100 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
+// StandardOpOptions is an options struct that configures how providers.StandardOp
+// operates. See providers.GetDefaultStandardOpOptions for the recommended default
+// values to use when using the standardOp for a custom OpenIdProvider.
+type StandardOpOptions struct {
+	// ClientID is the client ID of the OIDC application. It should be the
+	// expected "aud" claim in received ID tokens from the OP.
+	ClientID string
+	// ClientSecret is the client secret of the OIDC application. Some OPs do
+	// not require that this value is set.
+	ClientSecret string
+	// Issuer is the OP's issuer URI for performing OIDC authorization and
+	// discovery.
+	Issuer string
+	// Scopes is the list of scopes to send to the OP in the initial
+	// authorization request.
+	Scopes []string
+	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
+	// this is set to "consent".
+	PromptType string
+	// AccessType is the type of access to request from the OP. Typically this is set to "offline".
+	AccessType string
+	// RedirectURIs is the list of authorized redirect URIs that can be
+	// redirected to by the OP after the user completes the authorization code
+	// flow exchange. Ensure that your OIDC application is configured to accept
+	// these URIs otherwise an error may occur.
+	RedirectURIs []string
+	// GQSign denotes if the received ID token should be upgraded to a GQ token
+	// using GQ signatures.
+	GQSign bool
+	// OpenBrowser denotes if the client's default browser should be opened
+	// automatically when performing the OIDC authorization flow. This value
+	// should typically be set to true, unless performing some headless
+	// automation (e.g. integration tests) where you don't want the browser to
+	// open.
+	OpenBrowser bool
+	// HttpClient is the http.Client to use when making queries to the OP (OIDC
+	// code exchange, refresh, verification of ID token, fetch of JWKS endpoint,
+	// etc.). If nil, then http.DefaultClient is used.
+	HttpClient *http.Client
+	// IssuedAtOffset configures the offset to add when validating the "iss" and
+	// "exp" claims of received ID tokens from the OP.
+	IssuedAtOffset time.Duration
+}
+
+func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
+	return &StandardOpOptions{
+		Issuer:     issuer,
+		ClientID:   clientID,
+		Scopes:     []string{"openid profile email"},
+		PromptType: "consent",
+		AccessType: "offline",
+		RedirectURIs: []string{
+			"http://localhost:3000/login-callback",
+			"http://localhost:10001/login-callback",
+			"http://localhost:11110/login-callback",
+		},
+		GQSign:         false,
+		OpenBrowser:    true,
+		HttpClient:     nil,
+		IssuedAtOffset: 1 * time.Minute,
+	}
+}
+
+// NewStandardOpWithOptions creates a standard OP with configuration specified
+// using an options struct. This is useful if you want to use your own OIDC
+// Client or override the configuration.
+func NewStandardOpWithOptions(opts *StandardOpOptions) StandardOp {
+	return StandardOp{
+		clientID:                  opts.ClientID,
+		scopes:                    opts.Scopes,
+		promptType:                opts.PromptType,
+		accessType:                opts.AccessType,
+		redirectURIs:              opts.RedirectURIs,
+		GQSign:                    opts.GQSign,
+		OpenBrowser:               opts.OpenBrowser,
+		HttpClient:                opts.HttpClient,
+		IssuedAtOffset:            opts.IssuedAtOffset,
+		issuer:                    opts.Issuer,
+		requestTokensOverrideFunc: nil,
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
+			},
+		},
+	}
+}
+
 type StandardOp struct {
 	clientID                  string
 	clientSecret              string
-	Scopes                    []string
-	PromptType                string
-	AccessType                string
-	RedirectURIs              []string
+	scopes                    []string
+	promptType                string
+	accessType                string
+	redirectURIs              []string
 	GQSign                    bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
@@ -60,12 +147,19 @@ var _ OpenIdProvider = (*StandardOp)(nil)
 var _ BrowserOpenIdProvider = (*StandardOp)(nil)
 var _ RefreshableOpenIdProvider = (*StandardOpRefreshable)(nil)
 
+// NewStandardOp creates a standard OP (OpenID Provider) using the
+// default configurations options.
+func NewStandardOp(issuer string, clientID string) StandardOp {
+	options := GetDefaultStandardOpOptions(issuer, clientID)
+	return NewStandardOpWithOptions(options)
+}
+
 func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
 	if s.requestTokensOverrideFunc != nil {
 		return s.requestTokensOverrideFunc(cicHash)
 	}
 
-	redirectURI, ln, err := FindAvailablePort(s.RedirectURIs)
+	redirectURI, ln, err := FindAvailablePort(s.redirectURIs)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +192,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
 		s.issuer, s.clientID, s.clientSecret, redirectURI.String(),
-		s.Scopes, options...)
+		s.scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
@@ -122,8 +216,8 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-		rp.WithPromptURLParam(s.PromptType),
-		rp.WithURLParam("access_type", s.AccessType)),
+		rp.WithPromptURLParam(s.promptType),
+		rp.WithURLParam("access_type", s.accessType)),
 	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
@@ -246,7 +340,7 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-		s.clientSecret, redirectURI, s.Scopes, options...)
+		s.clientSecret, redirectURI, s.scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
@@ -309,7 +403,7 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-		s.clientSecret, redirectURI, s.Scopes, options...)
+		s.clientSecret, redirectURI, s.scopes, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
