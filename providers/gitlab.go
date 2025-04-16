@@ -88,10 +88,10 @@ func NewGitlabOpWithOptions(opts *GitlabOptions) BrowserOpenIdProvider {
 	return &GitlabOp{
 		StandardOp{
 			clientID:                  opts.ClientID,
-			Scopes:                    opts.Scopes,
-			PromptType:                opts.PromptType,
-			AccessType:                opts.AccessType,
-			RedirectURIs:              opts.RedirectURIs,
+			scopes:                    opts.Scopes,
+			promptType:                opts.PromptType,
+			accessType:                opts.AccessType,
+			redirectURIs:              opts.RedirectURIs,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
