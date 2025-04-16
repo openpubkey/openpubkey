@@ -38,6 +38,11 @@ type AzureOptions struct {
 	// Scopes is the list of scopes to send to the OP in the initial
 	// authorization request.
 	Scopes []string
+	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
+	// this is set to "consent".
+	PromptType string
+	// AccessType is the type of access to request from the OP. Typically this is set to "offline".
+	AccessType string
 	// RedirectURIs is the list of authorized redirect URIs that can be
 	// redirected to by the OP after the user completes the authorization code
 	// flow exchange. Ensure that your OIDC application is configured to accept
@@ -74,7 +79,9 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 		Issuer:   azureIssuer(defaultTenantID),
 		ClientID: "096ce0a3-5e72-4da8-9c86-12924b294a01",
 		// Scopes:   []string{"openid profile email"},
-		Scopes: []string{"openid profile email offline_access"}, // offline_access is required for refresh tokens
+		Scopes:     []string{"openid profile email offline_access"}, // offline_access is required for refresh tokens
+		PromptType: "consent",
+		AccessType: "offline",
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -103,6 +110,8 @@ func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 		StandardOp{
 			clientID:                  opts.ClientID,
 			Scopes:                    opts.Scopes,
+			PromptType:                opts.PromptType,
+			AccessType:                opts.AccessType,
 			RedirectURIs:              opts.RedirectURIs,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
