@@ -79,6 +79,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	}
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
+		rp.WithSigningAlgsFromDiscovery(),
 		rp.WithVerifierOpts(
 			rp.WithIssuedAtOffset(s.IssuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
