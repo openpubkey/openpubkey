@@ -2,6 +2,9 @@
 
 [![Go Coverage](https://github.com/openpubkey/openpubkey/wiki/coverage.svg)](https://raw.githack.com/wiki/openpubkey/openpubkey/coverage.html)
 
+### OpenPubkey Mailing List
+For updates and announcements join the [OpenPubkey mailing list](https://groups.google.com/g/openpubkey).
+
 ## Overview
 
 OpenPubkey is a protocol for leveraging OpenID Providers (OPs) to bind identities to public keys. It adds user- or workload-generated public keys to [OpenID Connect (OIDC)](https://openid.net/developers/how-connect-works/), enabling identities to sign messages or artifacts under their OIDC identity.
