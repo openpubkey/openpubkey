@@ -102,10 +102,10 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 func NewStandardOpWithOptions(opts *StandardOpOptions) StandardOp {
 	return StandardOp{
 		clientID:                  opts.ClientID,
-		scopes:                    opts.Scopes,
-		promptType:                opts.PromptType,
-		accessType:                opts.AccessType,
-		redirectURIs:              opts.RedirectURIs,
+		Scopes:                    opts.Scopes,
+		PromptType:                opts.PromptType,
+		AccessType:                opts.AccessType,
+		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
@@ -122,11 +122,11 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) StandardOp {
 
 type StandardOp struct {
 	clientID                  string
-	clientSecret              string
-	scopes                    []string
-	promptType                string
-	accessType                string
-	redirectURIs              []string
+	ClientSecret              string
+	Scopes                    []string
+	PromptType                string
+	AccessType                string
+	RedirectURIs              []string
 	GQSign                    bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
@@ -159,7 +159,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		return s.requestTokensOverrideFunc(cicHash)
 	}
 
-	redirectURI, ln, err := FindAvailablePort(s.redirectURIs)
+	redirectURI, ln, err := FindAvailablePort(s.RedirectURIs)
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +191,8 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	// here, but in RefreshTokens we don't want that option set because
 	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
-		s.issuer, s.clientID, s.clientSecret, redirectURI.String(),
-		s.scopes, options...)
+		s.issuer, s.clientID, s.ClientSecret, redirectURI.String(),
+		s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
@@ -216,8 +216,8 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		// Results in better UX than just automatically dropping them into their
 		// only signed in account.
 		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-		rp.WithPromptURLParam(s.promptType),
-		rp.WithURLParam("access_type", s.accessType)),
+		rp.WithPromptURLParam(s.PromptType),
+		rp.WithURLParam("access_type", s.AccessType)),
 	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
@@ -340,7 +340,7 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-		s.clientSecret, redirectURI, s.scopes, options...)
+		s.ClientSecret, redirectURI, s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
 	}
@@ -403,7 +403,7 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	redirectURI := ""
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-		s.clientSecret, redirectURI, s.scopes, options...)
+		s.ClientSecret, redirectURI, s.Scopes, options...)
 	if err != nil {
 		return fmt.Errorf("failed to create RP to verify token: %w", err)
 	}

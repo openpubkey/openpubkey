@@ -109,10 +109,10 @@ func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 	return &AzureOp{
 		StandardOp{
 			clientID:                  opts.ClientID,
-			scopes:                    opts.Scopes,
-			promptType:                opts.PromptType,
-			accessType:                opts.AccessType,
-			redirectURIs:              opts.RedirectURIs,
+			Scopes:                    opts.Scopes,
+			PromptType:                opts.PromptType,
+			AccessType:                opts.AccessType,
+			RedirectURIs:              opts.RedirectURIs,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,

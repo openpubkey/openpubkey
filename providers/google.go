@@ -108,11 +108,11 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 	return &GoogleOp{
 		StandardOp{
 			clientID:                  opts.ClientID,
-			clientSecret:              opts.ClientSecret,
-			scopes:                    opts.Scopes,
-			promptType:                opts.PromptType,
-			accessType:                opts.AccessType,
-			redirectURIs:              opts.RedirectURIs,
+			ClientSecret:              opts.ClientSecret,
+			Scopes:                    opts.Scopes,
+			PromptType:                opts.PromptType,
+			AccessType:                opts.AccessType,
+			RedirectURIs:              opts.RedirectURIs,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
