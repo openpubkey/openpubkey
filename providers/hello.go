@@ -101,10 +101,10 @@ func NewHelloOp() BrowserOpenIdProvider {
 func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
 	return &HelloOp{
 		clientID:                  opts.ClientID,
-		scopes:                    opts.Scopes,
-		redirectURIs:              opts.RedirectURIs,
-		promptType:                opts.PromptType,
-		accessType:                opts.AccessType,
+		Scopes:                    opts.Scopes,
+		RedirectURIs:              opts.RedirectURIs,
+		PromptType:                opts.PromptType,
+		AccessType:                opts.AccessType,
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
