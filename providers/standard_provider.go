@@ -148,7 +148,7 @@ var _ BrowserOpenIdProvider = (*StandardOp)(nil)
 var _ RefreshableOpenIdProvider = (*StandardOpRefreshable)(nil)
 
 // NewStandardOp creates a standard OP (OpenID Provider) using the
-// default configurations options.
+// default configuration options and returns a BrowserOpenIdProvider.
 func NewStandardOp(issuer string, clientID string) BrowserOpenIdProvider {
 	options := GetDefaultStandardOpOptions(issuer, clientID)
 	return NewStandardOpWithOptions(options)
