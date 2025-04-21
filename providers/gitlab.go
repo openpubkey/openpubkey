@@ -69,7 +69,7 @@ func GetDefaultGitlabOpOptions() *GitlabOptions {
 	return &GitlabOptions{
 		ClientID:   "8d8b7024572c7fd501f64374dec6bba37096783dfcd792b3988104be08cb6923",
 		Issuer:     gitlabIssuer,
-		Scopes:     []string{"openid profile email"},
+		Scopes:     []string{"openid email"},
 		PromptType: "consent",
 		AccessType: "offline",
 		RedirectURIs: []string{
