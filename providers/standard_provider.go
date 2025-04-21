@@ -99,8 +99,8 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 // NewStandardOpWithOptions creates a standard OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewStandardOpWithOptions(opts *StandardOpOptions) StandardOp {
-	return StandardOp{
+func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
+	return &StandardOp{
 		clientID:                  opts.ClientID,
 		Scopes:                    opts.Scopes,
 		PromptType:                opts.PromptType,
@@ -149,7 +149,7 @@ var _ RefreshableOpenIdProvider = (*StandardOpRefreshable)(nil)
 
 // NewStandardOp creates a standard OP (OpenID Provider) using the
 // default configurations options.
-func NewStandardOp(issuer string, clientID string) StandardOp {
+func NewStandardOp(issuer string, clientID string) BrowserOpenIdProvider {
 	options := GetDefaultStandardOpOptions(issuer, clientID)
 	return NewStandardOpWithOptions(options)
 }

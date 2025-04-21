@@ -78,7 +78,7 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 		// The clientSecret was intentionally checked in. It holds no power. Do not report as a security issue
 		// Google requires a ClientSecret even if this a public OIDC App
 		ClientSecret: "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", // The client secret is a public value
-		Scopes:       []string{"openid profile email"},
+		Scopes:       []string{"openid email"},
 		PromptType:   "consent",
 		AccessType:   "offline",
 		RedirectURIs: []string{
