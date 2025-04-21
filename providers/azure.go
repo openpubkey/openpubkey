@@ -79,7 +79,7 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 		Issuer:   azureIssuer(defaultTenantID),
 		ClientID: "096ce0a3-5e72-4da8-9c86-12924b294a01",
 		// Scopes:   []string{"openid profile email"},
-		Scopes:     []string{"openid email offline_access"}, // offline_access is required for refresh tokens
+		Scopes:     []string{"openid email profile offline_access"}, // offline_access is required for refresh tokens
 		PromptType: "consent",
 		AccessType: "offline",
 		RedirectURIs: []string{

@@ -72,7 +72,7 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 	return &HelloOptions{
 		Issuer:     helloIssuer,
 		ClientID:   "app_xejobTKEsDNSRd5vofKB2iay_2rN",
-		Scopes:     []string{"openid email"},
+		Scopes:     []string{"openid profile email"},
 		PromptType: "consent",
 		AccessType: "offline",
 		RedirectURIs: []string{
