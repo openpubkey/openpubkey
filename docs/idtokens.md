@@ -43,9 +43,9 @@ This document contains example ID Tokens from different providers. We do include
     "exp": 1737500957,
     "iat": 1737414257,
     "nbf": 1737414257,
-    "preferred_username": "eth3rs@gmail.com",
+    "preferred_username": "alice@gmail.com",
     "oid": "00000000-0000-0000-7862-618d09e9fa0e",
-    "email": "eth3rs@gmail.com",
+    "email": "alice@gmail.com",
     "tid": "9188040d-6c67-4c5b-b112-36a304b66dad",
     "aio": "DmyH0vHZqJZRcv752O*ph8K!x!EOAIk!e1nSWrtlGxUlMccl2n5qHa9vY4YtAfWma!VI3BqIfsfzYdrrMDW22D5qIRAOYDP9utExgqTitwxNf83p*3nLqtCTnND!GVwhM35BGCaLqsA9MF8gu1dbUfTPgYxD4yTOH3sZq3hDyAbY"
     },
