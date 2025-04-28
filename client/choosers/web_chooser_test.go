@@ -32,12 +32,10 @@ func CreateServerToHandleRedirect(t *testing.T, gotRedirect *bool) (*httptest.Se
 	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		*gotRedirect = true
 		w.WriteHeader(http.StatusOK)
-		return
 	})
 	mockServer := httptest.NewUnstartedServer(mux)
 	mockServer.Start()
-	redirectUri := mockServer.URL + "/redirect"
-	return mockServer, redirectUri
+	return mockServer, mockServer.URL + "/redirect"
 }
 
 func TestGoogleSelection(t *testing.T) {
