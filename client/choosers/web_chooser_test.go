@@ -115,13 +115,10 @@ func TestGoogleSelection(t *testing.T) {
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				}
 
-				// Wait no longer than 100ms for the redirect to be triggered
-				wait := 0
-				for gotRedirect == false && wait < 100 {
-					time.Sleep(1 * time.Millisecond)
-					wait++
-				}
-				require.True(t, gotRedirect, "redirect not triggered but should have been")
+				require.Eventually(t,
+					func() bool { return gotRedirect },
+					100*time.Millisecond, 1*time.Millisecond, "redirect not triggered but should have been",
+				)
 			}()
 
 			// Wait until the server is listening
