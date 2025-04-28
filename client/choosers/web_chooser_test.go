@@ -19,6 +19,7 @@ package choosers
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -26,9 +27,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGoogleSelection(t *testing.T) {
-	redirectUri := "http://example.com"
+func CreateServerToHandleRedirect(t *testing.T, gotRedirect *bool) (*httptest.Server, string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
+		*gotRedirect = true
+		w.WriteHeader(http.StatusOK)
+	})
+	mockServer := httptest.NewUnstartedServer(mux)
+	mockServer.Start()
+	return mockServer, mockServer.URL + "/redirect"
+}
 
+func TestGoogleSelection(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name             string
 		providerName     string
@@ -69,9 +80,13 @@ func TestGoogleSelection(t *testing.T) {
 			var chooserErr error
 			var op providers.OpenIdProvider
 
+			gotRedirect := false
+			redirectServer, redirectUri := CreateServerToHandleRedirect(t, &gotRedirect)
+
 			testRunDone := make(chan struct{})
 			go func() {
 				defer close(testRunDone)
+				defer redirectServer.Close()
 
 				// If something goes wrong in this go func, this unittest will hang
 				// until it times out. If you are running into such an issue
@@ -99,6 +114,11 @@ func TestGoogleSelection(t *testing.T) {
 					// Trigger azure even if the provider doesn't match to sure this test finishes
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				}
+
+				require.Eventually(t,
+					func() bool { return gotRedirect },
+					100*time.Millisecond, 1*time.Millisecond, "redirect not triggered but should have been",
+				)
 			}()
 
 			// Wait until the server is listening
