@@ -26,16 +26,18 @@ import (
 )
 
 type OidcClaims struct {
-	Issuer     string `json:"iss"`
-	Subject    string `json:"sub"`
-	Audience   string `json:"-"`
-	Expiration int64  `json:"exp"`
-	IssuedAt   int64  `json:"iat"`
-	Email      string `json:"email,omitempty"`
-	Nonce      string `json:"nonce,omitempty"`
-	Username   string `json:"preferred_username,omitempty"`
-	FirstName  string `json:"given_name,omitempty"`
-	LastName   string `json:"family_name,omitempty"`
+	Issuer     string   `json:"iss"`
+	Subject    string   `json:"sub"`
+	Audience   string   `json:"-"`
+	Expiration int64    `json:"exp"`
+	IssuedAt   int64    `json:"iat"`
+	Email      string   `json:"email,omitempty"`
+	Nonce      string   `json:"nonce,omitempty"`
+	Username   string   `json:"preferred_username,omitempty"`
+	FirstName  string   `json:"given_name,omitempty"`
+	LastName   string   `json:"family_name,omitempty"`
+	Groups     []string `json:"groups,omitempty"`
+	Scopes     []string `json:"scopes,omitempty"`
 }
 
 // Implement UnmarshalJSON for custom handling during JSON unmarshalling
