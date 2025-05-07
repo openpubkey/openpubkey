@@ -53,14 +53,14 @@ type PKToken struct {
 	Cos     *Signature // Cosigner Signature
 
 	// We keep the tokens around as  unmarshalled values can no longer be verified
-	OpToken  []byte // Base64 encoded ID Token signed by the OP
-	CicToken []byte // Base64 encoded Token signed by the Client
-	CosToken []byte // Base64 encoded Token signed by the Cosigner
+	OpToken  []byte // Compact encoded ID Token signed by the OP, i.e., Base64(Protected).Base64(Payload).Base64(Sig)
+	CicToken []byte // Compact encoded Token signed by the Client
+	CosToken []byte // Compact encoded Token signed by the Cosigner
 
 	// FreshIDToken is the refreshed ID Token. It has a different payload from
 	// other tokens and must be handled separately.
 	// It is only used for POP Authentication
-	FreshIDToken []byte // Base64 encoded Refreshed ID Token
+	FreshIDToken []byte // Compact encoded Refreshed ID Token
 }
 
 // New creates a new PKToken from an ID Token and a CIC Token.
