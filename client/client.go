@@ -281,6 +281,10 @@ func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
 	return o.alg
 }
 
+func (o *OpkClient) GetAccessToken() []byte {
+	return o.accessToken
+}
+
 func (o *OpkClient) SetPKToken(pkt *pktoken.PKToken) {
 	o.pkToken = pkt
 }

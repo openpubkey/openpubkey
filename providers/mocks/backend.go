@@ -106,7 +106,7 @@ func (o *MockProviderBackend) SetIDTokenTemplate(template *IDTokenTemplate) {
 
 func (o *MockProviderBackend) RequestTokensOverrideFunc(cicHash string) (*oidc.Tokens, error) {
 	o.IDTokensTemplate.AddCommit(cicHash)
-	return o.IDTokensTemplate.IssueToken()
+	return o.IDTokensTemplate.IssueTokens()
 }
 
 func (o *MockProviderBackend) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRecord) {
