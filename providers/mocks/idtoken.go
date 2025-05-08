@@ -69,8 +69,7 @@ func (t *IDTokenTemplate) AddCommit(cicHash string) {
 	t.CommitFunc(t, cicHash)
 }
 
-// TODO: Rename to IssueTokens
-func (t *IDTokenTemplate) IssueToken() (*oidc.Tokens, error) {
+func (t *IDTokenTemplate) IssueTokens() (*oidc.Tokens, error) {
 
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
