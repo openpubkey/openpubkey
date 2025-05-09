@@ -102,6 +102,7 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 	return &StandardOp{
 		clientID:                  opts.ClientID,
+		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		PromptType:                opts.PromptType,
 		AccessType:                opts.AccessType,
