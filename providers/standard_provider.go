@@ -412,6 +412,41 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	return err
 }
 
+// UserInfo calls OpenID Provider's user info endpoint using the provided access token.
+// The access token must match subject (sub claim) in the ID token issued alongside that
+// access token. This function returns the user info JSON as a string.
+func (s *StandardOp) UserInfo(ctx context.Context, accessToken []byte, subject string) (string, error) {
+	httpClient := http.DefaultClient
+	if s.HttpClient != nil {
+		httpClient = s.HttpClient
+	}
+
+	// We use zitadel/oidc to call the userinfo endpoint rather than calling
+	// the endpoint directly to take advantage of the zitadel's ability to use
+	// HTTP proxies in requests.
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, "", "", "", nil, rp.WithHTTPClient(httpClient))
+	if err != nil {
+		return "", err
+	}
+	info, err := rp.Userinfo[*oidc.UserInfo](
+		ctx,
+		string(accessToken),
+		"Bearer",
+		subject,
+		relyingParty,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	jsonInfo, err := info.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
+	return string(jsonInfo), nil
+}
+
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
 // from the OpenID Provider sending an authcode to the OIDC client by
 // redirecting the user's browser with the authcode supplied in the URI.

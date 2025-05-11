@@ -27,6 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const userInfoResponse = `{
+	"sub": "me",
+	"email": "alice@example.com",
+	"name": "Alice Example"
+}`
+
 func TestGoogleSimpleRequest(t *testing.T) {
 	gqSign := false
 
@@ -34,11 +40,14 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	providerOverride, err := mocks.NewMockProviderBackend(issuer, "RS256", 2)
 	require.NoError(t, err)
 
+	httpClient := mocks.NewMockGoogleUserInfoHTTPClient(userInfoResponse)
+
 	op := &GoogleOp{
 		StandardOp{
 			issuer:                    googleIssuer,
 			publicKeyFinder:           providerOverride.PublicKeyFinder,
 			requestTokensOverrideFunc: providerOverride.RequestTokensOverrideFunc,
+			HttpClient:                httpClient,
 		},
 	}
 
@@ -89,4 +98,10 @@ func TestGoogleSimpleRequest(t *testing.T) {
 
 	require.Equal(t, "mock-refresh-token", string(tokens.RefreshToken))
 	require.Equal(t, "mock-access-token", string(tokens.AccessToken))
+
+	userInfoJson, err := op.UserInfo(context.Background(), tokens.AccessToken, "me")
+	require.NoError(t, err)
+
+	require.Contains(t, userInfoJson, `"email":"alice@example.com"`)
+	require.Contains(t, userInfoJson, `"sub":"me"`)
 }
