@@ -41,6 +41,7 @@ type OpenIdProvider interface {
 type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	ClientID() string
+	UserInfo(ctx context.Context, accessToken []byte, subject string) (string, error)
 	HookHTTPSession(h http.HandlerFunc)
 	ReuseBrowserWindowHook(chan string)
 }
