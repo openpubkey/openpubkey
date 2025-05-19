@@ -96,7 +96,7 @@ func login() error {
 		return err
 	}
 
-	sub, err := pkt.Subscriber()
+	sub, err := pkt.Subject()
 	if err != nil {
 		return err
 	}
