@@ -28,6 +28,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/verifier"
 )
 
 func main() {
@@ -96,24 +97,19 @@ func login() error {
 		return err
 	}
 
-	sub, err := pkt.Subject()
-	if err != nil {
-		return err
-	}
-
-	fullOp, ok := op.(providers.BrowserOpenIdProvider)
-	if !ok {
-		return fmt.Errorf("failed to cast to BrowserOpenIdProvider")
-	}
-
 	accessToken := opkClient.GetAccessToken()
 	fmt.Println("AccessToken", string(accessToken))
 
-	userinfo, err := fullOp.UserInfo(ctx, opkClient.GetAccessToken(), sub)
+	uiRequester, err := verifier.NewUserInfoRequester(pkt, string(accessToken))
 	if err != nil {
 		return err
 	}
-	fmt.Println("UserInfo", string(userinfo))
+
+	userInfoJson, err := uiRequester.Request(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Println("UserInfo", string(userInfoJson))
 
 	return nil
 }
