@@ -29,12 +29,14 @@ import (
 const userInfoResponse = `{
 	"sub": "me",
 	"email": "alice@example.com",
-	"name": "Alice Example"
+	"name": "Alice Example",
+	"groups": ["group1", "group2"]
 }`
 
 func TestGoogleSimpleRequest(t *testing.T) {
 	issuer := "https://accounts.google.com"
 	clientID := "verifier"
+	expectedAccessToken := "mock-access-token"
 
 	noGQSign := false
 	provider, _, err := NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
@@ -49,15 +51,20 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	accessToken := opkClient.GetAccessToken()
 	require.NotEmpty(t, accessToken)
 
-	require.Equal(t, "mock-access-token", string(accessToken))
+	require.Equal(t, expectedAccessToken, string(accessToken))
 
 	uiRequester, err := verifier.NewUserInfoRequester(pkt, string(accessToken))
 	require.NoError(t, err)
 
-	uiRequester.HttpClient = mocks.NewMockGoogleUserInfoHTTPClient(userInfoResponse)
+	uiRequester.HttpClient = mocks.NewMockGoogleUserInfoHTTPClient(userInfoResponse, expectedAccessToken)
 	userInfoJson, err := uiRequester.Request(context.Background())
 	require.NoError(t, err)
 
 	require.Contains(t, userInfoJson, `"email":"alice@example.com"`)
 	require.Contains(t, userInfoJson, `"sub":"me"`)
+
+	uiRequester.HttpClient = mocks.NewMockGoogleUserInfoHTTPClient(userInfoResponse, "Invalid-Access-Token")
+	userInfoJson, err = uiRequester.Request(context.Background())
+	require.Error(t, err)
+	require.Empty(t, userInfoJson)
 }
