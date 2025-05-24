@@ -81,16 +81,17 @@ const googleWellknownResponse = `{
 	]
 }`
 
-func NewMockGoogleUserInfoHTTPClient(userInfoResponse string) *http.Client {
+func NewMockGoogleUserInfoHTTPClient(userInfoResponse, requiredToken string) *http.Client {
 	return NewMockUserInfoClient(
 		"https://accounts.google.com/.well-known/openid-configuration",
 		"https://openidconnect.googleapis.com/v1/userinfo",
 		googleWellknownResponse,
 		userInfoResponse,
+		requiredToken,
 	)
 }
 
-func NewMockUserInfoClient(wellKnownUri string, userInfoUri string, wellknownResponse string, userInfoResponse string) *http.Client {
+func NewMockUserInfoClient(wellKnownUri string, userInfoUri string, wellknownResponse string, userInfoResponse string, requiredToken string) *http.Client {
 	return &http.Client{
 		Transport: RoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			if req.Method == http.MethodGet && strings.HasPrefix(req.URL.String(), wellKnownUri) {
@@ -102,6 +103,9 @@ func NewMockUserInfoClient(wellKnownUri string, userInfoUri string, wellknownRes
 			}
 
 			if req.Method == http.MethodGet && req.URL.String() == userInfoUri {
+				if req.Header.Get("Authorization") != "Bearer "+requiredToken {
+					return nil, fmt.Errorf("invalid access token")
+				}
 				return &http.Response{
 					StatusCode: 200,
 					Header:     http.Header{"Content-Type": {"application/json"}},
