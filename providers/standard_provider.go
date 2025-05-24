@@ -414,7 +414,7 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting
 // from the OpenID Provider sending an authcode to the OIDC client by
-// redirecting the users browser with the authcode supplied in the URI.
+// redirecting the user's browser with the authcode supplied in the URI.
 // If this hook is set, it will be called after the receiving the authcode
 // but before send an HTTP response to the user. The code which sets this hook
 // can choose what HTTP response to server to the user.
