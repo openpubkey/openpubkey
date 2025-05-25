@@ -25,6 +25,10 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
+// UserInfoRequester enables the retrieval of user info from an OpenID Provider
+// using the access token obtained during authentication. It uses the PK Token
+// look up the issuer URI for the OpenID Provider and ensure that the subject
+// (sub claim) in the ID token matches the subject in the access token.
 type UserInfoRequester struct {
 	Issuer      string
 	Subject     string
@@ -48,7 +52,7 @@ func NewUserInfoRequester(pkt *pktoken.PKToken, accessToken string) (*UserInfoRe
 	}, nil
 }
 
-// Request calls OpenID Provider's user info endpoint using the provided access token.
+// Request calls an OpenID Provider's user info endpoint using the provided access token.
 // The access token must match subject (sub claim) in the ID token issued alongside that
 // access token. This function returns the user info JSON as a string.
 func (ui *UserInfoRequester) Request(ctx context.Context) (string, error) {
@@ -78,6 +82,7 @@ func (ui *UserInfoRequester) Request(ctx context.Context) (string, error) {
 
 	jsonInfo, err := info.MarshalJSON()
 	if err != nil {
+		// We should not reach this because rp.NewRelyingPartyOIDC already unmarshals the JSON to check the sub
 		return "", err
 	}
 

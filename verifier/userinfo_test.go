@@ -18,6 +18,7 @@ package verifier_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/openpubkey/openpubkey/client"
@@ -67,4 +68,50 @@ func TestGoogleSimpleRequest(t *testing.T) {
 	userInfoJson, err = uiRequester.Request(context.Background())
 	require.Error(t, err)
 	require.Empty(t, userInfoJson)
+
+	uiRequester.HttpClient = mocks.NewMockBrokenHTTPClient(userInfoResponse, expectedAccessToken, errors.New("failed to connect"))
+	userInfoJson, err = uiRequester.Request(context.Background())
+	require.Error(t, err)
+	require.Empty(t, userInfoJson)
+	require.Contains(t, err.Error(), "failed to connect")
+
+	uiRequester.HttpClient = mocks.NewMockGoogleUserInfoHTTPClientCorruptedJson(userInfoResponse, expectedAccessToken)
+	userInfoJson, err = uiRequester.Request(context.Background())
+	require.Error(t, err)
+	require.Empty(t, userInfoJson)
+	require.Contains(t, err.Error(), "failed to unmarshal response: invalid character")
+}
+
+func TestGCorruptedPKTokenUserinfoRequest(t *testing.T) {
+	issuer := "https://accounts.google.com"
+	clientID := "verifier"
+	expectedAccessToken := "mock-access-token"
+
+	noGQSign := false
+	provider, _, err := NewMockOpenIdProvider(noGQSign, issuer, "RS256", clientID, map[string]any{
+		"aud": clientID,
+	})
+	require.NoError(t, err)
+	opkClient, err := client.New(provider)
+	require.NoError(t, err)
+	pkt, err := opkClient.Auth(context.Background())
+	require.NoError(t, err)
+
+	accessToken := opkClient.GetAccessToken()
+	require.NotEmpty(t, accessToken)
+
+	require.Equal(t, expectedAccessToken, string(accessToken))
+
+	// Corrupt pk token payload
+	pkt.Payload = []byte(`{"`)
+
+	uiRequester, err := verifier.NewUserInfoRequester(pkt, string(accessToken))
+	require.ErrorContains(t, err, "malformatted PK token claims")
+	require.Nil(t, uiRequester)
+
+	// Use incorrect type for pk token sub claim
+	pkt.Payload = []byte(`{"issuer": "https://accounts.example.com", "sub": {}}`)
+	uiRequester, err = verifier.NewUserInfoRequester(pkt, string(accessToken))
+	require.ErrorContains(t, err, "malformatted PK token claims")
+	require.Nil(t, uiRequester)
 }

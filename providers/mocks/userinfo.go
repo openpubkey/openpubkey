@@ -81,11 +81,33 @@ const googleWellknownResponse = `{
 	]
 }`
 
+const googleCorruptedResponse = `{
+	"issuer": "https://accounts.go
+}`
+
 func NewMockGoogleUserInfoHTTPClient(userInfoResponse, requiredToken string) *http.Client {
 	return NewMockUserInfoClient(
 		"https://accounts.google.com/.well-known/openid-configuration",
 		"https://openidconnect.googleapis.com/v1/userinfo",
 		googleWellknownResponse,
+		userInfoResponse,
+		requiredToken,
+	)
+}
+
+func NewMockBrokenHTTPClient(userInfoResponse, requiredToken string, retErr error) *http.Client {
+	return &http.Client{
+		Transport: RoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return nil, retErr
+		}),
+	}
+}
+
+func NewMockGoogleUserInfoHTTPClientCorruptedJson(userInfoResponse, requiredToken string) *http.Client {
+	return NewMockUserInfoClient(
+		"https://accounts.google.com/.well-known/openid-configuration",
+		"https://openidconnect.googleapis.com/v1/userinfo",
+		googleCorruptedResponse,
 		userInfoResponse,
 		requiredToken,
 	)
