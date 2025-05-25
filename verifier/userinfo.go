@@ -25,6 +25,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
+
 // UserInfoRequester enables the retrieval of user info from an OpenID Provider
 // using the access token obtained during authentication. It uses the PK Token
 // look up the issuer URI for the OpenID Provider and ensure that the subject
@@ -51,6 +52,7 @@ func NewUserInfoRequester(pkt *pktoken.PKToken, accessToken string) (*UserInfoRe
 		AccessToken: accessToken,
 	}, nil
 }
+
 
 // Request calls an OpenID Provider's user info endpoint using the provided access token.
 // The access token must match subject (sub claim) in the ID token issued alongside that

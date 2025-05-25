@@ -106,6 +106,7 @@ func login() error {
 	}
 
 	userInfoJson, err := uiRequester.Request(ctx)
+
 	if err != nil {
 		return err
 	}

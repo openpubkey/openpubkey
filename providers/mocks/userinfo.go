@@ -81,9 +81,11 @@ const googleWellknownResponse = `{
 	]
 }`
 
+
 const googleCorruptedResponse = `{
 	"issuer": "https://accounts.go
 }`
+
 
 func NewMockGoogleUserInfoHTTPClient(userInfoResponse, requiredToken string) *http.Client {
 	return NewMockUserInfoClient(
@@ -110,6 +112,7 @@ func NewMockGoogleUserInfoHTTPClientCorruptedJson(userInfoResponse, requiredToke
 		googleCorruptedResponse,
 		userInfoResponse,
 		requiredToken,
+
 	)
 }
 
