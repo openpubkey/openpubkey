@@ -105,7 +105,8 @@ func login() error {
 		return err
 	}
 
-	userInfoJson, err := uiRequester.Request(context.Background())
+	userInfoJson, err := uiRequester.Request(ctx)
+
 	if err != nil {
 		return err
 	}
