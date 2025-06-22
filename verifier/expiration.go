@@ -34,13 +34,15 @@ type ExpirationPolicy struct {
 var ExpirationPolicies = struct {
 	OIDC            ExpirationPolicy // This uses the OpenID Connect expiration claim
 	OIDC_REFRESHED  ExpirationPolicy // This uses the OpenID Connect expiration claim on the ID Token, if that has expired. It checks the expiration on the refreshed ID Token, a.k.a., the fresh ID Token
-	MAX_AGE_24HOURS ExpirationPolicy // This replaces the OpenID Connect expiration claim with OpenPubkey 24 expiration
+	MAX_AGE_12HOURS ExpirationPolicy // This replaces the OpenID Connect expiration claim with OpenPubkey 12 expiration
+	MAX_AGE_24HOURS ExpirationPolicy
 	MAX_AGE_48HOURS ExpirationPolicy
 	MAX_AGE_1WEEK   ExpirationPolicy
 	NEVER_EXPIRE    ExpirationPolicy // ID Token will never expire until the OpenID Provider rotates the ID Token
 }{
 	OIDC:            ExpirationPolicy{maxAge: 0, checkMaxAge: false, checkExpClaim: true},
 	OIDC_REFRESHED:  ExpirationPolicy{maxAge: 0, checkMaxAge: false, checkExpClaim: false, checkRefreshed: true},
+	MAX_AGE_12HOURS: ExpirationPolicy{maxAge: 12 * time.Hour, checkMaxAge: true, checkExpClaim: false},
 	MAX_AGE_24HOURS: ExpirationPolicy{maxAge: 24 * time.Hour, checkMaxAge: true, checkExpClaim: false},
 	MAX_AGE_48HOURS: ExpirationPolicy{maxAge: 2 * 24 * time.Hour, checkMaxAge: true, checkExpClaim: false},
 	MAX_AGE_1WEEK:   ExpirationPolicy{maxAge: 7 * 24 * time.Hour, checkMaxAge: true, checkExpClaim: false},
