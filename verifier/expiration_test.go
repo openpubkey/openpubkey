@@ -38,6 +38,8 @@ func TestExpirationPolicy(t *testing.T) {
 
 	err := ExpirationPolicies.OIDC.CheckExpiration(unexpiredPkt)
 	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(unexpiredPkt)
+	require.NoError(t, err)
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(unexpiredPkt)
 	require.NoError(t, err)
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(unexpiredPkt)
@@ -56,6 +58,8 @@ func TestExpirationPolicy(t *testing.T) {
 
 	err = ExpirationPolicies.OIDC.CheckExpiration(oidcExpiredPkt)
 	require.ErrorContains(t, err, "the ID token has expired")
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(oidcExpiredPkt)
+	require.NoError(t, err)
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(oidcExpiredPkt)
 	require.NoError(t, err)
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(oidcExpiredPkt)
@@ -63,6 +67,26 @@ func TestExpirationPolicy(t *testing.T) {
 	err = ExpirationPolicies.MAX_AGE_1WEEK.CheckExpiration(oidcExpiredPkt)
 	require.NoError(t, err)
 	err = ExpirationPolicies.NEVER_EXPIRE.CheckExpiration(oidcExpiredPkt)
+	require.NoError(t, err)
+
+	claimsMaxAge12Hours := oidc.OidcClaims{
+		Expiration: time.Now().Add(1 * time.Hour).Unix(),
+		IssuedAt:   time.Now().Add(-13 * time.Hour).Unix(),
+	}
+	maxAge12HoursExpiredPkt := &pktoken.PKToken{}
+	maxAge12HoursExpiredPkt.OpToken = CreateCompact(t, claimsMaxAge12Hours)
+
+	err = ExpirationPolicies.OIDC.CheckExpiration(maxAge12HoursExpiredPkt)
+	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(maxAge12HoursExpiredPkt)
+	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
+	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(maxAge12HoursExpiredPkt)
+	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(maxAge12HoursExpiredPkt)
+	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_1WEEK.CheckExpiration(maxAge12HoursExpiredPkt)
+	require.NoError(t, err)
+	err = ExpirationPolicies.NEVER_EXPIRE.CheckExpiration(maxAge12HoursExpiredPkt)
 	require.NoError(t, err)
 
 	claimsMaxAge1Day := oidc.OidcClaims{
@@ -74,6 +98,8 @@ func TestExpirationPolicy(t *testing.T) {
 
 	err = ExpirationPolicies.OIDC.CheckExpiration(maxAge1DayExpiredPkt)
 	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(maxAge1DayExpiredPkt)
+	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(maxAge1DayExpiredPkt)
 	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(maxAge1DayExpiredPkt)
@@ -91,6 +117,8 @@ func TestExpirationPolicy(t *testing.T) {
 	maxAge2DayExpiredPkt.OpToken = CreateCompact(t, claimsMaxAge2Day)
 	err = ExpirationPolicies.OIDC.CheckExpiration(maxAge2DayExpiredPkt)
 	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(maxAge2DayExpiredPkt)
+	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(maxAge2DayExpiredPkt)
 	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(maxAge2DayExpiredPkt)
@@ -109,6 +137,8 @@ func TestExpirationPolicy(t *testing.T) {
 
 	err = ExpirationPolicies.OIDC.CheckExpiration(maxAge1WeekExpiredPkt)
 	require.NoError(t, err)
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(maxAge1WeekExpiredPkt)
+	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(maxAge1WeekExpiredPkt)
 	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(maxAge1WeekExpiredPkt)
@@ -126,6 +156,8 @@ func TestExpirationPolicy(t *testing.T) {
 	bothExpiredPkt.OpToken = CreateCompact(t, claimsBothExpire)
 	err = ExpirationPolicies.OIDC.CheckExpiration(bothExpiredPkt)
 	require.ErrorContains(t, err, "the ID token has expired")
+	err = ExpirationPolicies.MAX_AGE_12HOURS.CheckExpiration(bothExpiredPkt)
+	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_24HOURS.CheckExpiration(bothExpiredPkt)
 	require.ErrorContains(t, err, "the PK token has expired based on maxAge")
 	err = ExpirationPolicies.MAX_AGE_48HOURS.CheckExpiration(bothExpiredPkt)
