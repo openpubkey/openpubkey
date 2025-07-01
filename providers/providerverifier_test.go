@@ -19,9 +19,11 @@ package providers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -196,4 +198,81 @@ func TestProviderVerifier(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRejectUnexpectedAlg(t *testing.T) {
+	// This test ensures that we correctly handle the case where
+	// the protected header has an unexpected alg claim.
+	clientID := "test-client-id"
+	issuer := "mockIssuer"
+
+	idtTemplate := mocks.IDTokenTemplate{
+		Issuer:      issuer,
+		Nonce:       "empty",
+		NoNonce:     false,
+		Aud:         "empty",
+		Alg:         "RS256",
+		NoAlg:       false,
+		ExtraClaims: map[string]any{},
+	}
+
+	idtTemplate.CommitFunc = mocks.AddNonceCommit
+	idtTemplate.Aud = clientID
+
+	cic := GenCICExtra(t, map[string]any{})
+
+	providerOpts := MockProviderOpts{
+		Issuer:     issuer,
+		ClientID:   clientID,
+		GQSign:     false,
+		NumKeys:    2,
+		CommitType: CommitTypesEnum.NONCE_CLAIM,
+		VerifierOpts: ProviderVerifierOpts{
+			CommitType: CommitTypesEnum.NONCE_CLAIM,
+			ClientID:   clientID,
+		},
+	}
+
+	op, backendMock, _, err := NewMockProvider(providerOpts)
+	require.NoError(t, err)
+	opSignKey, keyID, _ := backendMock.RandomSigningKey()
+	idtTemplate.KeyID = keyID
+	idtTemplate.SigningKey = opSignKey
+
+	backendMock.SetIDTokenTemplate(&idtTemplate)
+
+	tokens, err := op.RequestTokens(context.Background(), cic)
+	require.NoError(t, err)
+	idToken := tokens.IDToken
+
+	pv := NewProviderVerifier(issuer,
+		ProviderVerifierOpts{
+			CommitType:        CommitTypesEnum.NONCE_CLAIM,
+			DiscoverPublicKey: &backendMock.PublicKeyFinder,
+			GQOnly:            false,
+			ClientID:          clientID,
+			SkipClientIDCheck: false,
+		})
+
+	phBase64 := strings.Split(string(idToken), ".")[0]
+	payloadBase64 := strings.Split(string(idToken), ".")[1]
+	sigBase64 := strings.Split(string(idToken), ".")[2]
+
+	goodPh := util.Base64EncodeForJWT([]byte(`{"alg":"RS256","kid":"kid-1","typ":"JWT"}`))
+
+	idTokenGood := []byte(fmt.Sprintf("%s.%s.%s", phBase64, payloadBase64, sigBase64))
+
+	err = pv.VerifyIDToken(context.Background(), idTokenGood, cic)
+	require.NoError(t, err)
+
+	idTokenBad := []byte(fmt.Sprintf("%s.%s.%s", goodPh, payloadBase64, "bad"))
+	err = pv.VerifyIDToken(context.Background(), idTokenBad, cic)
+	require.Error(t, err)
+
+	// Use unexpected alg HS256 in the protected header
+	wrongAlgPh := util.Base64EncodeForJWT([]byte(`{"alg":"HS256","kid":"kid-1","typ":"JWT"}`))
+
+	idTokenBadAlgPh := []byte(fmt.Sprintf("%s.%s.%s", wrongAlgPh, payloadBase64, "bad"))
+	err = pv.VerifyIDToken(context.Background(), idTokenBadAlgPh, cic)
+	require.Error(t, err)
 }
