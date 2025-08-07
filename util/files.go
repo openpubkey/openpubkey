@@ -28,6 +28,7 @@ import (
 	"os"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
+	"golang.org/x/crypto/ed25519"
 )
 
 func SKToX509Bytes(sk *ecdsa.PrivateKey) ([]byte, error) {
@@ -63,6 +64,9 @@ func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	case jwa.RS256: // RSASSA-PKCS-v1.5 using SHA-256
 		return rsa.GenerateKey(rand.Reader, 2048)
+	case jwa.EdDSA:
+		_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+		return privateKey, err
 	default:
 		return nil, fmt.Errorf("unsupported algorithm: %s", alg.String())
 	}
