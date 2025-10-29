@@ -55,6 +55,9 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
+	// Only allows key-bound ID tokens, i.e., ID tokens with "cnf" claim.
+	// This is typically only set if a key-bound OP is used.
+	RequireKeyBoundIDToken bool
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -103,6 +106,10 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	idt, err := oidc.NewJwt(idToken)
 	if err != nil {
 		return err
+	}
+
+	if v.options.RequireKeyBoundIDToken && idt.GetClaims().Cnf == nil {
+		return fmt.Errorf("expected key-bound ID token but 'cnf' claim is missing")
 	}
 
 	// Check whether Audience claim matches provided Client ID

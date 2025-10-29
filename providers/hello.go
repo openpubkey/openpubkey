@@ -87,7 +87,7 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 	}
 }
 
-// NewHelloOp creates a Google OP (OpenID Provider) using the
+// NewHelloOp creates an Hello OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
 func NewHelloOp() BrowserOpenIdProvider {
@@ -95,10 +95,22 @@ func NewHelloOp() BrowserOpenIdProvider {
 	return NewHelloOpWithOptions(options)
 }
 
+// NewHelloOp creates an Hello OP (OpenID Provider) that supports the OpenID key binding protocol
+// using the default configurations options. It uses the OIDC Relying Party (Client)
+// setup by the OpenPubkey project.
+func NewHelloKeyBindingOp() BrowserOpenIdProvider {
+	options := GetDefaultHelloOpOptions()
+	return NewHelloOpKeyBindingWithOptions(options)
+}
+
 // NewHelloOpWithOptions creates a Hello OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
+	return newHelloOpWithOptions(opts)
+}
+
+func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 	return &HelloOp{
 		clientID:                  opts.ClientID,
 		Scopes:                    opts.Scopes,
@@ -119,7 +131,21 @@ func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
 	}
 }
 
+// NewHelloOpWithOptions creates a Hello OP with configuration specified
+// using an options struct. This is useful if you want to use your own OIDC
+// Client or override the configuration.
+func NewHelloOpKeyBindingWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
+	return &HelloKeyBindingOp{
+		*newHelloOpWithOptions(opts),
+	}
+}
+
 type HelloOp = StandardOp
 
 var _ OpenIdProvider = (*HelloOp)(nil)
 var _ BrowserOpenIdProvider = (*HelloOp)(nil)
+
+type HelloKeyBindingOp = KeyBindingOp
+
+var _ OpenIdProvider = (*HelloKeyBindingOp)(nil)
+var _ BrowserOpenIdProvider = (*HelloKeyBindingOp)(nil)

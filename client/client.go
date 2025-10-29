@@ -204,6 +204,11 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("failed to instantiate client instance claims: %w", err)
 	}
 
+	// Check if the OP supports OpenID key binding and if it does pass the signer so it can perform DPoP
+	if keyBindingOp, ok := o.Op.(*providers.KeyBindingOp); ok {
+		keyBindingOp.ConfigKeyBinding(o.signer, o.alg.String())
+	}
+
 	tokens, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting OIDC tokens from OpenID Provider: %w", err)
