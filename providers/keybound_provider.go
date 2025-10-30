@@ -114,6 +114,9 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			return nil, err
 		}
 		form, err := url.ParseQuery(string(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
 		authCode := form.Get("code")
 
 		token, err := createDPoPToken(htm, htu, authCode, t.Signer, t.Alg)
@@ -132,15 +135,21 @@ func createDPoPToken(htm, htu, authcode string, signer crypto.Signer, alg string
 	if err != nil {
 		return nil, err
 	}
-	err = jwkKey.Set(jwk.AlgorithmKey, alg)
-	if err != nil {
+	if err := jwkKey.Set(jwk.AlgorithmKey, alg); err != nil {
 		return nil, err
 	}
 
 	ph := jws.NewHeaders()
-	ph.Set("typ", "dpop+jwt")
-	ph.Set("alg", alg)
-	ph.Set("jwk", jwkKey)
+
+	if err := ph.Set("typ", "dpop+jwt"); err != nil {
+		return nil, err
+	}
+	if err := ph.Set("alg", alg); err != nil {
+		return nil, err
+	}
+	if err := ph.Set("jwk", jwkKey); err != nil {
+		return nil, err
+	}
 
 	cHash := sha256.Sum256([]byte(authcode))
 	payload := map[string]any{
