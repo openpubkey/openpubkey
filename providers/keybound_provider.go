@@ -33,6 +33,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/util"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
 )
 
 // KeyBindingOp configures standardOp the OIDC key binding protocol as described in the
@@ -43,7 +45,7 @@ type KeyBindingOp struct {
 
 // ConfigKeyBinding sets up the KeyBindingOp to use the provided signer and algorithm.
 // This is required to successfully use this type of OP.
-func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) {
+func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) error {
 	s.keyBindingSigner = kbSigner
 	s.keyBindingSignerAlg = kbAlg
 
@@ -52,9 +54,14 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) {
 		base = s.HttpClient.Transport
 	}
 
-	if s.keyBindingSigner != nil {
-		s.Scopes = append(s.Scopes, "bound_key")
+	s.Scopes = append(s.Scopes, "bound_key")
+
+	jktb64, err := createJKT(kbSigner, kbAlg)
+	if err != nil {
+		return err
 	}
+	s.StandardOp.ExtraURLParamOpts = append(s.StandardOp.ExtraURLParamOpts, rp.WithURLParam("dpop_jkt", string(jktb64)))
+	// TODO: ERH ensure the jwkKey matches the CIC
 
 	// Override the StandardOp's HTTP client so we can read the authcode and set the DPoP header
 	s.StandardOp.HttpClient = &http.Client{
@@ -64,6 +71,7 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) {
 			Alg:    kbAlg,
 		},
 	}
+	return nil
 }
 
 func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
@@ -131,16 +139,12 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func createDPoPToken(htm, htu, authcode string, signer crypto.Signer, alg string) ([]byte, error) {
-	jwkKey, err := jwk.PublicKeyOf(signer.Public())
+	jwkKey, err := createJWK(signer, alg)
 	if err != nil {
-		return nil, err
-	}
-	if err := jwkKey.Set(jwk.AlgorithmKey, alg); err != nil {
 		return nil, err
 	}
 
 	ph := jws.NewHeaders()
-
 	if err := ph.Set("typ", "dpop+jwt"); err != nil {
 		return nil, err
 	}
@@ -170,4 +174,28 @@ func createDPoPToken(htm, htu, authcode string, signer crypto.Signer, alg string
 			jws.WithProtectedHeaders(ph),
 		),
 	)
+}
+
+func createJKT(signer crypto.Signer, alg string) ([]byte, error) {
+	jwkKey, err := createJWK(signer, alg)
+	if err != nil {
+		return nil, err
+	}
+	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	return util.Base64EncodeForJWT(thumbprint), nil
+}
+
+func createJWK(signer crypto.Signer, alg string) (jwk.Key, error) {
+	jwkKey, err := jwk.PublicKeyOf(signer.Public())
+	if err != nil {
+		return nil, err
+	}
+	err = jwkKey.Set(jwk.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
+	return jwkKey, nil
 }

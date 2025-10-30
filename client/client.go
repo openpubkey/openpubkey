@@ -206,7 +206,9 @@ func (o *OpkClient) oidcAuth(
 
 	// Check if the OP supports OpenID key binding and if it does pass the signer so it can perform DPoP
 	if keyBindingOp, ok := o.Op.(*providers.KeyBindingOp); ok {
-		keyBindingOp.ConfigKeyBinding(o.signer, o.alg.String())
+		if err := keyBindingOp.ConfigKeyBinding(o.signer, o.alg.String()); err != nil {
+			return nil, fmt.Errorf("error configuring OP to perform key binding: %w", err)
+		}
 	}
 
 	tokens, err := o.Op.RequestTokens(ctx, cic)

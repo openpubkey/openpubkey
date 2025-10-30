@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -51,6 +50,8 @@ type StandardOpOptions struct {
 	// Scopes is the list of scopes to send to the OP in the initial
 	// authorization request.
 	Scopes []string
+	// ExtraURLParamOpts is a list of additional URL parameters to include in the auth request to the OP.
+	ExtraURLParamOpts []rp.URLParamOpt
 	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
 	// this is set to "consent".
 	PromptType string
@@ -106,6 +107,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		clientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
+		ExtraURLParamOpts:         opts.ExtraURLParamOpts,
 		PromptType:                opts.PromptType,
 		AccessType:                opts.AccessType,
 		RedirectURIs:              opts.RedirectURIs,
@@ -134,6 +136,7 @@ type StandardOp struct {
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
+	ExtraURLParamOpts         []rp.URLParamOpt // Use this to set additional URL params on auth request to the OP
 	issuer                    string
 	server                    *http.Server
 	publicKeyFinder           discover.PublicKeyFinder
@@ -216,48 +219,21 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
-	// If OIDC key bound ID Tokens have been configured for this provider
-	if s.keyBindingSigner != nil {
-		jwkKey, err := jwk.PublicKeyOf(s.keyBindingSigner.Public())
-		if err != nil {
-			return nil, err
-		}
-		err = jwkKey.Set(jwk.AlgorithmKey, s.keyBindingSignerAlg)
-		if err != nil {
-			return nil, err
-		}
-		thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
-		if err != nil {
-			return nil, err
-		}
-		jktb64 := string(util.Base64EncodeForJWT(thumbprint))
-		// TODO: ERH ensure the jwkKey matches the CIC
-
-		mux.Handle("/login",
-			rp.AuthURLHandler(state, relyingParty,
-				rp.WithURLParam("nonce", cicHash),
-				// Select account requires that the user click the account they want to use.
-				// Results in better UX than just automatically dropping them into their
-				// only signed in account.
-				// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-				rp.WithPromptURLParam(s.PromptType),
-				rp.WithURLParam("access_type", s.AccessType),
-				rp.WithURLParam("dpop_jkt", jktb64), // TODO: Have the URL params be set on the struct, we can just just add the jkt without this giant if statement
-			),
-		)
-	} else {
-		mux.Handle("/login",
-			rp.AuthURLHandler(state, relyingParty,
-				rp.WithURLParam("nonce", cicHash),
-				// Select account requires that the user click the account they want to use.
-				// Results in better UX than just automatically dropping them into their
-				// only signed in account.
-				// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-				rp.WithPromptURLParam(s.PromptType),
-				rp.WithURLParam("access_type", s.AccessType),
-			),
-		)
+	URLParamOpts := []rp.URLParamOpt{
+		rp.WithURLParam("nonce", cicHash),
+		// Select account requires that the user click the account they want to use.
+		// Results in better UX than just automatically dropping them into their
+		// only signed in account.
+		// See prompt parameter in OIDC spec https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+		rp.WithPromptURLParam(s.PromptType),
+		rp.WithURLParam("access_type", s.AccessType),
 	}
+	URLParamOpts = append(URLParamOpts, s.ExtraURLParamOpts...)
+	mux.Handle("/login",
+		rp.AuthURLHandler(state, relyingParty,
+			URLParamOpts...,
+		),
+	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
 		if err != nil {
