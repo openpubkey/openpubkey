@@ -17,6 +17,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -55,9 +56,6 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
-	// Only allows key-bound ID tokens, i.e., ID tokens with "cnf" claim.
-	// This is typically only set if a key-bound OP is used.
-	RequireKeyBoundIDToken bool
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -106,15 +104,6 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	idt, err := oidc.NewJwt(idToken)
 	if err != nil {
 		return err
-	}
-
-	if v.options.RequireKeyBoundIDToken {
-		if idt.GetClaims().Cnf == nil {
-			return fmt.Errorf("expected key-bound ID token but 'cnf' claim is missing")
-		}
-		if len(idt.GetClaims().Cnf.Jwk) == 0 {
-			return fmt.Errorf("expected key-bound ID token but 'cnf' claim does not contain a jwk")
-		}
 	}
 
 	// Check whether Audience claim matches provided Client ID
@@ -221,6 +210,28 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		commitment = idt.GetSignature().GetProtectedClaims().CIC
 		if commitment == "" {
 			return fmt.Errorf("missing GQ commitment")
+		}
+	} else if v.options.CommitType == CommitTypesEnum.KEY_BOUND {
+		if idt.GetClaims().Cnf == nil {
+			return fmt.Errorf("expected key-bound ID token but cnf claim is missing")
+		}
+		if len(idt.GetClaims().Cnf.Jwk) == 0 {
+			return fmt.Errorf("expected key-bound ID token but cnf claim does not contain a jwk")
+		}
+
+		cnfJwkStr, err := json.Marshal(idt.GetClaims().Cnf.Jwk)
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
+		}
+		cicJwkStr, err := json.Marshal(cic.PublicKey())
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in CIC: %w", err)
+		}
+		if bytes.Equal(cicJwkStr, cnfJwkStr) {
+			return nil
+		} else {
+			cic.PublicKey()
+			return fmt.Errorf("jwk in cnf claim does not match public key in CIC, got %s, expected %s", string(cnfJwkStr), string(cicJwkStr))
 		}
 	} else {
 		if v.commitType.Claim == "" {

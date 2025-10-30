@@ -78,10 +78,9 @@ func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 	vp := NewProviderVerifier(
 		s.issuer,
 		ProviderVerifierOpts{
-			CommitType:             CommitTypesEnum.NONCE_CLAIM, // TODO: Key bound ID Tokens should have their own commit type
-			ClientID:               s.clientID,
-			DiscoverPublicKey:      &s.publicKeyFinder,
-			RequireKeyBoundIDToken: true,
+			CommitType:        CommitTypesEnum.KEY_BOUND,
+			ClientID:          s.clientID,
+			DiscoverPublicKey: &s.publicKeyFinder,
 		})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
