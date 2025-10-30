@@ -108,8 +108,13 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		return err
 	}
 
-	if v.options.RequireKeyBoundIDToken && idt.GetClaims().Cnf == nil {
-		return fmt.Errorf("expected key-bound ID token but 'cnf' claim is missing")
+	if v.options.RequireKeyBoundIDToken {
+		if idt.GetClaims().Cnf == nil {
+			return fmt.Errorf("expected key-bound ID token but 'cnf' claim is missing")
+		}
+		if idt.GetClaims().Cnf.Jwk == nil || len(idt.GetClaims().Cnf.Jwk) == 0 {
+			return fmt.Errorf("expected key-bound ID token but 'cnf' claim does not contain a jwk")
+		}
 	}
 
 	// Check whether Audience claim matches provided Client ID

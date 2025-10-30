@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2025 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
