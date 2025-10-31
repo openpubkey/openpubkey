@@ -145,3 +145,43 @@ This was generated using <https://playground.hello.dev/> with gitlab claims enab
     },
 }
 ```
+
+### Key Bound ID Token
+
+```json
+{
+  "payload": {
+    "iss": "https://issuer.hello.coop",
+    "aud": "app_xejobTKEsDNSRd5vofKB2iay_2rN",
+    "nonce": "UIjSuNcpCiJ6Vn1SqCaE4ILexfFsolukHmqlgKbC1p0",
+    "jti": "jti_U82eEJjPL9pRfLXNcfEMe5SJ_M3w",
+    "sub": "sub_NdETpSN2LthxgTKdrBcLK2au_TDg",
+    "tenant": "personal",
+    "name": "Anonymous Author",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIdbWtaAGFsizjWVh7Q6C-XDBuSoUOpf7d7nGqgNQ-9yHmenNA=s96-c",
+    "email": "anon.author.aardvark@gmail.com",
+    "email_verified": true,
+    "iat": 1761943045,
+    "exp": 1761943345,
+    "cnf": {
+        "jwk": {
+            "alg": "ES256",
+            "crv": "P-256",
+            "kty": "EC",
+            "x": "6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk",
+            "y": "H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"
+        }
+    }
+  },
+  "signatures": [
+    {
+      "protected": {
+        "alg": "RS256",
+        "typ": "id_token+cnf",
+        "kid": "2025-09-05T11:09:18.267Z_ab4-956-RS256"
+      },
+      "signature": "CqXs..."
+    }
+  ]
+}
+```

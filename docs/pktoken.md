@@ -20,6 +20,7 @@ In this document we provide needed background on JSON Web Signatures (JWS), ID T
     - [Nonce-Commitment PK Token - Google Example](#nonce-commitment-pk-token---google-example)
       - [Nonce-Commitment](#nonce-commitment)
       - [MFA Cosigner Signature](#mfa-cosigner-signature)
+    - [Key Bound PK Tokens - Hello Example](#key-bound-pk-tokens---hello-example)
     - [GQ Signed Nonce-Commitment PK Tokens - Google Example](#gq-signed-nonce-commitment-pk-tokens---google-example)
       - [GQ Signatures](#gq-signatures)
       - [GQ Signature Protected Header](#gq-signature-protected-header)
@@ -254,7 +255,8 @@ OpenPubkey has a number of different types of PK Tokens. A full list includes:
 This PK Token is an Google issued ID Token that has been extended with two signatures.
 
 ```JSON
-{"payload":{
+{
+  "payload":{
     "iss": "https://accounts.google.com",
     "azp": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
     "aud": "992028499768-ce9juclb3vvckh23r83fjkmvf1lvjq18.apps.googleusercontent.com",
@@ -328,6 +330,63 @@ Notice that the value which is hashed to generate the `nonce` value in the paylo
 #### MFA Cosigner Signature
 
 We have included in a Cosigner signature in this example to show what what one looks like. Given that the Cosigner signature does not not differ much between examples we have omitted it from the other examples. Note that PK Tokens can function without a Cosigner signature, a verifier can choose to require or not require one based on a verifier's security needs.
+
+### Key Bound PK Tokens - Hello Example
+
+Uses OpenID Connect Key Binding to push the user's public key directly in the ID token. Since the public key can be read from the `cnf` claim in the ID Token, there is no need to use a  `nonce`, `aud` commitment claim. This also means the CIC is not longer needed to open the commitment as there is no commitment to open. We maintain the CIC for capability purposes and ensure the public key in the ID Token matches the public key in the CIC.
+
+```json
+{
+  "payload": {
+    "iss": "https://issuer.hello.coop",
+    "aud": "app_xejobTKEsDNSRd5vofKB2iay_2rN",
+    "nonce": "UIjSuNcpCiJ6Vn1SqCaE4ILexfFsolukHmqlgKbC1p0",
+    "jti": "jti_U82eEJjPL9pRfLXNcfEMe5SJ_M3w",
+    "sub": "sub_NdETpSN2LthxgTKdrBcLK2au_TDg",
+    "tenant": "personal",
+    "name": "Anonymous Author",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIdbWtaAGFsizjWVh7Q6C-XDBuSoUOpf7d7nGqgNQ-9yHmenNA=s96-c",
+    "email": "anon.author.aardvark@gmail.com",
+    "email_verified": true,
+    "iat": 1761943045,
+    "exp": 1761943345,
+    "cnf": {
+        "jwk": {
+            "alg": "ES256",
+            "crv": "P-256",
+            "kty": "EC",
+            "x": "6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk",
+            "y": "H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"
+        }
+    }
+  },
+  "signatures": [
+    {
+      "protected": {
+        "alg": "RS256",
+        "typ": "id_token+cnf",
+        "kid": "2025-09-05T11:09:18.267Z_ab4-956-RS256"
+      },
+      "signature": "CqXs..."
+    },
+    {
+      "protected": {
+        "alg": "ES256",
+        "rz": "87765a8d2d64fefc4dbcaf3cb347ad0ffac4a11b766b4cab662f1de55fb522a8",
+        "typ": "CIC",
+        "upk": {
+            "alg": "ES256",
+            "crv": "P-256",
+            "kty": "EC",
+            "x": "6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk",
+            "y": "H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"
+        }
+    },
+      "signature": "qwyDh..."
+    }
+  ]
+}
+```
 
 ### GQ Signed Nonce-Commitment PK Tokens - Google Example
 
