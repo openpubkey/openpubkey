@@ -17,6 +17,7 @@
 package providers
 
 import (
+	"crypto"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -31,6 +32,11 @@ func GenCIC(t *testing.T) *clientinstance.Claims {
 }
 
 func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
+	cic, _, _ := GenCICExtraSigner(t, extraClaims)
+	return cic
+}
+
+func GenCICExtraSigner(t *testing.T, extraClaims map[string]any) (*clientinstance.Claims, crypto.Signer, string) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
@@ -40,5 +46,5 @@ func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claim
 	require.NoError(t, err)
 	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
 	require.NoError(t, err)
-	return cic
+	return cic, signer, alg.String()
 }
