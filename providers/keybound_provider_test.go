@@ -18,7 +18,7 @@ package providers
 
 import (
 	"context"
-	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -28,10 +28,17 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed test_dpop_token.json
+var expectedDpopToken []byte
+
+var test_jti = "IQS5tYP-bpBPtJsorT4z7g"
+var test_iat int64 = 1761937449
 
 func TestKeyBindingProvider(t *testing.T) {
 	// This isn't a great test because it doesn't test the client to OP interaction.
@@ -49,7 +56,7 @@ func TestKeyBindingProvider(t *testing.T) {
 		},
 	}
 
-	cic, signer, alg := GenCICExtraSigner(t, map[string]any{})
+	cic, signer, alg := GenCICDeterministic(t, map[string]any{})
 	jwkKey, err := createJWK(signer, alg)
 	require.NoError(t, err)
 
@@ -111,43 +118,24 @@ func TestCreateDPoPToken(t *testing.T) {
 	htu := "https://op.example.com/token"
 	authcode := "fake-auth-code"
 
-	alg := "ES256"
-	signer, err := util.GenKeyPair(jwa.KeyAlgorithmFrom(alg))
+	// use EdDSA so for so the signatures are deterministic in the test
+	alg := "EdDSA"
+	signer := DeterministicTestKeyPair(t, alg)
+
+	jti := test_jti
+	iat := test_iat
+
+	dpopToken, err := createDPoPToken(htm, htu, jti, authcode, iat, signer, alg)
+	require.NoError(t, err)
+	require.NotEmpty(t, dpopToken)
+
+	dpopJwt, err := oidc.NewJwt(dpopToken)
 	require.NoError(t, err)
 
-	dpopTokenCompact, err := createDPoPToken(htm, htu, authcode, signer, alg)
-	require.NoError(t, err)
-	require.NotEmpty(t, dpopTokenCompact)
-
-	headerB64, payloadB64, _, err := jws.SplitCompact(dpopTokenCompact)
+	dpopJwtJson, err := dpopJwt.PrettyJson()
 	require.NoError(t, err)
 
-	headerJson, err := util.Base64DecodeForJWT(headerB64)
-	require.NoError(t, err)
-
-	var header map[string]any
-	err = json.Unmarshal(headerJson, &header)
-	require.NoError(t, err)
-
-	require.Equal(t, "dpop+jwt", header["typ"])
-	require.Equal(t, "ES256", header["alg"])
-	require.NotEmpty(t, header["jwk"])
-
-	payloadJson, err := util.Base64DecodeForJWT(payloadB64)
-	require.NoError(t, err)
-
-	var payload map[string]any
-	err = json.Unmarshal(payloadJson, &payload)
-	require.NoError(t, err)
-
-	cHash := sha256.Sum256([]byte(authcode))
-	cHashB64 := string(util.Base64EncodeForJWT(cHash[:]))
-
-	require.Equal(t, cHashB64, payload["c_hash"])
-	require.Equal(t, htm, payload["htm"])
-	require.Equal(t, htu, payload["htu"])
-	require.NotEmpty(t, payload["jti"])
-	require.NotEmpty(t, payload["iat"])
+	require.Equal(t, string(expectedDpopToken), string(dpopJwtJson))
 }
 
 type RoundTripperForTester struct {
@@ -163,7 +151,6 @@ func (t *RoundTripperForTester) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 func TestRoundTripper(t *testing.T) {
-
 	rtTester := &RoundTripperForTester{}
 
 	alg := "ES256"

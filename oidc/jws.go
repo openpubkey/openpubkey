@@ -17,7 +17,10 @@
 package oidc
 
 import (
+	"encoding/json"
 	"fmt"
+
+	"github.com/openpubkey/openpubkey/util"
 )
 
 type Jws struct {
@@ -111,4 +114,54 @@ func (j *Jws) GetTokenByTyp(typ string) ([]byte, error) {
 	} else {
 		return []byte(matchingTokens[0].Protected + "." + j.Payload + "." + matchingTokens[0].Signature), nil
 	}
+}
+
+// PrettyJson returns a indented JSON representation of the JWS with a decoded payload.
+func (j *Jws) PrettyJson() ([]byte, error) {
+	payloadDecoded, err := util.Base64DecodeForJWT([]byte(j.Payload))
+	if err != nil {
+		return nil, err
+	}
+
+	var payload map[string]any
+	err = json.Unmarshal(payloadDecoded, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	type pSignature struct {
+		Protected map[string]any `json:"protected"`
+		Public    map[string]any `json:"header,omitempty"`
+		Signature string         `json:"signature"`
+	}
+
+	pSignatures := []pSignature{}
+	for _, sig := range j.Signatures {
+		protectedDecoded, err := util.Base64DecodeForJWT([]byte(sig.Protected))
+		if err != nil {
+			return nil, err
+		}
+
+		var protected map[string]any
+		err = json.Unmarshal(protectedDecoded, &protected)
+		if err != nil {
+			return nil, err
+		}
+
+		pSignatures = append(pSignatures, pSignature{
+			Protected: protected,
+			Public:    sig.Public,
+			Signature: sig.Signature,
+		})
+	}
+
+	pJws := struct {
+		Payload    map[string]any `json:"payload"`
+		Signatures []pSignature   `json:"signatures"`
+	}{
+		Payload:    payload,
+		Signatures: pSignatures,
+	}
+
+	return json.MarshalIndent(pJws, "", "  ")
 }

@@ -18,6 +18,9 @@ package providers
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"encoding/json"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -32,19 +35,82 @@ func GenCIC(t *testing.T) *clientinstance.Claims {
 }
 
 func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
-	cic, _, _ := GenCICExtraSigner(t, extraClaims)
-	return cic
-}
-
-func GenCICExtraSigner(t *testing.T, extraClaims map[string]any) (*clientinstance.Claims, crypto.Signer, string) {
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
+	return GenCICEverything(t, extraClaims, signer, alg.String())
+}
+
+func GenCICEverything(t *testing.T, extraClaims map[string]any, signer crypto.Signer, alg string) *clientinstance.Claims {
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	require.NoError(t, err)
 	err = jwkKey.Set(jwk.AlgorithmKey, alg)
 	require.NoError(t, err)
 	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
 	require.NoError(t, err)
-	return cic, signer, alg.String()
+	return cic
+}
+
+const es256keyPairJSON = `{
+	"crv": "P-256",
+	"d": "VkLzE5IzCxLiD3QzSiijY5CzpU0gZ7h8NECFL_MoyFQ",
+	"kty": "EC",
+	"x": "ukpv3fU6tqQKaUwcdBAQoK3IHvJIW__9yNd1oR7qvZc",
+	"y": "nBBxXrx0Nziwg_evfUMUUgnGKKUf2ATpWG9EojnUoU4",
+	"alg": "ES256"
+}`
+
+const ed25519keyPairJSON = `{
+  "crv": "Ed25519",
+  "d": "dvrQIDJN2SwU0xUxCux5Cdslv0N9tP6jpl7J_kqXcXA",
+  "kty": "OKP",
+  "x": "fmkTfA6VJtkaSZL0j9m-DRke3K9xMxxabuqLOPa-G7E"
+}`
+
+// GenCICDeterministic generates a CIC using a fixed key pair for testing purposes.
+// Only use in tests. This would be wildly insecure in production as the secret key is a public value.
+func GenCICDeterministic(t *testing.T, extraClaims map[string]any) (*clientinstance.Claims, crypto.Signer, string) {
+	alg := "ES256"
+	signer := DeterministicTestKeyPair(t, alg)
+	cic := GenCICEverything(t, extraClaims, signer, alg)
+	return cic, signer, alg
+}
+
+// DeterministicTestKeyPair generates a deterministic key pair for testing purposes.
+// Only use in tests. This would be wildly insecure in production as the secret key is a public value.
+func DeterministicTestKeyPair(t *testing.T, alg string) crypto.Signer {
+	switch alg {
+	case jwa.ES256.String():
+		kp, err := jwk.ParseKey([]byte(es256keyPairJSON))
+		require.NoError(t, err)
+
+		var privKey ecdsa.PrivateKey
+		err = kp.Raw(&privKey)
+		require.NoError(t, err)
+
+		return &privKey
+	case jwa.EdDSA.String():
+		kp, err := jwk.ParseKey([]byte(ed25519keyPairJSON))
+		require.NoError(t, err)
+
+		var privKey ed25519.PrivateKey
+		err = kp.Raw(&privKey)
+		require.NoError(t, err)
+
+		return &privKey
+	default:
+		t.Fatalf("unsupported algorithm for deterministic key pair: %s", alg)
+		return nil
+	}
+}
+
+// NewTestKeyPairs is used for creating JSON representations of JWKs for tests.
+// This is how we generate the embedded JWKs for our unittests.
+func NewTestKeyPairs(t *testing.T, signer crypto.Signer) []byte {
+	privJWK, err := jwk.FromRaw(signer)
+	require.NoError(t, err)
+
+	jwkJson, err := json.MarshalIndent(privJWK, "", "  ")
+	require.NoError(t, err)
+	return jwkJson
 }

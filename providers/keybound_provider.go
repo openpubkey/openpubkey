@@ -125,8 +125,10 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			return nil, err
 		}
 		authCode := form.Get("code")
+		jti := randomB64(16)
+		iat := time.Now().Add(-30 * time.Second).Unix()
 
-		token, err := createDPoPToken(htm, htu, authCode, t.Signer, t.Alg)
+		token, err := createDPoPToken(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +139,7 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return t.Base.RoundTrip(req)
 }
 
-func createDPoPToken(htm, htu, authcode string, signer crypto.Signer, alg string) ([]byte, error) {
+func createDPoPToken(htm, htu, jti, authcode string, iat int64, signer crypto.Signer, alg string) ([]byte, error) {
 	jwkKey, err := createJWK(signer, alg)
 	if err != nil {
 		return nil, err
@@ -158,8 +160,8 @@ func createDPoPToken(htm, htu, authcode string, signer crypto.Signer, alg string
 	payload := map[string]any{
 		"htm":    htm,
 		"htu":    htu,
-		"jti":    randomB64(16),
-		"iat":    time.Now().Add(-30 * time.Second).Unix(),
+		"jti":    jti,
+		"iat":    iat,
 		"c_hash": base64.RawURLEncoding.EncodeToString(cHash[:]),
 	}
 
