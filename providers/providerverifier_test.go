@@ -29,6 +29,7 @@ import (
 
 func TestProviderVerifier(t *testing.T) {
 	NONCE_CLAIM := CommitTypesEnum.NONCE_CLAIM
+	KEY_BOUND := CommitTypesEnum.KEY_BOUND
 	AUD_CLAIM := CommitTypesEnum.AUD_CLAIM
 	GQ_BOUND := CommitTypesEnum.GQ_BOUND
 	EMPTY_COMMIT := CommitType{
@@ -64,6 +65,14 @@ func TestProviderVerifier(t *testing.T) {
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
 			expError:       "",
 			correctCicHash: true},
+		{name: "Key Binding happy case", aud: clientID, clientID: clientID,
+			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
+			expError:       "",
+			correctCicHash: true},
+		{name: "Key Binding wrong CIC", aud: clientID, clientID: clientID,
+			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
+			expError:       "jwk in cnf claim does not match public key in CIC",
+			correctCicHash: false},
 		{name: "Claim Commitment (aud) happy case",
 			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM, providerAlg: "RS256",
 			expError:          "",
@@ -123,11 +132,19 @@ func TestProviderVerifier(t *testing.T) {
 				ExtraClaims: map[string]any{},
 			}
 
+			cic := GenCICExtra(t, map[string]any{})
+
 			switch tc.tokenCommitType.Claim {
 			case "nonce":
 				idtTemplate.CommitFunc = mocks.AddNonceCommit
 			case "aud":
 				idtTemplate.CommitFunc = mocks.AddAudCommit
+			case "cnf":
+				// For key binding
+				idtTemplate.ExtraClaims["cnf"] = map[string]any{
+					"jwk": cic.PublicKey(),
+				}
+				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			default:
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			}
@@ -139,7 +156,6 @@ func TestProviderVerifier(t *testing.T) {
 			if tc.IssuedAtClaim != 0 {
 				idtTemplate.ExtraClaims["iat"] = tc.IssuedAtClaim
 			}
-			cic := GenCICExtra(t, map[string]any{})
 
 			// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
 			pvGQOnly := tc.tokenCommitType.GQCommitment
