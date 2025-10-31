@@ -335,6 +335,8 @@ We have included in a Cosigner signature in this example to show what what one l
 
 Uses OpenID Connect Key Binding to push the user's public key directly in the ID token. Since the public key can be read from the `cnf` claim in the ID Token, there is no need to use a  `nonce`, `aud` commitment claim. This also means the CIC is not longer needed to open the commitment as there is no commitment to open. We maintain the CIC for capability purposes and ensure the public key in the ID Token matches the public key in the CIC.
 
+The CIC does still function as proof the identity holds the signing key associated with the user's public key as the signature of the CIC includes the payload.
+
 ```json
 {
   "payload": {
