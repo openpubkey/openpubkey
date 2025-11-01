@@ -61,7 +61,6 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 		return err
 	}
 	s.StandardOp.ExtraURLParamOpts = append(s.StandardOp.ExtraURLParamOpts, rp.WithURLParam("dpop_jkt", string(jktb64)))
-	// TODO: ERH ensure the jwkKey matches the CIC
 
 	// Override the StandardOp's HTTP client so we can read the authcode and set the DPoP header
 	s.StandardOp.HttpClient = &http.Client{
