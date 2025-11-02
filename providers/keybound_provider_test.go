@@ -188,4 +188,16 @@ func TestRoundTripper(t *testing.T) {
 	require.Equal(t, "fake-auth-code", rtTester.Output.FormValue("code"))
 	require.Equal(t, "POST", rtTester.Output.Method)
 	require.NotEmpty(t, dpopToken)
+
+	// Test request that doesn't match a DPoP token request so that it just passes through unchanged
+	req, err = http.NewRequest("POST", "https://example.com/other/resource", strings.NewReader(bodyStr))
+	require.NoError(t, err)
+
+	resp, err = rt.RoundTrip(req)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Equal(t, 200, resp.StatusCode)
+
+	require.Empty(t, rtTester.Output.Header.Get("DPoP"))
 }
