@@ -87,7 +87,7 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 	}
 }
 
-// NewHelloOp creates an Hello OP (OpenID Provider) using the
+// NewHelloOp creates a Hello OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
 func NewHelloOp() BrowserOpenIdProvider {
@@ -95,7 +95,7 @@ func NewHelloOp() BrowserOpenIdProvider {
 	return NewHelloOpWithOptions(options)
 }
 
-// NewHelloOp creates an Hello OP (OpenID Provider) that supports the OpenID key binding protocol
+// NewHelloOp creates a Hello OP (OpenID Provider) that supports the OpenID key binding protocol
 // using the default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
 func NewHelloKeyBindingOp() BrowserOpenIdProvider {
@@ -131,7 +131,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 	}
 }
 
-// NewHelloOpWithOptions creates a Hello OP with configuration specified
+// NewHelloOpKeyBindingWithOptions creates a Hello key binding OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewHelloOpKeyBindingWithOptions(opts *HelloOptions) BrowserOpenIdProvider {

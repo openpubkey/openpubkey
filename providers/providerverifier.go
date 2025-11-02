@@ -230,7 +230,6 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		if bytes.Equal(cicJwkStr, cnfJwkStr) {
 			return nil
 		} else {
-			cic.PublicKey()
 			return fmt.Errorf("jwk in cnf claim does not match public key in CIC, got %s, expected %s", string(cnfJwkStr), string(cicJwkStr))
 		}
 	} else {
