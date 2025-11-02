@@ -77,6 +77,9 @@ func TestKeyBindingProvider(t *testing.T) {
 				"jwk": jwkKey,
 			},
 		},
+		ExtraProtectedClaims: map[string]any{
+			"typ": KEYBOUND_TYP,
+		},
 		SigningKey: expSigningKey,
 	}
 	providerOverride.SetIDTokenTemplate(&idTokenTemplate)

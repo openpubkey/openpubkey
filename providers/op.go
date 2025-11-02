@@ -52,6 +52,8 @@ type RefreshableOpenIdProvider interface {
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
 
+const KEYBOUND_TYP = "id_token+cnf"
+
 type CommitType struct {
 	Claim        string
 	GQCommitment bool

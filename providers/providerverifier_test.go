@@ -37,6 +37,9 @@ func TestProviderVerifier(t *testing.T) {
 		GQCommitment: false,
 	}
 
+	keybindingTyp := "id_token+cnf"
+	standardTyp := "jwt"
+
 	correctAud := AudPrefixForGQCommitment
 	clientID := "test-client-id"
 	issuer := "mockIssuer"
@@ -45,6 +48,7 @@ func TestProviderVerifier(t *testing.T) {
 		name        string
 		aud         string
 		clientID    string
+		typClaim    string
 		expError    string
 		pvGQSign    bool
 		pvGQOnly    bool
@@ -65,13 +69,21 @@ func TestProviderVerifier(t *testing.T) {
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
 			expError:       "",
 			correctCicHash: true},
-		{name: "Key Binding happy case", aud: clientID, clientID: clientID,
+		{name: "Claim Commitment wrong typ claim (ES256)", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
+			expError:       "expected commitment type nonce but got key-bound ID token (typ=id_token+cnf)",
+			correctCicHash: true},
+		{name: "Key Binding happy case", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
 			expError:       "",
 			correctCicHash: true},
-		{name: "Key Binding wrong CIC", aud: clientID, clientID: clientID,
+		{name: "Key Binding wrong CIC", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
 			expError:       "jwk in cnf claim does not match public key in CIC",
+			correctCicHash: false},
+		{name: "Key Binding wrong typ claim", aud: clientID, clientID: clientID, typClaim: standardTyp,
+			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
+			expError:       "expected key-bound ID token (typ=id_token+cnf) but got ID Token (typ=jwt)",
 			correctCicHash: false},
 		{name: "Claim Commitment (aud) happy case",
 			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM, providerAlg: "RS256",
@@ -123,13 +135,14 @@ func TestProviderVerifier(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			idtTemplate := mocks.IDTokenTemplate{
-				Issuer:      issuer,
-				Nonce:       "empty",
-				NoNonce:     false,
-				Aud:         "empty",
-				Alg:         tc.providerAlg,
-				NoAlg:       false,
-				ExtraClaims: map[string]any{},
+				Issuer:               issuer,
+				Nonce:                "empty",
+				NoNonce:              false,
+				Aud:                  "empty",
+				Alg:                  tc.providerAlg,
+				NoAlg:                false,
+				ExtraClaims:          map[string]any{},
+				ExtraProtectedClaims: map[string]any{},
 			}
 
 			cic := GenCICExtra(t, map[string]any{})
@@ -155,6 +168,10 @@ func TestProviderVerifier(t *testing.T) {
 
 			if tc.IssuedAtClaim != 0 {
 				idtTemplate.ExtraClaims["iat"] = tc.IssuedAtClaim
+			}
+
+			if tc.typClaim != "" {
+				idtTemplate.ExtraProtectedClaims["typ"] = tc.typClaim
 			}
 
 			// Set gqOnly to gqCommitment since gqCommitment requires gqOnly
