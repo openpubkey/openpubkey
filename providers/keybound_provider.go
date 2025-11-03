@@ -37,7 +37,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 )
 
-// KeyBindingOp configures standardOp the OIDC key binding protocol as described in the
+// KeyBindingOp configures standardOp to use the OIDC key binding protocol as described in the
 // draft standard "OpenID Connect Key Binding" at https://openid.github.io/connect-key-binding/main.html
 type KeyBindingOp struct {
 	StandardOp
