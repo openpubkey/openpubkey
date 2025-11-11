@@ -137,7 +137,7 @@ This was generated using <https://playground.hello.dev/> with gitlab claims enab
     },
     "iat": 1743381952,
     "exp": 1743382252
-}
+},
 "protected": {
     "alg": "RS256",
     "typ": "JWT",
