@@ -26,6 +26,7 @@ import (
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -69,9 +70,8 @@ func TestClient(t *testing.T) {
 			}
 
 			op, _, _, err := providers.NewMockProvider(providerOpts)
-			require.NoError(t, err)
-
 			require.NoError(t, err, tc.name)
+
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
@@ -203,4 +203,163 @@ func TestClientRefreshNotSupported(t *testing.T) {
 
 	_, err = c.Refresh(context.Background())
 	require.ErrorContains(t, err, "does not support OIDC refresh requests")
+}
+
+func TestClient2(t *testing.T) {
+	clientID := "test-client-id"
+	commitType := providers.CommitTypesEnum.NONCE_CLAIM
+
+	testCases := []struct {
+		name        string
+		gq          bool
+		signer      bool
+		signerAlg   jwa.KeyAlgorithm
+		extraClaims map[string]string
+	}{
+		{name: "without GQ", gq: false, signer: false},
+		{name: "with GQ", gq: true, signer: false},
+		{name: "with GQ, with signer", gq: true, signer: true, signerAlg: jwa.RS256},
+		{name: "with GQ, with signer, with empty extraClaims", gq: true, signer: true, signerAlg: jwa.ES256, extraClaims: map[string]string{}},
+		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, signerAlg: jwa.ES256, extraClaims: map[string]string{"extra": "yes"}},
+		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			var c *client.OpkClient
+			var err error
+			providerOpts := providers.MockProviderOpts{
+				Issuer:     "mockIssuer",
+				Alg:        "RS256",
+				ClientID:   clientID,
+				GQSign:     tc.gq,
+				NumKeys:    2,
+				CommitType: commitType,
+				VerifierOpts: providers.ProviderVerifierOpts{
+					CommitType:        commitType,
+					SkipClientIDCheck: false,
+					GQOnly:            false,
+					ClientID:          clientID,
+				},
+			}
+
+			op := CreateMockOp(t, providerOpts)
+			if tc.signer {
+				signer, err := util.GenKeyPair(tc.signerAlg)
+				require.NoError(t, err, tc.name)
+				c, err = client.New(op, client.WithSigner(signer, tc.signerAlg))
+				require.NoError(t, err, tc.name)
+				require.Equal(t, signer, c.GetSigner(), tc.name)
+				require.Equal(t, tc.signerAlg, c.GetAlg(), tc.name)
+			} else {
+				c, err = client.New(op)
+				require.NoError(t, err, tc.name)
+			}
+
+			var pkt *pktoken.PKToken
+			if tc.extraClaims != nil {
+				extraClaimsOpts := []client.AuthOpts{}
+				for k, v := range tc.extraClaims {
+					extraClaimsOpts = append(extraClaimsOpts,
+						client.WithExtraClaim(k, v))
+				}
+
+				pkt, err = c.Auth(context.Background(), extraClaimsOpts...)
+				require.NoError(t, err, tc.name)
+
+				cicPH, err := pkt.Cic.ProtectedHeaders().AsMap(context.TODO())
+				require.NoError(t, err, tc.name)
+
+				for k, v := range tc.extraClaims {
+					require.Equal(t, v, cicPH[k], tc.name)
+				}
+			} else {
+				pkt, err = c.Auth(context.Background())
+				require.NoError(t, err, tc.name)
+			}
+
+			providerAlg, ok := pkt.ProviderAlgorithm()
+			require.True(t, ok, "missing algorithm", tc.name)
+
+			if tc.gq {
+				require.Equal(t, gq.GQ256, providerAlg, tc.name)
+
+				// Verify our GQ signature
+				opPubKey, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
+				require.NoError(t, err, tc.name)
+
+				rsaKey, ok := opPubKey.PublicKey.(*rsa.PublicKey)
+				require.Equal(t, true, ok)
+
+				ok, err = gq.GQ256VerifyJWT(rsaKey, pkt.OpToken)
+				require.NoError(t, err, tc.name)
+				require.True(t, ok, "error verifying OP GQ signature on PK Token (ID Token invalid)")
+			} else {
+				// Expect alg to be RS256 alg when not signing with GQ
+				require.Equal(t, jwa.RS256, providerAlg, tc.name)
+			}
+
+			cic, err := pkt.GetCicValues()
+			require.NoError(t, err)
+			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+			require.NoError(t, err, tc.name)
+
+			pktRefreshed, err := c.Refresh(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, pktRefreshed)
+
+			// TODO: Add Verification of Refreshed ID Token
+		})
+	}
+}
+
+func CreateMockOp(t *testing.T, opts providers.MockProviderOpts) providers.OpenIdProvider {
+	googleOpOpts := providers.GetDefaultGoogleOpOptions()
+	googleOpOpts.Issuer = opts.Issuer
+	googleOpOpts.ClientID = opts.ClientID
+	googleOpOpts.GQSign = opts.GQSign
+
+	opBackend, err := mocks.NewMockProviderBackend(opts.Issuer, "RS256", 2)
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
+
+	idTokenTemplate := &mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
+		Issuer:               opts.Issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  opts.ClientID,
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
+	}
+
+	idp, err := mocks.NewMockOp(opts.Issuer, idTokenTemplate, opBackend)
+	require.NoError(t, err)
+	require.NotNil(t, idp)
+
+	rt := idp.GetHTTPClient()
+	require.NotNil(t, rt)
+	googleOpOpts.HttpClient = rt
+	googleOpOpts.OpenBrowser = false
+
+	op := providers.NewGoogleOpWithOptions(googleOpOpts)
+
+	browserWindowHook := idp.GetUserAuthCompleteSignal()
+	op.ReuseBrowserWindowHook(browserWindowHook)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() {
+		err := idp.Run(ctx)
+		require.NoError(t, err)
+	}()
+
+	return op
 }

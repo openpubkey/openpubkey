@@ -66,6 +66,14 @@ func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *
 	}
 }
 
+func NewMockWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
+	return &WebChooser{
+		OpList:        opList,
+		OpenBrowser:   openBrowser,
+		useMockServer: true,
+	}
+}
+
 func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, error) {
 	if wc.opSelected != nil {
 		return nil, fmt.Errorf("provider has already been chosen")

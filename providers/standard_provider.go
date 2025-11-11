@@ -167,6 +167,9 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
 
+	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
+	chErr := make(chan error, 1)
+
 	mux := http.NewServeMux()
 	s.server = &http.Server{Handler: mux}
 
@@ -180,6 +183,21 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		rp.WithVerifierOpts(
 			rp.WithIssuedAtOffset(s.IssuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
+		// These are needed to ensure we notice errors in the RP and then shutdown the go routines and don't hang forever
+		rp.WithErrorHandler(func(w http.ResponseWriter, r *http.Request, errorType string, errorDesc string, state string) {
+			http.Error(w, errorType+": "+errorDesc, http.StatusInternalServerError)
+			select {
+			case chErr <- fmt.Errorf("%s: %s", errorType, errorDesc):
+			default:
+			}
+		}),
+		rp.WithUnauthorizedHandler(func(w http.ResponseWriter, r *http.Request, desc string, state string) {
+			http.Error(w, desc, http.StatusUnauthorized)
+			select {
+			case chErr <- fmt.Errorf("StatusUnauthorized: %s", desc):
+			default:
+			}
+		}),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 	if s.HttpClient != nil {
@@ -208,9 +226,6 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		}
 	}
 
-	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
-	chErr := make(chan error, 1)
-
 	mux.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
@@ -222,13 +237,10 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			chErr <- err
-			return
+		select {
+		case chTokens <- retTokens:
+		default:
 		}
-
-		chTokens <- retTokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -330,7 +342,6 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 			rp.WithNonce(nil), // disable nonce check
 		),
 	}
-	options = append(options, rp.WithPKCE(cookieHandler))
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
