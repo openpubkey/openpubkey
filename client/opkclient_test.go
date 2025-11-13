@@ -52,9 +52,6 @@ func TestClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			var c *client.OpkClient
-			var err error
-
 			googleOpOpts := providers.GetDefaultGoogleOpOptions()
 			googleOpOpts.Issuer = "mockIssuer"
 			googleOpOpts.ClientID = clientID
@@ -65,6 +62,8 @@ func TestClient(t *testing.T) {
 					SubjectId: "alice@gmail.com",
 				})
 			require.NoError(t, err, tc.name)
+
+			var c *client.OpkClient
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
@@ -130,7 +129,6 @@ func TestClient(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestClientWithWebChooser(t *testing.T) {
