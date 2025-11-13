@@ -77,6 +77,7 @@ func TestStandardProviders(t *testing.T) {
 				opts := GetDefaultHelloOpOptions()
 				opts.GQSign = tc.gqSign
 				op, err = CreateMockHelloOpWithOpts(opts, "alice@gmail.com")
+				require.NoError(t, err, tc.name)
 			default:
 				t.Fatalf("unsupported provider name: %s", tc.providerName)
 			}

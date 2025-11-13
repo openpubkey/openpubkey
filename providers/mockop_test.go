@@ -32,7 +32,7 @@ func TestSimpleBackendOverride(t *testing.T) {
 	googleOpOpts.ClientID = clientId
 
 	idp, err := mocks.NewMockOp(issuer, []mocks.Subject{
-		mocks.Subject{
+		{
 			SubjectID: "alice@gmail.com",
 		},
 	})

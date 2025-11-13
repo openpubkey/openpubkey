@@ -36,8 +36,7 @@ type MockOp struct {
 
 	authCodes map[string]string
 	// refreshTokens         map[string]string // TODO: Implement refresh tokens
-	signalConsentAuthDone chan UserBrowserInteractionMock
-	httpClient            *http.Client
+	httpClient *http.Client
 }
 
 func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {

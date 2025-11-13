@@ -74,7 +74,8 @@ func TestSimpleBackendOverride(t *testing.T) {
 	require.NotNil(t, jwksBytes)
 
 	var jwksMap map[string][]map[string]any
-	json.Unmarshal(jwksBytes, &jwksMap) // just check valid json
+	err = json.Unmarshal(jwksBytes, &jwksMap)
+	require.NoError(t, err)
 
 	require.Contains(t, jwksMap, "keys")
 	keys := jwksMap["keys"]

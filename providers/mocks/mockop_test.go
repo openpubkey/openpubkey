@@ -27,7 +27,7 @@ func TestMockOp(t *testing.T) {
 	clientId := "test-client-id"
 
 	idp, err := NewMockOp(issuer, []Subject{
-		Subject{
+		{
 			SubjectID: "alice@example.com",
 		},
 	})
