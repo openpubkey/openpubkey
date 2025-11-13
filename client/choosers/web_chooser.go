@@ -50,27 +50,22 @@ var chooserTemplateFile string
 // TODO: This should be an enum that can also autogenerate what gets passed to the template
 
 type WebChooser struct {
-	OpList        []providers.BrowserOpenIdProvider
-	opSelected    providers.BrowserOpenIdProvider
-	OpenBrowser   bool
-	useMockServer bool
-	mockServer    *httptest.Server
-	server        *http.Server
+	OpList              []providers.BrowserOpenIdProvider
+	opSelected          providers.BrowserOpenIdProvider
+	OpenBrowser         bool
+	useMockServer       bool
+	mockServer          *httptest.Server
+	server              *http.Server
+	browserOpenOverride BrowserOpenOverrideFunc
 }
+
+type BrowserOpenOverrideFunc func(url string) error
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
 	return &WebChooser{
 		OpList:        opList,
 		OpenBrowser:   openBrowser,
 		useMockServer: false,
-	}
-}
-
-func NewMockWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
-	return &WebChooser{
-		OpList:        opList,
-		OpenBrowser:   openBrowser,
-		useMockServer: true,
 	}
 }
 
@@ -225,7 +220,6 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 		}
 
-		// TODO: Mock out this OpenBrowser call
 		if wc.OpenBrowser {
 			logrus.Infof("Opening browser to %s", loginURI)
 			if err := util.OpenUrl(loginURI); err != nil {
@@ -235,6 +229,13 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			// If wc.OpenBrowser is false, tell the user what URL to open.
 			// This is useful when a user wants to use a different browser than the default one.
 			logrus.Infof("Open your browser to: %s ", loginURI)
+		}
+
+		if wc.browserOpenOverride != nil {
+			if err := wc.browserOpenOverride(loginURI); err != nil {
+				logrus.Errorf("Failed to open url: %v", err)
+				return nil, err
+			}
 		}
 	}
 
@@ -267,4 +268,10 @@ func IssuerToName(issuer string) (string, error) {
 		}
 		return "", fmt.Errorf("invalid OpenID Provider issuer: %s", issuer)
 	}
+}
+
+// SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
+// This is used by tests and mocks to override the default behavior of opening the browser.
+func (s *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
+	s.browserOpenOverride = fn
 }

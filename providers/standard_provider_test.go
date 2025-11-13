@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +49,14 @@ func TestStandardProviders(t *testing.T) {
 			providerName: "azure",
 			gqSign:       true,
 		},
+		{name: "happy case Gitlab",
+			providerName: "gitlab",
+			gqSign:       false,
+		},
+		{name: "happy case Gitlab (GQ sign)",
+			providerName: "gitlab",
+			gqSign:       true,
+		},
 		{name: "happy case Hello",
 			providerName: "hello",
 			gqSign:       false,
@@ -66,17 +75,34 @@ func TestStandardProviders(t *testing.T) {
 			case "google":
 				opts := GetDefaultGoogleOpOptions()
 				opts.GQSign = tc.gqSign
-				op, err = CreateMockGoogleOpWithOpts(opts, "alice@gmail.com")
+				op, err = CreateMockGoogleOpWithOpts(opts,
+					mocks.UserBrowserInteractionMock{
+						SubjectId: "alice@gmail.com",
+					})
 				require.NoError(t, err, tc.name)
 			case "azure":
 				opts := GetDefaultAzureOpOptions()
 				opts.GQSign = tc.gqSign
-				op, err = CreateMockAzureOpWithOpts(opts, "alice@hotmail.com")
+				op, err = CreateMockAzureOpWithOpts(opts,
+					mocks.UserBrowserInteractionMock{
+						SubjectId: "alice@hotmail.com",
+					})
 				require.NoError(t, err, tc.name)
 			case "hello":
 				opts := GetDefaultHelloOpOptions()
 				opts.GQSign = tc.gqSign
-				op, err = CreateMockHelloOpWithOpts(opts, "alice@gmail.com")
+				op, err = CreateMockHelloOpWithOpts(opts,
+					mocks.UserBrowserInteractionMock{
+						SubjectId: "alice@gmail.com",
+					})
+				require.NoError(t, err, tc.name)
+			case "gitlab":
+				opts := GetDefaultGitlabOpOptions()
+				opts.GQSign = tc.gqSign
+				op, err = CreateMockGitlabOpWithOpts(opts,
+					mocks.UserBrowserInteractionMock{
+						SubjectId: "alice@gmail.com",
+					})
 				require.NoError(t, err, tc.name)
 			default:
 				t.Fatalf("unsupported provider name: %s", tc.providerName)
@@ -141,6 +167,9 @@ func TestDefaultConstructors(t *testing.T) {
 
 	azureOp := NewAzureOp()
 	require.NotNil(t, azureOp, "Azure provider should be created")
+
+	GitlabOp := NewGitlabOp()
+	require.NotNil(t, GitlabOp, "Gitlab provider should be created")
 
 	helloOp := NewHelloOp()
 	require.NotNil(t, helloOp, "Hello provider should be created")

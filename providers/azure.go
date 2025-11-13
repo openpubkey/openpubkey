@@ -139,7 +139,7 @@ func azureIssuer(tenantID string) string {
 	return fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
 }
 
-func CreateMockAzureOpWithOpts(azureOpOpts *AzureOptions, subjectToUse string) (RefreshableOpenIdProvider, error) {
+func CreateMockAzureOpWithOpts(azureOpOpts *AzureOptions, userActions mocks.UserBrowserInteractionMock) (RefreshableOpenIdProvider, error) {
 	subjects := []mocks.Subject{
 		{
 			SubjectID: "alice@hotmail.com",
@@ -169,14 +169,11 @@ func CreateMockAzureOpWithOpts(azureOpOpts *AzureOptions, subjectToUse string) (
 
 	rt := idp.GetHTTPClient()
 	azureOpOpts.HttpClient = rt
-	azureOpOpts.OpenBrowser = true // We can set this to true because we override the browser opener below
+	azureOpOpts.OpenBrowser = false // Don't open the browser in tests
 
 	azureOp := NewAzureOpWithOptions(azureOpOpts)
 
-	userAuth := mocks.UserBrowserInteractionMock{
-		SubjectId: subjectToUse,
-	}
-	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
 	op := azureOp.(*StandardOpRefreshable)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 

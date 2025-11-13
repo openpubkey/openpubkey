@@ -275,13 +275,20 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
 		logrus.Infof("Opening browser to %s ", loginURI)
-		if err := s.openBrowser(loginURI); err != nil {
+		if err := util.OpenUrl(loginURI); err != nil {
 			logrus.Errorf("Failed to open url: %v", err)
 		}
 	} else {
 		// If s.OpenBrowser is false, tell the user what URL to open.
 		// This is useful when a user wants to use a different browser than the default one.
 		logrus.Infof("Open your browser to: %s ", loginURI)
+	}
+
+	// This is to mocks out the OP interactions.
+	if s.browserOpenOverride != nil {
+		if err := s.browserOpenOverride(loginURI); err != nil {
+			logrus.Errorf("Failed to open url to mock browser: %v", err)
+		}
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
@@ -423,16 +430,6 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
 	return err
-}
-
-// openBrowser opens the specified URL in the client's default browser.
-// This is only defined so tests and mocks can override the default behavior by specifying
-// a browserOpenOverride function.
-func (s *StandardOp) openBrowser(url string) error {
-	if s.browserOpenOverride == nil {
-		return util.OpenUrl(url)
-	}
-	return s.browserOpenOverride(url)
 }
 
 type BrowserOpenOverrideFunc func(url string) error

@@ -135,7 +135,7 @@ var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
 
-func CreateMockGoogleOpWithOpts(googleOpOpts *GoogleOptions, subjectToUse string) (RefreshableOpenIdProvider, error) {
+func CreateMockGoogleOpWithOpts(googleOpOpts *GoogleOptions, userActions mocks.UserBrowserInteractionMock) (RefreshableOpenIdProvider, error) {
 	subjects := []mocks.Subject{
 		{
 			SubjectID: "alice@gmail.com",
@@ -165,14 +165,11 @@ func CreateMockGoogleOpWithOpts(googleOpOpts *GoogleOptions, subjectToUse string
 
 	rt := idp.GetHTTPClient()
 	googleOpOpts.HttpClient = rt
-	googleOpOpts.OpenBrowser = true // We can set this to true because we override the browser opener below
+	googleOpOpts.OpenBrowser = false // Don't open the browser in tests
 
 	googOp := NewGoogleOpWithOptions(googleOpOpts)
 
-	userAuth := mocks.UserBrowserInteractionMock{
-		SubjectId: subjectToUse,
-	}
-	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
 	op := googOp.(*StandardOpRefreshable)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 

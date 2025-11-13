@@ -23,9 +23,11 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -58,8 +60,10 @@ func TestClient(t *testing.T) {
 			googleOpOpts.ClientID = clientID
 			googleOpOpts.GQSign = tc.gq
 
-			subjectThatLogsIn := "alice@gmail.com"
-			op, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts, subjectThatLogsIn)
+			op, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts,
+				mocks.UserBrowserInteractionMock{
+					SubjectId: "alice@gmail.com",
+				})
 			require.NoError(t, err, tc.name)
 
 			if tc.signer {
@@ -130,41 +134,69 @@ func TestClient(t *testing.T) {
 
 }
 
-// TODO: Get this test working
-// func TestClientWithWebChooser(t *testing.T) {
-// 	googleOpOpts := providers.GetDefaultGoogleOpOptions()
+func TestClientWithWebChooser(t *testing.T) {
+	googleOpOpts := providers.GetDefaultGoogleOpOptions()
 
-// 	subjectThatLogsIn := "alice@gmail.com"
-// 	googleOp, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts, subjectThatLogsIn)
-// 	require.NoError(t, err)
+	googleOp, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
 
-// 	openBrowser := true
-// 	op, err := choosers.NewWebChooser(
-// 		[]providers.BrowserOpenIdProvider{googleOp.(providers.BrowserOpenIdProvider)},
-// 		openBrowser,
-// 	).ChooseOp(context.Background())
-// 	require.NoError(t, err)
+	azureOpOpts := providers.GetDefaultAzureOpOptions()
+	azureOp, err := providers.CreateMockAzureOpWithOpts(azureOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@hotmail.com",
+		})
+	require.NoError(t, err)
 
-// 	c, err := client.New(op)
-// 	require.NoError(t, err)
+	gitlabOpOpts := providers.GetDefaultGitlabOpOptions()
+	gitlabOp, err := providers.CreateMockGitlabOpWithOpts(gitlabOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
 
-// 	pkt, err := c.Auth(context.Background())
-// 	require.NoError(t, err)
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	helloOp, err := providers.CreateMockHelloOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
 
-// 	providerAlg, ok := pkt.ProviderAlgorithm()
-// 	require.True(t, ok, "missing algorithm")
+	opToChoose := "gitlab"
+	chooser := choosers.NewMockWebChooser(
+		[]providers.BrowserOpenIdProvider{
+			googleOp.(providers.BrowserOpenIdProvider),
+			azureOp.(providers.BrowserOpenIdProvider),
+			gitlabOp.(providers.BrowserOpenIdProvider),
+			helloOp,
+		},
+		opToChoose,
+	)
+	op, err := chooser.ChooseOp(context.Background())
+	require.NoError(t, err)
 
-// 	require.Equal(t, jwa.RS256, providerAlg)
+	c, err := client.New(op)
+	require.NoError(t, err)
 
-// 	cic, err := pkt.GetCicValues()
-// 	require.NoError(t, err)
-// 	err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
-// 	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
 
-// 	pktRefreshed, err := c.Refresh(context.Background())
-// 	require.NoError(t, err)
-// 	require.NotNil(t, pktRefreshed)
-// }
+	providerAlg, ok := pkt.ProviderAlgorithm()
+	require.True(t, ok, "missing algorithm")
+
+	require.Equal(t, jwa.RS256, providerAlg)
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+	err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+
+	pktRefreshed, err := c.Refresh(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pktRefreshed)
+}
 
 func TestClientRefreshErrorHandling(t *testing.T) {
 	signerAlg := jwa.ES256

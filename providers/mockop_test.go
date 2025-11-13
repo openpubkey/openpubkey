@@ -58,7 +58,7 @@ func TestSimpleBackendOverride(t *testing.T) {
 	rt := idp.GetHTTPClient()
 	require.NotNil(t, rt)
 	googleOpOpts.HttpClient = rt
-	googleOpOpts.OpenBrowser = true
+	googleOpOpts.OpenBrowser = false
 
 	op := NewGoogleOpWithOptions(googleOpOpts)
 

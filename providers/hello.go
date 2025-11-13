@@ -125,7 +125,7 @@ type HelloOp = StandardOp
 var _ OpenIdProvider = (*HelloOp)(nil)
 var _ BrowserOpenIdProvider = (*HelloOp)(nil)
 
-func CreateMockHelloOpWithOpts(helloOpOpts *HelloOptions, subjectToUse string) (BrowserOpenIdProvider, error) {
+func CreateMockHelloOpWithOpts(helloOpOpts *HelloOptions, userActions mocks.UserBrowserInteractionMock) (BrowserOpenIdProvider, error) {
 	subjects := []mocks.Subject{
 		{
 			SubjectID: "alice@gmail.com",
@@ -155,14 +155,11 @@ func CreateMockHelloOpWithOpts(helloOpOpts *HelloOptions, subjectToUse string) (
 
 	rt := idp.GetHTTPClient()
 	helloOpOpts.HttpClient = rt
-	helloOpOpts.OpenBrowser = true // We can set this to true because we override the browser opener below
+	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
 
 	helloOp := NewHelloOpWithOptions(helloOpOpts)
 
-	userAuth := mocks.UserBrowserInteractionMock{
-		SubjectId: subjectToUse,
-	}
-	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
 	op := helloOp.(*StandardOp)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 
