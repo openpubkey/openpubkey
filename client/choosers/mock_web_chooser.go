@@ -39,6 +39,7 @@ func BrowserOpenOverride(opToChoose string) func(string) error {
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("failed requesting webchooser at %s got status: %d", string(uri), resp.StatusCode)
 		}

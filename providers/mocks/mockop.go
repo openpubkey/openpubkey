@@ -321,14 +321,16 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
 	case "refresh_token":
 		refreshToken := req.FormValue("refresh_token")
-		subject = m.refreshTokens[refreshToken]
+		var ok bool
+		subject, ok = m.refreshTokens[refreshToken]
+		if !ok {
+			return nil, fmt.Errorf("unknown refresh token: %s", refreshToken)
+		}
+
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}
-
-	// m.MockProviderBackend.IDTokenTemplate.ExtraClaims = subject.Claims
-	// m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = subject.Protected
 
 	tokens, err := m.MockProviderBackend.IDTokenTemplate.IssueTokens()
 	if err != nil {
