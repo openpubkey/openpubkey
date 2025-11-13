@@ -31,12 +31,16 @@ func TestSimpleBackendOverride(t *testing.T) {
 	issuer := googleOpOpts.Issuer
 	googleOpOpts.ClientID = clientId
 
-	opBackend, err := mocks.NewMockProviderBackend(issuer, "RS256", 2)
+	idp, err := mocks.NewMockOp(issuer, []mocks.Subject{
+		mocks.Subject{
+			SubjectID: "alice@gmail.com",
+		},
+	})
 	require.NoError(t, err)
+	require.NotNil(t, idp)
 
-	expSigningKey, expKeyID, expRecord := opBackend.RandomSigningKey()
-
-	idTokenTemplate := &mocks.IDTokenTemplate{
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
 		CommitFunc:           mocks.AddNonceCommit,
 		Issuer:               issuer,
 		Nonce:                "empty",
@@ -51,31 +55,24 @@ func TestSimpleBackendOverride(t *testing.T) {
 		SigningKey:           expSigningKey,
 	}
 
-	idp, err := mocks.NewMockOp(issuer, idTokenTemplate, opBackend)
-	require.NoError(t, err)
-	require.NotNil(t, idp)
-
 	rt := idp.GetHTTPClient()
 	require.NotNil(t, rt)
 	googleOpOpts.HttpClient = rt
-	googleOpOpts.OpenBrowser = false
+	googleOpOpts.OpenBrowser = true
 
 	op := NewGoogleOpWithOptions(googleOpOpts)
 
-	browserWindowHook := idp.GetUserAuthCompleteSignal()
-	op.ReuseBrowserWindowHook(browserWindowHook)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	go func() {
-		err := idp.Run(ctx)
-		require.NoError(t, err)
-	}()
+	userAuth := mocks.UserBrowserInteractionMock{
+		SubjectId: "alice@gmail.com",
+	}
+	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+	opUnwrapped := op.(*StandardOpRefreshable)
+	opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
 
 	cic := GenCIC(t)
 	require.NotNil(t, cic)
 
-	tokens, err := op.RequestTokens(ctx, cic)
+	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
 	idToken := tokens.IDToken
 	require.NotNil(t, idToken)

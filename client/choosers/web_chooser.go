@@ -225,6 +225,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 		}
 
+		// TODO: Mock out this OpenBrowser call
 		if wc.OpenBrowser {
 			logrus.Infof("Opening browser to %s", loginURI)
 			if err := util.OpenUrl(loginURI); err != nil {

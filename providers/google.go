@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 )
 
 const googleIssuer = "https://accounts.google.com"
@@ -133,3 +134,47 @@ type GoogleOp = StandardOpRefreshable
 var _ OpenIdProvider = (*GoogleOp)(nil)
 var _ BrowserOpenIdProvider = (*GoogleOp)(nil)
 var _ RefreshableOpenIdProvider = (*GoogleOp)(nil)
+
+func CreateMockGoogleOpWithOpts(googleOpOpts *GoogleOptions, subjectToUse string) (RefreshableOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@gmail.com",
+		},
+	}
+
+	idp, err := mocks.NewMockOp(googleOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
+		Issuer:               googleOpOpts.Issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  googleOpOpts.ClientID,
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	googleOpOpts.HttpClient = rt
+	googleOpOpts.OpenBrowser = true // We can set this to true because we override the browser opener below
+
+	googOp := NewGoogleOpWithOptions(googleOpOpts)
+
+	userAuth := mocks.UserBrowserInteractionMock{
+		SubjectId: subjectToUse,
+	}
+	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+	op := googOp.(*StandardOpRefreshable)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
+}

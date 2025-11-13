@@ -112,6 +112,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
+		browserOpenOverride:       nil,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -134,6 +135,7 @@ type StandardOp struct {
 	IssuedAtOffset            time.Duration
 	issuer                    string
 	server                    *http.Server
+	browserOpenOverride       BrowserOpenOverrideFunc
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
@@ -273,7 +275,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
 		logrus.Infof("Opening browser to %s ", loginURI)
-		if err := util.OpenUrl(loginURI); err != nil {
+		if err := s.openBrowser(loginURI); err != nil {
 			logrus.Errorf("Failed to open url: %v", err)
 		}
 	} else {
@@ -421,6 +423,24 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
 	return err
+}
+
+// openBrowser opens the specified URL in the client's default browser.
+// This is only defined so tests and mocks can override the default behavior by specifying
+// a browserOpenOverride function.
+func (s *StandardOp) openBrowser(url string) error {
+	if s.browserOpenOverride == nil {
+		return util.OpenUrl(url)
+	}
+	return s.browserOpenOverride(url)
+}
+
+type BrowserOpenOverrideFunc func(url string) error
+
+// SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
+// This is used by tests and mocks to override the default behavior of opening the browser.
+func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
+	s.browserOpenOverride = fn
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

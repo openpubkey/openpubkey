@@ -18,8 +18,39 @@ package mocks
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMockOp(t *testing.T) {
+	issuer := "https://issuer.example.com"
+	clientId := "test-client-id"
 
+	idp, err := NewMockOp(issuer, []Subject{
+		Subject{
+			SubjectID: "alice@example.com",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, idp)
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &IDTokenTemplate{
+		CommitFunc: AddNonceCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        clientId,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	require.NotNil(t, rt)
+	require.Contains(t, idp.CreateAuthCode("test-nonce"), "fake-auth-code-")
+
+	// TODO: Expand these smoke tests
 }
