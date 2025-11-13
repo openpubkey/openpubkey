@@ -68,7 +68,7 @@ type GitlabOptions struct {
 
 // NewGitlabOp creates a Gitlab OP (OpenID Provider) using the
 // default configurations options. It uses the OIDC Relying Party (Client)
-// setup by the OpenPubkey project. This not the OP for Gitlab workflows, that
+// setup by the OpenPubkey project. This is not the OP for Gitlab workflows, that
 // functionality is provided by GitlabCiOp.
 func NewGitlabOp() BrowserOpenIdProvider {
 	options := GetDefaultGitlabOpOptions()
