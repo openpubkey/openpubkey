@@ -145,7 +145,7 @@ func TestStandardProviders(t *testing.T) {
 				reTokens, err := op.RefreshTokens(context.Background(), tokens.RefreshToken)
 				require.NoError(t, err, tc.name)
 
-				require.Contains(t, string(tokens.RefreshToken), "mock-refresh-token", tc.name)
+				require.Contains(t, string(reTokens.RefreshToken), "mock-refresh-token", tc.name)
 				require.Equal(t, "mock-access-token", string(reTokens.AccessToken), tc.name)
 
 				err = op.VerifyRefreshedIDToken(context.Background(), tokens.IDToken, reTokens.IDToken)
