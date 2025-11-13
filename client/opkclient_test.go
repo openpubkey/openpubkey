@@ -65,7 +65,6 @@ func TestClient(t *testing.T) {
 					SubjectId: "alice@gmail.com",
 				})
 			require.NoError(t, err, tc.name)
-
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
