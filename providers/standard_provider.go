@@ -284,7 +284,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		logrus.Infof("Open your browser to: %s ", loginURI)
 	}
 
-	// This is to mocks out the OP interactions.
+	// This is to mock out the OP interactions.
 	if s.browserOpenOverride != nil {
 		if err := s.browserOpenOverride(loginURI); err != nil {
 			logrus.Errorf("Failed to open url to mock browser: %v", err)
