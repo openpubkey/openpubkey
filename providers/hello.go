@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 )
 
 const helloIssuer = "https://issuer.hello.coop"
@@ -123,3 +124,44 @@ type HelloOp = StandardOp
 
 var _ OpenIdProvider = (*HelloOp)(nil)
 var _ BrowserOpenIdProvider = (*HelloOp)(nil)
+
+func CreateMockHelloOpWithOpts(helloOpOpts *HelloOptions, userActions mocks.UserBrowserInteractionMock) (BrowserOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@gmail.com",
+		},
+	}
+
+	idp, err := mocks.NewMockOp(helloOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
+		Issuer:               helloOpOpts.Issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  helloOpOpts.ClientID,
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	helloOpOpts.HttpClient = rt
+	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
+
+	helloOp := NewHelloOpWithOptions(helloOpOpts)
+
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
+	op := helloOp.(*StandardOp)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
+}

@@ -19,6 +19,7 @@ package mocks
 import (
 	"context"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -31,26 +32,25 @@ import (
 )
 
 func TestSimpleBackendOverride(t *testing.T) {
-
 	issuer := "https://accounts.example.com/"
-	mockBackend, err := NewMockProviderBackend(issuer, "RS256", 3)
+	numKeys := 3
+	mockBackend, err := NewMockProviderBackend(issuer, "RS256", numKeys)
 	require.NoError(t, err)
+	require.NotNil(t, mockBackend.IDTokenTemplate)
 
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	idTokenTemplate := IDTokenTemplate{
-		CommitFunc:           AddAudCommit,
-		Issuer:               issuer,
-		Nonce:                "empty",
-		NoNonce:              false,
-		Aud:                  "also me",
-		KeyID:                expKeyID,
-		NoKeyID:              false,
-		Alg:                  expRecord.Alg,
-		NoAlg:                false,
-		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
-		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
-		SigningKey:           expSigningKey,
+		CommitFunc: AddAudCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        "also me",
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
 	}
 	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
@@ -66,15 +66,32 @@ func TestSimpleBackendOverride(t *testing.T) {
 	payload, err := jws.Verify(idt, jws.WithKey(jwa.KeyAlgorithmFrom(record.Alg), record.PublicKey))
 	require.NoError(t, err)
 	require.Contains(t, string(payload), string(cicHash))
+
+	jwksBytes, err := mockBackend.GetJwks()
+	require.NoError(t, err)
+	require.NotNil(t, jwksBytes)
+
+	var jwksMap map[string][]map[string]any
+	err = json.Unmarshal(jwksBytes, &jwksMap)
+	require.NoError(t, err)
+
+	require.Contains(t, jwksMap, "keys")
+	keys := jwksMap["keys"]
+	require.Len(t, keys, 3)
+
+	for _, key := range keys {
+		require.Equal(t, expRecord.Alg, key["alg"])
+		require.NotNil(t, key["kid"])
+	}
 }
 
 func TestKeySetCreatorsConvenience(t *testing.T) {
 	issuer := "https://accounts.example.com/"
-	skSet, recordSet, err := CreateRS256KeySet(issuer, 2)
+	skSet, recordSet, err := CreateKeySet(issuer, "RS256", 2)
 	require.NoError(t, err)
 	CheckKeySets(t, "Happy case: CreateRS256KeySet", issuer, "RS256", skSet, recordSet)
 
-	skSet, recordSet, err = CreateES256KeySet(issuer, 2)
+	skSet, recordSet, err = CreateKeySet(issuer, "ES256", 2)
 	require.NoError(t, err)
 	CheckKeySets(t, "Happy case: CreateES256KeySet", issuer, "ES256", skSet, recordSet)
 }
@@ -113,7 +130,6 @@ func TestKeySetCreators(t *testing.T) {
 			})
 		}
 	}
-
 }
 
 func CheckKeySets(t *testing.T, name string, issuer string, alg string, skSet map[string]crypto.Signer, recordSet map[string]discover.PublicKeyRecord) {

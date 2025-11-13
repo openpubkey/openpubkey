@@ -23,16 +23,17 @@ import (
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClient(t *testing.T) {
 	clientID := "test-client-id"
-	commitType := providers.CommitTypesEnum.NONCE_CLAIM
 
 	testCases := []struct {
 		name        string
@@ -51,27 +52,18 @@ func TestClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			googleOpOpts := providers.GetDefaultGoogleOpOptions()
+			googleOpOpts.Issuer = "mockIssuer"
+			googleOpOpts.ClientID = clientID
+			googleOpOpts.GQSign = tc.gq
+
+			op, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts,
+				mocks.UserBrowserInteractionMock{
+					SubjectId: "alice@gmail.com",
+				})
+			require.NoError(t, err, tc.name)
 
 			var c *client.OpkClient
-			providerOpts := providers.MockProviderOpts{
-				Issuer:     "mockIssuer",
-				Alg:        "RS256",
-				ClientID:   clientID,
-				GQSign:     tc.gq,
-				NumKeys:    2,
-				CommitType: commitType,
-				VerifierOpts: providers.ProviderVerifierOpts{
-					CommitType:        commitType,
-					SkipClientIDCheck: false,
-					GQOnly:            false,
-					ClientID:          clientID,
-				},
-			}
-
-			op, _, _, err := providers.NewMockProvider(providerOpts)
-			require.NoError(t, err)
-
-			require.NoError(t, err, tc.name)
 			if tc.signer {
 				signer, err := util.GenKeyPair(tc.signerAlg)
 				require.NoError(t, err, tc.name)
@@ -109,6 +101,15 @@ func TestClient(t *testing.T) {
 			providerAlg, ok := pkt.ProviderAlgorithm()
 			require.True(t, ok, "missing algorithm", tc.name)
 
+			cic, err := pkt.GetCicValues()
+			require.NoError(t, err)
+			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+			require.NoError(t, err, tc.name)
+
+			pktRefreshed, err := c.Refresh(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, pktRefreshed)
+
 			if tc.gq {
 				require.Equal(t, gq.GQ256, providerAlg, tc.name)
 
@@ -126,19 +127,72 @@ func TestClient(t *testing.T) {
 				// Expect alg to be RS256 alg when not signing with GQ
 				require.Equal(t, jwa.RS256, providerAlg, tc.name)
 			}
-
-			cic, err := pkt.GetCicValues()
-			require.NoError(t, err)
-			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
-			require.NoError(t, err, tc.name)
-
-			pktRefreshed, err := c.Refresh(context.Background())
-			require.NoError(t, err)
-			require.NotNil(t, pktRefreshed)
-
-			// TODO: Add Verification of Refreshed ID Token
 		})
 	}
+}
+
+func TestClientWithWebChooser(t *testing.T) {
+	googleOpOpts := providers.GetDefaultGoogleOpOptions()
+
+	googleOp, err := providers.CreateMockGoogleOpWithOpts(googleOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	azureOpOpts := providers.GetDefaultAzureOpOptions()
+	azureOp, err := providers.CreateMockAzureOpWithOpts(azureOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@hotmail.com",
+		})
+	require.NoError(t, err)
+
+	gitlabOpOpts := providers.GetDefaultGitlabOpOptions()
+	gitlabOp, err := providers.CreateMockGitlabOpWithOpts(gitlabOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	helloOp, err := providers.CreateMockHelloOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	opToChoose := "gitlab"
+	chooser := choosers.NewMockWebChooser(
+		[]providers.BrowserOpenIdProvider{
+			googleOp.(providers.BrowserOpenIdProvider),
+			azureOp.(providers.BrowserOpenIdProvider),
+			gitlabOp.(providers.BrowserOpenIdProvider),
+			helloOp,
+		},
+		opToChoose,
+	)
+	op, err := chooser.ChooseOp(context.Background())
+	require.NoError(t, err)
+
+	c, err := client.New(op)
+	require.NoError(t, err)
+
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+
+	providerAlg, ok := pkt.ProviderAlgorithm()
+	require.True(t, ok, "missing algorithm")
+
+	require.Equal(t, jwa.RS256, providerAlg)
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+	err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+
+	pktRefreshed, err := c.Refresh(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pktRefreshed)
 }
 
 func TestClientRefreshErrorHandling(t *testing.T) {

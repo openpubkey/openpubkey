@@ -45,7 +45,7 @@ func TestMockProviderTest(t *testing.T) {
 	idt, err := oidc.NewJwt(idToken)
 	require.NoError(t, err)
 	require.Equal(t, idtTemplate.Issuer, idt.GetClaims().Issuer)
-	require.Equal(t, "mock-refresh-token", string(tokens.RefreshToken))
+	require.Contains(t, string(tokens.RefreshToken), "mock-refresh-token")
 	require.Equal(t, "mock-access-token", string(tokens.AccessToken))
 
 	_, payloadB64, _, err := jws.SplitCompact(idToken)

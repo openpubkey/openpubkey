@@ -38,26 +38,15 @@ type MockProviderBackend struct {
 	PublicKeyFinder       discover.PublicKeyFinder
 	ProviderSigningKeySet map[string]crypto.Signer            // kid (keyId) -> signing key
 	ProviderPublicKeySet  map[string]discover.PublicKeyRecord // kid (keyId) -> PublicKeyRecord
-	IDTokensTemplate      *IDTokenTemplate
+	IDTokenTemplate       *IDTokenTemplate
 }
 
 func NewMockProviderBackend(issuer string, alg string, numKeys int) (*MockProviderBackend, error) {
-
-	var providerSigningKeySet map[string]crypto.Signer
-	var providerPublicKeySet map[string]discover.PublicKeyRecord
-	var err error
-	if alg == "RS256" {
-		if providerSigningKeySet, providerPublicKeySet, err = CreateRS256KeySet(issuer, numKeys); err != nil {
-			return nil, err
-		}
-	} else if alg == "ES256" {
-		if providerSigningKeySet, providerPublicKeySet, err = CreateES256KeySet(issuer, numKeys); err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, fmt.Errorf("unsupported provider alg: %s", alg)
+	providerSigningKeySet, providerPublicKeySet, err := CreateKeySet(issuer, alg, numKeys)
+	if err != nil {
+		return nil, err
 	}
-
+	idtTemplate := DefaultIDTokenTemplate()
 	return &MockProviderBackend{
 		Issuer: issuer,
 		PublicKeyFinder: discover.PublicKeyFinder{
@@ -85,6 +74,7 @@ func NewMockProviderBackend(issuer string, alg string, numKeys int) (*MockProvid
 		},
 		ProviderSigningKeySet: providerSigningKeySet,
 		ProviderPublicKeySet:  providerPublicKeySet,
+		IDTokenTemplate:       &idtTemplate,
 	}, nil
 }
 
@@ -101,26 +91,18 @@ func (o *MockProviderBackend) GetProviderSigningKeySet() map[string]crypto.Signe
 }
 
 func (o *MockProviderBackend) SetIDTokenTemplate(template *IDTokenTemplate) {
-	o.IDTokensTemplate = template
+	o.IDTokenTemplate = template
 }
 
 func (o *MockProviderBackend) RequestTokensOverrideFunc(cicHash string) (*oidc.Tokens, error) {
-	o.IDTokensTemplate.AddCommit(cicHash)
-	return o.IDTokensTemplate.IssueTokens()
+	o.IDTokenTemplate.AddCommit(cicHash)
+	return o.IDTokenTemplate.IssueTokens()
 }
 
 func (o *MockProviderBackend) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRecord) {
 	keyIDs := maps.Keys(o.GetProviderPublicKeySet())
 	keyID := keyIDs[mathrand.Intn(len(keyIDs))]
 	return o.GetProviderSigningKeySet()[keyID], keyID, o.GetProviderPublicKeySet()[keyID]
-}
-
-func CreateRS256KeySet(issuer string, numKeys int) (map[string]crypto.Signer, map[string]discover.PublicKeyRecord, error) {
-	return CreateKeySet(issuer, "RS256", numKeys)
-}
-
-func CreateES256KeySet(issuer string, numKeys int) (map[string]crypto.Signer, map[string]discover.PublicKeyRecord, error) {
-	return CreateKeySet(issuer, "ES256", numKeys)
 }
 
 func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Signer, map[string]discover.PublicKeyRecord, error) {
@@ -153,4 +135,32 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 		}
 	}
 	return providerSigningKeySet, providerPublicKeySet, nil
+}
+
+func (m *MockProviderBackend) GetJwks() ([]byte, error) {
+	keysByKid := m.GetProviderPublicKeySet()
+
+	keySet := jwk.NewSet()
+	for kid, v := range keysByKid {
+		jwkKey, err := jwk.PublicKeyOf(v.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+		if err := jwkKey.Set(jwk.AlgorithmKey, v.Alg); err != nil {
+			return nil, err
+		}
+		if err := jwkKey.Set(jwk.KeyIDKey, kid); err != nil {
+			return nil, err
+		}
+
+		if err := keySet.AddKey(jwkKey); err != nil {
+			return nil, err
+		}
+	}
+
+	jwksJson, err := json.Marshal(keySet)
+	if err != nil {
+		return nil, err
+	}
+	return jwksJson, nil
 }
