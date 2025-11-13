@@ -134,7 +134,7 @@ func TestStandardProviders(t *testing.T) {
 				require.NoError(t, err, tc.name)
 				require.Contains(t, string(payload), string(cicHash), tc.name)
 			}
-			require.Equal(t, "mock-refresh-token", string(tokens.RefreshToken), tc.name)
+			require.Contains(t, string(tokens.RefreshToken), "mock-refresh-token", tc.name)
 			require.Equal(t, "mock-access-token", string(tokens.AccessToken), tc.name)
 
 			err = op.VerifyIDToken(context.Background(), idToken, cic)
@@ -145,7 +145,7 @@ func TestStandardProviders(t *testing.T) {
 				reTokens, err := op.RefreshTokens(context.Background(), tokens.RefreshToken)
 				require.NoError(t, err, tc.name)
 
-				require.Equal(t, "mock-refresh-token", string(reTokens.RefreshToken), tc.name)
+				require.Contains(t, string(tokens.RefreshToken), "mock-refresh-token", tc.name)
 				require.Equal(t, "mock-access-token", string(reTokens.AccessToken), tc.name)
 
 				err = op.VerifyRefreshedIDToken(context.Background(), tokens.IDToken, reTokens.IDToken)

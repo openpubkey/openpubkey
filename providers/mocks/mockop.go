@@ -34,9 +34,15 @@ type MockOp struct {
 	MockProviderBackend *MockProviderBackend
 	Subjects            []Subject
 
-	authCodes map[string]string
-	// refreshTokens         map[string]string // TODO: Implement refresh tokens
-	httpClient *http.Client
+	authCodes     map[string]AuthSession
+	refreshTokens map[string]Subject
+	httpClient    *http.Client
+}
+
+type AuthSession struct {
+	AuthCode    string
+	Nonce       string
+	SubjectAuth Subject
 }
 
 func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {
@@ -49,7 +55,8 @@ func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {
 		Issuer:              issuer,
 		MockProviderBackend: opBackend,
 		Subjects:            subjects,
-		authCodes:           map[string]string{},
+		authCodes:           map[string]AuthSession{},
+		refreshTokens:       map[string]Subject{},
 	}, nil
 }
 
@@ -119,38 +126,10 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 		panic(fmt.Sprintf("subject not found: %s in Subjects %v", userAuth.SubjectId, m.Subjects))
 	}
 
-	// How this mocking flow works:
-	//                                        OPK Client                 MockOp.Run()
-	//                                           |                           |
-	//                                           | Client starts HTTP server |
-	//                                           |                           |
-	// 1. Client calls OpenBrowser function      |-OpenBrowser(URI)--------->|
-	// 2. Sim. browser opening the URI           |<------HTTP Request to URI-|
-	// 3. Client redirects to Web chooser        |-Redirect to Web Chooser-->|
-	//  ...Run() chooses which OP to use         |<-------------------Choice-|
-	// 4. Client redirects to OP Auth endpoint   |-Redirect to OP Auth EP--->|
-	// 5. Run learns state, nonce, redirect_uri  |                           |
-	//  ...responds with auth code               |<--------------(Auth Code)-|
-	//                                           |                              MockOp.RounderTripper
-	// 6. Client calls token endpoint            |-POST (Auth Code)------------------->|
-	//    ... RounderTripper resps. with tokens  |<----------------HTTP Resp. (Tokens)-|
-	//
-	// 1. Opk_client calls OpenBrowser function which is overridden to to call MockOp.Run()
-	// 2. Simulate browser opening the browserOpenUri so opk client redirect
-	// us to either OP Auth screen or Web Chooser
-	// 3. Trap redirect from the client to see where client tried to send us:
-	//   IF: redirect was to the web chooser, fire a request to select the OP
-	//   and get redirected to OP Auth endpoint.
-	// 4. The client redirect is to OP Auth endpoint.
-	// 5. Extract state, nonce, redirect_uri values from the URI params,
-	// send auth code to opk client by redirecting to redirect_uri.
-	// 6. opk client will then request tokens via the token endpoint which we
-	// mock in our httpClient round tripper.
-
 	fmt.Println("MockOp received consent auth done signal for subject:", userAuth.SubjectId)
 	browserOpenUri := userAuth.browserOpenUri
 
-	// 2. Make request to the URL to simulate browser opening to that URL
+	// Make request to the URL to simulate browser opening to that URL
 	jar, err := cookiejar.New(nil) // Cookie jar is needed for state cookies used by OpenID Connect to prevent CSRF attacks
 	if err != nil {
 		return err
@@ -162,7 +141,6 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 			return http.ErrUseLastResponse
 		},
 	}
-
 	req, err := http.NewRequest(http.MethodGet, browserOpenUri, nil)
 	if err != nil {
 		return err
@@ -178,7 +156,6 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 		return fmt.Errorf("expected redirect, got %s: %s", resp.Status, string(b))
 	}
 
-	// Is redirect to Web Chooser or Auth endpoint?
 	loc := resp.Header.Get("Location")
 	if loc == "" {
 		return fmt.Errorf("redirect missing Location header")
@@ -187,8 +164,6 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 	if err != nil {
 		return fmt.Errorf("bad redirect Location: %w", err)
 	}
-	// Redirect is to Web Chooser
-	// TODO: handle web chooser
 
 	// Redirect is to OP Auth endpoint
 	state := locURL.Query().Get("state")
@@ -211,7 +186,7 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 
 	// Respond with auth code by making request to the client's redirect_uri listener
 	q := cb.Query()
-	authcode := m.CreateAuthCode(nonce)
+	authcode := m.CreateAuthCode(nonce, subject)
 	q.Set("code", authcode)
 	q.Set("state", state)
 	cb.RawQuery = q.Encode()
@@ -233,9 +208,14 @@ func (m *MockOp) GetTokenURI() string {
 	return m.Issuer + "/token"
 }
 
-func (m *MockOp) CreateAuthCode(nonce string) string {
-	authcode := fmt.Sprintf("fake-auth-code-%d", len(m.authCodes))
-	m.authCodes[authcode] = nonce
+func (m *MockOp) CreateAuthCode(nonce string, subject *Subject) string {
+	authcode := fmt.Sprintf("fake-auth-code-%d", len(m.authCodes)+1)
+	authSession := AuthSession{
+		AuthCode:    authcode,
+		Nonce:       nonce,
+		SubjectAuth: *subject,
+	}
+	m.authCodes[authcode] = authSession
 	return authcode
 }
 
@@ -324,7 +304,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var nonce string
+	var subject Subject
 	grantType := req.FormValue("grant_type")
 	switch grantType {
 	case "authorization_code":
@@ -332,24 +312,30 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		if !strings.HasPrefix(authCode, "fake-auth-code-") {
 			return nil, fmt.Errorf("incorrect auth code, got %s, expected fake-auth-code- prefix", authCode)
 		}
-
-		nonce = m.authCodes[authCode]
-		if nonce == "" {
+		authSession := m.authCodes[authCode]
+		if authSession.Nonce == "" {
 			return nil, fmt.Errorf("unknown auth code: %s", authCode)
 		}
+		subject = authSession.SubjectAuth
+		cicHash := authSession.Nonce
+		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
 	case "refresh_token":
-		// TODO: We need to get a token here without a nonce
-		nonce = ""
+		refreshToken := req.FormValue("refresh_token")
+		subject = m.refreshTokens[refreshToken]
+		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}
 
-	cicHash := nonce
-	m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
+	// m.MockProviderBackend.IDTokenTemplate.ExtraClaims = subject.Claims
+	// m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = subject.Protected
+
 	tokens, err := m.MockProviderBackend.IDTokenTemplate.IssueTokens()
 	if err != nil {
 		return nil, err
 	}
+	tokens.RefreshToken = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
+	m.refreshTokens[string(tokens.RefreshToken)] = subject
 
 	type tokenResponse struct {
 		AccessToken  string `json:"access_token"`
@@ -376,10 +362,6 @@ func (m *MockOp) RandomSigningKey() (crypto.Signer, string, discover.PublicKeyRe
 
 type UserBrowserInteractionMock struct {
 	SubjectId string
-	// WebChooserChoice specifies which choice to make at the web chooser screen.
-	// If web chooser is not used and this field is not empty, we return an error.
-	// If web chooser is used and this field is empty, we return an error.
-	WebChooserChoice string
 	// browserOpenUri captures the URL that would be opened in a browser
 	browserOpenUri string
 }
@@ -393,6 +375,6 @@ func (u *UserBrowserInteractionMock) BrowserOpenOverrideFunc(op *MockOp) func(st
 
 type Subject struct {
 	SubjectID string
-	Claims    map[string]string
-	Protected map[string]string
+	Claims    map[string]any
+	Protected map[string]any
 }

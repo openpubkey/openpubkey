@@ -127,6 +127,8 @@ func CreateMockGitlabOpWithOpts(gitlabOpOpts *GitlabOptions, userActions mocks.U
 	subjects := []mocks.Subject{
 		{
 			SubjectID: "alice@gmail.com",
+			Claims:    map[string]any{"extraClaim": "extraClaimValue"},
+			Protected: map[string]any{"extraHeader": "extraheaderValue"},
 		},
 	}
 
@@ -137,18 +139,16 @@ func CreateMockGitlabOpWithOpts(gitlabOpOpts *GitlabOptions, userActions mocks.U
 
 	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
 	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
-		CommitFunc:           mocks.AddNonceCommit,
-		Issuer:               gitlabOpOpts.Issuer,
-		Nonce:                "empty",
-		NoNonce:              false,
-		Aud:                  gitlabOpOpts.ClientID,
-		KeyID:                expKeyID,
-		NoKeyID:              false,
-		Alg:                  expRecord.Alg,
-		NoAlg:                false,
-		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
-		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
-		SigningKey:           expSigningKey,
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     gitlabOpOpts.Issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        gitlabOpOpts.ClientID,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
 	}
 
 	rt := idp.GetHTTPClient()

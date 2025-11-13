@@ -48,9 +48,13 @@ func TestMockOp(t *testing.T) {
 		SigningKey: expSigningKey,
 	}
 
+	subject := Subject{
+		SubjectID: "alice@example.com",
+	}
+
 	rt := idp.GetHTTPClient()
 	require.NotNil(t, rt)
-	require.Contains(t, idp.CreateAuthCode("test-nonce"), "fake-auth-code-")
+	require.Contains(t, idp.CreateAuthCode("test-nonce", &subject), "fake-auth-code-")
 
 	// TODO: Expand these smoke tests
 }

@@ -153,18 +153,16 @@ func CreateMockAzureOpWithOpts(azureOpOpts *AzureOptions, userActions mocks.User
 
 	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
 	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
-		CommitFunc:           mocks.AddNonceCommit,
-		Issuer:               azureOpOpts.Issuer,
-		Nonce:                "empty",
-		NoNonce:              false,
-		Aud:                  azureOpOpts.ClientID,
-		KeyID:                expKeyID,
-		NoKeyID:              false,
-		Alg:                  expRecord.Alg,
-		NoAlg:                false,
-		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
-		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
-		SigningKey:           expSigningKey,
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     azureOpOpts.Issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        azureOpOpts.ClientID,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
 	}
 
 	rt := idp.GetHTTPClient()

@@ -41,18 +41,16 @@ func TestSimpleBackendOverride(t *testing.T) {
 	expSigningKey, expKeyID, expRecord := mockBackend.RandomSigningKey()
 
 	idTokenTemplate := IDTokenTemplate{
-		CommitFunc:           AddAudCommit,
-		Issuer:               issuer,
-		Nonce:                "empty",
-		NoNonce:              false,
-		Aud:                  "also me",
-		KeyID:                expKeyID,
-		NoKeyID:              false,
-		Alg:                  expRecord.Alg,
-		NoAlg:                false,
-		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
-		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
-		SigningKey:           expSigningKey,
+		CommitFunc: AddAudCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        "also me",
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
 	}
 	mockBackend.SetIDTokenTemplate(&idTokenTemplate)
 
