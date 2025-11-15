@@ -116,6 +116,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		issuer:                    opts.Issuer,
+		browserOpenOverride:       nil,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -139,6 +140,7 @@ type StandardOp struct {
 	ExtraURLParamOpts         []rp.URLParamOpt // Use this to set additional URL params on auth request to the OP
 	issuer                    string
 	server                    *http.Server
+	browserOpenOverride       BrowserOpenOverrideFunc
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
@@ -175,6 +177,9 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	logrus.Infof("listening on http://%s/", ln.Addr().String())
 	logrus.Info("press ctrl+c to stop")
 
+	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
+	chErr := make(chan error, 1)
+
 	mux := http.NewServeMux()
 	s.server = &http.Server{Handler: mux}
 
@@ -188,6 +193,21 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		rp.WithVerifierOpts(
 			rp.WithIssuedAtOffset(s.IssuedAtOffset), rp.WithNonce(
 				func(ctx context.Context) string { return cicHash })),
+		// These are needed to ensure we notice errors in the RP and then shutdown the go routines and don't hang forever
+		rp.WithErrorHandler(func(w http.ResponseWriter, r *http.Request, errorType string, errorDesc string, state string) {
+			http.Error(w, errorType+": "+errorDesc, http.StatusInternalServerError)
+			select {
+			case chErr <- fmt.Errorf("%s: %s", errorType, errorDesc):
+			default:
+			}
+		}),
+		rp.WithUnauthorizedHandler(func(w http.ResponseWriter, r *http.Request, desc string, state string) {
+			http.Error(w, desc, http.StatusUnauthorized)
+			select {
+			case chErr <- fmt.Errorf("StatusUnauthorized: %s", desc):
+			default:
+			}
+		}),
 	}
 	options = append(options, rp.WithPKCE(cookieHandler))
 	if s.HttpClient != nil {
@@ -220,6 +240,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	chErr := make(chan error, 1)
 
 	URLParamOpts := []rp.URLParamOpt{
+	mux.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
@@ -236,13 +257,10 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 	)
 
 	marshalToken := func(w http.ResponseWriter, r *http.Request, retTokens *oidc.Tokens[*oidc.IDTokenClaims], state string, rp rp.RelyingParty) {
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			chErr <- err
-			return
+		select {
+		case chTokens <- retTokens:
+		default:
 		}
-
-		chTokens <- retTokens
 
 		// If defined the OIDC client hands over control of the HTTP server session to the OpenPubkey client.
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
@@ -282,6 +300,13 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		// If s.OpenBrowser is false, tell the user what URL to open.
 		// This is useful when a user wants to use a different browser than the default one.
 		logrus.Infof("Open your browser to: %s ", loginURI)
+	}
+
+	// This is to mock out the OP interactions.
+	if s.browserOpenOverride != nil {
+		if err := s.browserOpenOverride(loginURI); err != nil {
+			logrus.Errorf("Failed to open url to mock browser: %v", err)
+		}
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
@@ -344,7 +369,6 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 			rp.WithNonce(nil), // disable nonce check
 		),
 	}
-	options = append(options, rp.WithPKCE(cookieHandler))
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
@@ -424,6 +448,14 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
 	return err
+}
+
+type BrowserOpenOverrideFunc func(url string) error
+
+// SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
+// This is used by tests and mocks to override the default behavior of opening the browser.
+func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
+	s.browserOpenOverride = fn
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

@@ -246,7 +246,7 @@ func TestVerifierExpirationPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the expiration time to 1 second past January 1, 1970
-	mockBackend.IDTokensTemplate.ExtraClaims = map[string]any{"exp": 1}
+	mockBackend.IDTokenTemplate.ExtraClaims = map[string]any{"exp": 1}
 
 	opkClient, err := client.New(provider)
 	require.NoError(t, err)

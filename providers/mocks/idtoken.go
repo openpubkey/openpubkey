@@ -70,7 +70,15 @@ func (t *IDTokenTemplate) AddCommit(cicHash string) {
 }
 
 func (t *IDTokenTemplate) IssueTokens() (*oidc.Tokens, error) {
+	subject := Subject{
+		SubjectID: "me",
+		Claims:    t.ExtraClaims,
+		Protected: t.ExtraProtectedClaims,
+	}
+	return t.IssueTokensWithSubject(&subject)
+}
 
+func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens, error) {
 	headers := jws.NewHeaders()
 	if !t.NoAlg {
 		if err := headers.Set(jws.AlgorithmKey, t.Alg); err != nil {
@@ -86,8 +94,8 @@ func (t *IDTokenTemplate) IssueTokens() (*oidc.Tokens, error) {
 		return nil, err
 	}
 
-	if t.ExtraProtectedClaims != nil {
-		for k, v := range t.ExtraProtectedClaims {
+	if subject.Protected != nil {
+		for k, v := range subject.Protected {
 			if err := headers.Set(k, v); err != nil {
 				return nil, err
 			}
@@ -95,7 +103,7 @@ func (t *IDTokenTemplate) IssueTokens() (*oidc.Tokens, error) {
 	}
 
 	payloadMap := map[string]any{
-		"sub": "me",
+		"sub": subject.SubjectID,
 		"aud": t.Aud,
 		"iss": t.Issuer,
 		"iat": time.Now().Unix(),
@@ -106,8 +114,8 @@ func (t *IDTokenTemplate) IssueTokens() (*oidc.Tokens, error) {
 		payloadMap["nonce"] = t.Nonce
 	}
 
-	if t.ExtraClaims != nil {
-		for k, v := range t.ExtraClaims {
+	if subject.Claims != nil {
+		for k, v := range subject.Claims {
 			payloadMap[k] = v
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 )
 
 // AzureOptions is an options struct that configures how providers.AzureOp
@@ -136,4 +137,43 @@ var _ RefreshableOpenIdProvider = (*AzureOp)(nil)
 
 func azureIssuer(tenantID string) string {
 	return fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
+}
+
+func CreateMockAzureOpWithOpts(azureOpOpts *AzureOptions, userActions mocks.UserBrowserInteractionMock) (RefreshableOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@hotmail.com",
+		},
+	}
+
+	idp, err := mocks.NewMockOp(azureOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     azureOpOpts.Issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        azureOpOpts.ClientID,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	azureOpOpts.HttpClient = rt
+	azureOpOpts.OpenBrowser = false // Don't open the browser in tests
+
+	azureOp := NewAzureOpWithOptions(azureOpOpts)
+
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
+	op := azureOp.(*StandardOpRefreshable)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
 }
