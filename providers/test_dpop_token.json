@@ -1,0 +1,24 @@
+{
+  "payload": {
+    "c_hash": "WJINbgXelEpA1I6Ami2G1a3hKKmU4SI1D0s5ZpCXdF0",
+    "htm": "POST",
+    "htu": "https://op.example.com/token",
+    "iat": 1761937449,
+    "jti": "IQS5tYP-bpBPtJsorT4z7g"
+  },
+  "signatures": [
+    {
+      "protected": {
+        "alg": "EdDSA",
+        "jwk": {
+          "alg": "EdDSA",
+          "crv": "Ed25519",
+          "kty": "OKP",
+          "x": "fmkTfA6VJtkaSZL0j9m-DRke3K9xMxxabuqLOPa-G7E"
+        },
+        "typ": "dpop+jwt"
+      },
+      "signature": "WrB225xAnx3awLVzQV0CAO8TeTd8BX6dXTCrQzxABQ8KtEIq2Qw4SDCKkhp4gKJs8i4z4f_OPsqF9cybQZegDQ"
+    }
+  ]
+}

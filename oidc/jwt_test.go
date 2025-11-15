@@ -17,6 +17,7 @@
 package oidc
 
 import (
+	_ "embed"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -122,4 +123,22 @@ func TestJwtCompare(t *testing.T) {
 			}
 		})
 	}
+}
+
+//go:embed test_jws.json
+var test_jws []byte
+
+func TestJwtToJWS(t *testing.T) {
+	t.Run("Valid JWT to JWS", func(t *testing.T) {
+		jwt, err := NewJwt([]byte("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ"))
+		require.NoError(t, err)
+
+		jws, err := jwt.Jws()
+		require.NoError(t, err)
+		require.NotNil(t, jws)
+		jwsPrettyJson, err := jws.PrettyJson()
+		require.NoError(t, err)
+
+		require.Equal(t, string(test_jws), string(jwsPrettyJson))
+	})
 }
