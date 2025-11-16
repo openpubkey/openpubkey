@@ -236,11 +236,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		}
 	}
 
-	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
-	chErr := make(chan error, 1)
-
 	URLParamOpts := []rp.URLParamOpt{
-	mux.Handle("/login", rp.AuthURLHandler(state, relyingParty,
 		rp.WithURLParam("nonce", cicHash),
 		// Select account requires that the user click the account they want to use.
 		// Results in better UX than just automatically dropping them into their
