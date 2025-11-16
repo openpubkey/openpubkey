@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/providers/mocks"
 )
 
 type GitlabOptions struct {
@@ -63,6 +64,15 @@ type GitlabOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+}
+
+// NewGitlabOp creates a Gitlab OP (OpenID Provider) using the
+// default configurations options. It uses the OIDC Relying Party (Client)
+// setup by the OpenPubkey project. This is not the OP for Gitlab workflows, that
+// functionality is provided by GitlabCiOp.
+func NewGitlabOp() BrowserOpenIdProvider {
+	options := GetDefaultGitlabOpOptions()
+	return NewGitlabOpWithOptions(options)
 }
 
 func GetDefaultGitlabOpOptions() *GitlabOptions {
@@ -112,3 +122,44 @@ type GitlabOp = StandardOpRefreshable
 var _ OpenIdProvider = (*GitlabOp)(nil)
 var _ BrowserOpenIdProvider = (*GitlabOp)(nil)
 var _ RefreshableOpenIdProvider = (*GitlabOp)(nil)
+
+func CreateMockGitlabOpWithOpts(gitlabOpOpts *GitlabOptions, userActions mocks.UserBrowserInteractionMock) (RefreshableOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@gmail.com",
+			Claims:    map[string]any{"extraClaim": "extraClaimValue"},
+			Protected: map[string]any{"extraHeader": "extraheaderValue"},
+		},
+	}
+
+	idp, err := mocks.NewMockOp(gitlabOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     gitlabOpOpts.Issuer,
+		Nonce:      "empty",
+		NoNonce:    false,
+		Aud:        gitlabOpOpts.ClientID,
+		KeyID:      expKeyID,
+		NoKeyID:    false,
+		Alg:        expRecord.Alg,
+		NoAlg:      false,
+		SigningKey: expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	gitlabOpOpts.HttpClient = rt
+	gitlabOpOpts.OpenBrowser = false // Don't open the browser in tests
+
+	gitlabOp := NewGitlabOpWithOptions(gitlabOpOpts)
+
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
+	op := gitlabOp.(*StandardOpRefreshable)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
+}
