@@ -36,10 +36,9 @@ import (
 const AudPrefixForGQCommitment = "OPENPUBKEY-PKTOKEN:"
 
 type DefaultProviderVerifier struct {
-	issuer      string
-	commitType  CommitType
-	options     ProviderVerifierOpts
-	gqAudPrefix string
+	issuer     string
+	commitType CommitType
+	options    ProviderVerifierOpts
 }
 
 type ProviderVerifierOpts struct {
@@ -78,12 +77,9 @@ func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultPr
 		v.options.DiscoverPublicKey = discover.DefaultPubkeyFinder()
 	}
 
-	// Initialize GQ audience prefix
-	// Use the provided prefix from options, or default to the constant if empty
-	if options.GQAudiencePrefix == "" {
-		v.gqAudPrefix = AudPrefixForGQCommitment
-	} else {
-		v.gqAudPrefix = options.GQAudiencePrefix
+	// Initialize GQ audience prefix with default if not set
+	if v.options.GQAudiencePrefix == "" {
+		v.options.GQAudiencePrefix = AudPrefixForGQCommitment
 	}
 
 	return v
@@ -110,6 +106,11 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 			// "OPENPUBKEY-PKTOKEN:". Thus, the audience can't be the client-id
 			// If you are hitting this error of set SkipClientIDCheck to true
 			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id")
+		}
+	} else {
+		// If GQAudiencePrefix is set but this isn't a GQ ProviderVerifier, fail
+		if v.options.GQAudiencePrefix != "" && v.options.GQAudiencePrefix != AudPrefixForGQCommitment {
+			return fmt.Errorf("GQAudiencePrefix is set but CommitType does not use GQCommitment")
 		}
 	}
 
@@ -213,9 +214,9 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		// claim with a configured prefix (default: "OPENPUBKEY-PKTOKEN:").
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
-		if _, ok := strings.CutPrefix(aud.(string), v.gqAudPrefix); !ok {
+		if _, ok := strings.CutPrefix(aud.(string), v.options.GQAudiencePrefix); !ok {
 			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
-				v.gqAudPrefix, aud.(string))
+				v.options.GQAudiencePrefix, aud.(string))
 		}
 
 		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token

@@ -269,7 +269,7 @@ func TestGQCustomAudiencePrefix(t *testing.T) {
 			}
 
 			op, backendMock, _, err := NewMockProvider(providerOpts)
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 			opSignKey, keyID, _ := backendMock.RandomSigningKey()
 			idtTemplate.KeyID = keyID
 			idtTemplate.SigningKey = opSignKey
@@ -277,7 +277,7 @@ func TestGQCustomAudiencePrefix(t *testing.T) {
 			backendMock.SetIDTokenTemplate(&idtTemplate)
 
 			tokens, err := op.RequestTokens(context.Background(), cic)
-			require.NoError(t, err)
+			require.NoError(t, err, tc.name)
 			idToken := tokens.IDToken
 
 			pv := NewProviderVerifier(issuer,
@@ -293,9 +293,9 @@ func TestGQCustomAudiencePrefix(t *testing.T) {
 			err = pv.VerifyIDToken(context.Background(), idToken, cic)
 
 			if tc.expError != "" {
-				require.ErrorContains(t, err, tc.expError)
+				require.ErrorContains(t, err, tc.expError, tc.name)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, tc.name)
 			}
 		})
 	}
