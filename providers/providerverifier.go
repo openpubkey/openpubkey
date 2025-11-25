@@ -55,6 +55,10 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
+	// GQAudiencePrefix is the required prefix for the audience claim in GQ commitments.
+	// If empty (not set), defaults to AudPrefixForGQCommitment ("OPENPUBKEY-PKTOKEN:").
+	// Set to a custom value to use a different prefix.
+	GQAudiencePrefix string
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -71,6 +75,11 @@ func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultPr
 	// If no custom DiscoverPublicKey function is set, set default
 	if v.options.DiscoverPublicKey == nil {
 		v.options.DiscoverPublicKey = discover.DefaultPubkeyFinder()
+	}
+
+	// Initialize GQ audience prefix with default if not set
+	if v.options.GQAudiencePrefix == "" {
+		v.options.GQAudiencePrefix = AudPrefixForGQCommitment
 	}
 
 	return v
@@ -97,6 +106,11 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 			// "OPENPUBKEY-PKTOKEN:". Thus, the audience can't be the client-id
 			// If you are hitting this error of set SkipClientIDCheck to true
 			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id")
+		}
+	} else {
+		// If GQAudiencePrefix is set but this isn't a GQ ProviderVerifier, fail
+		if v.options.GQAudiencePrefix != "" && v.options.GQAudiencePrefix != AudPrefixForGQCommitment {
+			return fmt.Errorf("GQAudiencePrefix is set but CommitType does not use GQCommitment")
 		}
 	}
 
@@ -197,12 +211,12 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		// and turns it into a PK Token using a GQCommitment, we require that
 		// all GQ commitments explicitly signal they want to be used as
 		// PK Tokens. To signal this, they prefix the audience (aud)
-		// claim with the string "OPENPUBKEY-PKTOKEN:".
+		// claim with a configured prefix (default: "OPENPUBKEY-PKTOKEN:").
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
-		if _, ok := strings.CutPrefix(aud.(string), AudPrefixForGQCommitment); !ok {
+		if _, ok := strings.CutPrefix(aud.(string), v.options.GQAudiencePrefix); !ok {
 			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
-				AudPrefixForGQCommitment, aud.(string))
+				v.options.GQAudiencePrefix, aud.(string))
 		}
 
 		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token
