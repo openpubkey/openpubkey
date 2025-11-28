@@ -233,6 +233,107 @@ func TestProviderVerifier(t *testing.T) {
 	}
 }
 
+func TestGQCustomAudiencePrefix(t *testing.T) {
+	customPrefix := "CUSTOM-PREFIX:"
+	clientID := "test-client-id"
+	issuer := "mockIssuer"
+
+	testCases := []struct {
+		name             string
+		aud              string
+		gqAudiencePrefix string
+		expError         string
+	}{
+		{
+			name:             "Custom prefix happy case",
+			aud:              customPrefix,
+			gqAudiencePrefix: customPrefix,
+			expError:         "",
+		},
+		{
+			name:             "Custom prefix wrong aud",
+			aud:              "WRONG-PREFIX:",
+			gqAudiencePrefix: customPrefix,
+			expError:         "audience claim in PK Token's GQCommitment must be prefixed by",
+		},
+		{
+			name:             "Default prefix when not specified",
+			aud:              AudPrefixForGQCommitment,
+			gqAudiencePrefix: "", // Will use default
+			expError:         "",
+		},
+		{
+			name:             "Default prefix with wrong aud",
+			aud:              "wrong-value",
+			gqAudiencePrefix: "", // Will use default
+			expError:         "audience claim in PK Token's GQCommitment must be prefixed by",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			idtTemplate := mocks.IDTokenTemplate{
+				Issuer:      issuer,
+				Nonce:       "empty",
+				NoNonce:     false,
+				Aud:         tc.aud,
+				Alg:         "RS256",
+				NoAlg:       false,
+				ExtraClaims: map[string]any{},
+				CommitFunc:  mocks.NoClaimCommit,
+			}
+
+			cic := GenCICExtra(t, map[string]any{})
+
+			providerOpts := MockProviderOpts{
+				Issuer:     issuer,
+				Alg:        "RS256",
+				ClientID:   clientID,
+				GQSign:     true,
+				NumKeys:    2,
+				CommitType: CommitTypesEnum.GQ_BOUND,
+				VerifierOpts: ProviderVerifierOpts{
+					CommitType:        CommitTypesEnum.GQ_BOUND,
+					ClientID:          clientID,
+					SkipClientIDCheck: true,
+					GQOnly:            true,
+					GQAudiencePrefix:  tc.gqAudiencePrefix,
+				},
+			}
+
+			op, backendMock, _, err := NewMockProvider(providerOpts)
+			require.NoError(t, err, tc.name)
+			opSignKey, keyID, _ := backendMock.RandomSigningKey()
+			idtTemplate.KeyID = keyID
+			idtTemplate.SigningKey = opSignKey
+
+			backendMock.SetIDTokenTemplate(&idtTemplate)
+
+			tokens, err := op.RequestTokens(context.Background(), cic)
+			require.NoError(t, err, tc.name)
+			idToken := tokens.IDToken
+
+			pv := NewProviderVerifier(issuer,
+				ProviderVerifierOpts{
+					CommitType:        CommitTypesEnum.GQ_BOUND,
+					DiscoverPublicKey: &backendMock.PublicKeyFinder,
+					GQOnly:            true,
+					ClientID:          clientID,
+					SkipClientIDCheck: true,
+					GQAudiencePrefix:  tc.gqAudiencePrefix,
+				})
+
+			err = pv.VerifyIDToken(context.Background(), idToken, cic)
+
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError, tc.name)
+			} else {
+				require.NoError(t, err, tc.name)
+			}
+		})
+	}
+}
+
 func TestRejectUnexpectedAlg(t *testing.T) {
 	// This test ensures that we correctly handle the case where
 	// the protected header has an unexpected alg claim.

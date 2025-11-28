@@ -112,7 +112,12 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 		SigningKey: providerSigner,
 	}
 	if opts.CommitType.GQCommitment {
-		idTokenTemplate.Aud = AudPrefixForGQCommitment
+		// Use the configured prefix from VerifierOpts, or default if not set
+		if opts.VerifierOpts.GQAudiencePrefix == "" {
+			idTokenTemplate.Aud = AudPrefixForGQCommitment
+		} else {
+			idTokenTemplate.Aud = opts.VerifierOpts.GQAudiencePrefix
+		}
 	}
 
 	mockBackend.SetIDTokenTemplate(idTokenTemplate)
