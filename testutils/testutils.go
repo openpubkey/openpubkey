@@ -23,8 +23,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,21 +48,21 @@ const ed25519keyPairJSON = `{
 // Only use in tests. This would be wildly insecure in production as the secret key is a public value.
 func DeterministicTestKeyPair(t *testing.T, alg string) crypto.Signer {
 	switch alg {
-	case jwa.ES256.String():
+	case jwa.ES256().String():
 		kp, err := jwk.ParseKey([]byte(es256keyPairJSON))
 		require.NoError(t, err)
 
 		var privKey ecdsa.PrivateKey
-		err = kp.Raw(&privKey)
+		err = jwk.Export(kp, &privKey)
 		require.NoError(t, err)
 
 		return &privKey
-	case jwa.EdDSA.String():
+	case jwa.EdDSA().String():
 		kp, err := jwk.ParseKey([]byte(ed25519keyPairJSON))
 		require.NoError(t, err)
 
 		var privKey ed25519.PrivateKey
-		err = kp.Raw(&privKey)
+		err = jwk.Export(kp, &privKey)
 		require.NoError(t, err)
 
 		return &privKey
@@ -75,7 +75,7 @@ func DeterministicTestKeyPair(t *testing.T, alg string) crypto.Signer {
 // NewTestKeyPairs is used for creating JSON representations of JWKs for tests.
 // This is how we generate the embedded JWKs for our unittests.
 func NewTestKeyPairs(t *testing.T, signer crypto.Signer) []byte {
-	privJWK, err := jwk.FromRaw(signer)
+	privJWK, err := jwk.Import(signer)
 	require.NoError(t, err)
 
 	jwkJson, err := json.MarshalIndent(privJWK, "", "  ")

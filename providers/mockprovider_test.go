@@ -22,8 +22,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -69,6 +69,6 @@ func TestMockProviderTest(t *testing.T) {
 	rsaKey, ok := pkRecord.PublicKey.(*rsa.PublicKey)
 
 	require.True(t, ok)
-	_, err = jws.Verify(idToken, jws.WithKey(jwa.RS256, rsaKey))
+	_, err = jws.Verify(idToken, jws.WithKey(jwa.RS256(), rsaKey))
 	require.NoError(t, err)
 }

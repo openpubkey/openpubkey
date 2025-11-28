@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -90,7 +90,7 @@ func GQOnly() Check {
 			return fmt.Errorf("missing provider algorithm header")
 		}
 
-		if alg != gq.GQ256 {
+		if alg != gq.GQ256() {
 			return fmt.Errorf("non-GQ signatures are not supported")
 		}
 		return nil
@@ -247,6 +247,10 @@ func verifyCicSignature(pkt *pktoken.PKToken) error {
 		return err
 	}
 
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	cicAlg, ok := cic.PublicKey().Algorithm()
+	if !ok {
+		return fmt.Errorf("missing algorithm for cosigner public key")
+	}
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cicAlg, cic.PublicKey()))
 	return err
 }

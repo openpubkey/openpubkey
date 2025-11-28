@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -97,7 +97,7 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	if client.signer == nil {
 		// Generate signer for specified alg. If no alg specified, defaults to ES256
 		if client.alg == nil {
-			client.alg = jwa.ES256
+			client.alg = jwa.ES256()
 		}
 
 		signer, err := util.GenKeyPair(client.alg)

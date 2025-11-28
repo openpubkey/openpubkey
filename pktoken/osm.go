@@ -18,9 +18,10 @@ package pktoken
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
 // Options configures VerifySignedMessage behavior
@@ -54,7 +55,11 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 
 	// Create our headers as defined by section 3.5 of the OpenPubkey paper
 	protected := jws.NewHeaders()
-	if err := protected.Set("alg", cic.PublicKey().Algorithm()); err != nil {
+	alg, ok := cic.PublicKey().Algorithm()
+	if !ok {
+		return nil, errors.New("invalid algorithm")
+	}
+	if err := protected.Set("alg", alg); err != nil {
 		return nil, err
 	}
 	if err := protected.Set("kid", pktHash); err != nil {
@@ -66,11 +71,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 
 	return jws.Sign(
 		content,
-		jws.WithKey(
-			cic.PublicKey().Algorithm(),
-			signer,
-			jws.WithProtectedHeaders(protected),
-		),
+		jws.WithKey(alg, signer, jws.WithProtectedHeaders(protected)),
 	)
 }
 
@@ -109,23 +110,33 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 	protected := message.Signatures()[0].ProtectedHeaders()
 
 	// Verify typ header matches expected value from options
-	typ, ok := protected.Get("typ")
-	if !ok {
-		return nil, fmt.Errorf("missing required header `typ`")
+	var typ string
+	err = protected.Get("typ", &typ)
+	if err != nil {
+		return nil, fmt.Errorf("missing required header `typ`: %w", err)
 	}
 	if typ != opts.Typ {
 		return nil, fmt.Errorf(`incorrect "typ" header, expected %q but received %s`, opts.Typ, typ)
 	}
 
 	// Verify key algorithm header matches cic
-	if protected.Algorithm() != cic.PublicKey().Algorithm() {
-		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, cic.PublicKey().Algorithm(), protected.Algorithm())
+	protectedAlg, ok := protected.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("missing algorithm header")
+	}
+	cicAlg, ok := cic.PublicKey().Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("missing cic algorithm")
+	}
+	if protectedAlg != cicAlg {
+		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, cicAlg.String(), protectedAlg.String())
 	}
 
 	// Verify kid header matches hash of pktoken
-	kid, ok := protected.Get("kid")
-	if !ok {
-		return nil, fmt.Errorf("missing required header `kid`")
+	var kid string
+	err = protected.Get("kid", &kid)
+	if err != nil {
+		return nil, fmt.Errorf("missing required header `kid`: %w", err)
 	}
 
 	pktHash, err := p.Hash()
@@ -137,7 +148,7 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but received %s`, pktHash, kid)
 	}
 
-	_, err = jws.Verify(osm, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	_, err = jws.Verify(osm, jws.WithKey(cicAlg, cic.PublicKey()))
 	if err != nil {
 		return nil, err
 	}

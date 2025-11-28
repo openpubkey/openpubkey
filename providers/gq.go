@@ -23,8 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -57,11 +57,23 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	headers := jws.NewHeaders()
 	err = json.Unmarshal(headersJson, &headers)
 	if err != nil {
+		// If unmarshaling fails due to unknown algorithm, try to extract alg from raw JSON
+		var rawHeaders map[string]interface{}
+		if json.Unmarshal(headersJson, &rawHeaders) == nil {
+			if algStr, ok := rawHeaders["alg"].(string); ok {
+				return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", algStr)
+			}
+		}
 		return nil, fmt.Errorf("error unmarshalling ID Token headers: %w", err)
 	}
 
-	if headers.Algorithm() != "RS256" {
-		return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", headers.Algorithm())
+	alg, ok := headers.Algorithm()
+	if !ok || alg.String() != "RS256" {
+		algStr := "unknown"
+		if ok {
+			algStr = alg.String()
+		}
+		return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", algStr)
 	}
 
 	opKey, err := op.PublicKeyByToken(ctx, idToken)

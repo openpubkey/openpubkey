@@ -26,8 +26,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"golang.org/x/crypto/sha3"
 )
 

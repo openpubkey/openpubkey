@@ -18,13 +18,12 @@ package pktoken
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -216,11 +215,12 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 
 	if sigType == CIC || sigType == COS {
 		protected := signature.ProtectedHeaders()
-		if sigTypeFound, ok := protected.Get(jws.TypeKey); !ok {
-			return fmt.Errorf("required 'typ' claim not found in protected")
-		} else if sigTypeFoundStr, ok := sigTypeFound.(string); !ok {
-			return fmt.Errorf("'typ' claim in protected must be a string but was a %T", sigTypeFound)
-		} else if sigTypeFoundStr != string(sigType) {
+		var sigTypeFound string
+		err := protected.Get(jws.TypeKey, &sigTypeFound)
+		if err != nil {
+			return fmt.Errorf("error getting 'typ' claim from protected headers: %w", err)
+		}
+		if sigTypeFound != string(sigType) {
 			return fmt.Errorf("incorrect 'typ' claim in protected, expected (%s), got (%s)", sigType, sigTypeFound)
 		}
 	}
@@ -242,21 +242,21 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 }
 
 func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
-	alg, ok := p.Op.ProtectedHeaders().Get(jws.AlgorithmKey)
-	if !ok {
-		return "", false
+	var alg jwa.SignatureAlgorithm
+	err := p.Op.ProtectedHeaders().Get(jws.AlgorithmKey, &alg)
+	if err != nil {
+		return jwa.SignatureAlgorithm{}, false
 	}
 
-	return alg.(jwa.SignatureAlgorithm), true
+	return alg, true
 }
 
 func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
-	cicPH, err := p.Cic.ProtectedHeaders().AsMap(context.TODO())
+	cicMap, err := util.HeadersAsMap(p.Cic.ProtectedHeaders())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("converting cic headers to map: %w", err)
 	}
-
-	return clientinstance.ParseClaims(cicPH)
+	return clientinstance.ParseClaims(cicMap)
 }
 
 func (p *PKToken) Hash() (string, error) {
@@ -302,8 +302,9 @@ func (p *PKToken) MarshalJSON() ([]byte, error) {
 	var opPublicHeader map[string]any
 	var err error
 	if p.Op.PublicHeaders() != nil {
-		if opPublicHeader, err = p.Op.PublicHeaders().AsMap(context.Background()); err != nil {
-			return nil, err
+		opPublicHeader, err = util.HeadersAsMap(p.Op.PublicHeaders())
+		if err != nil {
+			return nil, fmt.Errorf("converting op public headers to map: %w", err)
 		}
 	}
 	if err = rawJws.AddSignature(p.OpToken, oidc.WithPublicHeader(opPublicHeader)); err != nil {
@@ -339,22 +340,20 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		// for some reason the unmarshaled signatures have empty non-nil
 		// public headers. set them to nil instead.
 		public := signature.PublicHeaders()
-		pubMap, _ := public.AsMap(context.Background())
+		pubMap, err := util.HeadersAsMap(public)
+		if err != nil {
+			return fmt.Errorf("converting public headers to map: %w", err)
+		}
 		if len(pubMap) == 0 {
 			signature.SetPublicHeaders(nil)
 		}
 
 		protected := signature.ProtectedHeaders()
 		var sigType SignatureType
+		var typeHeader string
 
-		typeHeader, ok := protected.Get(jws.TypeKey)
-		if ok {
-			sigTypeStr, ok := typeHeader.(string)
-			if !ok {
-				return fmt.Errorf(`provided "%s" is of wrong type, expected string`, jws.TypeKey)
-			}
-
-			sigType = SignatureType(sigTypeStr)
+		if err := protected.Get(jws.TypeKey, &typeHeader); err == nil {
+			sigType = SignatureType(typeHeader)
 		} else {
 			// missing typ claim, assuming this is from the OIDC provider
 			sigType = OIDC

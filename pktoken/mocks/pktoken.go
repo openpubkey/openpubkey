@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
@@ -142,7 +142,11 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	}
 
 	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
+	jwkAlg, ok := jwkKey.Algorithm()
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to get algorithm from jwk key")
+	}
+	cicToken, err := cic.Sign(signingKey, jwkAlg, idToken)
 	if err != nil {
 		return nil, nil, err
 	}

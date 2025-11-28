@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
@@ -30,7 +30,7 @@ import (
 
 func TestSimpleCosigner(t *testing.T) {
 	// Generate the key pair for our cosigner
-	alg := jwa.ES256
+	alg := jwa.ES256()
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
