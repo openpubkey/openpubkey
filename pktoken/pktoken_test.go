@@ -29,14 +29,14 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestPkToken(t *testing.T) {
-	alg := jwa.ES256
+	alg := jwa.ES256()
 
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)

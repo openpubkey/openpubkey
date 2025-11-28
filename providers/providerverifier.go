@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/oidc"
@@ -129,17 +129,17 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	if algStr == "" {
 		return fmt.Errorf("provider algorithm type missing")
 	}
-	alg := jwa.SignatureAlgorithm(algStr)
-	if alg != gq.GQ256 && v.options.GQOnly {
+	alg := jwa.NewSignatureAlgorithm(algStr)
+	if alg != gq.GQ256() && v.options.GQOnly {
 		return fmt.Errorf("non-GQ signatures are not supported")
 	}
 
 	switch alg {
-	case gq.GQ256:
+	case gq.GQ256():
 		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
-	case jwa.RS256:
+	case jwa.RS256():
 		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
@@ -153,7 +153,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
-	case jwa.ES256:
+	case jwa.ES256():
 		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
@@ -249,7 +249,7 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 	if algStr == "" {
 		return fmt.Errorf("missing provider algorithm header")
 	}
-	if algStr != gq.GQ256.String() {
+	if algStr != gq.GQ256().String() {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
@@ -258,8 +258,11 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 		return fmt.Errorf("malformed ID Token headers: %w", err)
 	}
 
-	origAlg := origHeaders.Algorithm()
-	if origAlg != jwa.RS256 {
+	origAlg, ok := origHeaders.Algorithm()
+	if !ok {
+		return fmt.Errorf("missing algorithm in original headers")
+	}
+	if origAlg != jwa.RS256() {
 		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", origAlg)
 	}
 

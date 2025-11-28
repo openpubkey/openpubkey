@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -60,11 +60,11 @@ func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 
 func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
 	switch alg {
-	case jwa.ES256:
+	case jwa.ES256():
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	case jwa.RS256: // RSASSA-PKCS-v1.5 using SHA-256
+	case jwa.RS256(): // RSASSA-PKCS-v1.5 using SHA-256
 		return rsa.GenerateKey(rand.Reader, 2048)
-	case jwa.EdDSA:
+	case jwa.EdDSA():
 		_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 		return privateKey, err
 	default:

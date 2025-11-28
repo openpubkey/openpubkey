@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -63,7 +63,10 @@ func TestSimpleBackendOverride(t *testing.T) {
 	record, err := mockBackend.GetPublicKeyFinder().ByToken(context.Background(), issuer, idt)
 	require.NoError(t, err)
 
-	payload, err := jws.Verify(idt, jws.WithKey(jwa.KeyAlgorithmFrom(record.Alg), record.PublicKey))
+	keyAlg, err := jwa.KeyAlgorithmFrom(record.Alg)
+	require.NoError(t, err)
+
+	payload, err := jws.Verify(idt, jws.WithKey(keyAlg, record.PublicKey))
 	require.NoError(t, err)
 	require.Contains(t, string(payload), string(cicHash))
 

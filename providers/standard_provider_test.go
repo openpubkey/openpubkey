@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -127,7 +127,8 @@ func TestStandardProviders(t *testing.T) {
 				headers := jws.NewHeaders()
 				err = json.Unmarshal(headerJson, &headers)
 				require.NoError(t, err, tc.name)
-				algFound := headers.Algorithm()
+				algFound, ok := headers.Algorithm()
+				require.True(t, ok, "alg should be present")
 				require.Equal(t, string("GQ256"), algFound.String(), "alg in jwt header should match GQ256")
 			} else {
 				payload, err := util.Base64DecodeForJWT(payloadB64)

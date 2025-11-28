@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -73,8 +73,9 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	headers := jws.NewHeaders()
 	err = json.Unmarshal(headerJson, &headers)
 	require.NoError(t, err)
-	cicHash2, ok := headers.Get("cic")
-	require.True(t, ok, "cic not found in GQ ID Token")
+	var cicHash2 string
+	err = headers.Get("cic", &cicHash2)
+	require.NoError(t, err)
 
 	require.Equal(t, string(cicHash), cicHash2, "cic hash in jwt header should match cic supplied")
 }

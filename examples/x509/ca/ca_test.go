@@ -24,8 +24,8 @@ import (
 	"encoding/pem"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/client"
@@ -41,10 +41,10 @@ func TestCACertCreation(t *testing.T) {
 	certAuth, err := New(op)
 	require.NoError(t, err)
 
-	err = certAuth.KeyGen(string(jwa.ES256))
+	err = certAuth.KeyGen(jwa.ES256().String())
 	require.NoError(t, err)
 
-	userAlg := jwa.ES256
+	userAlg := jwa.ES256()
 	userSigningKey, err := util.GenKeyPair(userAlg)
 	require.NoError(t, err)
 
@@ -66,7 +66,7 @@ func TestCACertCreation(t *testing.T) {
 
 	certPubkey := cc.PublicKey.(*ecdsa.PublicKey)
 
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwa.ES256, certPubkey))
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwa.ES256(), certPubkey))
 	require.NoError(t, err)
 
 	err = certAuth.VerifyPktCert(pemSubCert)

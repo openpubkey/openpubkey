@@ -19,8 +19,8 @@ package providers
 import (
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -31,7 +31,7 @@ func GenCIC(t *testing.T) *clientinstance.Claims {
 }
 
 func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
-	alg := jwa.ES256
+	alg := jwa.ES256()
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 	jwkKey, err := jwk.PublicKeyOf(signer)

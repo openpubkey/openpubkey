@@ -23,9 +23,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -40,7 +40,11 @@ type Claims struct {
 // Client instance claims must relate to a single key pair
 func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 	// Make sure our JWK has the algorithm header set
-	if publicKey.Algorithm().String() == "" {
+	pkAlg, ok := publicKey.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("failed to get algorithm from public key")
+	}
+	if pkAlg.String() == "" {
 		return nil, fmt.Errorf("user JWK requires algorithm to be set")
 	}
 
@@ -58,7 +62,7 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 
 	// Assign required values
 	claims["typ"] = "CIC"
-	claims["alg"] = publicKey.Algorithm().String()
+	claims["alg"] = pkAlg.String()
 	claims["upk"] = publicKey
 	claims["rz"] = rand
 
@@ -88,7 +92,8 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	alg, ok := protected["alg"]
 	if !ok {
 		return nil, fmt.Errorf(`missing required "alg" claim`)
-	} else if alg != upkjwk.Algorithm() {
+	}
+	if upkAlg, ok := upkjwk.Algorithm(); !ok || alg != upkAlg {
 		return nil, fmt.Errorf(`provided "alg" value different from algorithm provided in "upk" jwk`)
 	}
 	return &Claims{
@@ -101,7 +106,8 @@ func (c *Claims) PublicKey() jwk.Key {
 	return c.publicKey
 }
 
-func (c *Claims) KeyAlgorithm() jwa.KeyAlgorithm {
+// TODO: Are we okay changing the public interface or hide this?
+func (c *Claims) KeyAlgorithm() (jwa.KeyAlgorithm, bool) {
 	return c.publicKey.Algorithm()
 }
 

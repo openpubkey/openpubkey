@@ -23,7 +23,7 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/examples/mfa/mfacosigner/jwks"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -45,7 +45,7 @@ func NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, RPDisplayName string) (
 	}
 
 	// Generate the key pair for our cosigner
-	alg := jwa.ES256
+	alg := jwa.ES256()
 	signer, err := util.GenKeyPair(alg)
 	if err != nil {
 		return nil, err
