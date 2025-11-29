@@ -101,7 +101,7 @@ func NewHelloOp() BrowserOpenIdProvider {
 // setup by the OpenPubkey project.
 func NewHelloKeyBindingOp() BrowserOpenIdProvider {
 	options := GetDefaultHelloOpOptions()
-	return NewHelloOpKeyBindingWithOptions(options)
+	return NewHelloKeyBindingOpWithOptions(options)
 }
 
 // NewHelloOpWithOptions creates a Hello OP with configuration specified
@@ -132,10 +132,10 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 	}
 }
 
-// NewHelloOpKeyBindingWithOptions creates a Hello key binding OP with configuration specified
+// NewHelloKeyBindingOpWithOptions creates a Hello key binding OP with configuration specified
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
-func NewHelloOpKeyBindingWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
+func NewHelloKeyBindingOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
 	return &HelloKeyBindingOp{
 		*newHelloOpWithOptions(opts),
 	}
