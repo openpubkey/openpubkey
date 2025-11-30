@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -35,7 +35,7 @@ type AuthCosigner struct {
 	AuthStateStore AuthStateStore
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) { // TODO: jwx/v3 in public API
 	return &AuthCosigner{
 		Cosigner: Cosigner{
 			Alg:    alg,

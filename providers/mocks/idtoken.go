@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/oidc"
 )
 
@@ -127,14 +127,18 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 
 	var providerAlg jwa.KeyAlgorithm
 	if _, ok := t.SigningKey.Public().(*rsa.PublicKey); ok {
-		providerAlg = jwa.RS256
+		providerAlg = jwa.RS256()
 	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {
-		providerAlg = jwa.ES256
+		providerAlg = jwa.ES256()
 	} else {
 		return nil, fmt.Errorf("unsupported public key type")
 	}
 
-	if jwa.KeyAlgorithmFrom(t.Alg) != providerAlg {
+	keyAlg, err := jwa.KeyAlgorithmFrom(t.Alg)
+	if err != nil {
+		return nil, fmt.Errorf("creating key algorithm for %s: %w", t.Alg, err)
+	}
+	if keyAlg != providerAlg {
 		return nil, fmt.Errorf("alg in template (%s) does not match providers signing key alg (%s)", t.Alg, providerAlg)
 	}
 

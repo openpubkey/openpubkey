@@ -26,9 +26,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 
@@ -41,30 +41,34 @@ type PublicKeyRecord struct {
 	Issuer    string
 }
 
-func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
+func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) { // TODO: jwx/v3 in public API
 	var pubKey interface{}
-	if key.Algorithm() == jwa.RS256 {
+	keyAlg, ok := key.Algorithm()
+
+	// OPs such as azure (microsoft) do not specify alg in their JWKS. To
+	// handle this case, assume no alg in JWKS means RSA as OIDC requires
+	// OPs use RSA.
+	if !ok || keyAlg == nil {
+		// No algorithm specified, default to RS256
 		pubKey = new(rsa.PublicKey)
-	} else if key.Algorithm() == jwa.ES256 {
+	} else if keyAlg == jwa.RS256() {
+		pubKey = new(rsa.PublicKey)
+	} else if keyAlg == jwa.ES256() {
 		pubKey = new(ecdsa.PublicKey)
-	} else if key.Algorithm().String() == "" {
-		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
-		// handle this case, assume no alg in JWKS means RSA as OIDC requires
-		// OPs use RSA.
-		pubKey = new(rsa.PublicKey)
 	} else {
-		return nil, fmt.Errorf("JWK has unsupported alg (%s)", key.Algorithm())
+		return nil, fmt.Errorf("JWK has unsupported alg (%s)", keyAlg)
 	}
-	err := key.Raw(&pubKey)
+
+	err := jwk.Export(key, &pubKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
 	var alg string
-	if key.Algorithm().String() == "" {
-		alg = jwa.RS256.String()
+	if !ok || keyAlg == nil {
+		alg = jwa.RS256().String()
 	} else {
-		alg = key.Algorithm().String()
+		alg = keyAlg.String()
 	}
 
 	return &PublicKeyRecord{
@@ -145,8 +149,13 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 	// a JWT is guaranteed to have exactly one signature
 	headers := jwt.Signatures()[0].ProtectedHeaders()
 
-	if headers.Algorithm() == gq.GQ256 {
-		origHeadersJson, err := util.Base64DecodeForJWT([]byte(headers.KeyID()))
+	headersAlg, ok := headers.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("error getting algorithm from JWT headers")
+	}
+	keyID, _ := headers.KeyID()
+	if headersAlg == gq.GQ256() {
+		origHeadersJson, err := util.Base64DecodeForJWT([]byte(keyID))
 		if err != nil {
 			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
 		}
@@ -156,9 +165,11 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 		}
+		// Extract the kid from the original headers after unmarshaling
+		keyID, _ = headers.KeyID()
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyID(ctx, issuer, headers.KeyID())
+	return f.ByKeyID(ctx, issuer, keyID)
 }
 
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
@@ -186,9 +197,14 @@ func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID stri
 		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
 
-	// If keyID is blank and there is only one key in the JWKS, return that key
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
+		return NewPublicKeyRecord(key, issuer)
+	} else if keyID == "" && jwks.Len() == 1 {
+		key, ok := jwks.Key(0)
+		if !ok {
+			return nil, fmt.Errorf("failed to get key from JWK set")
+		}
 		return NewPublicKeyRecord(key, issuer)
 	}
 
@@ -201,9 +217,11 @@ func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) 
 		return nil, err
 	}
 
-	it := jwks.Keys(ctx)
-	for it.Next(ctx) {
-		key := it.Pair().Value.(jwk.Key)
+	for i := range jwks.Len() {
+		key, ok := jwks.Key(i)
+		if !ok {
+			continue
+		}
 		jktOfKey, err := key.Thumbprint(crypto.SHA256)
 		if err != nil {
 			return nil, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)

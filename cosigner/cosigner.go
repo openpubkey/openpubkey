@@ -20,12 +20,12 @@ import (
 	"crypto"
 	"encoding/json"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
 type Cosigner struct {
-	Alg    jwa.KeyAlgorithm
+	Alg    jwa.KeyAlgorithm // TODO: jwx/v3 in public API
 	Signer crypto.Signer
 }
 

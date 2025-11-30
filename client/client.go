@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -61,7 +61,7 @@ type ClientOpts func(o *OpkClient)
 //
 //	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 //	WithSigner(signer, jwa.ES256)
-func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
+func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts { // TODO: jwx/v3 in public API
 	return func(o *OpkClient) {
 		o.signer = signer
 		o.alg = alg
@@ -97,7 +97,7 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	if client.signer == nil {
 		// Generate signer for specified alg. If no alg specified, defaults to ES256
 		if client.alg == nil {
-			client.alg = jwa.ES256
+			client.alg = jwa.ES256()
 		}
 
 		signer, err := util.GenKeyPair(client.alg)
@@ -277,7 +277,7 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 
 // GetAlg returns the algorithm of the client's key pair
 // (Public Key, Signing Key)
-func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
+func (o *OpkClient) GetAlg() jwa.KeyAlgorithm { // TODO: jwx/v3 in public API
 	return o.alg
 }
 
