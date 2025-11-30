@@ -166,7 +166,7 @@ func (p *PKToken) IdentityString() (string, error) {
 // Signs PK Token and then returns only the payload, header and signature as a JWT
 func (p *PKToken) SignToken(
 	signer crypto.Signer,
-	alg jwa.KeyAlgorithm,
+	alg jwa.KeyAlgorithm, // TODO: jwx/v3 in public API
 	protected map[string]any,
 ) ([]byte, error) {
 	headers := jws.NewHeaders()
@@ -241,7 +241,7 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	return nil
 }
 
-func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) {
+func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) { // TODO: jwx/v3 in public API
 	var alg jwa.SignatureAlgorithm
 	err := p.Op.ProtectedHeaders().Get(jws.AlgorithmKey, &alg)
 	if err != nil {

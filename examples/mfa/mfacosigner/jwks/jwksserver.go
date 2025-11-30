@@ -37,7 +37,7 @@ type JwksServer struct {
 }
 
 // A very simple JWKS server for our MFA Cosigner example code.
-func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*JwksServer, string, error) {
+func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*JwksServer, string, error) { // TODO: jwx/v3 in public API
 	// Compute the kid (Key ID) as the SHA-3 of the public key
 	pubkey := signer.Public().(*ecdsa.PublicKey) // TODO: handle non-ecdsa signers
 	pubkeyBytes := elliptic.Marshal(pubkey, pubkey.X, pubkey.Y)

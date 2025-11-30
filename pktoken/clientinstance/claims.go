@@ -38,7 +38,7 @@ type Claims struct {
 }
 
 // Client instance claims must relate to a single key pair
-func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
+func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) { // TODO: jwx/v3 in public API
 	// Make sure our JWK has the algorithm header set
 	pkAlg, ok := publicKey.Algorithm()
 	if !ok {
@@ -102,12 +102,12 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	}, nil
 }
 
-func (c *Claims) PublicKey() jwk.Key {
+func (c *Claims) PublicKey() jwk.Key { // TODO: jwx/v3 in public API
 	return c.publicKey
 }
 
 // TODO: Are we okay changing the public interface or hide this?
-func (c *Claims) KeyAlgorithm() (jwa.KeyAlgorithm, bool) {
+func (c *Claims) KeyAlgorithm() (jwa.KeyAlgorithm, bool) { // TODO: jwx/v3 in public API
 	return c.publicKey.Algorithm()
 }
 
@@ -123,7 +123,7 @@ func (c *Claims) Hash() ([]byte, error) {
 
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
-func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []byte) ([]byte, error) {
+func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []byte) ([]byte, error) { // TODO: jwx/v3 in public API
 	_, payload, _, err := jws.SplitCompact(token)
 	if err != nil {
 		return nil, err

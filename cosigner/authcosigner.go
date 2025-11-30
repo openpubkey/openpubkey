@@ -35,7 +35,7 @@ type AuthCosigner struct {
 	AuthStateStore AuthStateStore
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) { // TODO: jwx/v3 in public API
 	return &AuthCosigner{
 		Cosigner: Cosigner{
 			Alg:    alg,

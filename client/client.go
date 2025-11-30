@@ -61,7 +61,7 @@ type ClientOpts func(o *OpkClient)
 //
 //	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 //	WithSigner(signer, jwa.ES256)
-func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
+func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts { // TODO: jwx/v3 in public API
 	return func(o *OpkClient) {
 		o.signer = signer
 		o.alg = alg
@@ -284,7 +284,7 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 
 // GetAlg returns the algorithm of the client's key pair
 // (Public Key, Signing Key)
-func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
+func (o *OpkClient) GetAlg() jwa.KeyAlgorithm { // TODO: jwx/v3 in public API
 	return o.alg
 }
 

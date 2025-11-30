@@ -41,7 +41,7 @@ import (
 
 type Ca struct {
 	pksk *ecdsa.PrivateKey
-	Alg  jwa.KeyAlgorithm
+	Alg  jwa.KeyAlgorithm // TODO: jwx/v3 in public API
 	// CaCertBytes []byte
 	RootCertPem []byte
 	op          client.OpenIdProvider

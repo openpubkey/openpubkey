@@ -58,7 +58,7 @@ func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 	return x509.ParseECPrivateKey(block.Bytes)
 }
 
-func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) {
+func GenKeyPair(alg jwa.KeyAlgorithm) (crypto.Signer, error) { // TODO: jwx/v3 in public API
 	switch alg {
 	case jwa.ES256():
 		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

@@ -52,7 +52,7 @@ func WithExtraClaim(k string, v string) Opts {
 	}
 }
 
-func GQ256() jwa.SignatureAlgorithm {
+func GQ256() jwa.SignatureAlgorithm { // TODO: jwx/v3 in public API
 	return jwa.NewSignatureAlgorithm("GQ256")
 }
 
