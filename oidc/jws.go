@@ -116,7 +116,7 @@ func (j *Jws) GetTokenByTyp(typ string) ([]byte, error) {
 	}
 }
 
-// PrettyJson returns a indented JSON representation of the JWS with a decoded payload.
+// PrettyJson returns an indented JSON representation of the JWS with a decoded payload.
 func (j *Jws) PrettyJson() ([]byte, error) {
 	payloadDecoded, err := util.Base64DecodeForJWT([]byte(j.Payload))
 	if err != nil {
