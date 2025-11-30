@@ -25,7 +25,7 @@ import (
 )
 
 type Cosigner struct {
-	Alg    jwa.KeyAlgorithm
+	Alg    jwa.KeyAlgorithm // TODO: jwx/v3 in public API
 	Signer crypto.Signer
 }
 

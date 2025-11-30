@@ -44,7 +44,7 @@ type MfaCosigner struct {
 	users      map[cosigner.UserKey]*user
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
+func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) { // TODO: jwx/v3 in public API
 	hmacKey := make([]byte, 64)
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err

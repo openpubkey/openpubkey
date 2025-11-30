@@ -41,7 +41,7 @@ type PublicKeyRecord struct {
 	Issuer    string
 }
 
-func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
+func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) { // TODO: jwx/v3 in public API
 	var pubKey interface{}
 	keyAlg, ok := key.Algorithm()
 
