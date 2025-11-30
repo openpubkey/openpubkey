@@ -17,6 +17,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -194,6 +195,14 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		return err
 	}
 
+	idtTyp := idt.GetSignature().GetProtectedClaims().Type
+	if idtTyp == KEYBOUND_TYP && v.commitType != CommitTypesEnum.KEY_BOUND {
+		return fmt.Errorf("expected commitment type %v but got key-bound ID token (typ=%v)", v.commitType.Claim, idtTyp)
+	}
+	if idtTyp != KEYBOUND_TYP && v.commitType == CommitTypesEnum.KEY_BOUND {
+		return fmt.Errorf("expected key-bound ID token (typ=%v) but got ID Token (typ=%v)", KEYBOUND_TYP, idtTyp)
+	}
+
 	expectedCommitment, err := cic.Hash()
 	if err != nil {
 		return err
@@ -224,6 +233,26 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		if commitment == "" {
 			return fmt.Errorf("missing GQ commitment")
 		}
+	} else if v.options.CommitType == CommitTypesEnum.KEY_BOUND {
+		if idt.GetClaims().Cnf == nil {
+			return fmt.Errorf("expected key-bound ID token but cnf claim is missing")
+		}
+		if len(idt.GetClaims().Cnf.Jwk) == 0 {
+			return fmt.Errorf("expected key-bound ID token but cnf claim does not contain a jwk")
+		}
+
+		cnfJwkStr, err := json.Marshal(idt.GetClaims().Cnf.Jwk)
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
+		}
+		cicJwkStr, err := json.Marshal(cic.PublicKey())
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in CIC: %w", err)
+		}
+		if bytes.Equal(cicJwkStr, cnfJwkStr) {
+			return nil
+		}
+		return fmt.Errorf("jwk in cnf claim does not match public key in CIC, got %s, expected %s", string(cnfJwkStr), string(cicJwkStr))
 	} else {
 		if v.commitType.Claim == "" {
 			return fmt.Errorf("verifier configured with empty commitment claim")

@@ -37,9 +37,10 @@ import (
 type SignatureType string
 
 const (
-	OIDC SignatureType = "JWT"
-	CIC  SignatureType = "CIC"
-	COS  SignatureType = "COS"
+	OIDC   SignatureType = "JWT"
+	OIDCKB SignatureType = "id_token+cnf" // For OIDC with key binding
+	CIC    SignatureType = "CIC"
+	COS    SignatureType = "COS"
 )
 
 type Signature = jws.Signature
@@ -225,7 +226,7 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	}
 
 	switch sigType {
-	case OIDC:
+	case OIDC, OIDCKB:
 		p.Op = signature
 		p.OpToken = token
 	case CIC:
@@ -360,7 +361,7 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		}
 
 		switch sigType {
-		case OIDC:
+		case OIDC, OIDCKB:
 			opCount += 1
 			p.Op = signature
 			p.OpToken = []byte(rawJws.Signatures[i].Protected + "." + rawJws.Payload + "." + rawJws.Signatures[i].Signature)
