@@ -96,8 +96,8 @@ func NewHelloOp() BrowserOpenIdProvider {
 	return NewHelloOpWithOptions(options)
 }
 
-// NewHelloOp creates a Hello OP (OpenID Provider) that supports the OpenID key binding protocol
-// using the default configurations options. It uses the OIDC Relying Party (Client)
+// NewHelloKeyBindingOp creates a Hello OP (OpenID Provider) that supports the OpenID key binding protocol
+// using the default configuration options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
 func NewHelloKeyBindingOp() BrowserOpenIdProvider {
 	options := GetDefaultHelloOpOptions()
