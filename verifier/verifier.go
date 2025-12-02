@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -70,7 +69,7 @@ func WithExpirationPolicy(expirationPolicy ExpirationPolicy) VerifierOpts {
 	}
 }
 
-func WithCosignerVerifiers(verifiers ...*cosigner.DefaultCosignerVerifier) VerifierOpts {
+func WithCosignerVerifiers(verifiers ...CosignerVerifier) VerifierOpts {
 	return func(v *Verifier) error {
 		for _, verifier := range verifiers {
 			if _, ok := v.cosigners[verifier.Issuer()]; ok {
