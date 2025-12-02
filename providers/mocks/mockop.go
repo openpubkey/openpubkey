@@ -18,6 +18,8 @@ package mocks
 
 import (
 	"crypto"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,23 +28,37 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/oidc"
+	"github.com/openpubkey/openpubkey/util"
 )
 
 type MockOp struct {
 	Issuer              string
 	MockProviderBackend *MockProviderBackend
 	Subjects            []Subject
+	KeyBinding          bool
 
 	authCodes     map[string]AuthSession
-	refreshTokens map[string]Subject
+	refreshTokens map[string]AuthSession
 	httpClient    *http.Client
 }
 
 type AuthSession struct {
 	AuthCode    string
 	Nonce       string
+	Jkt         string // Only used for key binding (JWK thumbprint of the user's bound key)
+	Cnf         []byte // JWK of user's bound key as JSON []byte
 	SubjectAuth Subject
+}
+
+type Subject struct {
+	SubjectID string
+	Claims    map[string]any
+	Protected map[string]any
 }
 
 func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {
@@ -55,8 +71,25 @@ func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {
 		Issuer:              issuer,
 		MockProviderBackend: opBackend,
 		Subjects:            subjects,
+		KeyBinding:          false,
 		authCodes:           map[string]AuthSession{},
-		refreshTokens:       map[string]Subject{},
+		refreshTokens:       map[string]AuthSession{},
+	}, nil
+}
+
+func NewMockKeyBindingOp(issuer string, subjects []Subject) (*MockOp, error) {
+	opBackend, err := NewMockProviderBackend(issuer, "RS256", 2)
+	if err != nil {
+		return nil, err
+	}
+	return &MockOp{
+		httpClient:          nil,
+		Issuer:              issuer,
+		MockProviderBackend: opBackend,
+		Subjects:            subjects,
+		KeyBinding:          true,
+		authCodes:           map[string]AuthSession{},
+		refreshTokens:       map[string]AuthSession{},
 	}, nil
 }
 
@@ -179,6 +212,11 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 		return fmt.Errorf("auth endpoint params (URI=%s) missing redirect_uri", loc)
 	}
 
+	dPopJkt := ""
+	if m.KeyBinding {
+		dPopJkt = locURL.Query().Get("dpop_jkt")
+	}
+
 	cb, err := url.Parse(ruri)
 	if err != nil {
 		return err
@@ -186,7 +224,7 @@ func (m *MockOp) Run(userAuth *UserBrowserInteractionMock) error {
 
 	// Respond with auth code by making request to the client's redirect_uri listener
 	q := cb.Query()
-	authcode := m.CreateAuthCode(nonce, subject)
+	authcode := m.CreateAuthCode(nonce, subject, dPopJkt)
 	q.Set("code", authcode)
 	q.Set("state", state)
 	cb.RawQuery = q.Encode()
@@ -208,12 +246,13 @@ func (m *MockOp) GetTokenURI() string {
 	return m.Issuer + "/token"
 }
 
-func (m *MockOp) CreateAuthCode(nonce string, subject *Subject) string {
+func (m *MockOp) CreateAuthCode(nonce string, subject *Subject, jkt string) string {
 	authcode := fmt.Sprintf("fake-auth-code-%d", len(m.authCodes)+1)
 	authSession := AuthSession{
 		AuthCode:    authcode,
 		Nonce:       nonce,
 		SubjectAuth: *subject,
+		Jkt:         jkt,
 	}
 	m.authCodes[authcode] = authSession
 	return authcode
@@ -304,7 +343,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var subject Subject
+	var authSession AuthSession
 	grantType := req.FormValue("grant_type")
 	switch grantType {
 	case "authorization_code":
@@ -316,18 +355,51 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		if authSession.Nonce == "" {
 			return nil, fmt.Errorf("unknown auth code: %s", authCode)
 		}
-		subject = authSession.SubjectAuth
+		if m.KeyBinding {
+			dpop := req.Header.Get("DPoP")
+			if dpop == "" {
+				return nil, fmt.Errorf("missing DPoP header for key binding token request")
+			}
+
+			jktExpected := authSession.Jkt
+			if jktExpected == "" {
+				return nil, fmt.Errorf("no JKT registered for auth code: %s", authCode)
+			}
+
+			cHash := sha256.Sum256([]byte(authSession.AuthCode))
+			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
+			claimsRequired := map[string]any{
+				"c_hash": cHashB64,
+				"htm":    "POST",
+				"htu":    m.GetTokenURI(),
+			}
+
+			jwkMap, err := validateDPoPReturnJwk(dpop, jktExpected, claimsRequired)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate DPoP JWT: %w", err)
+			}
+
+			m.MockProviderBackend.IDTokenTemplate.ExtraClaims = map[string]any{
+				"cnf": map[string]any{
+					"jwk": jwkMap,
+				},
+			}
+			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
+				"typ": "id_token+cnf",
+			}
+		}
 		cicHash := authSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
+
 	case "refresh_token":
 		refreshToken := req.FormValue("refresh_token")
 		var ok bool
-		subject, ok = m.refreshTokens[refreshToken]
+		authSession, ok = m.refreshTokens[refreshToken]
 		if !ok {
 			return nil, fmt.Errorf("unknown refresh token: %s", refreshToken)
 		}
-
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
+		// TODO: require DPoP proof here, when we add refresh token DPoP support if m.KeyBinding {}
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}
@@ -337,7 +409,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		return nil, err
 	}
 	tokens.RefreshToken = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
-	m.refreshTokens[string(tokens.RefreshToken)] = subject
+	m.refreshTokens[string(tokens.RefreshToken)] = authSession
 
 	type tokenResponse struct {
 		AccessToken  string `json:"access_token"`
@@ -375,8 +447,49 @@ func (u *UserBrowserInteractionMock) BrowserOpenOverrideFunc(op *MockOp) func(st
 	}
 }
 
-type Subject struct {
-	SubjectID string
-	Claims    map[string]any
-	Protected map[string]any
+func validateDPoPReturnJwk(dpop string, jktExpected string, claimsRequired map[string]any) (map[string]string, error) {
+	dpopJwt, err := oidc.NewDpopJwt([]byte(dpop))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DPoP JWT: %w", err)
+	}
+
+	jwkJson, err := dpopJwt.GetJWKIfClaimsMatch(claimsRequired)
+	if err != nil {
+		return nil, fmt.Errorf("DPoP claims validation failed: %w", err)
+	}
+
+	key, err := jwk.ParseKey(jwkJson)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check that the JWK thumbprint of public key in the DPoP header matches the JKT specified by the user
+	jktGot, err := key.Thumbprint(crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	jktGotb64 := util.Base64EncodeForJWT(jktGot)
+	if string(jktGotb64) != jktExpected {
+		return nil, fmt.Errorf("JWK thumbprint mismatch, expected %s, got %s", jktExpected, string(jktGotb64))
+	}
+
+	// Ensure that the alg match (DPoPheader.sig.ph.alg == DPoPheader.sig.ph.jwk.alg)
+	algInPh := dpopJwt.GetSignature().GetProtectedClaims().Alg
+	if algInPh == "" {
+		return nil, fmt.Errorf("no alg in protected header of DPoP header")
+	}
+	if algInPh != key.Algorithm().String() {
+		return nil, fmt.Errorf("in DPoP header the alg (%s) in JWK doesn't match alg (%s) in protected header", key.Algorithm(), algInPh)
+	}
+
+	// Check that the DPoP header is correctly signed by the JWK in the DPoP header
+	if _, err := jws.Verify([]byte(dpopJwt.GetRaw()), jws.WithKey(jwa.KeyAlgorithmFrom(algInPh), key)); err != nil {
+		return nil, fmt.Errorf("failed to verify DPoP header signature: %w", err)
+	}
+
+	var jwkKey map[string]string
+	if err := json.Unmarshal(jwkJson, &jwkKey); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JWK into DPoP header: %w", err)
+	}
+	return jwkKey, nil
 }

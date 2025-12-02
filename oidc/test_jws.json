@@ -1,0 +1,21 @@
+{
+  "payload": {
+    "aud": "abc",
+    "email": "alice@example.com",
+    "exp": 34,
+    "iat": 12,
+    "iss": "https://example.com",
+    "nonce": "0x0BEE",
+    "sub": "123"
+  },
+  "signatures": [
+    {
+      "protected": {
+        "alg": "RS256",
+        "kid": "1234",
+        "typ": "JWT"
+      },
+      "signature": "ZmFrZXNpZ25hdHVyZQ"
+    }
+  ]
+}
