@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"encoding/json"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -69,4 +70,15 @@ func DeterministicTestKeyPair(t *testing.T, alg string) crypto.Signer {
 		t.Fatalf("unsupported algorithm for deterministic key pair: %s", alg)
 		return nil
 	}
+}
+
+// NewTestKeyPairs is used for creating JSON representations of JWKs for tests.
+// This is how we generate the embedded JWKs for our unittests.
+func NewTestKeyPairs(t *testing.T, signer crypto.Signer) []byte {
+	privJWK, err := jwk.FromRaw(signer)
+	require.NoError(t, err)
+
+	jwkJson, err := json.MarshalIndent(privJWK, "", "  ")
+	require.NoError(t, err)
+	return jwkJson
 }

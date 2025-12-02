@@ -18,7 +18,6 @@ package providers
 
 import (
 	"crypto"
-	"encoding/json"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
@@ -57,15 +56,4 @@ func GenCICDeterministic(t *testing.T, extraClaims map[string]any) (*clientinsta
 	signer := testutils.DeterministicTestKeyPair(t, alg)
 	cic := GenCICEverything(t, extraClaims, signer, alg)
 	return cic, signer, alg
-}
-
-// NewTestKeyPairs is used for creating JSON representations of JWKs for tests.
-// This is how we generate the embedded JWKs for our unittests.
-func NewTestKeyPairs(t *testing.T, signer crypto.Signer) []byte {
-	privJWK, err := jwk.FromRaw(signer)
-	require.NoError(t, err)
-
-	jwkJson, err := json.MarshalIndent(privJWK, "", "  ")
-	require.NoError(t, err)
-	return jwkJson
 }
