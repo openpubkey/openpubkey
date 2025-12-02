@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -65,6 +66,16 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.ECDSADKey:    "870MB6gfuTJ4HtUnUvYMyJpr5eUZNP4Bk43bVdj3eAE",
 			},
 			expectedAlg: jwa.ES256.String(),
+		},
+		{
+			name: "alg=EdDSA",
+			keyJson: map[string]string{
+				jwk.AlgorithmKey: "EdDSA",
+				jwk.KeyTypeKey:   "OKP",
+				jwk.OKPCrvKey:    "Ed25519",
+				jwk.OKPXKey:      "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+			},
+			expectedAlg: jwa.EdDSA.String(),
 		},
 		{
 			name: "alg is missing",
@@ -140,6 +151,15 @@ func TestPublicKeyFinder(t *testing.T) {
 	algs = append(algs, string(jwa.ES256))
 	idToken := CreateIDToken(t, issuer, signer, string(jwa.ES256), "ABCDEF")
 	idTokens = append(idTokens, idToken)
+
+	// Add EdDSA key
+	edPubKey, edPrivKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	publicKeys = append(publicKeys, edPubKey)
+	keyIDs = append(keyIDs, "ED25519-KEY")
+	algs = append(algs, string(jwa.EdDSA))
+	edToken := CreateIDToken(t, issuer, edPrivKey, string(jwa.EdDSA), "ED25519-KEY")
+	idTokens = append(idTokens, edToken)
 
 	mockJwks, err := MockGetJwksByIssuer(publicKeys, keyIDs, algs)
 	require.NoError(t, err)
