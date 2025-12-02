@@ -17,11 +17,13 @@
 package providers
 
 import (
+	"crypto"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/testutils"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -34,6 +36,10 @@ func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claim
 	alg := jwa.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
+	return GenCICEverything(t, extraClaims, signer, alg.String())
+}
+
+func GenCICEverything(t *testing.T, extraClaims map[string]any, signer crypto.Signer, alg string) *clientinstance.Claims {
 	jwkKey, err := jwk.PublicKeyOf(signer)
 	require.NoError(t, err)
 	err = jwkKey.Set(jwk.AlgorithmKey, alg)
@@ -41,4 +47,13 @@ func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claim
 	cic, err := clientinstance.NewClaims(jwkKey, extraClaims)
 	require.NoError(t, err)
 	return cic
+}
+
+// GenCICDeterministic generates a CIC using a fixed key pair for testing purposes.
+// Only use in tests. This would be wildly insecure in production as the secret key is a public value.
+func GenCICDeterministic(t *testing.T, extraClaims map[string]any) (*clientinstance.Claims, crypto.Signer, string) {
+	alg := "ES256"
+	signer := testutils.DeterministicTestKeyPair(t, alg)
+	cic := GenCICEverything(t, extraClaims, signer, alg)
+	return cic, signer, alg
 }

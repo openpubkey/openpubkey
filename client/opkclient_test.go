@@ -25,6 +25,7 @@ import (
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
@@ -257,4 +258,32 @@ func TestClientRefreshNotSupported(t *testing.T) {
 
 	_, err = c.Refresh(context.Background())
 	require.ErrorContains(t, err, "does not support OIDC refresh requests")
+}
+
+func TestKeybinding(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	op, err := providers.CreateMockHelloKeyBindingOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	c, err := client.New(op)
+	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	idt, err := oidc.NewJwt(pkt.OpToken)
+	require.NoError(t, err)
+
+	require.NotNil(t, idt.GetClaims().Cnf, "expected cnf claim in key-bound ID token")
+	require.Len(t, idt.GetClaims().Cnf.Jwk, 5, "expected jwk in cnf claim of key-bound ID token")
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+
+	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
 }

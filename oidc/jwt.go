@@ -65,6 +65,22 @@ func (i *Jwt) GetRaw() []byte {
 	return i.raw
 }
 
+// Jws returns the JWS representation of this JWT
+func (i *Jwt) Jws() (Jws, error) {
+	return Jws{
+		Payload:    i.payload,
+		Signatures: []Signature{*i.signature},
+	}, nil
+}
+
+func (i *Jwt) PrettyJson() ([]byte, error) {
+	jwsObj, err := i.Jws()
+	if err != nil {
+		return nil, err
+	}
+	return jwsObj.PrettyJson()
+}
+
 // Compares two JWTs and determines if they are for the same identity (subject)
 func SameIdentity(t1, t2 []byte) error {
 	token1, err := NewJwt(t1)
