@@ -59,7 +59,11 @@ func NewDpopJwt(token []byte) (*DpopJwt, error) {
 	return dpopJwt, nil
 }
 
-func (d *DpopJwt) GetJWKIfClaimsMatch(expectedClaims map[string]any) ([]byte, error) {
+// GetJWKIfClaimsMatch returns the JWK from the protected header
+// of the DPoP JWT if and only if
+// 1. the claims in the DPoP match the required claims argument
+// 2. and the DPoP JWT IAT is more recent than 60 seconds ago.
+func (d *DpopJwt) GetJWKIfClaimsMatch(requiredClaims map[string]any) ([]byte, error) {
 	raw := d.signature.protectedClaims.Jwk
 	if raw == nil {
 		return nil, fmt.Errorf("no jwk in protected header")
@@ -69,7 +73,7 @@ func (d *DpopJwt) GetJWKIfClaimsMatch(expectedClaims map[string]any) ([]byte, er
 		return nil, err
 	}
 
-	if _, err := d.payloadClaims.MatchesClaims(expectedClaims); err != nil {
+	if _, err := d.payloadClaims.MatchesClaims(requiredClaims); err != nil {
 		return nil, fmt.Errorf("DPoP claims do not match expected values: %w", err)
 	}
 
