@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -42,34 +43,46 @@ type PublicKeyRecord struct {
 }
 
 func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
-	var pubKey interface{}
-	if key.Algorithm() == jwa.RS256 {
-		pubKey = new(rsa.PublicKey)
-	} else if key.Algorithm() == jwa.ES256 {
-		pubKey = new(ecdsa.PublicKey)
-	} else if key.Algorithm().String() == "" {
-		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
-		// handle this case, assume no alg in JWKS means RSA as OIDC requires
-		// OPs use RSA.
-		pubKey = new(rsa.PublicKey)
-	} else {
-		return nil, fmt.Errorf("JWK has unsupported alg (%s)", key.Algorithm())
-	}
-	err := key.Raw(&pubKey)
-	if err != nil {
+	// Let jwx handle the key extraction generically
+	var pubKey crypto.PublicKey
+	if err := key.Raw(&pubKey); err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
-	var alg string
-	if key.Algorithm().String() == "" {
-		alg = jwa.RS256.String()
-	} else {
-		alg = key.Algorithm().String()
+	// If we got a private key (crypto.Signer), extract its public key
+	if signer, ok := pubKey.(crypto.Signer); ok {
+		pubKey = signer.Public()
+	}
+
+	alg := key.Algorithm()
+	if alg.String() == "" {
+		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
+		// handle this case, assume no alg in JWKS means RSA as OIDC requires
+		// OPs use RSA.
+		alg = jwa.RS256
+	}
+
+	// Validate that key type matches the declared algorithm
+	switch alg {
+	case jwa.RS256:
+		if _, ok := pubKey.(*rsa.PublicKey); !ok {
+			return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKey)
+		}
+	case jwa.ES256:
+		if _, ok := pubKey.(*ecdsa.PublicKey); !ok {
+			return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKey)
+		}
+	case jwa.EdDSA:
+		if _, ok := pubKey.(ed25519.PublicKey); !ok {
+			return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKey)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", alg)
 	}
 
 	return &PublicKeyRecord{
 		PublicKey: pubKey,
-		Alg:       alg,
+		Alg:       alg.String(),
 		Issuer:    issuer,
 	}, nil
 }
