@@ -117,8 +117,8 @@ func TestValidateDPoPJwk(t *testing.T) {
 			jwkJson, err := json.Marshal(jwkKey)
 			require.NoError(t, err, tc.name)
 
-			auth_code := "SplxlOBeZQQYbYS6WxSbIA"
-			cHash := sha256.Sum256([]byte(auth_code))
+			authCode := "SplxlOBeZQQYbYS6WxSbIA"
+			cHash := sha256.Sum256([]byte(authCode))
 			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
 
 			dpopPayload := tc.dpopPayload
