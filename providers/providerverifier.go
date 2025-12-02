@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -137,39 +138,39 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 	switch alg {
 	case gq.GQ256:
+		// GQ signatures need special handling (extract original headers, etc.)
 		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
-	case jwa.RS256:
-		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
-		}
-
-		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
-		if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
-			return fmt.Errorf("public key is not an RSA public key")
-		}
-
-		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
-			return err
-		}
-	case jwa.ES256:
-		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
-		}
-
-		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
-		if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
-			return fmt.Errorf("public key is not an ECDSA public key")
-		}
-
-		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
-			return err
-		}
 	default:
-		return fmt.Errorf("unsupported signature algorithm %s", alg)
+		// Generic verification for RS256, ES256, EdDSA, and future algorithms
+		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
+		if err != nil {
+			return fmt.Errorf("failed to get OP public key: %w", err)
+		}
+
+		// Validate that key type matches the algorithm in the token
+		switch alg {
+		case jwa.RS256:
+			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		case jwa.ES256:
+			if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		case jwa.EdDSA:
+			if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		default:
+			return fmt.Errorf("unsupported signature algorithm %s", alg)
+		}
+
+		// jws.Verify handles all algorithms generically
+		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
+			return fmt.Errorf("signature verification failed: %w", err)
+		}
 	}
 
 	if err := v.verifyCommitment(idt, cic); err != nil {

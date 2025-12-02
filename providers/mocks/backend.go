@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -121,6 +122,11 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 			}
 		case "RS256":
 			if signingKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+				return nil, nil, err
+			}
+		case "EdDSA":
+			_, signingKey, err = ed25519.GenerateKey(rand.Reader)
+			if err != nil {
 				return nil, nil, err
 			}
 		default:

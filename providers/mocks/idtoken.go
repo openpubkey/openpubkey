@@ -19,6 +19,7 @@ package mocks
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -130,6 +131,8 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 		providerAlg = jwa.RS256
 	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {
 		providerAlg = jwa.ES256
+	} else if _, ok := t.SigningKey.Public().(ed25519.PublicKey); ok {
+		providerAlg = jwa.EdDSA
 	} else {
 		return nil, fmt.Errorf("unsupported public key type")
 	}
