@@ -48,7 +48,7 @@ func TestKeyBindingProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	op := &KeyBindingOp{
-		StandardOp{
+		StandardOp: StandardOp{
 			clientID:                  "also me",
 			issuer:                    issuer,
 			publicKeyFinder:           providerOverride.PublicKeyFinder,

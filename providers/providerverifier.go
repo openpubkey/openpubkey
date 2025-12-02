@@ -203,6 +203,14 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		return fmt.Errorf("expected key-bound ID token (typ=%v) but got ID Token (typ=%v)", KEYBOUND_TYP, idtTyp)
 	}
 
+	// expectedCommitment := []byte{}
+	// if cic != nil { // Only compute CIC hash in cases where cic is provider (cic not provided in the key-bound case)
+	// 	expectedCommitment, err = cic.Hash()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+
 	expectedCommitment, err := cic.Hash()
 	if err != nil {
 		return err

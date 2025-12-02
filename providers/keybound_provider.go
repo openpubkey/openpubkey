@@ -74,6 +74,51 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 	return nil
 }
 
+// func (s *KeyBindingOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
+// 	return s.StandardOpRefreshable.RefreshTokens(ctx, refreshToken)
+// 	cookieHandler, err := configCookieHandler()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	options := []rp.Option{
+// 		rp.WithCookieHandler(cookieHandler),
+// 		rp.WithVerifierOpts(
+// 			rp.WithIssuedAtOffset(s.IssuedAtOffset),
+// 			rp.WithNonce(nil), // disable nonce check
+// 		),
+// 	}
+// 	if s.HttpClient != nil {
+// 		options = append(options, rp.WithHTTPClient(s.HttpClient))
+// 	}
+
+// 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
+// 	// According to the OIDC spec the only values send on a refresh request are:
+// 	// client_id, client_secret, grant_type, refresh_token, and scope.
+// 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+// 	redirectURI := ""
+// 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
+// 		s.ClientSecret, redirectURI, s.Scopes, options...)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
+// 	}
+// 	retTokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if retTokens.RefreshToken == "" {
+// 		// Google does not rotate refresh tokens, the one you get at the
+// 		// beginning is the only one you'll ever get. This may not be true
+// 		// of OPs.
+// 		retTokens.RefreshToken = string(refreshToken)
+// 	}
+
+// 	return &simpleoidc.Tokens{
+// 		IDToken:      []byte(retTokens.IDToken),
+// 		RefreshToken: []byte(retTokens.RefreshToken),
+// 		AccessToken:  []byte(retTokens.AccessToken)}, nil
+// }
+
 func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(
 		s.issuer,
@@ -84,6 +129,28 @@ func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 		})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
+
+// func (s *KeyBindingOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+// 	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
+// 		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
+// 	}
+// 	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
+// 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
+// 	}
+
+// 	options := []rp.Option{}
+// 	if s.HttpClient != nil {
+// 		options = append(options, rp.WithHTTPClient(s.HttpClient))
+// 	}
+// 	redirectURI := ""
+// 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
+// 		s.ClientSecret, redirectURI, s.Scopes, options...)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create RP to verify token: %w", err)
+// 	}
+// 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
+// 	return err
+// }
 
 func randomB64(n int) string {
 	b := make([]byte, n)
@@ -101,7 +168,7 @@ type dPoPRoundTripper struct {
 }
 
 func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == "/oauth/token" {
+	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
 		u := *req.URL
 		u.Fragment = ""
 		u.Scheme = strings.ToLower(u.Scheme)

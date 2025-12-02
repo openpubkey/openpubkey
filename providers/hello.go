@@ -96,10 +96,10 @@ func NewHelloOp() BrowserOpenIdProvider {
 	return NewHelloOpWithOptions(options)
 }
 
-// NewHelloKeyBindingOp creates a Hello OP (OpenID Provider) that supports the OpenID key binding protocol
-// using the default configuration options. It uses the OIDC Relying Party (Client)
+// NewHelloKeyBindingOp creates a Hello OP (OpenID Provider) with key binding that supports the OpenID key binding protocol
+// using the default configurations options. It uses the OIDC Relying Party (Client)
 // setup by the OpenPubkey project.
-func NewHelloKeyBindingOp() BrowserOpenIdProvider {
+func NewHelloKeyBindingOp() OpenIdProvider {
 	options := GetDefaultHelloOpOptions()
 	return NewHelloKeyBindingOpWithOptions(options)
 }
@@ -137,7 +137,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 // Client or override the configuration.
 func NewHelloKeyBindingOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
 	return &HelloKeyBindingOp{
-		*newHelloOpWithOptions(opts),
+		StandardOp: *newHelloOpWithOptions(opts),
 	}
 }
 
@@ -187,6 +187,48 @@ func CreateMockHelloOpWithOpts(helloOpOpts *HelloOptions, userActions mocks.User
 
 	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
 	op := helloOp.(*StandardOp)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
+}
+
+func CreateMockHelloKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions mocks.UserBrowserInteractionMock) (BrowserOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@gmail.com",
+		},
+	}
+
+	idp, err := mocks.NewMockKeyBindingOp(helloOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
+		Issuer:               helloOpOpts.Issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  helloOpOpts.ClientID,
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	helloOpOpts.HttpClient = rt
+	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
+
+	// TODO: Determine where to put "key binding" in names
+	helloOp := NewHelloKeyBindingOpWithOptions(helloOpOpts)
+
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
+	op := helloOp.(*HelloKeyBindingOp)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 
 	return op, nil
