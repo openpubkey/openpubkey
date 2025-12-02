@@ -98,7 +98,7 @@ func login(outputDir string, gqSign bool) error {
 
 	helloOpOptions := providers.GetDefaultHelloOpOptions()
 	helloOpOptions.GQSign = gqSign
-	helloOp := providers.NewHelloOpWithOptions(helloOpOptions)
+	helloOp := providers.NewHelloKeyBindingOpWithOptions(helloOpOptions)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)

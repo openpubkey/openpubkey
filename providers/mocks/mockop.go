@@ -399,10 +399,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("unknown refresh token: %s", refreshToken)
 		}
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
-
-		if m.KeyBinding {
-			// TODO: require DPoP proof here, when we add refresh token DPoP support
-		}
+		// TODO: require DPoP proof here, when we add refresh token DPoP support if m.KeyBinding {}
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}
