@@ -401,9 +401,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
 
 		if m.KeyBinding {
-			// TODO: require DPoP proof here
-			// TODO: determine public key to put in CNF
-			m.MockProviderBackend.IDTokenTemplate.AddCommit("abcd")
+			// TODO: require DPoP proof here, when we add refresh token DPoP support
 		}
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
