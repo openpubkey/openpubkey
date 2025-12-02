@@ -18,7 +18,6 @@ package providers
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -26,10 +25,13 @@ import (
 	"strings"
 	"testing"
 
+	_ "embed"
+
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
+	"github.com/openpubkey/openpubkey/testutils"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +41,31 @@ var expectedDpopToken []byte
 
 var test_jti = "IQS5tYP-bpBPtJsorT4z7g"
 var test_iat int64 = 1761937449
+
+func TestCreateDPoPToken(t *testing.T) {
+	htm := "POST"
+	htu := "https://op.example.com/token"
+	authcode := "fake-auth-code"
+
+	// use EdDSA so for so the signatures are deterministic in the test
+	alg := "EdDSA"
+	signer := testutils.DeterministicTestKeyPair(t, alg)
+
+	jti := test_jti
+	iat := test_iat
+
+	dpopToken, err := CreateDpopJwt(htm, htu, jti, authcode, iat, signer, alg)
+	require.NoError(t, err)
+	require.NotEmpty(t, dpopToken)
+
+	dpopJwt, err := oidc.NewJwt(dpopToken)
+	require.NoError(t, err)
+
+	dpopJwtJson, err := dpopJwt.PrettyJson()
+	require.NoError(t, err)
+
+	require.Equal(t, string(expectedDpopToken), string(dpopJwtJson))
+}
 
 func TestKeyBindingProvider(t *testing.T) {
 	// This isn't a great test because it doesn't test the client to OP interaction.
@@ -57,7 +84,7 @@ func TestKeyBindingProvider(t *testing.T) {
 	}
 
 	cic, signer, alg := GenCICDeterministic(t, map[string]any{})
-	jwkKey, err := createJWK(signer, alg)
+	jwkKey, err := CreateJWK(signer, alg)
 	require.NoError(t, err)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
@@ -114,31 +141,6 @@ func TestKeyBindingProvider(t *testing.T) {
 
 	err = op.VerifyIDToken(context.Background(), tokens.IDToken, cic)
 	require.NoError(t, err)
-}
-
-func TestCreateDPoPToken(t *testing.T) {
-	htm := "POST"
-	htu := "https://op.example.com/token"
-	authcode := "fake-auth-code"
-
-	// use EdDSA so for so the signatures are deterministic in the test
-	alg := "EdDSA"
-	signer := DeterministicTestKeyPair(t, alg)
-
-	jti := test_jti
-	iat := test_iat
-
-	dpopToken, err := createDPoPToken(htm, htu, jti, authcode, iat, signer, alg)
-	require.NoError(t, err)
-	require.NotEmpty(t, dpopToken)
-
-	dpopJwt, err := oidc.NewJwt(dpopToken)
-	require.NoError(t, err)
-
-	dpopJwtJson, err := dpopJwt.PrettyJson()
-	require.NoError(t, err)
-
-	require.Equal(t, string(expectedDpopToken), string(dpopJwtJson))
 }
 
 type RoundTripperForTester struct {

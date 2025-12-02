@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package mocks
+package oidc
 
 import (
 	"crypto/sha256"
@@ -30,52 +30,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMockOp(t *testing.T) {
-	issuer := "https://issuer.example.com"
-	clientId := "test-client-id"
+func TestDPoPMatch(t *testing.T) {
+	iatNow := time.Now().Unix()
 
-	idp, err := NewMockOp(issuer, []Subject{
-		{
-			SubjectID: "alice@example.com",
+	testCases := []struct {
+		name        string
+		dpopClaims  DpopClaims
+		claimMap    map[string]any
+		expectedErr string
+	}{
+		{name: "Happy path",
+			dpopClaims: DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "unique-jti", Iat: iatNow},
+			claimMap:   map[string]any{"htm": "GET", "htu": "https://example.com/resource", "jti": "unique-jti", "iat": iatNow},
 		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, idp)
-
-	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
-	idp.MockProviderBackend.IDTokenTemplate = &IDTokenTemplate{
-		CommitFunc: AddNonceCommit,
-		Issuer:     issuer,
-		Nonce:      "empty",
-		NoNonce:    false,
-		Aud:        clientId,
-		KeyID:      expKeyID,
-		NoKeyID:    false,
-		Alg:        expRecord.Alg,
-		NoAlg:      false,
-		SigningKey: expSigningKey,
+		{name: "Claim doesn't match",
+			dpopClaims:  DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "different-jti"},
+			claimMap:    map[string]any{"htm": "GET", "htu": "https://example.com/resource", "jti": "unique-jti"},
+			expectedErr: "claim jti in DPoP has unexpected value, got different-jti, want unique-jti"},
+		{name: "Claim doesn't exist",
+			dpopClaims:  DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "different-jti"},
+			claimMap:    map[string]any{"cHash": "abc123"},
+			expectedErr: "claim cHash not found in DPoP"},
+		{name: "Claim has different type",
+			dpopClaims:  DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "different-jti"},
+			claimMap:    map[string]any{"htm": "GET", "jti": 12345},
+			expectedErr: "claim jti in DPoP has wrong type, got int, want string"},
 	}
 
-	subject := Subject{
-		SubjectID: "alice@example.com",
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, err := tc.dpopClaims.MatchesClaims(tc.claimMap)
+			if tc.expectedErr == "" {
+				require.NoError(t, err, tc.name)
+				require.True(t, ok, tc.name)
+			} else {
+				require.Error(t, err, tc.name)
+				require.Contains(t, err.Error(), tc.expectedErr, tc.name)
+				require.False(t, ok, tc.name)
+			}
 
-	rt := idp.GetHTTPClient()
-	require.NotNil(t, rt)
-	jkt := "" // No key binding in this test
-	require.Contains(t, idp.CreateAuthCode("test-nonce", &subject, jkt), "fake-auth-code-")
+		})
+	}
 }
 
-func TestValidateDPoPReturnJwk(t *testing.T) {
+func TestValidateDPoPJwk(t *testing.T) {
 	testCases := []struct {
 		name        string
 		alg         string
-		jkt         string
 		dpopPayload map[string]any
 		expectedErr string
 	}{
 		{name: "Happy case (ES256)", alg: "ES256",
-			jkt: "dnfb1T9jil_gOhti60baHs_WD_a4D8JN9VDJXbmBmGw",
 			dpopPayload: map[string]any{
 				"htm": "POST",
 				"htu": "https://issuer.hello.coop/token",
@@ -84,7 +89,6 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 			},
 			expectedErr: ""},
 		{name: "Happy case (EdDSA)", alg: "EdDSA",
-			jkt: "Pdzg6MNo5Ns8YgL-IGl64DQLUNbN1QlWznz-skHMEPY",
 			dpopPayload: map[string]any{
 				"htm": "POST",
 				"htu": "https://issuer.hello.coop/token",
@@ -93,14 +97,13 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 			},
 			expectedErr: ""},
 		{name: "Expired IAT case (EdDSA)", alg: "EdDSA",
-			jkt: "wrongjktthumbprint",
 			dpopPayload: map[string]any{
 				"htm": "POST",
 				"htu": "https://issuer.hello.coop/token",
-				"iat": time.Now().Unix(),
+				"iat": time.Now().Unix() - 3600,
 				"jti": "y3MzLWnhkw3dYSfBvSykEw",
 			},
-			expectedErr: "JWK thumbprint mismatch"},
+			expectedErr: "PoP header is expired"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -140,13 +143,12 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 				"c_hash": cHashB64,
 			}
 
-			jwkMapRet, err := validateDPoPReturnJwk(string(jwsDpopCompact), string(tc.jkt), requiredClaims)
+			dpopJwt, err := NewDpopJwt(jwsDpopCompact)
+			require.NoError(t, err, tc.name)
+
+			jwkJsonRet, err := dpopJwt.GetJWKIfClaimsMatch(requiredClaims)
 			if tc.expectedErr == "" {
 				require.NoError(t, err, tc.name)
-
-				jwkJsonRet, err := json.Marshal(jwkMapRet)
-				require.NoError(t, err, tc.name)
-
 				require.Equal(t, string(jwkJson), string(jwkJsonRet), "validated JWK does not match expected JWK", tc.name)
 			} else {
 				require.Error(t, err, tc.name)

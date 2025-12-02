@@ -32,6 +32,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
@@ -56,7 +57,7 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 
 	s.Scopes = append(s.Scopes, "bound_key")
 
-	jktb64, err := createJKT(kbSigner, kbAlg)
+	jktb64, err := CreateJKT(kbSigner, kbAlg)
 	if err != nil {
 		return err
 	}
@@ -74,51 +75,6 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 	return nil
 }
 
-// func (s *KeyBindingOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
-// 	return s.StandardOpRefreshable.RefreshTokens(ctx, refreshToken)
-// 	cookieHandler, err := configCookieHandler()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	options := []rp.Option{
-// 		rp.WithCookieHandler(cookieHandler),
-// 		rp.WithVerifierOpts(
-// 			rp.WithIssuedAtOffset(s.IssuedAtOffset),
-// 			rp.WithNonce(nil), // disable nonce check
-// 		),
-// 	}
-// 	if s.HttpClient != nil {
-// 		options = append(options, rp.WithHTTPClient(s.HttpClient))
-// 	}
-
-// 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
-// 	// According to the OIDC spec the only values send on a refresh request are:
-// 	// client_id, client_secret, grant_type, refresh_token, and scope.
-// 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
-// 	redirectURI := ""
-// 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-// 		s.ClientSecret, redirectURI, s.Scopes, options...)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
-// 	}
-// 	retTokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	if retTokens.RefreshToken == "" {
-// 		// Google does not rotate refresh tokens, the one you get at the
-// 		// beginning is the only one you'll ever get. This may not be true
-// 		// of OPs.
-// 		retTokens.RefreshToken = string(refreshToken)
-// 	}
-
-// 	return &simpleoidc.Tokens{
-// 		IDToken:      []byte(retTokens.IDToken),
-// 		RefreshToken: []byte(retTokens.RefreshToken),
-// 		AccessToken:  []byte(retTokens.AccessToken)}, nil
-// }
-
 func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
 	vp := NewProviderVerifier(
 		s.issuer,
@@ -129,28 +85,6 @@ func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 		})
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
-
-// func (s *KeyBindingOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
-// 	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
-// 		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
-// 	}
-// 	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
-// 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
-// 	}
-
-// 	options := []rp.Option{}
-// 	if s.HttpClient != nil {
-// 		options = append(options, rp.WithHTTPClient(s.HttpClient))
-// 	}
-// 	redirectURI := ""
-// 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, s.issuer, s.clientID,
-// 		s.ClientSecret, redirectURI, s.Scopes, options...)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create RP to verify token: %w", err)
-// 	}
-// 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
-// 	return err
-// }
 
 func randomB64(n int) string {
 	b := make([]byte, n)
@@ -195,7 +129,7 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		jti := randomB64(16)
 		iat := time.Now().Add(-30 * time.Second).Unix()
 
-		token, err := createDPoPToken(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
+		token, err := CreateDpopJwt(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
 		if err != nil {
 			return nil, err
 		}
@@ -206,8 +140,10 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return t.Base.RoundTrip(req)
 }
 
-func createDPoPToken(htm, htu, jti, authcode string, iat int64, signer crypto.Signer, alg string) ([]byte, error) {
-	jwkKey, err := createJWK(signer, alg)
+// CreateDpopJwt creates a DPoP JWT for the given parameters and signs it with
+// the provided signer and algorithm and returns it as a compact JWT.
+func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Signer, alg string) ([]byte, error) {
+	jwkKey, err := CreateJWK(signer, alg)
 	if err != nil {
 		return nil, err
 	}
@@ -224,12 +160,12 @@ func createDPoPToken(htm, htu, jti, authcode string, iat int64, signer crypto.Si
 	}
 
 	cHash := sha256.Sum256([]byte(authcode))
-	payload := map[string]any{
-		"htm":    htm,
-		"htu":    htu,
-		"jti":    jti,
-		"iat":    iat,
-		"c_hash": base64.RawURLEncoding.EncodeToString(cHash[:]),
+	payload := oidc.DpopClaims{
+		Htm:   htm,
+		Htu:   htu,
+		Jti:   jti,
+		Iat:   iat,
+		CHash: base64.RawURLEncoding.EncodeToString(cHash[:]),
 	}
 
 	payloadStr, err := json.Marshal(payload)
@@ -244,8 +180,8 @@ func createDPoPToken(htm, htu, jti, authcode string, iat int64, signer crypto.Si
 	)
 }
 
-func createJKT(signer crypto.Signer, alg string) ([]byte, error) {
-	jwkKey, err := createJWK(signer, alg)
+func CreateJKT(signer crypto.Signer, alg string) ([]byte, error) {
+	jwkKey, err := CreateJWK(signer, alg)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +192,7 @@ func createJKT(signer crypto.Signer, alg string) ([]byte, error) {
 	return util.Base64EncodeForJWT(thumbprint), nil
 }
 
-func createJWK(signer crypto.Signer, alg string) (jwk.Key, error) {
+func CreateJWK(signer crypto.Signer, alg string) (jwk.Key, error) {
 	jwkKey, err := jwk.PublicKeyOf(signer.Public())
 	if err != nil {
 		return nil, err

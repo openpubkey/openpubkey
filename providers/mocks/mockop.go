@@ -28,9 +28,11 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -366,22 +368,20 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 
 			cHash := sha256.Sum256([]byte(authSession.AuthCode))
 			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
-			requiredClaims := map[string]string{
+			claimsRequired := map[string]any{
 				"c_hash": cHashB64,
-			}
-			jwkJson, err := validateDPoPJwk(jktExpected, dpop, requiredClaims)
-			if err != nil {
-				return nil, fmt.Errorf("DPoP header validation failed: %w", err)
+				"htm":    "POST",
+				"htu":    m.GetTokenURI(),
 			}
 
-			var jwkKey map[string]string
-			if err := json.Unmarshal(jwkJson, &jwkKey); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal JWK into DPoP header: %w", err)
+			jwkMap, err := validateDPoPReturnJwk(dpop, jktExpected, claimsRequired)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate DPoP JWT: %w", err)
 			}
 
 			m.MockProviderBackend.IDTokenTemplate.ExtraClaims = map[string]any{
 				"cnf": map[string]any{
-					"jwk": jwkKey,
+					"jwk": jwkMap,
 				},
 			}
 			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
@@ -452,47 +452,21 @@ func (u *UserBrowserInteractionMock) BrowserOpenOverrideFunc(op *MockOp) func(st
 	}
 }
 
-func validateDPoPJwk(jktExpected string, dpop string, expectedClaims map[string]string) ([]byte, error) {
-	dpopJwt, err := jws.Parse([]byte(dpop))
+func validateDPoPReturnJwk(dpop string, jktExpected string, claimsRequired map[string]any) (map[string]string, error) {
+	dpopJwt, err := oidc.NewDpopJwt([]byte(dpop))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse DPoP header as JWS: %w", err)
+		return nil, fmt.Errorf("failed to parse DPoP JWT: %w", err)
 	}
-	sigs := dpopJwt.Signatures()
-	if len(sigs) != 1 {
-		return nil, fmt.Errorf("expected exactly one signature in DPoP header, got %d", len(sigs))
-	}
-	raw, ok := sigs[0].ProtectedHeaders().Get("jwk")
-	if !ok {
-		return nil, fmt.Errorf("no jwk in protected header")
-	}
-	jwkJson, err := json.Marshal(raw)
+
+	jwkJson, err := dpopJwt.GetJWKIfClaimsMatch(claimsRequired)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("DPoP claims validation failed: %w", err)
 	}
+
 	key, err := jwk.ParseKey(jwkJson)
 	if err != nil {
 		return nil, err
 	}
-
-	var claims map[string]any
-	err = json.Unmarshal(dpopJwt.Payload(), &claims)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse DPoP header payload: %w", err)
-	}
-
-	for claim, expectedValue := range expectedClaims {
-		gotValue, ok := claims[claim]
-		if !ok {
-			return nil, fmt.Errorf("missing required claim %s in DPoP header", claim)
-		}
-
-		// This code is intended only for mocking so this casting to string is sufficient. Consider carefully before using this in production.
-		if fmt.Sprintf("%v", gotValue) != expectedValue {
-			return nil, fmt.Errorf("claim %s in DPoP header has unexpected value, got %v, want %s", claim, gotValue, expectedValue)
-		}
-	}
-
-	// TODO: check iat, htm and htu claims match expected values
 
 	// Check that the JWK thumbprint of public key in the DPoP header matches the JKT specified by the user
 	jktGot, err := key.Thumbprint(crypto.SHA256)
@@ -501,22 +475,26 @@ func validateDPoPJwk(jktExpected string, dpop string, expectedClaims map[string]
 	}
 	jktGotb64 := util.Base64EncodeForJWT(jktGot)
 	if string(jktGotb64) != jktExpected {
-		return nil, fmt.Errorf("JWK thumbprint mismatch, expected %s, got %s", jktExpected, string(jktGot))
+		return nil, fmt.Errorf("JWK thumbprint mismatch, expected %s, got %s", jktExpected, string(jktGotb64))
 	}
 
 	// Ensure that the alg match (DPoPheader.sig.ph.alg == DPoPheader.sig.ph.jwk.alg)
-	algInPh := sigs[0].ProtectedHeaders().Algorithm()
+	algInPh := dpopJwt.GetSignature().GetProtectedClaims().Alg
 	if algInPh == "" {
 		return nil, fmt.Errorf("no alg in protected header of DPoP header")
 	}
-	if algInPh != key.Algorithm() {
+	if algInPh != key.Algorithm().String() {
 		return nil, fmt.Errorf("in DPoP header the alg (%s) in JWK doesn't match alg (%s) in protected header", key.Algorithm(), algInPh)
 	}
 
 	// Check that the DPoP header is correctly signed by the JWK in the DPoP header
-	if _, err := jws.Verify([]byte(dpop), jws.WithKey(algInPh, key)); err != nil {
+	if _, err := jws.Verify([]byte(dpopJwt.GetRaw()), jws.WithKey(jwa.KeyAlgorithmFrom(algInPh), key)); err != nil {
 		return nil, fmt.Errorf("failed to verify DPoP header signature: %w", err)
 	}
 
-	return jwkJson, nil
+	var jwkKey map[string]string
+	if err := json.Unmarshal(jwkJson, &jwkKey); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JWK into DPoP header: %w", err)
+	}
+	return jwkKey, nil
 }
