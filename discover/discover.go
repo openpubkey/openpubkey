@@ -44,6 +44,7 @@ type PublicKeyRecord struct {
 
 func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	// Let jwx handle the key extraction generically
+	// NOTE: this will pass through private keys as well as public keys
 	var pubKey crypto.PublicKey
 	if err := key.Raw(&pubKey); err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
