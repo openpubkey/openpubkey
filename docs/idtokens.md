@@ -1,6 +1,6 @@
 # ID Token Zoo
 
-This document contains example ID Tokens from different providers. We do include the signatures.
+This document contains example ID Tokens from different providers. We truncate the signatures.
 
 ## Azure
 
@@ -183,5 +183,70 @@ This was generated using <https://playground.hello.dev/> with gitlab claims enab
       "signature": "CqXs..."
     }
   ]
+}
+```
+
+## AWS Cognito
+
+### ID Token (with token revocation enabled)
+
+```json
+{
+    "payload": {
+        "at_hash": "-9rmUKO5T6OZrkWR_dnZzQ",
+        "sub": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "email_verified": true,
+        "iss": "https:\/\/cognito-idp.us-east-1.amazonaws.com\/us-east-1_FqOCYEQAc",
+        "cognito:username": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "nonce": "Ze_mXtKziFWWMbt_7B0IBYIylXg1qVbtyUnwVBkkA1I",
+        "origin_jti": "d1c87520-e3a5-489b-90c5-3c86e5bc20d6",
+        "aud": "7mutue6chhphanddiel1r4u0qv",
+        "token_use": "id",
+        "auth_time": 1764973015,
+        "exp": 1764976615,
+        "iat": 1764973015,
+        "jti": "2178848f-99ae-4389-a4e2-155d6c60594a",
+        "email": "alice@example.com"
+    },
+    "signatures": [
+        {
+            "protected": {
+                "kid": "UGIevE1I5DkrQL0VFF7nRif5Z5G5PXaHEArHtBu\/HM0=",
+                "alg": "RS256"
+            },
+            "signature": "Q7kGG..."
+        }
+    ]
+}
+```
+
+### ID Token (without token revocation enabled)
+
+```json
+{
+    "payload": {
+        "at_hash": "aeOHnzHGgPHiyI2Kvw4tcQ",
+        "sub": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "email_verified": true,
+        "iss": "https:\/\/cognito-idp.us-east-1.amazonaws.com\/us-east-1_FqOCYEQAc",
+        "cognito:username": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "nonce": "uhPcEjVMklIg5qrC10ToRfD_KiE6GCsXQYNs8Gi4hao",
+        "aud": "1gf0blnk3kkj5njus0fgqj4qd4",
+        "event_id": "01007bb1-7b8b-412b-b095-846501c77b2c",
+        "token_use": "id",
+        "auth_time": 1764972249,
+        "exp": 1764975849,
+        "iat": 1764972249,
+        "email": "alice@example.com"
+    },
+    "signatures": [
+        {
+            "protected": {
+                "kid": "UGIevE1I5DkrQL0VFF7nRif5Z5G5PXaHEArHtBu\/HM0=",
+                "alg": "RS256"
+            },
+            "signature": "Q7kGG..."
+        }
+    ]
 }
 ```
