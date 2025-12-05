@@ -1,6 +1,6 @@
 # ID Token Zoo
 
-This document contains example ID Tokens from different providers. We truncate include the signatures.
+This document contains example ID Tokens from different providers. We truncate the signatures.
 
 ## Azure
 
