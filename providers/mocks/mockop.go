@@ -399,7 +399,38 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("unknown refresh token: %s", refreshToken)
 		}
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
-		// TODO: require DPoP proof here, when we add refresh token DPoP support if m.KeyBinding {}
+
+		if m.KeyBinding {
+			dpop := req.Header.Get("DPoP")
+			if dpop == "" {
+				return nil, fmt.Errorf("missing DPoP header for key binding token request")
+			}
+
+			if authSession.Jkt == "" {
+				return nil, fmt.Errorf("no JKT registered for refresh token: %s", refreshToken)
+			}
+
+			claimsRequired := map[string]any{
+				"htm": "POST",
+				"htu": m.GetTokenURI(),
+			}
+
+			// Passing the authSession.Jkt here forces the JWK to be the same as the JWK in the original token request
+			jwkMap, err := validateDPoPReturnJwk(dpop, authSession.Jkt, claimsRequired)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate DPoP JWT: %w", err)
+			}
+
+			m.MockProviderBackend.IDTokenTemplate.ExtraClaims = map[string]any{
+				"cnf": map[string]any{
+					"jwk": jwkMap,
+				},
+			}
+			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
+				"typ": "id_token+cnf",
+			}
+		}
+
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}
