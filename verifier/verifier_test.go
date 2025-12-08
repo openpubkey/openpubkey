@@ -25,6 +25,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/jose"
 	pktoken_mocks "github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
@@ -272,7 +273,7 @@ func TestVerifierExpirationPolicy(t *testing.T) {
 
 func TestCICSignature(t *testing.T) {
 	clientID := "test_client_id"
-	alg := jwa.ES256()
+	alg := jose.ES256
 	cicSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 	sigFailure := "error verifying client signature on PK Token"

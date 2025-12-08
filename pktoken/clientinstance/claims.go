@@ -23,9 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -107,8 +108,9 @@ func (c *Claims) PublicKey() jwk.Key { // TODO: jwx/v3 in public API
 }
 
 // TODO: Are we okay changing the public interface or hide this?
-func (c *Claims) KeyAlgorithm() (jwa.KeyAlgorithm, bool) { // TODO: jwx/v3 in public API
-	return c.publicKey.Algorithm()
+func (c *Claims) KeyAlgorithm() (jose.KeyAlgorithm, bool) {
+	alg, ok := c.publicKey.Algorithm()
+	return jwx.ToJoseAlgorithm(alg), ok
 }
 
 // Returns a hash of all client instance claims which includes a random value
@@ -123,7 +125,7 @@ func (c *Claims) Hash() ([]byte, error) {
 
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
-func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []byte) ([]byte, error) { // TODO: jwx/v3 in public API
+func (c *Claims) Sign(signer crypto.Signer, algorithm jose.KeyAlgorithm, token []byte) ([]byte, error) {
 	_, payload, _, err := jws.SplitCompact(token)
 	if err != nil {
 		return nil, err
@@ -142,10 +144,15 @@ func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []
 		}
 	}
 
+	jwxAlg, ok := jwx.FromJoseAlgorithm(algorithm)
+	if !ok {
+		return nil, fmt.Errorf("unsupported key algorithm: %s", algorithm)
+	}
+
 	cicToken, err := jws.Sign(
 		payloadDecoded,
 		jws.WithKey(
-			algorithm,
+			jwxAlg,
 			signer,
 			jws.WithProtectedHeaders(headers),
 		),

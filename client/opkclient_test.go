@@ -21,10 +21,11 @@ import (
 	"crypto/rsa"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/client/choosers"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/providers"
@@ -40,14 +41,14 @@ func TestClient(t *testing.T) {
 		name        string
 		gq          bool
 		signer      bool
-		signerAlg   jwa.KeyAlgorithm
+		signerAlg   jose.KeyAlgorithm
 		extraClaims map[string]string
 	}{
 		{name: "without GQ", gq: false, signer: false},
 		{name: "with GQ", gq: true, signer: false},
-		{name: "with GQ, with signer", gq: true, signer: true, signerAlg: jwa.RS256()},
-		{name: "with GQ, with signer, with empty extraClaims", gq: true, signer: true, signerAlg: jwa.ES256(), extraClaims: map[string]string{}},
-		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, signerAlg: jwa.ES256(), extraClaims: map[string]string{"extra": "yes"}},
+		{name: "with GQ, with signer", gq: true, signer: true, signerAlg: jose.RS256},
+		{name: "with GQ, with signer, with empty extraClaims", gq: true, signer: true, signerAlg: jose.ES256, extraClaims: map[string]string{}},
+		{name: "with GQ, with signer, with extraClaims", gq: true, signer: true, signerAlg: jose.ES256, extraClaims: map[string]string{"extra": "yes"}},
 		{name: "with GQ, with extraClaims", gq: true, signer: false, extraClaims: map[string]string{"extra": "yes", "aaa": "bbb"}},
 	}
 
@@ -88,7 +89,7 @@ func TestClient(t *testing.T) {
 				pkt, err = c.Auth(context.Background(), extraClaimsOpts...)
 				require.NoError(t, err, tc.name)
 
-				cicPH, err := util.HeadersAsMap(pkt.Cic.ProtectedHeaders())
+				cicPH, err := jwx.HeadersAsMap(pkt.Cic.ProtectedHeaders())
 				require.NoError(t, err, tc.name)
 
 				for k, v := range tc.extraClaims {
@@ -112,7 +113,7 @@ func TestClient(t *testing.T) {
 			require.NotNil(t, pktRefreshed)
 
 			if tc.gq {
-				require.Equal(t, gq.GQ256(), providerAlg, tc.name)
+				require.Equal(t, jose.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
 				opPubKey, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
@@ -126,7 +127,7 @@ func TestClient(t *testing.T) {
 				require.True(t, ok, "error verifying OP GQ signature on PK Token (ID Token invalid)")
 			} else {
 				// Expect alg to be RS256 alg when not signing with GQ
-				require.Equal(t, jwa.RS256(), providerAlg, tc.name)
+				require.Equal(t, jose.RS256, providerAlg, tc.name)
 			}
 		})
 	}
@@ -184,7 +185,7 @@ func TestClientWithWebChooser(t *testing.T) {
 	providerAlg, ok := pkt.ProviderAlgorithm()
 	require.True(t, ok, "missing algorithm")
 
-	require.Equal(t, jwa.RS256(), providerAlg)
+	require.Equal(t, jose.RS256, providerAlg)
 
 	cic, err := pkt.GetCicValues()
 	require.NoError(t, err)
@@ -197,7 +198,7 @@ func TestClientWithWebChooser(t *testing.T) {
 }
 
 func TestClientRefreshErrorHandling(t *testing.T) {
-	signerAlg := jwa.ES256()
+	signerAlg := jose.ES256
 
 	providerOpts := providers.DefaultMockProviderOpts()
 	op, _, _, err := providers.NewMockProvider(providerOpts)
@@ -205,7 +206,7 @@ func TestClientRefreshErrorHandling(t *testing.T) {
 
 	signer, err := util.GenKeyPair(signerAlg)
 	require.NoError(t, err)
-	c, err := client.New(op, client.WithSigner(signer, jwa.ES256()))
+	c, err := client.New(op, client.WithSigner(signer, signerAlg))
 	require.NoError(t, err)
 
 	_, err = c.Refresh(context.Background())
@@ -237,7 +238,7 @@ func TestClientRefreshErrorHandling(t *testing.T) {
 }
 
 func TestClientRefreshNotSupported(t *testing.T) {
-	signerAlg := jwa.ES256()
+	signerAlg := jose.ES256
 
 	providerOpts := providers.DefaultMockProviderOpts()
 	op, _, _, err := providers.NewMockProvider(providerOpts)
@@ -249,7 +250,7 @@ func TestClientRefreshNotSupported(t *testing.T) {
 
 	signer, err := util.GenKeyPair(signerAlg)
 	require.NoError(t, err)
-	c, err := client.New(opRefreshUnsupported, client.WithSigner(signer, jwa.ES256()))
+	c, err := client.New(opRefreshUnsupported, client.WithSigner(signer, signerAlg))
 	require.NoError(t, err)
 
 	pkt, err := c.Auth(context.Background())

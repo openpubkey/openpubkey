@@ -25,6 +25,8 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
 
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 
@@ -166,7 +168,7 @@ func (p *PKToken) IdentityString() (string, error) {
 // Signs PK Token and then returns only the payload, header and signature as a JWT
 func (p *PKToken) SignToken(
 	signer crypto.Signer,
-	alg jwa.KeyAlgorithm, // TODO: jwx/v3 in public API
+	alg jose.KeyAlgorithm,
 	protected map[string]any,
 ) ([]byte, error) {
 	headers := jws.NewHeaders()
@@ -175,10 +177,14 @@ func (p *PKToken) SignToken(
 			return nil, fmt.Errorf("malformatted headers: %w", err)
 		}
 	}
+	jwaAlg, ok := jwx.FromJoseAlgorithm(alg)
+	if !ok {
+		return nil, fmt.Errorf("unsupported key algorithm: %s", alg)
+	}
 	return jws.Sign(
 		p.Payload,
 		jws.WithKey(
-			alg,
+			jwaAlg,
 			signer,
 			jws.WithProtectedHeaders(headers),
 		),
@@ -241,18 +247,17 @@ func (p *PKToken) AddSignature(token []byte, sigType SignatureType) error {
 	return nil
 }
 
-func (p *PKToken) ProviderAlgorithm() (jwa.SignatureAlgorithm, bool) { // TODO: jwx/v3 in public API
+func (p *PKToken) ProviderAlgorithm() (jose.KeyAlgorithm, bool) {
 	var alg jwa.SignatureAlgorithm
 	err := p.Op.ProtectedHeaders().Get(jws.AlgorithmKey, &alg)
 	if err != nil {
-		return jwa.SignatureAlgorithm{}, false
+		return "", false
 	}
-
-	return alg, true
+	return jwx.ToJoseAlgorithm(alg), true
 }
 
 func (p *PKToken) GetCicValues() (*clientinstance.Claims, error) {
-	cicMap, err := util.HeadersAsMap(p.Cic.ProtectedHeaders())
+	cicMap, err := jwx.HeadersAsMap(p.Cic.ProtectedHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("converting cic headers to map: %w", err)
 	}
@@ -302,7 +307,7 @@ func (p *PKToken) MarshalJSON() ([]byte, error) {
 	var opPublicHeader map[string]any
 	var err error
 	if p.Op.PublicHeaders() != nil {
-		opPublicHeader, err = util.HeadersAsMap(p.Op.PublicHeaders())
+		opPublicHeader, err = jwx.HeadersAsMap(p.Op.PublicHeaders())
 		if err != nil {
 			return nil, fmt.Errorf("converting op public headers to map: %w", err)
 		}
@@ -340,7 +345,7 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 		// for some reason the unmarshaled signatures have empty non-nil
 		// public headers. set them to nil instead.
 		public := signature.PublicHeaders()
-		pubMap, err := util.HeadersAsMap(public)
+		pubMap, err := jwx.HeadersAsMap(public)
 		if err != nil {
 			return fmt.Errorf("converting public headers to map: %w", err)
 		}

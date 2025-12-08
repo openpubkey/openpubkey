@@ -25,11 +25,12 @@ import (
 	"filippo.io/bigmod"
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/jose"
 	"golang.org/x/crypto/sha3"
 )
 
 func init() {
-	jwa.RegisterSignatureAlgorithm(GQ256())
+	jwa.RegisterSignatureAlgorithm(jwa.NewSignatureAlgorithm(jose.GQ256))
 }
 
 type OptsStruct struct {
@@ -50,10 +51,6 @@ func WithExtraClaim(k string, v string) Opts {
 		}
 		a.extraClaims[k] = v
 	}
-}
-
-func GQ256() jwa.SignatureAlgorithm { // TODO: jwx/v3 in public API
-	return jwa.NewSignatureAlgorithm("GQ256")
 }
 
 // GQ256SignJWT takes a rsaPublicKey and signed JWT and computes a GQ1 signature
@@ -195,7 +192,7 @@ func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("unable to retrieve headers algorithm")
 	}
-	if headersAlg != GQ256() {
+	if headersAlg.String() != jose.GQ256 {
 		return nil, fmt.Errorf("expected GQ256 alg, got %s", headersAlg.String())
 	}
 

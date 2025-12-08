@@ -19,8 +19,8 @@ package testutils
 import (
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -29,18 +29,16 @@ func TestNewTestKeyPairs(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		alg  string
+		alg  jose.KeyAlgorithm
 	}{
-		{name: "Test creating ES256 key", alg: "ES256"},
-		{name: "Test creating EdDSA key", alg: "EdDSA"},
-		{name: "Test creating RS256 key", alg: "RS256"},
+		{name: "Test creating ES256 key", alg: jose.ES256},
+		{name: "Test creating EdDSA key", alg: jose.EdDSA},
+		{name: "Test creating RS256 key", alg: jose.RS256},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			keyAlg, err := jwa.KeyAlgorithmFrom(tc.alg)
-			require.NoError(t, err)
-			signer, err := util.GenKeyPair(keyAlg)
+			signer, err := util.GenKeyPair(tc.alg)
 			require.NoError(t, err)
 
 			jwkJson := NewTestKeyPairs(t, signer)

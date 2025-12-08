@@ -30,7 +30,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 
 	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
@@ -164,7 +164,7 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 		return nil, fmt.Errorf("error getting algorithm from JWT headers")
 	}
 	keyID, _ := headers.KeyID()
-	if headersAlg == gq.GQ256() {
+	if headersAlg.String() == jose.GQ256 {
 		origHeadersJson, err := util.Base64DecodeForJWT([]byte(keyID))
 		if err != nil {
 			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)

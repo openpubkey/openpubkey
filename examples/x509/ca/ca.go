@@ -35,13 +35,14 @@ import (
 
 	"github.com/openpubkey/openpubkey/cert"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
 type Ca struct {
 	pksk *ecdsa.PrivateKey
-	Alg  jwa.KeyAlgorithm // TODO: jwx/v3 in public API
+	Alg  jose.KeyAlgorithm
 	// CaCertBytes []byte
 	RootCertPem []byte
 	op          client.OpenIdProvider
@@ -65,7 +66,7 @@ func (a *Ca) KeyGen(alg string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse key algorithm from %s: %w", alg, err)
 	}
-	a.Alg = keyAlg
+	a.Alg = keyAlg.String()
 
 	pksk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

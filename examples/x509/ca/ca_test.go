@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -44,7 +45,7 @@ func TestCACertCreation(t *testing.T) {
 	err = certAuth.KeyGen(jwa.ES256().String())
 	require.NoError(t, err)
 
-	userAlg := jwa.ES256()
+	userAlg := jose.ES256
 	userSigningKey, err := util.GenKeyPair(userAlg)
 	require.NoError(t, err)
 

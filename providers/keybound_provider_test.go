@@ -27,8 +27,8 @@ import (
 
 	_ "embed"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/testutils"
@@ -158,10 +158,8 @@ func (t *RoundTripperForTester) RoundTrip(req *http.Request) (*http.Response, er
 func TestRoundTripper(t *testing.T) {
 	rtTester := &RoundTripperForTester{}
 
-	alg := "ES256"
-	keyAlg, err := jwa.KeyAlgorithmFrom(alg)
-	require.NoError(t, err)
-	signer, err := util.GenKeyPair(keyAlg)
+	alg := jose.ES256
+	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
 	rt := dPoPRoundTripper{

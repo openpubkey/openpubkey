@@ -20,8 +20,8 @@ import (
 	"crypto"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/testutils"
 	"github.com/openpubkey/openpubkey/util"
@@ -33,10 +33,10 @@ func GenCIC(t *testing.T) *clientinstance.Claims {
 }
 
 func GenCICExtra(t *testing.T, extraClaims map[string]any) *clientinstance.Claims {
-	alg := jwa.ES256()
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
-	return GenCICEverything(t, extraClaims, signer, alg.String())
+	return GenCICEverything(t, extraClaims, signer, alg)
 }
 
 func GenCICEverything(t *testing.T, extraClaims map[string]any, signer crypto.Signer, alg string) *clientinstance.Claims {

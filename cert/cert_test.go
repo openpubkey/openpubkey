@@ -23,15 +23,15 @@ import (
 	"encoding/pem"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateX509Cert(t *testing.T) {
-	alg := jwa.ES256()
+	alg := jose.ES256
 	// generate pktoken
 
 	signer, err := util.GenKeyPair(alg)

@@ -30,6 +30,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ func TestGithubOpTableTest(t *testing.T) {
 	headers := extractHeaders(t, idToken)
 	alg, ok := headers.Algorithm()
 	require.True(t, ok, "github must only return GQ signed ID Tokens")
-	require.Equal(t, gq.GQ256(), alg, "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
+	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
 	require.NoError(t, err)
@@ -219,7 +220,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 	headers := extractHeaders(t, idToken)
 	alg, ok := headers.Algorithm()
 	require.True(t, ok, "github must only return GQ signed ID Tokens")
-	require.Equal(t, gq.GQ256(), alg, "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
+	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
 	require.NoError(t, err)
