@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/internal/jwx"
 	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -247,10 +249,28 @@ func verifyCicSignature(pkt *pktoken.PKToken) error {
 		return err
 	}
 
-	cicAlg, ok := cic.PublicKey().Algorithm()
+	cicPublicKey, err := cic.PublicKey()
+	if err != nil {
+		return err
+	}
+
+	jwkKey, err := jwk.Import(cicPublicKey)
+	if err != nil {
+		return err
+	}
+
+	joseAlg, ok := cic.KeyAlgorithm()
 	if !ok {
 		return fmt.Errorf("missing algorithm for cosigner public key")
 	}
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cicAlg, cic.PublicKey()))
+	jwaAlg, ok := jwx.FromJoseAlgorithm(joseAlg)
+	if !ok {
+		return fmt.Errorf("unsupported key algorithm: %s", joseAlg)
+	}
+	if err := jwkKey.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
+		return fmt.Errorf("failed to set algorithm on JWK: %w", err)
+	}
+
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwaAlg, jwkKey))
 	return err
 }

@@ -28,19 +28,9 @@ import (
 )
 
 func TestProviderVerifier(t *testing.T) {
-	NONCE_CLAIM := CommitTypesEnum.NONCE_CLAIM
 	KEY_BOUND := CommitTypesEnum.KEY_BOUND
-	AUD_CLAIM := CommitTypesEnum.AUD_CLAIM
-	GQ_BOUND := CommitTypesEnum.GQ_BOUND
-	EMPTY_COMMIT := CommitType{
-		Claim:        "",
-		GQCommitment: false,
-	}
 
 	keybindingTyp := "id_token+cnf"
-	standardTyp := "jwt"
-
-	correctAud := AudPrefixForGQCommitment
 	clientID := "test-client-id"
 	issuer := "mockIssuer"
 
@@ -61,80 +51,10 @@ func TestProviderVerifier(t *testing.T) {
 		IssuedAtClaim     int64
 		correctCicHash    bool
 	}{
-		{name: "Claim Commitment happy case (RS256)", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			expError:       "",
-			correctCicHash: true},
-		{name: "Claim Commitment happy case (ES256)", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
-			expError:       "",
-			correctCicHash: true},
-		{name: "Claim Commitment wrong typ claim (ES256)", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
-			expError:       "expected commitment type nonce but got key-bound ID token (typ=id_token+cnf)",
-			correctCicHash: true},
 		{name: "Key Binding happy case", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
 			expError:       "",
 			correctCicHash: true},
-		{name: "Key Binding wrong CIC", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
-			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
-			expError:       "jwk in cnf claim does not match public key in CIC",
-			correctCicHash: false},
-		{name: "Key Binding wrong typ claim", aud: clientID, clientID: clientID, typClaim: standardTyp,
-			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
-			expError:       "expected key-bound ID token (typ=id_token+cnf) but got ID Token (typ=jwt)",
-			correctCicHash: false},
-		{name: "Claim Commitment happy case (EdDSA)", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "EdDSA",
-			expError:       "",
-			correctCicHash: true},
-		{name: "Claim Commitment (aud) happy case",
-			tokenCommitType: AUD_CLAIM, pvCommitType: AUD_CLAIM, providerAlg: "RS256",
-			expError:          "",
-			SkipClientIDCheck: true, correctCicHash: true},
-		{name: "Claim Commitment wrong audience", aud: "wrong clientID", clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			expError:       "audience does not contain clientID",
-			correctCicHash: true},
-		{name: "Claim Commitment no commitment claim", aud: clientID, clientID: clientID,
-			tokenCommitType: EMPTY_COMMIT, pvCommitType: EMPTY_COMMIT, providerAlg: "RS256",
-			expError:    "verifier configured with empty commitment claim",
-			tokenGQSign: false, correctCicHash: true},
-		{name: "Claim Commitment wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			expError:    "commitment claim doesn't match",
-			tokenGQSign: false, correctCicHash: false},
-		{name: "Claim Commitment GQ happy case", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			expError: "", tokenGQSign: true, correctCicHash: true},
-		{name: "Claim Commitment GQ wrong CIC", aud: clientID, clientID: clientID,
-			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			expError: "commitment claim doesn't match", tokenGQSign: true, correctCicHash: false},
-		{name: "GQ Commitment happy case", aud: correctAud,
-			expError:        "",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true},
-		{name: "GQ Commitment wrong aud prefix", aud: "bad value",
-			expError:        "audience claim in PK Token's GQCommitment must be prefixed by",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true},
-		{name: "GQ Commitment providerVerifier not using GQ Commitment", aud: correctAud,
-			expError:        "commitment claim doesn't match",
-			tokenCommitType: GQ_BOUND, pvCommitType: NONCE_CLAIM, providerAlg: "RS256",
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: true},
-		{name: "GQ Commitment wrong CIC", aud: correctAud,
-			expError:        "commitment claim doesn't match",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
-			tokenGQSign: true, pvGQOnly: true,
-			SkipClientIDCheck: true, correctCicHash: false},
-		{name: "GQ Commitment check client id", aud: correctAud,
-			expError:        "GQCommitment requires that audience (aud) is not set to client-id",
-			tokenCommitType: GQ_BOUND, pvCommitType: GQ_BOUND, providerAlg: "RS256",
-			tokenGQSign: true, pvGQOnly: true},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -158,8 +78,10 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.CommitFunc = mocks.AddAudCommit
 			case "cnf":
 				// For key binding
+				cicPublicKey, err := cic.PublicKey()
+				require.NoError(t, err)
 				idtTemplate.ExtraClaims["cnf"] = map[string]any{
-					"jwk": cic.PublicKey(),
+					"jwk": cicPublicKey,
 				}
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			default:

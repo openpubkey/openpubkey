@@ -124,7 +124,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 			key, err := jwk.ParseKey(keyJsonBytes)
 			require.NoError(t, err, "jwk.ParseKey failed to parse keyJsonBytes")
 
-			gotPublicKeyRecord, err := NewPublicKeyRecord(key, commonIssuer)
+			gotPublicKeyRecord, err := publicKeyRecordFromJWK(key, commonIssuer)
 
 			if tt.shouldError {
 				require.Error(t, err)
