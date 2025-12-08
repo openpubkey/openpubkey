@@ -71,6 +71,8 @@ func TestJwtMarshaling(t *testing.T) {
 
 func TestJwtCompare(t *testing.T) {
 
+	// TODO: Compare CNF claims
+
 	testCases := []struct {
 		name                string
 		t1, t2              string
