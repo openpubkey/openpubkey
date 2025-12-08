@@ -76,7 +76,7 @@ func TestGithubOpTableTest(t *testing.T) {
 
 	headers := extractHeaders(t, idToken)
 	alg, ok := headers.Algorithm()
-	require.True(t, ok, "github must only return GQ signed ID Tokens")
+	require.True(t, ok, "algorithm claim not found in header")
 	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
@@ -219,7 +219,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 
 	headers := extractHeaders(t, idToken)
 	alg, ok := headers.Algorithm()
-	require.True(t, ok, "github must only return GQ signed ID Tokens")
+	require.True(t, ok, "algorithm claim not found in header")
 	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)

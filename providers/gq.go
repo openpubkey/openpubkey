@@ -68,12 +68,11 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 	}
 
 	alg, ok := headers.Algorithm()
-	if !ok || alg.String() != "RS256" {
-		algStr := "unknown"
-		if ok {
-			algStr = alg.String()
-		}
-		return nil, fmt.Errorf("gq signatures require ID Token have signed with an RSA key, ID Token alg was (%s)", algStr)
+	if !ok {
+		return nil, fmt.Errorf("error getting ID Token algorithm")
+	}
+	if alg.String() != "RS256" {
+		return nil, fmt.Errorf("gq signatures require ID Token signed with an RSA key, ID Token alg was (%s)", alg.String())
 	}
 
 	opKey, err := op.PublicKeyByToken(ctx, idToken)
