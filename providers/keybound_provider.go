@@ -127,17 +127,40 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		if err != nil {
 			return nil, err
 		}
-		authCode := form.Get("code")
-		jti := randomB64(16)
-		iat := time.Now().Add(-30 * time.Second).Unix()
 
-		token, err := CreateDpopJwt(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
-		if err != nil {
-			return nil, err
+		grantType := form.Get("grant_type")
+		switch grantType {
+		case "authorization_code":
+			authCode := form.Get("code")
+			jti := randomB64(16)
+			iat := time.Now().Add(-30 * time.Second).Unix()
+			token, err := CreateDpopJwt(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("DPoP", string(token))
+
+			return t.Base.RoundTrip(req)
+		case "refresh_token":
+
+			// This should not happen, but in case a bug causes the authcode to be set, fail early with a meaningful error message
+			if authcode := form.Get("code"); authcode != "" {
+				return nil, fmt.Errorf("refresh_token grant_type should not have authcode set (got authcode=%s)", authcode)
+			}
+
+			jti := randomB64(16)
+			iat := time.Now().Add(-30 * time.Second).Unix()
+			token, err := CreateDpopJwt(htm, htu, jti, "", iat, t.Signer, t.Alg)
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("DPoP", string(token))
+
+			return t.Base.RoundTrip(req)
+		default:
+			return nil, fmt.Errorf("unsupported grant_type for DPoP: %s", grantType)
 		}
-		req.Header.Set("DPoP", string(token))
 
-		return t.Base.RoundTrip(req)
 	}
 	return t.Base.RoundTrip(req)
 }
@@ -161,13 +184,16 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		return nil, err
 	}
 
-	cHash := sha256.Sum256([]byte(authcode))
 	payload := simpleoidc.DpopClaims{
-		Htm:   htm,
-		Htu:   htu,
-		Jti:   jti,
-		Iat:   iat,
-		CHash: base64.RawURLEncoding.EncodeToString(cHash[:]),
+		Htm: htm,
+		Htu: htu,
+		Jti: jti,
+		Iat: iat,
+	}
+	if authcode != "" {
+		// In the refresh flow we don't have a authcode to include the c_hash claim
+		cHash := sha256.Sum256([]byte(authcode))
+		payload.CHash = base64.RawURLEncoding.EncodeToString(cHash[:])
 	}
 
 	payloadStr, err := json.Marshal(payload)
@@ -247,7 +273,8 @@ func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToke
 		// of OPs.
 		retTokens.RefreshToken = string(refreshToken)
 	}
-	// TODO: Add DPOP proof here
+
+	// TODO: Check JWT has not been changed on us
 
 	return &simpleoidc.Tokens{
 		IDToken:      []byte(retTokens.IDToken),
@@ -256,27 +283,42 @@ func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToke
 }
 
 func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
-	// TODO: Add checking DPOP proof here
-
 	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
 	}
 	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
+	if err := simpleoidc.SameCnf(origIdt, reIdt); err != nil {
+		return fmt.Errorf("refreshed ID Token has different cnf claim (key binding) than original ID Token: %w", err)
+	}
 
-	options := []rp.Option{}
-	if r.HttpClient != nil {
-		options = append(options, rp.WithHTTPClient(r.HttpClient))
-	}
-	redirectURI := ""
-	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, r.issuer, r.clientID,
-		r.ClientSecret, redirectURI, r.Scopes, options...)
+	// We need to construct a CIC to supply to the verify refresh ID Token function
+	origIdtJwt, err := simpleoidc.NewJwt(origIdt)
 	if err != nil {
-		return fmt.Errorf("failed to create RP to verify token: %w", err)
+		return fmt.Errorf("error parsing original ID token: %w", err)
 	}
-	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
-	return err
+	origKeyJsonBytes, err := json.Marshal(origIdtJwt.GetClaims().Cnf.Jwk) // The key bound JWK is stored in the cnf claim
+	if err != nil {
+		return fmt.Errorf("error marshaling key from original ID token: %w", err)
+	}
+	origKey, err := jwk.ParseKey(origKeyJsonBytes)
+	if err != nil {
+		return fmt.Errorf("error parsing key from original ID token: %w", err)
+	}
+	origCic, err := clientinstance.NewClaims(origKey, map[string]any{})
+	if err != nil {
+		return fmt.Errorf("error parsing original cnf claims in original ID token: %w", err)
+	}
+
+	vp := NewProviderVerifier(
+		r.issuer,
+		ProviderVerifierOpts{
+			CommitType:        CommitTypesEnum.KEY_BOUND,
+			ClientID:          r.clientID,
+			DiscoverPublicKey: &r.publicKeyFinder,
+		})
+	return vp.VerifyIDToken(ctx, reIdt, origCic)
 }
 
 var _ RefreshableOpenIdProvider = (*KeyBindingOpRefreshable)(nil)

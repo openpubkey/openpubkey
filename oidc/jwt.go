@@ -103,6 +103,25 @@ func SameIdentity(t1, t2 []byte) error {
 	return nil
 }
 
+// Checks that both tokens have the same cnf claim. We used this for key binding as
+// we put the JWK in the cnf claim.
+func SameCnf(t1, t2 []byte) error {
+	token1, err := NewJwt(t1)
+	if err != nil {
+		return err
+	}
+	token2, err := NewJwt(t2)
+	if err != nil {
+		return err
+	}
+
+	if token1.GetClaims().Cnf != token2.GetClaims().Cnf {
+		return fmt.Errorf("token have a different cnf claims %s != %s", token1.GetClaims().Cnf, token2.GetClaims().Cnf)
+	}
+
+	return nil
+}
+
 // RequireOlder returns an error if t1 is not older than t2
 func RequireOlder(t1, t2 []byte) error {
 	token1, err := NewJwt(t1)

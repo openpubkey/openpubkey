@@ -351,7 +351,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		if !strings.HasPrefix(authCode, "fake-auth-code-") {
 			return nil, fmt.Errorf("incorrect auth code, got %s, expected fake-auth-code- prefix", authCode)
 		}
-		authSession := m.authCodes[authCode]
+		authSession = m.authCodes[authCode]
 		if authSession.Nonce == "" {
 			return nil, fmt.Errorf("unknown auth code: %s", authCode)
 		}

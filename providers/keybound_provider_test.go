@@ -156,53 +156,81 @@ func (t *RoundTripperForTester) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 func TestRoundTripper(t *testing.T) {
-	rtTester := &RoundTripperForTester{}
 
-	alg := "ES256"
-	signer, err := util.GenKeyPair(jwa.KeyAlgorithmFrom(alg))
-	require.NoError(t, err)
+	testCases := []struct {
+		name        string
+		reqForm     url.Values
+		refresh     bool
+		expectedErr string
+	}{
+		{name: "Happy case initial token request (authcode)",
+			reqForm: url.Values{
+				"code":       {"fake-auth-code"},
+				"grant_type": {"authorization_code"},
+			},
+			refresh:     false,
+			expectedErr: ""},
+		{name: "Happy case refresh token request",
+			reqForm: url.Values{
+				"grant_type": {"refresh_token"},
+			},
+			refresh:     true,
+			expectedErr: ""},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rtTester := &RoundTripperForTester{}
 
-	rt := dPoPRoundTripper{
-		Base:   rtTester,
-		Signer: signer,
-		Alg:    alg,
+			alg := "ES256"
+			signer, err := util.GenKeyPair(jwa.KeyAlgorithmFrom(alg))
+			require.NoError(t, err)
+
+			rt := dPoPRoundTripper{
+				Base:   rtTester,
+				Signer: signer,
+				Alg:    alg,
+			}
+
+			bodyStr := tc.reqForm.Encode()
+			req, err := http.NewRequest("POST", "https://example.com/oauth/token", strings.NewReader(bodyStr))
+			require.NoError(t, err)
+			req.Header = make(http.Header)
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.ContentLength = int64(len(bodyStr))
+			req.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(strings.NewReader(bodyStr)), nil
+			}
+
+			resp, err := rt.RoundTrip(req)
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, 200, resp.StatusCode)
+
+			dpopToken := rtTester.Output.Header.Get("DPoP")
+
+			if !tc.refresh {
+				require.Equal(t, "fake-auth-code", rtTester.Output.FormValue("code"))
+			}
+
+			require.Equal(t, "POST", rtTester.Output.Method)
+			require.NotEmpty(t, dpopToken)
+
+			// Test request that doesn't match a DPoP token request so that it just passes through unchanged
+			req, err = http.NewRequest("POST", "https://example.com/other/resource", strings.NewReader(bodyStr))
+			require.NoError(t, err)
+
+			resp, err = rt.RoundTrip(req)
+			if tc.expectedErr == "" {
+				require.NoError(t, err, tc.name)
+				require.NotNil(t, resp, tc.name)
+				require.Equal(t, 200, resp.StatusCode, tc.name)
+				require.Empty(t, rtTester.Output.Header.Get("DPoP"), tc.name)
+			} else {
+				require.Error(t, err, tc.name)
+				require.Contains(t, err.Error(), tc.expectedErr, tc.name)
+			}
+		})
 	}
 
-	form := url.Values{
-		"code": {"fake-auth-code"},
-	}
-
-	bodyStr := form.Encode()
-	req, err := http.NewRequest("POST", "https://example.com/oauth/token", strings.NewReader(bodyStr))
-	require.NoError(t, err)
-	req.Header = make(http.Header)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.ContentLength = int64(len(bodyStr))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(strings.NewReader(bodyStr)), nil
-	}
-
-	resp, err := rt.RoundTrip(req)
-
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Equal(t, 200, resp.StatusCode)
-
-	dpopToken := rtTester.Output.Header.Get("DPoP")
-
-	require.Equal(t, "fake-auth-code", rtTester.Output.FormValue("code"))
-	require.Equal(t, "POST", rtTester.Output.Method)
-	require.NotEmpty(t, dpopToken)
-
-	// Test request that doesn't match a DPoP token request so that it just passes through unchanged
-	req, err = http.NewRequest("POST", "https://example.com/other/resource", strings.NewReader(bodyStr))
-	require.NoError(t, err)
-
-	resp, err = rt.RoundTrip(req)
-
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.Equal(t, 200, resp.StatusCode)
-
-	require.Empty(t, rtTester.Output.Header.Get("DPoP"))
 }

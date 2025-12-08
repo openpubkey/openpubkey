@@ -210,6 +210,12 @@ func (o *OpkClient) oidcAuth(
 			return nil, fmt.Errorf("error configuring OP to perform key binding: %w", err)
 		}
 	}
+	// TODO: Use some interface magic so that we don't need to repeat this code twice
+	if keyBindingOpRefresh, ok := o.Op.(*providers.KeyBindingOpRefreshable); ok {
+		if err := keyBindingOpRefresh.ConfigKeyBinding(o.signer, o.alg.String()); err != nil {
+			return nil, fmt.Errorf("error configuring OP to perform key binding: %w", err)
+		}
+	}
 
 	tokens, err := o.Op.RequestTokens(ctx, cic)
 	if err != nil {
