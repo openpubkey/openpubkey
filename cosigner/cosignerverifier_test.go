@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -34,7 +34,7 @@ import (
 
 func TestCosignerVerifier(t *testing.T) {
 	// Generate the key pair for our cosigner
-	alg := jwa.ES256()
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
@@ -51,7 +51,7 @@ func TestCosignerVerifier(t *testing.T) {
 	cosignerClaims := pktoken.CosignerClaims{
 		Issuer:      fakeIssuer,
 		KeyID:       kid,
-		Algorithm:   cos.Alg.String(),
+		Algorithm:   cos.Alg,
 		AuthID:      "none",
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),

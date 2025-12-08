@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/cosigner"
 	cosmock "github.com/openpubkey/openpubkey/cosigner/mocks"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -35,7 +35,7 @@ import (
 func TestInitAuth(t *testing.T) {
 	cos := CreateAuthCosigner(t)
 
-	alg := jwa.ES256()
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
@@ -64,7 +64,7 @@ func TestInitAuth(t *testing.T) {
 func TestRedeemAuthcode(t *testing.T) {
 	cos := CreateAuthCosigner(t)
 
-	alg := jwa.ES256()
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 
@@ -125,7 +125,7 @@ func TestRedeemAuthcode(t *testing.T) {
 }
 
 func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
-	alg := jwa.ES256()
+	alg := jose.ES256
 	signer, _ := util.GenKeyPair(alg)
 	pkt, err := mocks.GenerateMockPKToken(t, signer, alg)
 	require.NoError(t, err, "failed to generate mock PK Token")
@@ -171,7 +171,7 @@ func TestCanOnlyRedeemAuthcodeOnce(t *testing.T) {
 }
 
 func TestNewAuthcodeFailure(t *testing.T) {
-	cosAlg := jwa.ES256()
+	cosAlg := jose.ES256
 	cosSigner, err := util.GenKeyPair(cosAlg)
 	require.NoError(t, err, "failed to generate key pair")
 
@@ -196,7 +196,7 @@ func TestNewAuthcodeFailure(t *testing.T) {
 }
 
 func CreateAuthCosigner(t *testing.T) *cosigner.AuthCosigner {
-	cosAlg := jwa.ES256()
+	cosAlg := jose.ES256
 	signer, err := util.GenKeyPair(cosAlg)
 	require.NoError(t, err, "failed to generate key pair")
 	issuer := "https://example.com"

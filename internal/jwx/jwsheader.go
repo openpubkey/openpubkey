@@ -1,4 +1,4 @@
-package util
+package jwx
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-func HeadersAsMap(headers jws.Headers) (map[string]any, error) { // TODO: jwx/v3 in public API
+func HeadersAsMap(headers jws.Headers) (map[string]any, error) {
 	headersMap := make(map[string]any)
 	for _, key := range headers.Keys() {
 		var value any

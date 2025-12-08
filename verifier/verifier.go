@@ -22,7 +22,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/cosigner"
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -91,7 +91,7 @@ func GQOnly() Check {
 			return fmt.Errorf("missing provider algorithm header")
 		}
 
-		if alg != gq.GQ256() {
+		if alg != jose.GQ256 {
 			return fmt.Errorf("non-GQ signatures are not supported")
 		}
 		return nil

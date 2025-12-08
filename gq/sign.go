@@ -25,6 +25,7 @@ import (
 	"filippo.io/bigmod"
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -108,7 +109,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
 	headers := jws.NewHeaders()
-	err = headers.Set(jws.AlgorithmKey, GQ256())
+	err = headers.Set(jws.AlgorithmKey, jose.GQ256)
 	if err != nil {
 		return nil, err
 	}

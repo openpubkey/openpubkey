@@ -23,9 +23,9 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/cosigner"
 	"github.com/openpubkey/openpubkey/cosigner/mocks"
+	"github.com/openpubkey/openpubkey/jose"
 )
 
 func NewUser(as *cosigner.AuthState) *user {
@@ -44,7 +44,7 @@ type MfaCosigner struct {
 	users      map[cosigner.UserKey]*user
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) { // TODO: jwx/v3 in public API
+func New(signer crypto.Signer, alg jose.KeyAlgorithm, issuer, keyID string, cfg *webauthn.Config) (*MfaCosigner, error) {
 	hmacKey := make([]byte, 64)
 	if _, err := rand.Read(hmacKey); err != nil {
 		return nil, err

@@ -28,6 +28,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -130,16 +131,16 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		return fmt.Errorf("provider algorithm type missing")
 	}
 	alg := jwa.NewSignatureAlgorithm(algStr)
-	if alg != gq.GQ256() && v.options.GQOnly {
+	if alg.String() != jose.GQ256 && v.options.GQOnly {
 		return fmt.Errorf("non-GQ signatures are not supported")
 	}
 
-	switch alg {
-	case gq.GQ256():
+	switch alg.String() {
+	case jose.GQ256:
 		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
-	case jwa.RS256():
+	case jose.RS256:
 		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
@@ -153,7 +154,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
 			return err
 		}
-	case jwa.ES256():
+	case jose.ES256:
 		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
 		if err != nil {
 			return fmt.Errorf("failed to get OP public key: %w", err)
@@ -249,7 +250,7 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 	if algStr == "" {
 		return fmt.Errorf("missing provider algorithm header")
 	}
-	if algStr != gq.GQ256().String() {
+	if algStr != jose.GQ256 {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
