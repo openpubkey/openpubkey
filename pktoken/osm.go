@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/internal/jwx"
 )
 
 // Options configures VerifySignedMessage behavior
@@ -55,7 +57,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 
 	// Create our headers as defined by section 3.5 of the OpenPubkey paper
 	protected := jws.NewHeaders()
-	alg, ok := cic.PublicKey().Algorithm()
+	alg, ok := cic.KeyAlgorithm()
 	if !ok {
 		return nil, errors.New("invalid algorithm")
 	}
@@ -69,9 +71,14 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 		return nil, err
 	}
 
+	jwaAlg, ok := jwx.FromJoseAlgorithm(alg)
+	if !ok {
+		return nil, errors.New("invalid algorithm")
+	}
+
 	return jws.Sign(
 		content,
-		jws.WithKey(alg, signer, jws.WithProtectedHeaders(protected)),
+		jws.WithKey(jwaAlg, signer, jws.WithProtectedHeaders(protected)),
 	)
 }
 
@@ -124,12 +131,27 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 	if !ok {
 		return nil, fmt.Errorf("missing algorithm header")
 	}
-	cicAlg, ok := cic.PublicKey().Algorithm()
+	cicPublicKey, err := cic.PublicKey()
+	if err != nil {
+		return nil, err
+	}
+	jwkKey, err := jwk.Import(cicPublicKey)
+	if err != nil {
+		return nil, err
+	}
+	joseAlg, ok := cic.KeyAlgorithm()
 	if !ok {
 		return nil, fmt.Errorf("missing cic algorithm")
 	}
-	if protectedAlg != cicAlg {
-		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, cicAlg.String(), protectedAlg.String())
+	jwaAlg, ok := jwx.FromJoseAlgorithm(joseAlg)
+	if !ok {
+		return nil, fmt.Errorf("unsupported key algorithm: %s", joseAlg)
+	}
+	if err := jwkKey.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
+		return nil, fmt.Errorf("failed to set algorithm on JWK: %w", err)
+	}
+	if protectedAlg != jwaAlg {
+		return nil, fmt.Errorf(`incorrect "alg" header, expected %s but received %s`, jwaAlg.String(), protectedAlg.String())
 	}
 
 	// Verify kid header matches hash of pktoken
@@ -148,7 +170,7 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but received %s`, pktHash, kid)
 	}
 
-	_, err = jws.Verify(osm, jws.WithKey(cicAlg, cic.PublicKey()))
+	_, err = jws.Verify(osm, jws.WithKey(jwaAlg, jwkKey))
 	if err != nil {
 		return nil, err
 	}

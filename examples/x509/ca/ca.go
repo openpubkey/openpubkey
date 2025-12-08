@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	"github.com/openpubkey/openpubkey/cert"
 	"github.com/openpubkey/openpubkey/client"
@@ -226,10 +225,5 @@ func ExtractRawPubkey(pkt *pktoken.PKToken) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	upk := cic.PublicKey()
-	var rawUpk interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
-	if err := jwk.Export(upk, &rawUpk); err != nil {
-		return nil, err
-	}
-	return rawUpk, nil
+	return cic.PublicKey()
 }

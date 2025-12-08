@@ -41,7 +41,7 @@ type PublicKeyRecord struct {
 	Issuer    string
 }
 
-func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) { // TODO: jwx/v3 in public API
+func publicKeyRecordFromJWK(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	var pubKey interface{}
 	keyAlg, ok := key.Algorithm()
 
@@ -199,13 +199,13 @@ func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID stri
 
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
-		return NewPublicKeyRecord(key, issuer)
+		return publicKeyRecordFromJWK(key, issuer)
 	} else if keyID == "" && jwks.Len() == 1 {
 		key, ok := jwks.Key(0)
 		if !ok {
 			return nil, fmt.Errorf("failed to get key from JWK set")
 		}
-		return NewPublicKeyRecord(key, issuer)
+		return publicKeyRecordFromJWK(key, issuer)
 	}
 
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
@@ -228,7 +228,7 @@ func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) 
 		}
 		jktOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
 		if jkt == string(jktOfKeyB64) {
-			return NewPublicKeyRecord(key, issuer)
+			return publicKeyRecordFromJWK(key, issuer)
 		}
 	}
 

@@ -18,16 +18,20 @@ package clientinstance
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/internal/jwx"
 	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
+	"golang.org/x/crypto/ed25519"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
@@ -39,14 +43,10 @@ type Claims struct {
 }
 
 // Client instance claims must relate to a single key pair
-func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) { // TODO: jwx/v3 in public API
-	// Make sure our JWK has the algorithm header set
-	pkAlg, ok := publicKey.Algorithm()
-	if !ok {
-		return nil, fmt.Errorf("failed to get algorithm from public key")
-	}
-	if pkAlg.String() == "" {
-		return nil, fmt.Errorf("user JWK requires algorithm to be set")
+func NewClaims(publicKey crypto.PublicKey, claims map[string]any) (*Claims, error) {
+	jwkKey, err := jwk.PublicKeyOf(publicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Make sure no claims are using our reserved values
@@ -61,14 +61,19 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) { // T
 		return nil, fmt.Errorf("failed to generate random value: %w", err)
 	}
 
+	alg, ok := jwkKey.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("failed to get algorithm from jwk key")
+	}
+
 	// Assign required values
 	claims["typ"] = "CIC"
-	claims["alg"] = pkAlg.String()
-	claims["upk"] = publicKey
+	claims["alg"] = alg
+	claims["upk"] = jwkKey
 	claims["rz"] = rand
 
 	return &Claims{
-		publicKey: publicKey,
+		publicKey: jwkKey,
 		protected: claims,
 	}, nil
 }
@@ -103,8 +108,30 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	}, nil
 }
 
-func (c *Claims) PublicKey() jwk.Key { // TODO: jwx/v3 in public API
-	return c.publicKey
+func (c *Claims) PublicKey() (crypto.PublicKey, error) {
+	keyAlg, ok := c.publicKey.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("failed to get algorithm from public key")
+	}
+
+	var pubKey interface{}
+	switch keyAlg {
+	case jwa.RS256(), jwa.RS384(), jwa.RS512(), jwa.PS256(), jwa.PS384(), jwa.PS512():
+		pubKey = new(rsa.PublicKey)
+	case jwa.ES256(), jwa.ES256K(), jwa.ES384(), jwa.ES512():
+		pubKey = new(ecdsa.PublicKey)
+	case jwa.EdDSA():
+		pubKey = new(ed25519.PublicKey)
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", keyAlg)
+	}
+
+	err := jwk.Export(c.publicKey, pubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return pubKey.(crypto.PublicKey), nil
 }
 
 // TODO: Are we okay changing the public interface or hide this?

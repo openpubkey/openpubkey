@@ -28,7 +28,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -70,14 +69,13 @@ func PktToX509Template(pkt *pktoken.PKToken) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	upk := cic.PublicKey()
-	var rawkey interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
-	if err := jwk.Export(upk, &rawkey); err != nil {
+	upk, err := cic.PublicKey()
+	if err != nil {
 		return nil, err
 	}
 
 	// encode ephemeral public key
-	ecPub, err := x509.MarshalPKIXPublicKey(rawkey)
+	ecPub, err := x509.MarshalPKIXPublicKey(upk)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling public key: %w", err)
 	}
