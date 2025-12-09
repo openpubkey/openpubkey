@@ -144,7 +144,7 @@ func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerV
 }
 
 func parsePublicKey(publicKey *rsa.PublicKey) (n *bigmod.Modulus, v *big.Int, nBytes int, vBytes int, err error) {
-	n, err = bigmod.NewModulusFromBig(publicKey.N)
+	n, err = bigmod.NewModulus(publicKey.N.Bytes())
 	if err != nil {
 		return
 	}
