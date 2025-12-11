@@ -102,7 +102,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	n, err := bigmod.NewModulusFromBig(new(big.Int).SetBytes(nBytes))
+	n, err := bigmod.NewModulus(nBytes)
 	if err != nil {
 		panic(err)
 	}
