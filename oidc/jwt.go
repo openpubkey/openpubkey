@@ -18,6 +18,7 @@ package oidc
 
 import (
 	"fmt"
+	"reflect"
 )
 
 type Jwt struct {
@@ -98,7 +99,7 @@ func SameIdentity(t1, t2 []byte) error {
 	}
 
 	if token1.GetClaims().Subject != token2.GetClaims().Subject {
-		return fmt.Errorf("token have a different subject claims")
+		return fmt.Errorf("tokens have different subject claims")
 	}
 	return nil
 }
@@ -115,8 +116,8 @@ func SameCnf(t1, t2 []byte) error {
 		return err
 	}
 
-	if token1.GetClaims().Cnf != token2.GetClaims().Cnf {
-		return fmt.Errorf("token have a different cnf claims %s != %s", token1.GetClaims().Cnf, token2.GetClaims().Cnf)
+	if !reflect.DeepEqual(token1.GetClaims().Cnf, token2.GetClaims().Cnf) {
+		return fmt.Errorf("tokens have different cnf claims %s != %s", token1.GetClaims().Cnf, token2.GetClaims().Cnf)
 	}
 
 	return nil
