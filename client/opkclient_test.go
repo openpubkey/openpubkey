@@ -261,6 +261,7 @@ func TestClientRefreshNotSupported(t *testing.T) {
 }
 
 func TestKeybinding(t *testing.T) {
+	// TODO: When hello adds refreshable keybinding support, we can delete this test and use TestKeybindingRefreshFlow
 	helloOpOpts := providers.GetDefaultHelloOpOptions()
 	op, err := providers.CreateMockHelloKeyBindingOpWithOpts(helloOpOpts,
 		mocks.UserBrowserInteractionMock{

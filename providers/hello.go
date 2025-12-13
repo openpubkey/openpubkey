@@ -224,7 +224,6 @@ func CreateMockHelloKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions 
 	helloOpOpts.HttpClient = rt
 	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
 
-	// TODO: Determine where to put "key binding" in names
 	helloOp := NewHelloKeyBindingOpWithOptions(helloOpOpts)
 
 	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
@@ -274,7 +273,6 @@ func CreateMockHelloRefreshableKeyBindingOpWithOpts(helloOpOpts *HelloOptions, u
 	helloOpOpts.HttpClient = rt
 	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
 
-	// TODO: Determine where to put "key binding" in names
 	helloOp := NewHelloRefreshableKeyBindingOpWithOptions(helloOpOpts)
 
 	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)

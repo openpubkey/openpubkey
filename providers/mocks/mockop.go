@@ -51,7 +51,7 @@ type AuthSession struct {
 	AuthCode    string
 	Nonce       string
 	Jkt         string // Only used for key binding (JWK thumbprint of the user's bound key)
-	Cnf         []byte // JWK of user's bound key as JSON []byte
+	Cnf         []byte // JWK of user's bound key as JSON []byte (key binding)
 	SubjectAuth Subject
 }
 

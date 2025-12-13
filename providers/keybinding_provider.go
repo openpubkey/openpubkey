@@ -274,8 +274,6 @@ func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToke
 		retTokens.RefreshToken = string(refreshToken)
 	}
 
-	// TODO: Check JWT has not been changed on us
-
 	return &simpleoidc.Tokens{
 		IDToken:      []byte(retTokens.IDToken),
 		RefreshToken: []byte(retTokens.RefreshToken),
@@ -289,6 +287,7 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
+	// Checks the refreshed ID Token has the same cnf claim (key binding) as the original ID Token
 	if err := simpleoidc.SameCnf(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token has different cnf claim (key binding) than original ID Token: %w", err)
 	}
