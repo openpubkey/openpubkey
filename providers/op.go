@@ -52,6 +52,8 @@ type RefreshableOpenIdProvider interface {
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
 
+const KEYBOUND_TYP = "id_token+cnf"
+
 type CommitType struct {
 	Claim        string
 	GQCommitment bool
@@ -59,10 +61,12 @@ type CommitType struct {
 
 var CommitTypesEnum = struct {
 	NONCE_CLAIM CommitType
+	KEY_BOUND   CommitType
 	AUD_CLAIM   CommitType
 	GQ_BOUND    CommitType
 }{
 	NONCE_CLAIM: CommitType{Claim: "nonce", GQCommitment: false},
+	KEY_BOUND:   CommitType{Claim: "cnf", GQCommitment: false}, //  Key_bound ID tokens are ID tokens where the user's public key in the "cnf" claim in the ID Token payload
 	AUD_CLAIM:   CommitType{Claim: "aud", GQCommitment: false},
 	GQ_BOUND:    CommitType{Claim: "", GQCommitment: true}, // The commitmentClaim is bound to the ID Token using only the GQ signature
 }

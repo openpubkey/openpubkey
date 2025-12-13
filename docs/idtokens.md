@@ -1,6 +1,6 @@
 # ID Token Zoo
 
-This document contains example ID Tokens from different providers. We do include the signatures.
+This document contains example ID Tokens from different providers. We truncate the signatures.
 
 ## Azure
 
@@ -143,5 +143,110 @@ This was generated using <https://playground.hello.dev/> with gitlab claims enab
     "typ": "JWT",
     "kid": "2025-01-15T16:56:49.668Z_735-1c5"
     },
+}
+```
+
+### Key Bound ID Token
+
+```json
+{
+  "payload": {
+    "iss": "https://issuer.hello.coop",
+    "aud": "app_xejobTKEsDNSRd5vofKB2iay_2rN",
+    "nonce": "UIjSuNcpCiJ6Vn1SqCaE4ILexfFsolukHmqlgKbC1p0",
+    "jti": "jti_U82eEJjPL9pRfLXNcfEMe5SJ_M3w",
+    "sub": "sub_NdETpSN2LthxgTKdrBcLK2au_TDg",
+    "tenant": "personal",
+    "name": "Anonymous Author",
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocIdbWtaAGFsizjWVh7Q6C-XDBuSoUOpf7d7nGqgNQ-9yHmenNA=s96-c",
+    "email": "anon.author.aardvark@gmail.com",
+    "email_verified": true,
+    "iat": 1761943045,
+    "exp": 1761943345,
+    "cnf": {
+        "jwk": {
+            "alg": "ES256",
+            "crv": "P-256",
+            "kty": "EC",
+            "x": "6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk",
+            "y": "H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"
+        }
+    }
+  },
+  "signatures": [
+    {
+      "protected": {
+        "alg": "RS256",
+        "typ": "id_token+cnf",
+        "kid": "2025-09-05T11:09:18.267Z_ab4-956-RS256"
+      },
+      "signature": "CqXs..."
+    }
+  ]
+}
+```
+
+## AWS Cognito
+
+### ID Token (with token revocation enabled)
+
+```json
+{
+    "payload": {
+        "at_hash": "-9rmUKO5T6OZrkWR_dnZzQ",
+        "sub": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "email_verified": true,
+        "iss": "https:\/\/cognito-idp.us-east-1.amazonaws.com\/us-east-1_FqOCYEQAc",
+        "cognito:username": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "nonce": "Ze_mXtKziFWWMbt_7B0IBYIylXg1qVbtyUnwVBkkA1I",
+        "origin_jti": "d1c87520-e3a5-489b-90c5-3c86e5bc20d6",
+        "aud": "7mutue6chhphanddiel1r4u0qv",
+        "token_use": "id",
+        "auth_time": 1764973015,
+        "exp": 1764976615,
+        "iat": 1764973015,
+        "jti": "2178848f-99ae-4389-a4e2-155d6c60594a",
+        "email": "alice@example.com"
+    },
+    "signatures": [
+        {
+            "protected": {
+                "kid": "UGIevE1I5DkrQL0VFF7nRif5Z5G5PXaHEArHtBu\/HM0=",
+                "alg": "RS256"
+            },
+            "signature": "Q7kGG..."
+        }
+    ]
+}
+```
+
+### ID Token (without token revocation enabled)
+
+```json
+{
+    "payload": {
+        "at_hash": "aeOHnzHGgPHiyI2Kvw4tcQ",
+        "sub": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "email_verified": true,
+        "iss": "https:\/\/cognito-idp.us-east-1.amazonaws.com\/us-east-1_FqOCYEQAc",
+        "cognito:username": "f4f8b4a8-b061-7039-6671-844b2e140c9d",
+        "nonce": "uhPcEjVMklIg5qrC10ToRfD_KiE6GCsXQYNs8Gi4hao",
+        "aud": "1gf0blnk3kkj5njus0fgqj4qd4",
+        "event_id": "01007bb1-7b8b-412b-b095-846501c77b2c",
+        "token_use": "id",
+        "auth_time": 1764972249,
+        "exp": 1764975849,
+        "iat": 1764972249,
+        "email": "alice@example.com"
+    },
+    "signatures": [
+        {
+            "protected": {
+                "kid": "UGIevE1I5DkrQL0VFF7nRif5Z5G5PXaHEArHtBu\/HM0=",
+                "alg": "RS256"
+            },
+            "signature": "Q7kGG..."
+        }
+    ]
 }
 ```

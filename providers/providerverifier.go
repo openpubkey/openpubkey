@@ -17,8 +17,10 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -55,6 +57,10 @@ type ProviderVerifierOpts struct {
 	// Only allows GQ signatures, a provider signature under any other algorithm
 	// is seen as an error
 	GQOnly bool
+	// GQAudiencePrefix is the required prefix for the audience claim in GQ commitments.
+	// If empty (not set), defaults to AudPrefixForGQCommitment ("OPENPUBKEY-PKTOKEN:").
+	// Set to a custom value to use a different prefix.
+	GQAudiencePrefix string
 }
 
 // Creates a new ProviderVerifier with required fields
@@ -71,6 +77,11 @@ func NewProviderVerifier(issuer string, options ProviderVerifierOpts) *DefaultPr
 	// If no custom DiscoverPublicKey function is set, set default
 	if v.options.DiscoverPublicKey == nil {
 		v.options.DiscoverPublicKey = discover.DefaultPubkeyFinder()
+	}
+
+	// Initialize GQ audience prefix with default if not set
+	if v.options.GQAudiencePrefix == "" {
+		v.options.GQAudiencePrefix = AudPrefixForGQCommitment
 	}
 
 	return v
@@ -98,6 +109,11 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 			// If you are hitting this error of set SkipClientIDCheck to true
 			return fmt.Errorf("GQCommitment requires that audience (aud) is not set to client-id")
 		}
+	} else {
+		// If GQAudiencePrefix is set but this isn't a GQ ProviderVerifier, fail
+		if v.options.GQAudiencePrefix != "" && v.options.GQAudiencePrefix != AudPrefixForGQCommitment {
+			return fmt.Errorf("GQAudiencePrefix is set but CommitType does not use GQCommitment")
+		}
 	}
 
 	idt, err := oidc.NewJwt(idToken)
@@ -122,39 +138,39 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 	switch alg {
 	case gq.GQ256:
+		// GQ signatures need special handling (extract original headers, etc.)
 		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
 		}
-	case jwa.RS256:
-		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
-		}
-
-		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
-		if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
-			return fmt.Errorf("public key is not an RSA public key")
-		}
-
-		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
-			return err
-		}
-	case jwa.ES256:
-		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
-		}
-
-		// Ensure that the algorithm of public key from OpenID Provider matches the algorithm specified in the ID Token
-		if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
-			return fmt.Errorf("public key is not an ECDSA public key")
-		}
-
-		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
-			return err
-		}
 	default:
-		return fmt.Errorf("unsupported signature algorithm %s", alg)
+		// Generic verification for RS256, ES256, EdDSA, and future algorithms
+		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
+		if err != nil {
+			return fmt.Errorf("failed to get OP public key: %w", err)
+		}
+
+		// Validate that key type matches the algorithm in the token
+		switch alg {
+		case jwa.RS256:
+			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		case jwa.ES256:
+			if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		case jwa.EdDSA:
+			if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
+				return fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
+			}
+		default:
+			return fmt.Errorf("unsupported signature algorithm %s", alg)
+		}
+
+		// jws.Verify handles all algorithms generically
+		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
+			return fmt.Errorf("signature verification failed: %w", err)
+		}
 	}
 
 	if err := v.verifyCommitment(idt, cic); err != nil {
@@ -180,6 +196,14 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		return err
 	}
 
+	idtTyp := idt.GetSignature().GetProtectedClaims().Type
+	if idtTyp == KEYBOUND_TYP && v.commitType != CommitTypesEnum.KEY_BOUND {
+		return fmt.Errorf("expected commitment type %v but got key-bound ID token (typ=%v)", v.commitType.Claim, idtTyp)
+	}
+	if idtTyp != KEYBOUND_TYP && v.commitType == CommitTypesEnum.KEY_BOUND {
+		return fmt.Errorf("expected key-bound ID token (typ=%v) but got ID Token (typ=%v)", KEYBOUND_TYP, idtTyp)
+	}
+
 	expectedCommitment, err := cic.Hash()
 	if err != nil {
 		return err
@@ -197,12 +221,12 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		// and turns it into a PK Token using a GQCommitment, we require that
 		// all GQ commitments explicitly signal they want to be used as
 		// PK Tokens. To signal this, they prefix the audience (aud)
-		// claim with the string "OPENPUBKEY-PKTOKEN:".
+		// claim with a configured prefix (default: "OPENPUBKEY-PKTOKEN:").
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
-		if _, ok := strings.CutPrefix(aud.(string), AudPrefixForGQCommitment); !ok {
+		if _, ok := strings.CutPrefix(aud.(string), v.options.GQAudiencePrefix); !ok {
 			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
-				AudPrefixForGQCommitment, aud.(string))
+				v.options.GQAudiencePrefix, aud.(string))
 		}
 
 		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token
@@ -210,6 +234,26 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		if commitment == "" {
 			return fmt.Errorf("missing GQ commitment")
 		}
+	} else if v.options.CommitType == CommitTypesEnum.KEY_BOUND {
+		if idt.GetClaims().Cnf == nil {
+			return fmt.Errorf("expected key-bound ID token but cnf claim is missing")
+		}
+		if len(idt.GetClaims().Cnf.Jwk) == 0 {
+			return fmt.Errorf("expected key-bound ID token but cnf claim does not contain a jwk")
+		}
+
+		cnfJwkStr, err := json.Marshal(idt.GetClaims().Cnf.Jwk)
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
+		}
+		cicJwkStr, err := json.Marshal(cic.PublicKey())
+		if err != nil {
+			return fmt.Errorf("error marshalling jwk in CIC: %w", err)
+		}
+		if bytes.Equal(cicJwkStr, cnfJwkStr) {
+			return nil
+		}
+		return fmt.Errorf("jwk in cnf claim does not match public key in CIC, got %s, expected %s", string(cnfJwkStr), string(cicJwkStr))
 	} else {
 		if v.commitType.Claim == "" {
 			return fmt.Errorf("verifier configured with empty commitment claim")
