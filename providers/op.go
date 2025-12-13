@@ -53,6 +53,7 @@ type RefreshableOpenIdProvider interface {
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
 
+// Interface for an OpenIdProvider that supports key binding of the ID Token
 type KeyBindingOpenIdProvider interface {
 	OpenIdProvider
 	ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) error

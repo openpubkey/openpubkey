@@ -191,7 +191,7 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		Iat: iat,
 	}
 	if authcode != "" {
-		// In the refresh flow we don't have a authcode to include the c_hash claim
+		// In the refresh flow we don't have an authcode to include as the c_hash claim
 		cHash := sha256.Sum256([]byte(authcode))
 		payload.CHash = base64.RawURLEncoding.EncodeToString(cHash[:])
 	}
@@ -232,6 +232,7 @@ func CreateJWK(signer crypto.Signer, alg string) (jwk.Key, error) {
 	return jwkKey, nil
 }
 
+// KeyBindingOpRefreshable extends KeyBindingOp to support a refresh flow
 type KeyBindingOpRefreshable struct {
 	KeyBindingOp
 }
@@ -253,7 +254,7 @@ func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToke
 	}
 
 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
-	// According to the OIDC spec the only values send on a refresh request are:
+	// According to the OIDC spec the only values sent in a refresh request are:
 	// client_id, client_secret, grant_type, refresh_token, and scope.
 	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
 	redirectURI := ""
@@ -297,6 +298,9 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	if err != nil {
 		return fmt.Errorf("error parsing original ID token: %w", err)
 	}
+	if origIdtJwt.GetClaims().Cnf == nil || origIdtJwt.GetClaims().Cnf.Jwk == nil {
+		return fmt.Errorf("original ID token missing cnf claim for key binding")
+	}
 	origKeyJsonBytes, err := json.Marshal(origIdtJwt.GetClaims().Cnf.Jwk) // The key bound JWK is stored in the cnf claim
 	if err != nil {
 		return fmt.Errorf("error marshaling key from original ID token: %w", err)
@@ -307,7 +311,7 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	}
 	origCic, err := clientinstance.NewClaims(origKey, map[string]any{})
 	if err != nil {
-		return fmt.Errorf("error parsing original cnf claims in original ID token: %w", err)
+		return fmt.Errorf("error creating CIC from original ID token: %w", err)
 	}
 
 	vp := NewProviderVerifier(

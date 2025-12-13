@@ -233,6 +233,9 @@ func CreateMockHelloKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions 
 	return op, nil
 }
 
+// NewHelloRefreshableKeyBindingOpWithOptions creates a Hello key binding OP that supports a refresh flow.
+// With configuration specified using an options struct. This is useful if you want to use your own OIDC
+// Client or override the configuration.
 func NewHelloRefreshableKeyBindingOpWithOptions(opts *HelloOptions) RefreshableOpenIdProvider {
 	return &KeyBindingOpRefreshable{
 		KeyBindingOp: KeyBindingOp{
