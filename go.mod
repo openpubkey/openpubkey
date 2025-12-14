@@ -5,11 +5,13 @@ go 1.24.0
 require (
 	filippo.io/bigmod v0.1.0
 	github.com/awnumar/memguard v0.22.3
+	github.com/bits-and-blooms/bitset v1.24.1
 	github.com/go-webauthn/webauthn v0.8.6
 	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v2 v2.0.21
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
+	github.com/yeqown/go-qrcode/v2 v2.2.5
 	github.com/zitadel/oidc/v3 v3.23.2
 	golang.org/x/crypto v0.45.0
 )
@@ -21,6 +23,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
+	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/zitadel/logging v0.6.0 // indirect
 	github.com/zitadel/schema v1.3.0 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect
