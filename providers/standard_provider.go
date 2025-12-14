@@ -417,7 +417,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		// do not fail, just log the error, user can still manually open the url
 		logrus.Warnf("could no create qrcode, fallback to textual representation only: %s", err)
 	} else {
-		logrus.Infof("\n%s\n", " "+strings.Replace(code, "\n", "\n ", -1))
+		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
 	}
 
 	textual := strings.Builder{}
@@ -437,7 +437,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
 	textual.WriteString("\n\n")
 
-	logrus.Info(textual.String())
+	println(textual.String())
 
 	interval := 3 * time.Second
 	if dar.Interval > 0 {
