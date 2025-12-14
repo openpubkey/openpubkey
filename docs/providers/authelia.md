@@ -4,8 +4,11 @@ Tested with Authelia v4.39.10
 
 ## OAuth 2.0 Device Authorization Grant (DeviceFlow)
 
-```
-...
+TODO: This should be in this PR but in the OPKSSH PR
+
+Add this to your OPKSSH config file
+
+```yaml
     identity_providers:
       oidc:
         enabled: true
@@ -35,8 +38,7 @@ Tested with Authelia v4.39.10
             userinfo_signed_response_alg: 'none'
             token_endpoint_auth_method: 'none'
             claims_policy: opkssh
-...
 ```
 
-* - This setup adds the `emai`l and `groups` token directly into the id-token. 
-    It should be possible only add the `email` and `groups` to the userinfo endpoint.
+This setup adds the `email` and `groups` token directly into the id-token.
+It should be possible only add the `email` and `groups` to the userinfo endpoint.
