@@ -137,17 +137,17 @@ func TestHeadersAsMap(t *testing.T) {
 
 func TestHeadersAsMapWithAllCommonHeaders(t *testing.T) {
 	headers := jws.NewHeaders()
-	
+
 	// Set various common JWT headers
 	err := headers.Set(jws.AlgorithmKey, "RS256")
 	require.NoError(t, err)
-	
+
 	err = headers.Set(jws.KeyIDKey, "test-key-id")
 	require.NoError(t, err)
-	
+
 	err = headers.Set(jws.TypeKey, "JWT")
 	require.NoError(t, err)
-	
+
 	err = headers.Set(jws.ContentTypeKey, "application/json")
 	require.NoError(t, err)
 
@@ -162,4 +162,3 @@ func TestHeadersAsMapWithAllCommonHeaders(t *testing.T) {
 	require.Equal(t, "JWT", headersMap["typ"])
 	require.Equal(t, "application/json", headersMap["cty"])
 }
-

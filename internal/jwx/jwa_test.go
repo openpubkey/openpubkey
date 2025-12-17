@@ -152,83 +152,83 @@ func TestFromJoseAlgorithm(t *testing.T) {
 
 func TestToJoseAlgorithm(t *testing.T) {
 	tests := []struct {
-		name           string
-		jwaAlg         jwa.KeyAlgorithm
+		name            string
+		jwaAlg          jwa.KeyAlgorithm
 		expectedJoseAlg jose.KeyAlgorithm
 	}{
 		{
-			name:           "ES256",
-			jwaAlg:         jwa.ES256(),
+			name:            "ES256",
+			jwaAlg:          jwa.ES256(),
 			expectedJoseAlg: jose.ES256,
 		},
 		{
-			name:           "ES256K",
-			jwaAlg:         jwa.ES256K(),
+			name:            "ES256K",
+			jwaAlg:          jwa.ES256K(),
 			expectedJoseAlg: jose.ES256K,
 		},
 		{
-			name:           "ES384",
-			jwaAlg:         jwa.ES384(),
+			name:            "ES384",
+			jwaAlg:          jwa.ES384(),
 			expectedJoseAlg: jose.ES384,
 		},
 		{
-			name:           "ES512",
-			jwaAlg:         jwa.ES512(),
+			name:            "ES512",
+			jwaAlg:          jwa.ES512(),
 			expectedJoseAlg: jose.ES512,
 		},
 		{
-			name:           "EdDSA",
-			jwaAlg:         jwa.EdDSA(),
+			name:            "EdDSA",
+			jwaAlg:          jwa.EdDSA(),
 			expectedJoseAlg: jose.EdDSA,
 		},
 		{
-			name:           "HS256",
-			jwaAlg:         jwa.HS256(),
+			name:            "HS256",
+			jwaAlg:          jwa.HS256(),
 			expectedJoseAlg: jose.HS256,
 		},
 		{
-			name:           "HS384",
-			jwaAlg:         jwa.HS384(),
+			name:            "HS384",
+			jwaAlg:          jwa.HS384(),
 			expectedJoseAlg: jose.HS384,
 		},
 		{
-			name:           "HS512",
-			jwaAlg:         jwa.HS512(),
+			name:            "HS512",
+			jwaAlg:          jwa.HS512(),
 			expectedJoseAlg: jose.HS512,
 		},
 		{
-			name:           "PS256",
-			jwaAlg:         jwa.PS256(),
+			name:            "PS256",
+			jwaAlg:          jwa.PS256(),
 			expectedJoseAlg: jose.PS256,
 		},
 		{
-			name:           "PS384",
-			jwaAlg:         jwa.PS384(),
+			name:            "PS384",
+			jwaAlg:          jwa.PS384(),
 			expectedJoseAlg: jose.PS384,
 		},
 		{
-			name:           "PS512",
-			jwaAlg:         jwa.PS512(),
+			name:            "PS512",
+			jwaAlg:          jwa.PS512(),
 			expectedJoseAlg: jose.PS512,
 		},
 		{
-			name:           "RS256",
-			jwaAlg:         jwa.RS256(),
+			name:            "RS256",
+			jwaAlg:          jwa.RS256(),
 			expectedJoseAlg: jose.RS256,
 		},
 		{
-			name:           "RS384",
-			jwaAlg:         jwa.RS384(),
+			name:            "RS384",
+			jwaAlg:          jwa.RS384(),
 			expectedJoseAlg: jose.RS384,
 		},
 		{
-			name:           "RS512",
-			jwaAlg:         jwa.RS512(),
+			name:            "RS512",
+			jwaAlg:          jwa.RS512(),
 			expectedJoseAlg: jose.RS512,
 		},
 		{
-			name:           "None",
-			jwaAlg:         jwa.NoSignature(),
+			name:            "None",
+			jwaAlg:          jwa.NoSignature(),
 			expectedJoseAlg: jose.None,
 		},
 	}
@@ -276,4 +276,3 @@ func TestFromJoseAlgorithmToJoseAlgorithmRoundTrip(t *testing.T) {
 		})
 	}
 }
-
