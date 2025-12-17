@@ -19,6 +19,7 @@ package clientinstance
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
@@ -31,12 +32,12 @@ import (
 	"github.com/openpubkey/openpubkey/internal/jwx"
 	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
-	"golang.org/x/crypto/ed25519"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
 type Claims struct {
-	publicKey jwk.Key
+	publicKey crypto.PublicKey
+	algorithm string
 
 	// Claims are stored in the protected header portion of JWS signature
 	protected map[string]any
@@ -73,7 +74,8 @@ func NewClaims(publicKey crypto.PublicKey, claims map[string]any) (*Claims, erro
 	claims["rz"] = rand
 
 	return &Claims{
-		publicKey: jwkKey,
+		publicKey: publicKey,
+		algorithm: alg.String(),
 		protected: claims,
 	}, nil
 }
@@ -99,45 +101,68 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	if !ok {
 		return nil, fmt.Errorf(`missing required "alg" claim`)
 	}
-	if upkAlg, ok := upkjwk.Algorithm(); !ok || alg != upkAlg {
+	upkAlg, ok := upkjwk.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf(`failed to get algorithm from jwk key`)
+	}
+	if alg != upkAlg {
 		return nil, fmt.Errorf(`provided "alg" value different from algorithm provided in "upk" jwk`)
 	}
+	// Export to any first, then convert to the appropriate concrete type
+	// This is necessary because jwk.Export needs to know the concrete type
+	var pubKeyAny any
+	if err := jwk.Export(upkjwk, &pubKeyAny); err != nil {
+		return nil, fmt.Errorf("failed to extract public key from JWK: %w", err)
+	}
+
+	// If we got a private key (crypto.Signer), extract its public key
+	var pubKey crypto.PublicKey
+	if signer, ok := pubKeyAny.(crypto.Signer); ok {
+		pubKey = signer.Public()
+	} else {
+		// Validate that key type matches the declared algorithm
+		switch upkAlg {
+		case jwa.RS256():
+			rsaKey, ok := pubKeyAny.(*rsa.PublicKey)
+			if !ok {
+				return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", upkAlg, pubKeyAny)
+			}
+			pubKey = rsaKey
+		case jwa.ES256():
+			ecdsaKey, ok := pubKeyAny.(*ecdsa.PublicKey)
+			if !ok {
+				return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", upkAlg, pubKeyAny)
+			}
+			pubKey = ecdsaKey
+		case jwa.EdDSA():
+			edKey, ok := pubKeyAny.(ed25519.PublicKey)
+			if !ok {
+				return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", upkAlg, pubKeyAny)
+			}
+			pubKey = edKey
+		default:
+			// Try to use as crypto.PublicKey directly
+			if pk, ok := pubKeyAny.(crypto.PublicKey); ok {
+				pubKey = pk
+			} else {
+				return nil, fmt.Errorf("unsupported algorithm: %s", upkAlg)
+			}
+		}
+	}
+
 	return &Claims{
-		publicKey: upkjwk,
+		publicKey: pubKey,
+		algorithm: upkAlg.String(),
 		protected: protected,
 	}, nil
 }
 
-func (c *Claims) PublicKey() (crypto.PublicKey, error) {
-	keyAlg, ok := c.publicKey.Algorithm()
-	if !ok {
-		return nil, fmt.Errorf("failed to get algorithm from public key")
-	}
-
-	var pubKey interface{}
-	switch keyAlg {
-	case jwa.RS256(), jwa.RS384(), jwa.RS512(), jwa.PS256(), jwa.PS384(), jwa.PS512():
-		pubKey = new(rsa.PublicKey)
-	case jwa.ES256(), jwa.ES256K(), jwa.ES384(), jwa.ES512():
-		pubKey = new(ecdsa.PublicKey)
-	case jwa.EdDSA():
-		pubKey = new(ed25519.PublicKey)
-	default:
-		return nil, fmt.Errorf("unsupported algorithm: %s", keyAlg)
-	}
-
-	err := jwk.Export(c.publicKey, pubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return pubKey.(crypto.PublicKey), nil
+func (c *Claims) PublicKey() crypto.PublicKey {
+	return c.publicKey
 }
 
-// TODO: Are we okay changing the public interface or hide this?
-func (c *Claims) KeyAlgorithm() (jose.KeyAlgorithm, bool) {
-	alg, ok := c.publicKey.Algorithm()
-	return jwx.ToJoseAlgorithm(alg), ok
+func (c *Claims) KeyAlgorithm() jose.KeyAlgorithm {
+	return jose.KeyAlgorithm(c.algorithm)
 }
 
 // Returns a hash of all client instance claims which includes a random value

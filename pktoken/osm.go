@@ -57,11 +57,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 
 	// Create our headers as defined by section 3.5 of the OpenPubkey paper
 	protected := jws.NewHeaders()
-	alg, ok := cic.KeyAlgorithm()
-	if !ok {
-		return nil, errors.New("invalid algorithm")
-	}
-	if err := protected.Set("alg", alg); err != nil {
+	if err := protected.Set("alg", cic.KeyAlgorithm()); err != nil {
 		return nil, err
 	}
 	if err := protected.Set("kid", pktHash); err != nil {
@@ -71,7 +67,7 @@ func (p *PKToken) NewSignedMessage(content []byte, signer crypto.Signer) ([]byte
 		return nil, err
 	}
 
-	jwaAlg, ok := jwx.FromJoseAlgorithm(alg)
+	jwaAlg, ok := jwx.FromJoseAlgorithm(cic.KeyAlgorithm())
 	if !ok {
 		return nil, errors.New("invalid algorithm")
 	}
@@ -131,21 +127,13 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 	if !ok {
 		return nil, fmt.Errorf("missing algorithm header")
 	}
-	cicPublicKey, err := cic.PublicKey()
+	jwkKey, err := jwk.Import(cic.PublicKey())
 	if err != nil {
 		return nil, err
 	}
-	jwkKey, err := jwk.Import(cicPublicKey)
-	if err != nil {
-		return nil, err
-	}
-	joseAlg, ok := cic.KeyAlgorithm()
+	jwaAlg, ok := jwx.FromJoseAlgorithm(cic.KeyAlgorithm())
 	if !ok {
-		return nil, fmt.Errorf("missing cic algorithm")
-	}
-	jwaAlg, ok := jwx.FromJoseAlgorithm(joseAlg)
-	if !ok {
-		return nil, fmt.Errorf("unsupported key algorithm: %s", joseAlg)
+		return nil, fmt.Errorf("unsupported key algorithm: %s", cic.KeyAlgorithm())
 	}
 	if err := jwkKey.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
 		return nil, fmt.Errorf("failed to set algorithm on JWK: %w", err)

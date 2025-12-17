@@ -225,5 +225,5 @@ func ExtractRawPubkey(pkt *pktoken.PKToken) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cic.PublicKey()
+	return cic.PublicKey(), nil
 }

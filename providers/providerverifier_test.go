@@ -78,10 +78,8 @@ func TestProviderVerifier(t *testing.T) {
 				idtTemplate.CommitFunc = mocks.AddAudCommit
 			case "cnf":
 				// For key binding
-				cicPublicKey, err := cic.PublicKey()
-				require.NoError(t, err)
 				idtTemplate.ExtraClaims["cnf"] = map[string]any{
-					"jwk": cicPublicKey,
+					"jwk": cic.PublicKey(),
 				}
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			default:

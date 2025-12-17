@@ -69,13 +69,9 @@ func PktToX509Template(pkt *pktoken.PKToken) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	upk, err := cic.PublicKey()
-	if err != nil {
-		return nil, err
-	}
 
 	// encode ephemeral public key
-	ecPub, err := x509.MarshalPKIXPublicKey(upk)
+	ecPub, err := x509.MarshalPKIXPublicKey(cic.PublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling public key: %w", err)
 	}

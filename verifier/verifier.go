@@ -249,23 +249,14 @@ func verifyCicSignature(pkt *pktoken.PKToken) error {
 		return err
 	}
 
-	cicPublicKey, err := cic.PublicKey()
+	jwkKey, err := jwk.PublicKeyOf(cic.PublicKey())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to import public key: %w", err)
 	}
 
-	jwkKey, err := jwk.Import(cicPublicKey)
-	if err != nil {
-		return err
-	}
-
-	joseAlg, ok := cic.KeyAlgorithm()
+	jwaAlg, ok := jwx.FromJoseAlgorithm(cic.KeyAlgorithm())
 	if !ok {
-		return fmt.Errorf("missing algorithm for cosigner public key")
-	}
-	jwaAlg, ok := jwx.FromJoseAlgorithm(joseAlg)
-	if !ok {
-		return fmt.Errorf("unsupported key algorithm: %s", joseAlg)
+		return fmt.Errorf("unsupported key algorithm: %s", cic.KeyAlgorithm())
 	}
 	if err := jwkKey.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
 		return fmt.Errorf("failed to set algorithm on JWK: %w", err)
