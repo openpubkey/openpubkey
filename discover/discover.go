@@ -42,7 +42,7 @@ type PublicKeyRecord struct {
 	Issuer    string
 }
 
-func publicKeyRecordFromJWK(key jwk.Key, issuer string) (*PublicKeyRecord, error) { // TODO: jwx/v3 in public API
+func publicKeyRecordFromJWK(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	// Let jwx handle the key extraction generically
 	// NOTE: this will pass through private keys as well as public keys
 	var pubKey any
