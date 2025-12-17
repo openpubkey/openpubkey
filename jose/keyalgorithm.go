@@ -1,6 +1,5 @@
 package jose
 
-// only accepts string and jwx internal types, and fails otherwise.
 type KeyAlgorithm = string
 
 // This list is taken from the built-in values of
