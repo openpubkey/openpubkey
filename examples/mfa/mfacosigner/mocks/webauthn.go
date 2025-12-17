@@ -25,7 +25,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -42,7 +42,7 @@ type WebAuthnDevice struct {
 }
 
 func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
-	alg := jwa.ES256
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	if err != nil {
 		return nil, err

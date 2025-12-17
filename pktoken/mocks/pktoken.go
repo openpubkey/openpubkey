@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
@@ -32,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
+func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jose.KeyAlgorithm) (*pktoken.PKToken, error) {
 	options := &MockPKTokenOpts{
 		GQSign:         false,
 		CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
@@ -43,7 +44,7 @@ func GenerateMockPKToken(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgo
 	return pkt, err
 }
 
-func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm) (*pktoken.PKToken, error) {
+func GenerateMockPKTokenGQ(t *testing.T, signingKey crypto.Signer, alg jose.KeyAlgorithm) (*pktoken.PKToken, error) {
 	options := &MockPKTokenOpts{
 		GQSign:         true,
 		CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
@@ -62,7 +63,7 @@ type MockPKTokenOpts struct {
 	CorrectCicSig  bool
 }
 
-func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa.KeyAlgorithm,
+func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jose.KeyAlgorithm,
 	idtTemplate mocks.IDTokenTemplate, options *MockPKTokenOpts) (*pktoken.PKToken, *mocks.MockProviderBackend, error) {
 
 	jwkKey, err := jwk.PublicKeyOf(signingKey)
@@ -142,7 +143,11 @@ func GenerateMockPKTokenWithOpts(t *testing.T, signingKey crypto.Signer, alg jwa
 	}
 
 	// Sign mock id token payload with cic headers
-	cicToken, err := cic.Sign(signingKey, jwkKey.Algorithm(), idToken)
+	jwkAlg, ok := jwkKey.Algorithm()
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to get algorithm from jwk key")
+	}
+	cicToken, err := cic.Sign(signingKey, jwx.ToJoseAlgorithm(jwkAlg), idToken)
 	if err != nil {
 		return nil, nil, err
 	}

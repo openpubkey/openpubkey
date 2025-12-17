@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -173,8 +173,13 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		return nil, err
 	}
 
+	keyAlg, err := jwa.KeyAlgorithmFrom(alg)
+	if err != nil {
+		return nil, err
+	}
+
 	return jws.Sign(payloadStr,
-		jws.WithKey(jwa.KeyAlgorithmFrom(alg), signer,
+		jws.WithKey(keyAlg, signer,
 			jws.WithProtectedHeaders(ph),
 		),
 	)

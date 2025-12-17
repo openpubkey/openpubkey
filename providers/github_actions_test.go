@@ -26,10 +26,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -74,7 +75,9 @@ func TestGithubOpTableTest(t *testing.T) {
 	require.NoError(t, err)
 
 	headers := extractHeaders(t, idToken)
-	require.Equal(t, gq.GQ256, headers.Algorithm(), "github must only return GQ signed ID Tokens but we got (%s)", headers.Algorithm())
+	alg, ok := headers.Algorithm()
+	require.True(t, ok, "algorithm claim not found in header")
+	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
 	require.NoError(t, err)
@@ -170,7 +173,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 	err := json.Unmarshal(expProtected, protected)
 	require.NoError(t, err)
 
-	algOp := jwa.RS256
+	algOp := jwa.RS256()
 	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -195,7 +198,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 	tokenRequestURL := testServer.URL
 	authToken := "fakeAuthToken"
 
-	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signingKey.Public(), "1F2AB83404C08EC9EA0BB99DAED02186B091DBF4", string(algOp))
+	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signingKey.Public(), "1F2AB83404C08EC9EA0BB99DAED02186B091DBF4", algOp.String())
 	require.NoError(t, err)
 
 	op := &GithubOp{
@@ -215,7 +218,9 @@ func TestGithubOpFullGQ(t *testing.T) {
 	require.NoError(t, err)
 
 	headers := extractHeaders(t, idToken)
-	require.Equal(t, gq.GQ256, headers.Algorithm(), "github must only return GQ signed ID Tokens but we got (%s)", headers.Algorithm())
+	alg, ok := headers.Algorithm()
+	require.True(t, ok, "algorithm claim not found in header")
+	require.Equal(t, jose.GQ256, alg.String(), "github must only return GQ signed ID Tokens but we got (%s)", alg.String())
 
 	origHeadersB64, err := gq.OriginalJWTHeaders(idToken)
 	require.NoError(t, err)
