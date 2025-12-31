@@ -287,3 +287,27 @@ func TestKeybinding(t *testing.T) {
 	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 	require.NoError(t, err)
 }
+
+func TestDeviceFlow(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	helloOpOpts.DeviceFlow = true
+
+	op, err := providers.CreateMockHelloOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	// TODO: Add ability of user to provide user-code back to OP mock
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	c, err := client.New(op)
+	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+
+	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+}

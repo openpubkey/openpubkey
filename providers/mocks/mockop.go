@@ -44,11 +44,23 @@ type MockOp struct {
 
 	authCodes     map[string]AuthSession
 	refreshTokens map[string]AuthSession
+	deviceCodes   map[string]DeviceAuthSession
 	httpClient    *http.Client
 }
 
 type AuthSession struct {
 	AuthCode    string
+	Nonce       string
+	Jkt         string // Only used for key binding (JWK thumbprint of the user's bound key)
+	Cnf         []byte // JWK of user's bound key as JSON []byte
+	SubjectAuth Subject
+}
+
+// DeviceAuthSession holds the state for a device flow authentication session
+type DeviceAuthSession struct {
+	DeviceCode  string
+	UserCode    string
+	ClientID    string
 	Nonce       string
 	Jkt         string // Only used for key binding (JWK thumbprint of the user's bound key)
 	Cnf         []byte // JWK of user's bound key as JSON []byte
@@ -74,6 +86,7 @@ func NewMockOp(issuer string, subjects []Subject) (*MockOp, error) {
 		KeyBinding:          false,
 		authCodes:           map[string]AuthSession{},
 		refreshTokens:       map[string]AuthSession{},
+		deviceCodes:         map[string]DeviceAuthSession{},
 	}, nil
 }
 
@@ -90,6 +103,7 @@ func NewMockKeyBindingOp(issuer string, subjects []Subject) (*MockOp, error) {
 		KeyBinding:          true,
 		authCodes:           map[string]AuthSession{},
 		refreshTokens:       map[string]AuthSession{},
+		deviceCodes:         map[string]DeviceAuthSession{},
 	}, nil
 }
 
@@ -133,6 +147,35 @@ func (m *MockOp) GetHTTPClient() *http.Client {
 						StatusCode: 200,
 						Header:     http.Header{"Content-Type": {"application/json"}},
 						Body:       io.NopCloser(strings.NewReader(string(tokensJSON))),
+					}, nil
+				case m.GetDeviceAuthURI():
+					if req.Method != http.MethodPost {
+						return nil, fmt.Errorf("unexpected HTTP method %s for URL %s, expected POST", req.Method, url)
+					}
+
+					err := req.ParseForm()
+					if err != nil {
+						return nil, err
+					}
+
+					nonce := req.FormValue("nonce")
+					if nonce == "" {
+						// TODO: Handle this case better so that we can test OPs that don't include a nonce in device auth request
+						return nil, fmt.Errorf("missing nonce in device authorization request")
+					}
+					clientID := req.FormValue("client_id")
+					jkt := ""
+					if m.KeyBinding {
+						jkt = req.FormValue("dpop_jkt")
+					}
+					deviceCode, userCode := m.CreateDeviceCode(nonce, clientID, jkt)
+
+					// TODO: generate this automatically
+					deviceAuthResponse := fmt.Sprintf(`{"device_code":"%s","user_code":"%s","verification_uri":"https://wallet.hello.coop/device","verification_uri_complete":"https://wallet.hello.coop/device?user_code=%s","expires_in":300000}`, deviceCode, userCode, userCode)
+					return &http.Response{
+						StatusCode: 200,
+						Header:     http.Header{"Content-Type": {"application/json"}},
+						Body:       io.NopCloser(strings.NewReader(deviceAuthResponse)),
 					}, nil
 				default:
 					return nil, fmt.Errorf("unexpected HTTP call to %s %s", req.Method, req.URL)
@@ -246,6 +289,10 @@ func (m *MockOp) GetTokenURI() string {
 	return m.Issuer + "/token"
 }
 
+func (m *MockOp) GetDeviceAuthURI() string {
+	return m.Issuer + "/device/code"
+}
+
 func (m *MockOp) CreateAuthCode(nonce string, subject *Subject, jkt string) string {
 	authcode := fmt.Sprintf("fake-auth-code-%d", len(m.authCodes)+1)
 	authSession := AuthSession{
@@ -256,6 +303,20 @@ func (m *MockOp) CreateAuthCode(nonce string, subject *Subject, jkt string) stri
 	}
 	m.authCodes[authcode] = authSession
 	return authcode
+}
+
+func (m *MockOp) CreateDeviceCode(nonce string, clientID string, jkt string) (string, string) {
+	deviceCode := fmt.Sprintf("fake-device-code-%d", len(m.deviceCodes)+1)
+	userCode := fmt.Sprintf("000-000-00%d", len(m.deviceCodes)+1)
+	authSession := DeviceAuthSession{
+		DeviceCode: deviceCode,
+		UserCode:   userCode,
+		Nonce:      nonce,
+		ClientID:   clientID,
+		Jkt:        jkt,
+	}
+	m.deviceCodes[deviceCode] = authSession
+	return deviceCode, userCode
 }
 
 func (m *MockOp) GetJwksURI() string {
@@ -270,7 +331,7 @@ func (m *MockOp) GetWellKnownResponse() string {
 	return fmt.Sprintf(`{
 	"issuer": "%s",
 	"authorization_endpoint": "%s",
-	"device_authorization_endpoint": "https://oauth2.googleapis.com/device/code",
+	"device_authorization_endpoint": "%s",
 	"token_endpoint": "%s",
 	"userinfo_endpoint": "%s",
 	"revocation_endpoint": "https://oauth2.googleapis.com/revoke",
@@ -323,7 +384,7 @@ func (m *MockOp) GetWellKnownResponse() string {
 		"urn:ietf:params:oauth:grant-type:device_code",
 		"urn:ietf:params:oauth:grant-type:jwt-bearer"
 	]
-}`, m.Issuer, m.GetAuthzEndpointURI(), m.GetTokenURI(), m.GetUserInfoURI(), m.GetJwksURI())
+}`, m.Issuer, m.GetAuthzEndpointURI(), m.GetDeviceAuthURI(), m.GetTokenURI(), m.GetUserInfoURI(), m.GetJwksURI())
 }
 
 func (m *MockOp) GetAuthzEndpointURI() string {
@@ -344,6 +405,8 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		return nil, err
 	}
 	var authSession AuthSession
+	var refreshTokenValue []byte
+
 	grantType := req.FormValue("grant_type")
 	switch grantType {
 	case "authorization_code":
@@ -391,6 +454,25 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		cicHash := authSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
 
+		refreshTokenValue = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
+		m.refreshTokens[string(refreshTokenValue)] = authSession
+
+	case "urn:ietf:params:oauth:grant-type:device_code":
+		// Device flow
+
+		deviceCode := req.FormValue("device_code")
+		clientId := req.FormValue("client_id")
+
+		deviceAuthSession, ok := m.deviceCodes[deviceCode]
+		if !ok {
+			return nil, fmt.Errorf("unknown device code: %s", deviceCode)
+		}
+		if deviceAuthSession.ClientID != clientId {
+			return nil, fmt.Errorf("incorrect client_id for device code %s: got %s, expected %s", deviceCode, clientId, deviceAuthSession.ClientID)
+		}
+		cicHash := deviceAuthSession.Nonce
+		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
+
 	case "refresh_token":
 		refreshToken := req.FormValue("refresh_token")
 		var ok bool
@@ -399,6 +481,9 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("unknown refresh token: %s", refreshToken)
 		}
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
+
+		refreshTokenValue = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
+		m.refreshTokens[string(refreshTokenValue)] = authSession
 		// TODO: require DPoP proof here, when we add refresh token DPoP support if m.KeyBinding {}
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
@@ -408,8 +493,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokens.RefreshToken = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
-	m.refreshTokens[string(tokens.RefreshToken)] = authSession
+	tokens.RefreshToken = refreshTokenValue
 
 	type tokenResponse struct {
 		AccessToken  string `json:"access_token"`
