@@ -457,9 +457,8 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		refreshTokenValue = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
 		m.refreshTokens[string(refreshTokenValue)] = authSession
 
+	// Device flow RFC 8628 OAuth 2.0 Device Authorization Grant
 	case "urn:ietf:params:oauth:grant-type:device_code":
-		// Device flow
-
 		deviceCode := req.FormValue("device_code")
 		clientId := req.FormValue("client_id")
 
@@ -473,6 +472,39 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		cicHash := deviceAuthSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
 
+		if m.KeyBinding {
+			dpop := req.Header.Get("DPoP")
+			if dpop == "" {
+				return nil, fmt.Errorf("missing DPoP header for key binding token request")
+			}
+
+			jktExpected := deviceAuthSession.Jkt
+			if jktExpected == "" {
+				return nil, fmt.Errorf("no JKT registered for device code: %s", deviceCode)
+			}
+
+			cHash := sha256.Sum256([]byte(deviceAuthSession.DeviceCode))
+			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
+			claimsRequired := map[string]any{
+				"c_hash": cHashB64,
+				"htm":    "POST",
+				"htu":    m.GetTokenURI(),
+			}
+
+			jwkMap, err := validateDPoPReturnJwk(dpop, jktExpected, claimsRequired)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate DPoP JWT: %w", err)
+			}
+
+			m.MockProviderBackend.IDTokenTemplate.ExtraClaims = map[string]any{
+				"cnf": map[string]any{
+					"jwk": jwkMap,
+				},
+			}
+			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
+				"typ": "id_token+cnf",
+			}
+		}
 	case "refresh_token":
 		refreshToken := req.FormValue("refresh_token")
 		var ok bool

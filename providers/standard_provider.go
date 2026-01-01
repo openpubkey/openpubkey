@@ -54,7 +54,7 @@ type StandardOpOptions struct {
 	// authorization request.
 	Scopes []string
 	// ExtraURLParamOpts is a list of additional URL parameters to include in the auth request to the OP.
-	ExtraURLParamOpts []rp.URLParamOpt
+	ExtraURLParamOpts map[string]string
 	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
 	// this is set to "consent".
 	PromptType string
@@ -87,11 +87,12 @@ type StandardOpOptions struct {
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
 	return &StandardOpOptions{
-		Issuer:     issuer,
-		ClientID:   clientID,
-		Scopes:     []string{"openid profile email"},
-		PromptType: "consent",
-		AccessType: "offline",
+		Issuer:            issuer,
+		ClientID:          clientID,
+		Scopes:            []string{"openid profile email"},
+		ExtraURLParamOpts: map[string]string{},
+		PromptType:        "consent",
+		AccessType:        "offline",
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -145,7 +146,7 @@ type StandardOp struct {
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
-	ExtraURLParamOpts         []rp.URLParamOpt // Use this to set additional URL params on auth request to the OP
+	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer                    string
 	server                    *http.Server
 	browserOpenOverride       BrowserOpenOverrideFunc
@@ -261,7 +262,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		rp.WithPromptURLParam(s.PromptType),
 		rp.WithURLParam("access_type", s.AccessType),
 	}
-	URLParamOpts = append(URLParamOpts, s.ExtraURLParamOpts...)
+	for k, v := range s.ExtraURLParamOpts {
+		URLParamOpts = append(URLParamOpts, rp.WithURLParam(k, v))
+	}
+
 	mux.Handle("/login",
 		rp.AuthURLHandler(state, relyingParty,
 			URLParamOpts...,
@@ -402,7 +406,16 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
-	dar, err := rp.DeviceAuthorization(ctx, s.Scopes, relyingParty, nonceFormAuthorization(cicHash))
+	dar, err := rp.DeviceAuthorization(ctx, s.Scopes, relyingParty,
+		oidchttp.FormAuthorization(func(values url.Values) {
+			values.Set("nonce", cicHash)
+			for k, v := range s.ExtraURLParamOpts {
+				if values.Has(k) {
+					logrus.Warnf("ExtraURLParamOpts config is overwriting existing URI param (%s) with value (%s)", k, v)
+				}
+				values.Set(k, v)
+			}
+		}))
 	if err != nil {
 		return nil, err
 	}
@@ -582,10 +595,4 @@ func (s *StandardOp) ReuseBrowserWindowHook(h chan string) {
 // calling out the OP. This is hidden by not including in the interface.
 func (s *StandardOp) TriggerBrowserWindowHook(uri string) {
 	s.reuseBrowserWindowHook <- uri
-}
-
-func nonceFormAuthorization(nonce string) oidchttp.FormAuthorization {
-	return func(values url.Values) {
-		values.Set("nonce", nonce)
-	}
 }

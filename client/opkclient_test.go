@@ -288,6 +288,35 @@ func TestKeybinding(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestKeybindingDeviceFlow(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	helloOpOpts.DeviceFlow = true
+	op, err := providers.CreateMockHelloKeyBindingOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	c, err := client.New(op)
+	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	idt, err := oidc.NewJwt(pkt.OpToken)
+	require.NoError(t, err)
+
+	require.NotNil(t, idt.GetClaims().Cnf, "expected cnf claim in key-bound ID token")
+	require.Len(t, idt.GetClaims().Cnf.Jwk, 5, "expected jwk in cnf claim of key-bound ID token")
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+
+	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+}
+
 func TestDeviceFlow(t *testing.T) {
 	helloOpOpts := providers.GetDefaultHelloOpOptions()
 	helloOpOpts.DeviceFlow = true
