@@ -243,7 +243,7 @@ func (o *OpkClient) oidcAuth(
 		if pktJson, err := pkt.MarshalJSON(); err != nil {
 			return nil, fmt.Errorf("error marshalling PK Token to JSON: %w", err)
 		} else {
-			println("pkt: %s", string(pktJson))
+			println("pkt:", string(pktJson))
 		}
 	}
 
