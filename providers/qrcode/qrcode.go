@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package providers
+package qrcode
 
 import (
 	"strings"
@@ -41,14 +41,6 @@ func (w halfBlockWriter) Write(mat qrcode.Matrix) error {
 	b := asBitSet(mat)
 
 	ww, hh := mat.Width(), mat.Height()
-
-	values := func(b *bitset.BitSet, x int, y int) (current bool, below bool) {
-		current = b.Test(uint((ww * y) + x))     // #nosec G115
-		below = b.Test(uint((ww * (y + 1)) + x)) // #nosec G115
-
-		return current, below
-	}
-
 	// white border bottom
 	w.builder.WriteString(strings.Repeat(halfBlockWhiteWhite, ww+4))
 	w.builder.WriteString("\n")
@@ -65,7 +57,8 @@ func (w halfBlockWriter) Write(mat qrcode.Matrix) error {
 				w.builder.WriteString(halfBlockWhiteWhite)
 			}
 
-			current, below := values(b, x, y)
+			current := b.Test(uint((ww * y) + x))     // #nosec G115
+			below := b.Test(uint((ww * (y + 1)) + x)) // #nosec G115
 
 			switch {
 			case current && below:
@@ -112,7 +105,7 @@ func asBitSet(mat qrcode.Matrix) *bitset.BitSet {
 	return &b
 }
 
-func createQRCode(text string) (string, error) {
+func Create(text string) (string, error) {
 	code, err := qrcode.NewWith(text, qrcode.WithErrorCorrectionLevel(qrcode.ErrorCorrectionHighest))
 	if err != nil {
 		return "", err

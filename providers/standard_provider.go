@@ -30,6 +30,7 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
@@ -425,10 +426,10 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		qrCodeURL = dar.VerificationURIComplete
 	}
 
-	code, err := createQRCode(qrCodeURL)
+	code, err := qrcode.Create(qrCodeURL)
 	if err != nil {
 		// do not fail, just log the error, user can still manually open the url
-		logrus.Warnf("could no create qrcode, fallback to textual representation only: %s", err)
+		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
 	} else {
 		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
 	}
