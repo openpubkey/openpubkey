@@ -143,14 +143,6 @@ We follow the approach specified in the following paper: [Reducing Trust in Auto
 
 For user-identity scenarios where the PK Token is not made public, GQ signatures are not required. GQ Signatures are required for all current workload-identity use cases.
 
-## Tested
-
-### OAuth 2.0 Device Authorization Grant (DeviceFlow)
-
-| OpenID Provider                       | Tested | Notes                                                    |
-|---------------------------------------|--------|----------------------------------------------------------|
-| [Authelia](https://www.authelia.com/) | ✅      | [Authelia Integration Guide](docs/providers/authelia.md) |
-
 ## How To Use OpenPubkey
 
 OpenPubkey is driven by its use cases. You can find all available use cases in the [examples folder](./examples/).

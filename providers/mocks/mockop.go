@@ -170,8 +170,7 @@ func (m *MockOp) GetHTTPClient() *http.Client {
 					}
 					deviceCode, userCode := m.CreateDeviceCode(nonce, clientID, jkt)
 
-					// TODO: generate this automatically
-					deviceAuthResponse := fmt.Sprintf(`{"device_code":"%s","user_code":"%s","verification_uri":"https://wallet.hello.coop/device","verification_uri_complete":"https://wallet.hello.coop/device?user_code=%s","expires_in":300000}`, deviceCode, userCode, userCode)
+					deviceAuthResponse := fmt.Sprintf(`{"device_code":"%s","user_code":"%s","verification_uri":"%s","verification_uri_complete":"%s?user_code=%s","expires_in":300000}`, deviceCode, userCode, m.GetDeviceAuthURI(), m.GetDeviceAuthURI(), userCode)
 					return &http.Response{
 						StatusCode: 200,
 						Header:     http.Header{"Content-Type": {"application/json"}},

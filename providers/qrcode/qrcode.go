@@ -79,11 +79,9 @@ func (w halfBlockWriter) Write(mat qrcode.Matrix) error {
 			}
 		}
 	}
-
 	// white border bottom
 	w.builder.WriteString(strings.Repeat(halfBlockWhiteWhite, ww+4))
 	w.builder.WriteString("\n")
-
 	return nil
 }
 
@@ -110,9 +108,7 @@ func Create(text string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	s := strings.Builder{}
-
 	w := halfBlockWriter{&s}
 
 	err = code.Save(w)

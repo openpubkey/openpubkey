@@ -325,7 +325,6 @@ func TestDeviceFlow(t *testing.T) {
 		mocks.UserBrowserInteractionMock{
 			SubjectId: "alice@gmail.com",
 		})
-	// TODO: Add ability of user to provide user-code back to OP mock
 	require.NoError(t, err)
 	require.NotNil(t, op)
 	c, err := client.New(op)
