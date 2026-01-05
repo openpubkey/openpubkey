@@ -41,7 +41,7 @@ func (w halfBlockWriter) Write(mat qrcode.Matrix) error {
 	b := asBitSet(mat)
 
 	ww, hh := mat.Width(), mat.Height()
-	// white border bottom
+	// white border top
 	w.builder.WriteString(strings.Repeat(halfBlockWhiteWhite, ww+4))
 	w.builder.WriteString("\n")
 
@@ -103,6 +103,7 @@ func asBitSet(mat qrcode.Matrix) *bitset.BitSet {
 	return &b
 }
 
+// Create returns a ascii qr code for the given text
 func Create(text string) (string, error) {
 	code, err := qrcode.NewWith(text, qrcode.WithErrorCorrectionLevel(qrcode.ErrorCorrectionHighest))
 	if err != nil {

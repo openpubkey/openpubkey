@@ -451,7 +451,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
 	textual.WriteString("\n\n")
 
-	println(textual.String())
+	fmt.Println(textual.String())
 
 	interval := 3 * time.Second
 	if dar.Interval > 0 {

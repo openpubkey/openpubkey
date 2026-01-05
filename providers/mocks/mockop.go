@@ -459,14 +459,14 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 	// Device flow RFC 8628 OAuth 2.0 Device Authorization Grant
 	case "urn:ietf:params:oauth:grant-type:device_code":
 		deviceCode := req.FormValue("device_code")
-		clientId := req.FormValue("client_id")
+		clientID := req.FormValue("client_id")
 
 		deviceAuthSession, ok := m.deviceCodes[deviceCode]
 		if !ok {
 			return nil, fmt.Errorf("unknown device code: %s", deviceCode)
 		}
-		if deviceAuthSession.ClientID != clientId {
-			return nil, fmt.Errorf("incorrect client_id for device code %s: got %s, expected %s", deviceCode, clientId, deviceAuthSession.ClientID)
+		if deviceAuthSession.ClientID != clientID {
+			return nil, fmt.Errorf("incorrect client_id for device code %s: got %s, expected %s", deviceCode, clientID, deviceAuthSession.ClientID)
 		}
 		cicHash := deviceAuthSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
