@@ -21,6 +21,8 @@ import (
 	"crypto"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"time"
 
@@ -28,9 +30,11 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
+	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	oidchttp "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
@@ -51,7 +55,7 @@ type StandardOpOptions struct {
 	// authorization request.
 	Scopes []string
 	// ExtraURLParamOpts is a list of additional URL parameters to include in the auth request to the OP.
-	ExtraURLParamOpts []rp.URLParamOpt
+	ExtraURLParamOpts map[string]string
 	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
 	// this is set to "consent".
 	PromptType string
@@ -65,6 +69,8 @@ type StandardOpOptions struct {
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
+	// DeviceFlow denotes if the client should use the device flow instead of the standard
+	DeviceFlow bool
 	// OpenBrowser denotes if the client's default browser should be opened
 	// automatically when performing the OIDC authorization flow. This value
 	// should typically be set to true, unless performing some headless
@@ -82,17 +88,19 @@ type StandardOpOptions struct {
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
 	return &StandardOpOptions{
-		Issuer:     issuer,
-		ClientID:   clientID,
-		Scopes:     []string{"openid profile email"},
-		PromptType: "consent",
-		AccessType: "offline",
+		Issuer:            issuer,
+		ClientID:          clientID,
+		Scopes:            []string{"openid profile email"},
+		ExtraURLParamOpts: map[string]string{},
+		PromptType:        "consent",
+		AccessType:        "offline",
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
 		GQSign:         false,
+		DeviceFlow:     false,
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
@@ -112,6 +120,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		AccessType:                opts.AccessType,
 		RedirectURIs:              opts.RedirectURIs,
 		GQSign:                    opts.GQSign,
+		DeviceFlow:                opts.DeviceFlow,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
@@ -134,10 +143,11 @@ type StandardOp struct {
 	AccessType                string
 	RedirectURIs              []string
 	GQSign                    bool
+	DeviceFlow                bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
-	ExtraURLParamOpts         []rp.URLParamOpt // Use this to set additional URL params on auth request to the OP
+	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer                    string
 	server                    *http.Server
 	browserOpenOverride       BrowserOpenOverrideFunc
@@ -170,6 +180,14 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		return s.requestTokensOverrideFunc(cicHash)
 	}
 
+	if s.DeviceFlow {
+		return s.deviceFlowRequestTokens(ctx, cicHash)
+	}
+
+	return s.defaultRequestTokens(ctx, cicHash)
+}
+
+func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
 	redirectURI, ln, err := FindAvailablePort(s.RedirectURIs)
 	if err != nil {
 		return nil, err
@@ -245,7 +263,10 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		rp.WithPromptURLParam(s.PromptType),
 		rp.WithURLParam("access_type", s.AccessType),
 	}
-	URLParamOpts = append(URLParamOpts, s.ExtraURLParamOpts...)
+	for k, v := range s.ExtraURLParamOpts {
+		URLParamOpts = append(URLParamOpts, rp.WithURLParam(k, v))
+	}
+
 	mux.Handle("/login",
 		rp.AuthURLHandler(state, relyingParty,
 			URLParamOpts...,
@@ -351,6 +372,96 @@ func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 		}
 	}
 	return tokens, nil
+}
+
+func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
+	cookieHandler, err := configCookieHandler()
+	if err != nil {
+		return nil, err
+	}
+	options := []rp.Option{
+		rp.WithCookieHandler(cookieHandler),
+		rp.WithSigningAlgsFromDiscovery(),
+		rp.WithVerifierOpts(
+			rp.WithIssuedAtOffset(s.IssuedAtOffset),
+			rp.WithNonce(func(ctx context.Context) string { return cicHash }),
+		),
+	}
+
+	options = append(options, rp.WithPKCE(cookieHandler))
+	if s.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(s.HttpClient))
+	}
+	relyingParty, err := rp.NewRelyingPartyOIDC(
+		ctx,
+		s.issuer,
+		s.clientID,
+		s.ClientSecret,
+		"",
+		s.Scopes,
+		options...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating provider: %w", err)
+	}
+
+	dar, err := rp.DeviceAuthorization(ctx, s.Scopes, relyingParty,
+		oidchttp.FormAuthorization(func(values url.Values) {
+			values.Set("nonce", cicHash)
+			for k, v := range s.ExtraURLParamOpts {
+				if values.Has(k) {
+					logrus.Warnf("ExtraURLParamOpts config is overwriting existing URI param (%s) with value (%s)", k, v)
+				}
+				values.Set(k, v)
+			}
+		}))
+	if err != nil {
+		return nil, err
+	}
+
+	qrCodeURL := dar.VerificationURI
+	if dar.VerificationURIComplete != "" {
+		qrCodeURL = dar.VerificationURIComplete
+	}
+
+	code, err := qrcode.Create(qrCodeURL)
+	if err != nil {
+		// do not fail, just log the error, user can still manually open the url
+		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
+	} else {
+		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
+	}
+	textual := strings.Builder{}
+	if code != "" {
+		textual.WriteString("Scan the QR code or visit: ")
+	} else {
+		textual.WriteString("Using a browser visit: ")
+	}
+	textual.WriteString(dar.VerificationURI)
+	textual.WriteString(" and enter the code: ")
+	textual.WriteString(dar.UserCode)
+
+	textual.WriteString("\n\nComplete URL: ")
+	textual.WriteString(qrCodeURL)
+	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
+	textual.WriteString("\n")
+
+	fmt.Println(textual.String())
+
+	interval := 3 * time.Second
+	if dar.Interval > 0 {
+		interval = time.Duration(dar.Interval) * time.Second
+	}
+
+	atr, err := rp.DeviceAccessToken(ctx, dar.DeviceCode, interval, relyingParty)
+	if err != nil {
+		return nil, err
+	}
+
+	return &simpleoidc.Tokens{
+		IDToken:      []byte(atr.IDToken),
+		RefreshToken: []byte(atr.RefreshToken),
+		AccessToken:  []byte(atr.AccessToken)}, nil
 }
 
 func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {

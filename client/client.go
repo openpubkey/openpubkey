@@ -48,6 +48,7 @@ type OpkClient struct {
 	pkToken      *pktoken.PKToken
 	refreshToken []byte
 	accessToken  []byte
+	printPKToken bool // printPKToken is default false, used to debug PK Token contents
 }
 
 // ClientOpts contains options for constructing an OpkClient
@@ -74,6 +75,12 @@ func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
 func WithCosignerProvider(cosP *CosignerProvider) ClientOpts {
 	return func(o *OpkClient) {
 		o.cosP = cosP
+	}
+}
+
+func WithPrintPKToken() ClientOpts {
+	return func(o *OpkClient) {
+		o.printPKToken = true
 	}
 }
 
@@ -231,6 +238,14 @@ func (o *OpkClient) oidcAuth(
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
 
+	// Print PK Token. This is off by default only useful for debugging issues with providers
+	if o.printPKToken {
+		if pktJson, err := pkt.MarshalJSON(); err != nil {
+			return nil, fmt.Errorf("error marshalling PK Token to JSON: %w", err)
+		} else {
+			fmt.Println("pkt:", string(pktJson))
+		}
+	}
 	pktVerifier, err := verifier.New(o.Op)
 	if err != nil {
 		return nil, err

@@ -32,7 +32,7 @@ import (
 
 func TestMockOp(t *testing.T) {
 	issuer := "https://issuer.example.com"
-	clientId := "test-client-id"
+	clientID := "test-client-id"
 
 	idp, err := NewMockOp(issuer, []Subject{
 		{
@@ -48,7 +48,7 @@ func TestMockOp(t *testing.T) {
 		Issuer:     issuer,
 		Nonce:      "empty",
 		NoNonce:    false,
-		Aud:        clientId,
+		Aud:        clientID,
 		KeyID:      expKeyID,
 		NoKeyID:    false,
 		Alg:        expRecord.Alg,
