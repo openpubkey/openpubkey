@@ -379,7 +379,6 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	if err != nil {
 		return nil, err
 	}
-
 	options := []rp.Option{
 		rp.WithCookieHandler(cookieHandler),
 		rp.WithSigningAlgsFromDiscovery(),
@@ -393,7 +392,6 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
-
 	relyingParty, err := rp.NewRelyingPartyOIDC(
 		ctx,
 		s.issuer,
@@ -433,23 +431,20 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	} else {
 		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
 	}
-
 	textual := strings.Builder{}
-
 	if code != "" {
-		textual.WriteString("Scan the QR code or, using a browser visit:\n\n ")
+		textual.WriteString("Scan the QR code or visit: ")
 	} else {
-		textual.WriteString("Using a browser visit:\n\n ")
+		textual.WriteString("Using a browser visit: ")
 	}
-
 	textual.WriteString(dar.VerificationURI)
-	textual.WriteString("\n\nAnd enter the code:\n\n ")
+	textual.WriteString(" and enter the code: ")
 	textual.WriteString(dar.UserCode)
 
-	textual.WriteString("\n\nComplete URL:\n\n ")
+	textual.WriteString("\n\nComplete URL: ")
 	textual.WriteString(qrCodeURL)
 	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
-	textual.WriteString("\n\n")
+	textual.WriteString("\n")
 
 	fmt.Println(textual.String())
 
