@@ -10,7 +10,7 @@ const (
 	ES384  = KeyAlgorithm("ES384")
 	ES512  = KeyAlgorithm("ES512")
 	EdDSA  = KeyAlgorithm("EdDSA")
-	GQ256  = KeyAlgorithm("GQ256")
+	GQ256  = KeyAlgorithm("GQ256") // We added this algorithm
 	HS256  = KeyAlgorithm("HS256")
 	HS384  = KeyAlgorithm("HS384")
 	HS512  = KeyAlgorithm("HS512")

@@ -239,7 +239,7 @@ func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
 	var claimValue string
 	err = headers.Get(claimKey, &claimValue)
 	if err != nil {
-		// swollow error and communicate via bool instead
+		// swallow error and communicate via bool instead
 		return nil, false, nil
 	}
 	return claimValue, true, nil
