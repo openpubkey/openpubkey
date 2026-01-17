@@ -399,10 +399,10 @@ func TestGQCommitment(t *testing.T) {
 				err := pkt.Op.ProtectedHeaders().Get("cic", &cicHash)
 				if tc.gqCommitment == false {
 					require.Error(t, err)
-					require.Nil(t, cicHash)
+					require.Empty(t, cicHash)
 				} else {
 					require.NoError(t, err)
-					require.NotNil(t, cicHash)
+					require.NotEmpty(t, cicHash)
 
 					cic, err := pkt.GetCicValues()
 					require.NoError(t, err)
