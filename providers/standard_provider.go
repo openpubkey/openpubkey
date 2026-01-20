@@ -62,6 +62,10 @@ type StandardOpOptions struct {
 	// flow exchange. Ensure that your OIDC application is configured to accept
 	// these URIs otherwise an error may occur.
 	RedirectURIs []string
+	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
+	// RedirectURIs value sent to the OP during authorization. We still open a
+	// localhost URI expecting the remote server to proxy the request to a localhost port.
+	RemoteRedirectURI string
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
@@ -92,10 +96,11 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign:         false,
-		OpenBrowser:    true,
-		HttpClient:     nil,
-		IssuedAtOffset: 1 * time.Minute,
+		RemoteRedirectURI: "",
+		GQSign:            false,
+		OpenBrowser:       true,
+		HttpClient:        nil,
+		IssuedAtOffset:    1 * time.Minute,
 	}
 }
 
@@ -111,6 +116,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		PromptType:                opts.PromptType,
 		AccessType:                opts.AccessType,
 		RedirectURIs:              opts.RedirectURIs,
+		RemoteRedirectURI:         opts.RemoteRedirectURI,
 		GQSign:                    opts.GQSign,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
@@ -133,6 +139,7 @@ type StandardOp struct {
 	PromptType                string
 	AccessType                string
 	RedirectURIs              []string
+	RemoteRedirectURI         string
 	GQSign                    bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
@@ -214,13 +221,18 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
 
+	redirectURIParam := redirectURI.String()
+	if s.RemoteRedirectURI != "" {
+		redirectURIParam = s.RemoteRedirectURI
+	}
+
 	// The reason we don't set the relyingParty on the struct and reuse it,
 	// is because refresh requests require a slightly different set of
 	// options. For instance we want the option to check the nonce (WithNonce)
 	// here, but in RefreshTokens we don't want that option set because
 	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
-		s.issuer, s.clientID, s.ClientSecret, redirectURI.String(),
+		s.issuer, s.clientID, s.ClientSecret, redirectURIParam,
 		s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -445,6 +457,56 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
 	return err
 }
+
+// func ValidateRedirectUris(redirectUris []string) error {
+// 	localhostRedirectURI := []string{}
+// 	notLocalhostRedirectURI := []string{}
+
+// 	for _, uri := range redirectUris {
+// 		uriObj, err := url.Parse(uri)
+// 		if err != nil {
+// 			return fmt.Errorf("malformed redirect URI (%s): %w", uri, err)
+// 		}
+// 		uriObj.Hostname()
+// 		if uriObj.Hostname() == "localhost" || uriObj.Hostname() == "127.0.0.1" {
+// 			localhostRedirectURI = append(localhostRedirectURI, uri)
+// 		} else {
+// 			notLocalhostRedirectURI = append(notLocalhostRedirectURI, uri)
+// 		}
+// 	}
+
+// 	// We choose redirectURIs at random from the list to avoid port conflicts on localhost.
+// 	// If a non-redirectURI is
+// 	if len(localhostRedirectURI) > 0 && len(notLocalhostRedirectURI) > 0 {
+// 		return fmt.Errorf("cannot have both localhost (%v) and non-localhost redirect URIs (%v) configured", localhostRedirectURI, notLocalhostRedirectURI)
+// 	}
+
+// 	for _, uri := range s.RedirectURIs {
+
+// 		if util.IsLocalhostRedirectURI(uri) {
+// 			containsLocalhostRedirectURI = true
+// 		} else {
+// 			containsNotLocalhostRedirectURI = true
+// 		}
+// 	}
+// 	if containsLocalhostRedirectURI && containsNotLocalhostRedirectURI {
+// 		return nil, fmt.Errorf("cannot have both localhost and non-localhost redirect URIs configured got (%v)", s.RedirectURIs)
+// 	}
+
+// 	uriObj, err := url.Parse(uri)
+// 	if err != nil {
+// 		return fmt.Errorf("malformed redirect URI (%s)", uri)
+// 	}
+// 	uriPath := uriObj.Path
+
+// 	// splitUri := strings.Split(uri, "://")
+
+// 	// if strings.HasPrefix(uri, "http://localhost:") || strings.HasPrefix(uri, "http://127.0.0.1:")
+// 	// || strings.HasPrefix(uri, "https://localhost:") || strings.HasPrefix(uri, "https://127.0.0.1:"){
+// 	// 	return true
+// 	// }
+// 	// return false
+// }
 
 type BrowserOpenOverrideFunc func(url string) error
 

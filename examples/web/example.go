@@ -85,7 +85,11 @@ func main() {
 
 func login(outputDir string, gqSign bool) error {
 	googleOpOptions := providers.GetDefaultGoogleOpOptions()
+	googleOpOptions.ClientID = "411517154569-7f10v0ftgp5elms1q8fm7avtp33t7i7n.apps.googleusercontent.com"
+	googleOpOptions.ClientSecret = "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" // Not a secret. This is a public value in public OIDC apps
 	googleOpOptions.GQSign = gqSign
+	googleOpOptions.RedirectURIs = []string{"http://localhost:3000/login-callback"}
+	googleOpOptions.RemoteRedirectURI = "https://openpubkey-test.com:3000/login-callback"
 	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
 	azureOpOptions := providers.GetDefaultAzureOpOptions()
