@@ -51,6 +51,10 @@ type HelloOptions struct {
 	// flow exchange. Ensure that your OIDC application is configured to accept
 	// these URIs otherwise an error may occur.
 	RedirectURIs []string
+	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
+	// RedirectURIs value sent to the OP during authorization. We still open a
+	// localhost URI expecting the remote server to proxy the request to a localhost port.
+	RemoteRedirectURI string
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
@@ -116,6 +120,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 		clientID:                  opts.ClientID,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
+		RemoteRedirectURI:         opts.RemoteRedirectURI,
 		PromptType:                opts.PromptType,
 		AccessType:                opts.AccessType,
 		GQSign:                    opts.GQSign,

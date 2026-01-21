@@ -19,7 +19,10 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/openpubkey/openpubkey/providers/mocks"
@@ -28,6 +31,7 @@ import (
 )
 
 func TestStandardProviders(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		gqSign       bool
@@ -173,4 +177,49 @@ func TestDefaultConstructors(t *testing.T) {
 
 	helloOp := NewHelloOp()
 	require.NotNil(t, helloOp, "Hello provider should be created")
+}
+
+func TestRemoteRedirectURI(t *testing.T) {
+	// As this test opens a http listener on a specific port, it is best to not run in parallel in order to avoid port conflicts
+
+	remoteRedirectURIExpected := "http://localhost:8182/login-callback"
+	opts := GetDefaultGoogleOpOptions()
+	opts.RemoteRedirectURI = remoteRedirectURIExpected
+	op, err := CreateMockGoogleOpWithOpts(opts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	// This checks that we can override the redirect URI by opening a
+	// http listener to make sure we get redirected to the expected redirect URI
+	// that we set above
+	ctx, cancel := context.WithCancel(context.Background())
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login-callback", func(w http.ResponseWriter, r *http.Request) {
+		defer cancel()
+		uriReceived := r.URL.String()
+		require.Contains(t, uriReceived, "/login-callback?code=", "callback URI path should match")
+	})
+
+	ln, err := net.Listen("tcp", "localhost:8182")
+	require.NoError(t, err)
+	srv := &http.Server{Handler: mux}
+
+	go func() {
+		err := srv.Serve(ln)
+		if err != nil && err != http.ErrServerClosed {
+			t.Errorf("server error: %v", err)
+		}
+	}()
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	})
+
+	// We only call request tokens to trigger the callback to see if the correct
+	// redirect URI param is set. We do not care about the result.
+	_, _ = op.RequestTokens(ctx, GenCIC(t))
 }
