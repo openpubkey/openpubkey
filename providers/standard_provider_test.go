@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v2/jws"
@@ -28,6 +29,7 @@ import (
 )
 
 func TestStandardProviders(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		gqSign       bool
@@ -173,4 +175,31 @@ func TestDefaultConstructors(t *testing.T) {
 
 	helloOp := NewHelloOp()
 	require.NotNil(t, helloOp, "Hello provider should be created")
+}
+
+func TestRemoteRedirectURI(t *testing.T) {
+	// As this test opens a http listener on a specific port, it is best to not run in parallel in order to avoid port conflicts
+
+	remoteRedirectURIExpected := "http://localhost:8182/login-callback"
+	opts := GetDefaultGoogleOpOptions()
+	opts.RemoteRedirectURI = remoteRedirectURIExpected
+	op, err := CreateMockGoogleOpWithOpts(opts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	go func() {
+		err = http.ListenAndServe("localhost:8182", nil)
+	}()
+
+	// This checks that we can override the redirect URI by opening a http listener to make sure we get redirected to the expected redirect URI that we set above
+	ctx, cancel := context.WithCancel(context.Background())
+	http.HandleFunc("/login-callback", func(w http.ResponseWriter, r *http.Request) {
+		defer cancel()
+		uriReceived := r.URL.String()
+		require.Contains(t, uriReceived, "/login-callback?code=", "callback URI path should match")
+	})
+
+	_, _ = op.RequestTokens(ctx, GenCIC(t))
 }

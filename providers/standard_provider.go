@@ -458,56 +458,6 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	return err
 }
 
-// func ValidateRedirectUris(redirectUris []string) error {
-// 	localhostRedirectURI := []string{}
-// 	notLocalhostRedirectURI := []string{}
-
-// 	for _, uri := range redirectUris {
-// 		uriObj, err := url.Parse(uri)
-// 		if err != nil {
-// 			return fmt.Errorf("malformed redirect URI (%s): %w", uri, err)
-// 		}
-// 		uriObj.Hostname()
-// 		if uriObj.Hostname() == "localhost" || uriObj.Hostname() == "127.0.0.1" {
-// 			localhostRedirectURI = append(localhostRedirectURI, uri)
-// 		} else {
-// 			notLocalhostRedirectURI = append(notLocalhostRedirectURI, uri)
-// 		}
-// 	}
-
-// 	// We choose redirectURIs at random from the list to avoid port conflicts on localhost.
-// 	// If a non-redirectURI is
-// 	if len(localhostRedirectURI) > 0 && len(notLocalhostRedirectURI) > 0 {
-// 		return fmt.Errorf("cannot have both localhost (%v) and non-localhost redirect URIs (%v) configured", localhostRedirectURI, notLocalhostRedirectURI)
-// 	}
-
-// 	for _, uri := range s.RedirectURIs {
-
-// 		if util.IsLocalhostRedirectURI(uri) {
-// 			containsLocalhostRedirectURI = true
-// 		} else {
-// 			containsNotLocalhostRedirectURI = true
-// 		}
-// 	}
-// 	if containsLocalhostRedirectURI && containsNotLocalhostRedirectURI {
-// 		return nil, fmt.Errorf("cannot have both localhost and non-localhost redirect URIs configured got (%v)", s.RedirectURIs)
-// 	}
-
-// 	uriObj, err := url.Parse(uri)
-// 	if err != nil {
-// 		return fmt.Errorf("malformed redirect URI (%s)", uri)
-// 	}
-// 	uriPath := uriObj.Path
-
-// 	// splitUri := strings.Split(uri, "://")
-
-// 	// if strings.HasPrefix(uri, "http://localhost:") || strings.HasPrefix(uri, "http://127.0.0.1:")
-// 	// || strings.HasPrefix(uri, "https://localhost:") || strings.HasPrefix(uri, "https://127.0.0.1:"){
-// 	// 	return true
-// 	// }
-// 	// return false
-// }
-
 type BrowserOpenOverrideFunc func(url string) error
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
