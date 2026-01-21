@@ -229,11 +229,62 @@ func CreateMockHelloKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions 
 	helloOpOpts.HttpClient = rt
 	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
 
-	// TODO: Determine where to put "key binding" in names
 	helloOp := NewHelloKeyBindingOpWithOptions(helloOpOpts)
 
 	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
 	op := helloOp.(*HelloKeyBindingOp)
+	op.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+	return op, nil
+}
+
+// NewHelloRefreshableKeyBindingOpWithOptions creates a Hello key binding OP that supports a refresh flow.
+// With configuration specified using an options struct. This is useful if you want to use your own OIDC
+// Client or override the configuration.
+func NewHelloRefreshableKeyBindingOpWithOptions(opts *HelloOptions) RefreshableOpenIdProvider {
+	return &KeyBindingOpRefreshable{
+		KeyBindingOp: KeyBindingOp{
+			StandardOp: *newHelloOpWithOptions(opts),
+		},
+	}
+}
+
+func CreateMockHelloRefreshableKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions mocks.UserBrowserInteractionMock) (RefreshableOpenIdProvider, error) {
+	subjects := []mocks.Subject{
+		{
+			SubjectID: "alice@gmail.com",
+		},
+	}
+
+	idp, err := mocks.NewMockKeyBindingOp(helloOpOpts.Issuer, subjects)
+	if err != nil {
+		return nil, err
+	}
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc:           mocks.AddNonceCommit,
+		Issuer:               helloOpOpts.Issuer,
+		Nonce:                "empty",
+		NoNonce:              false,
+		Aud:                  helloOpOpts.ClientID,
+		KeyID:                expKeyID,
+		NoKeyID:              false,
+		Alg:                  expRecord.Alg,
+		NoAlg:                false,
+		ExtraClaims:          map[string]any{"extraClaim": "extraClaimValue"},
+		ExtraProtectedClaims: map[string]any{"extraHeader": "extraheaderValue"},
+		SigningKey:           expSigningKey,
+	}
+
+	rt := idp.GetHTTPClient()
+	helloOpOpts.HttpClient = rt
+	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
+
+	helloOp := NewHelloRefreshableKeyBindingOpWithOptions(helloOpOpts)
+
+	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
+	op := helloOp.(*KeyBindingOpRefreshable)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 
 	return op, nil

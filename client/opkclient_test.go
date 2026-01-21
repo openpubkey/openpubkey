@@ -261,6 +261,7 @@ func TestClientRefreshNotSupported(t *testing.T) {
 }
 
 func TestKeybinding(t *testing.T) {
+	// TODO: When hello adds refreshable keybinding support, we can delete this test and use TestKeybindingRefreshFlow
 	helloOpOpts := providers.GetDefaultHelloOpOptions()
 	op, err := providers.CreateMockHelloKeyBindingOpWithOpts(helloOpOpts,
 		mocks.UserBrowserInteractionMock{
@@ -285,5 +286,45 @@ func TestKeybinding(t *testing.T) {
 	require.NoError(t, err)
 
 	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+}
+
+func TestKeybindingRefreshFlow(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	op, err := providers.CreateMockHelloRefreshableKeyBindingOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	c, err := client.New(op)
+	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	idt, err := oidc.NewJwt(pkt.OpToken)
+	require.NoError(t, err)
+
+	require.NotNil(t, idt.GetClaims().Cnf, "expected cnf claim in key-bound ID token")
+	require.Len(t, idt.GetClaims().Cnf.Jwk, 5, "expected jwk in cnf claim of key-bound ID token")
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+
+	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+
+	pktRefreshed, err := c.Refresh(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pktRefreshed)
+	idtRefreshed, err := oidc.NewJwt(pktRefreshed.OpToken)
+	require.NoError(t, err)
+
+	require.NotNil(t, idtRefreshed.GetClaims().Cnf, "expected cnf claim in key-bound ID token")
+	require.Len(t, idtRefreshed.GetClaims().Cnf.Jwk, 5, "expected jwk in cnf claim of key-bound ID token")
+
+	err = c.Op.VerifyIDToken(context.Background(), pktRefreshed.OpToken, cic)
 	require.NoError(t, err)
 }
