@@ -116,11 +116,11 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	}
 
 	// If we got a private key (crypto.Signer), extract its public key
-	var pubKey crypto.PublicKey
 	if signer, ok := pubKeyAny.(crypto.Signer); ok {
-		pubKey = signer.Public()
+		pubKeyAny = signer.Public()
 	}
 
+	var pubKey crypto.PublicKey
 	// Validate that key type matches the declared algorithm
 	switch upkAlg {
 	case jwa.RS256():
