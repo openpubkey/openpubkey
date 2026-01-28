@@ -75,7 +75,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 	var cicHash2 string
 	err = headers.Get("cic", &cicHash2)
-	require.NoError(t, err)
+	require.NoError(t, err, "unexpected error when reading CIC in GQ ID Token")
 
 	require.Equal(t, string(cicHash), cicHash2, "cic hash in jwt header should match cic supplied")
 }
