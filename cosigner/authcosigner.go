@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
 
@@ -35,7 +35,7 @@ type AuthCosigner struct {
 	AuthStateStore AuthStateStore
 }
 
-func New(signer crypto.Signer, alg jwa.SignatureAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) {
+func New(signer crypto.Signer, alg jose.KeyAlgorithm, issuer, keyID string, store AuthStateStore) (*AuthCosigner, error) {
 	return &AuthCosigner{
 		Cosigner: Cosigner{
 			Alg:    alg,
@@ -96,7 +96,7 @@ func (c *AuthCosigner) IssueSignature(pkt *pktoken.PKToken, authState AuthState,
 	protected := pktoken.CosignerClaims{
 		Issuer:      c.Issuer,
 		KeyID:       c.KeyID,
-		Algorithm:   c.Alg.String(),
+		Algorithm:   c.Alg,
 		AuthID:      authID,
 		AuthTime:    time.Now().Unix(),
 		IssuedAt:    time.Now().Unix(),

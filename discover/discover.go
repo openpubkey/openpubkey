@@ -27,10 +27,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 
 	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
@@ -42,11 +42,11 @@ type PublicKeyRecord struct {
 	Issuer    string
 }
 
-func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
+func publicKeyRecordFromJWK(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 	// Let jwx handle the key extraction generically
 	// NOTE: this will pass through private keys as well as public keys
-	var pubKey crypto.PublicKey
-	if err := key.Raw(&pubKey); err != nil {
+	var pubKey any
+	if err := jwk.Export(key, &pubKey); err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
@@ -55,25 +55,25 @@ func NewPublicKeyRecord(key jwk.Key, issuer string) (*PublicKeyRecord, error) {
 		pubKey = signer.Public()
 	}
 
-	alg := key.Algorithm()
-	if alg.String() == "" {
+	alg, ok := key.Algorithm()
+	if !ok || alg.String() == "" {
 		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
 		// handle this case, assume no alg in JWKS means RSA as OIDC requires
 		// OPs use RSA.
-		alg = jwa.RS256
+		alg = jwa.RS256()
 	}
 
 	// Validate that key type matches the declared algorithm
 	switch alg {
-	case jwa.RS256:
+	case jwa.RS256():
 		if _, ok := pubKey.(*rsa.PublicKey); !ok {
 			return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKey)
 		}
-	case jwa.ES256:
+	case jwa.ES256():
 		if _, ok := pubKey.(*ecdsa.PublicKey); !ok {
 			return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKey)
 		}
-	case jwa.EdDSA:
+	case jwa.EdDSA():
 		if _, ok := pubKey.(ed25519.PublicKey); !ok {
 			return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKey)
 		}
@@ -159,8 +159,13 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 	// a JWT is guaranteed to have exactly one signature
 	headers := jwt.Signatures()[0].ProtectedHeaders()
 
-	if headers.Algorithm() == gq.GQ256 {
-		origHeadersJson, err := util.Base64DecodeForJWT([]byte(headers.KeyID()))
+	headersAlg, ok := headers.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("error getting algorithm from JWT headers")
+	}
+	keyID, _ := headers.KeyID()
+	if headersAlg.String() == jose.GQ256 {
+		origHeadersJson, err := util.Base64DecodeForJWT([]byte(keyID))
 		if err != nil {
 			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
 		}
@@ -170,9 +175,11 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 		}
+		// Extract the kid from the original headers after unmarshaling
+		keyID, _ = headers.KeyID()
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyID(ctx, issuer, headers.KeyID())
+	return f.ByKeyID(ctx, issuer, keyID)
 }
 
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
@@ -200,10 +207,15 @@ func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID stri
 		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
 
-	// If keyID is blank and there is only one key in the JWKS, return that key
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
-		return NewPublicKeyRecord(key, issuer)
+		return publicKeyRecordFromJWK(key, issuer)
+	} else if keyID == "" && jwks.Len() == 1 {
+		key, ok := jwks.Key(0)
+		if !ok {
+			return nil, fmt.Errorf("failed to get key from JWK set")
+		}
+		return publicKeyRecordFromJWK(key, issuer)
 	}
 
 	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
@@ -215,16 +227,18 @@ func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) 
 		return nil, err
 	}
 
-	it := jwks.Keys(ctx)
-	for it.Next(ctx) {
-		key := it.Pair().Value.(jwk.Key)
+	for i := range jwks.Len() {
+		key, ok := jwks.Key(i)
+		if !ok {
+			continue
+		}
 		jktOfKey, err := key.Thumbprint(crypto.SHA256)
 		if err != nil {
 			return nil, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)
 		}
 		jktOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
 		if jkt == string(jktOfKeyB64) {
-			return NewPublicKeyRecord(key, issuer)
+			return publicKeyRecordFromJWK(key, issuer)
 		}
 	}
 

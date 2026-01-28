@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
@@ -230,8 +230,9 @@ func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expe
 	}
 
 	ph := cosSigParsed.Signatures()[0].ProtectedHeaders()
-	nonceRet, ok := ph.Get("nonce")
-	if !ok {
+	var nonceRet string
+	err = ph.Get("nonce", &nonceRet)
+	if err != nil {
 		return fmt.Errorf("nonce not set in Cosigner signature protected header")
 	}
 
@@ -239,8 +240,9 @@ func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expe
 		return fmt.Errorf("incorrect nonce set in Cosigner signature")
 	}
 
-	ruriRet, ok := ph.Get("ruri")
-	if !ok {
+	var ruriRet string
+	err = ph.Get("ruri", &ruriRet)
+	if err != nil {
 		return fmt.Errorf("ruri (redirect URI) not set in Cosigner signature protected header")
 	}
 
@@ -248,8 +250,9 @@ func (c *CosignerProvider) ValidateCos(cosSig []byte, expectedNonce string, expe
 		return fmt.Errorf("unexpected ruri (redirect URI) set in Cosigner signature, got %s expected %s", ruriRet, expectedRedirectURI)
 	}
 
-	issRet, ok := ph.Get("iss")
-	if !ok {
+	var issRet string
+	err = ph.Get("iss", &issRet)
+	if err != nil {
 		return fmt.Errorf("iss (Cosigner Issuer) not set in Cosigner signature protected header")
 	}
 

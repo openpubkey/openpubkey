@@ -28,7 +28,7 @@ import (
 	"fmt"
 	mathrand "math/rand"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/oidc"
 	"golang.org/x/exp/maps"

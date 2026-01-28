@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
@@ -196,7 +196,7 @@ func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byt
 	if err != nil {
 		return err
 	}
-	alg := jwa.SignatureAlgorithm(pkr.Alg)
+	alg := jwa.NewSignatureAlgorithm(pkr.Alg)
 	if _, err := jws.Verify(reIdt, jws.WithKey(alg, pkr.PublicKey)); err != nil {
 		return err
 	}

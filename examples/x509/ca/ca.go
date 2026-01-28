@@ -30,17 +30,18 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 
 	"github.com/openpubkey/openpubkey/cert"
 	"github.com/openpubkey/openpubkey/client"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
 type Ca struct {
 	pksk *ecdsa.PrivateKey
-	Alg  jwa.KeyAlgorithm
+	Alg  jose.KeyAlgorithm
 	// CaCertBytes []byte
 	RootCertPem []byte
 	op          client.OpenIdProvider
@@ -50,7 +51,7 @@ func New(op client.OpenIdProvider) (*Ca, error) {
 	ca := Ca{
 		op: op,
 	}
-	alg := string(jwa.ES256)
+	alg := jwa.ES256().String()
 	err := ca.KeyGen(alg)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,11 @@ func New(op client.OpenIdProvider) (*Ca, error) {
 }
 
 func (a *Ca) KeyGen(alg string) error {
-	a.Alg = jwa.KeyAlgorithmFrom(alg)
+	keyAlg, err := jwa.KeyAlgorithmFrom(alg)
+	if err != nil {
+		return fmt.Errorf("failed to parse key algorithm from %s: %w", alg, err)
+	}
+	a.Alg = keyAlg.String()
 
 	pksk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -220,10 +225,5 @@ func ExtractRawPubkey(pkt *pktoken.PKToken) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	upk := cic.PublicKey()
-	var rawUpk interface{} // This is the raw key, like *rsa.PrivateKey or *ecdsa.PrivateKey
-	if err := upk.Raw(&rawUpk); err != nil {
-		return nil, err
-	}
-	return rawUpk, nil
+	return cic.PublicKey(), nil
 }

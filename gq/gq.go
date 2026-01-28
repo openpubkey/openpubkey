@@ -23,15 +23,14 @@ import (
 	"math/big"
 
 	"filippo.io/bigmod"
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/jose"
 	"golang.org/x/crypto/sha3"
 )
 
-var GQ256 = jwa.SignatureAlgorithm("GQ256")
-
 func init() {
-	jwa.RegisterSignatureAlgorithm(GQ256)
+	jwa.RegisterSignatureAlgorithm(jwa.NewSignatureAlgorithm(jose.GQ256))
 }
 
 type OptsStruct struct {
@@ -60,7 +59,7 @@ func WithExtraClaim(k string, v string) Opts {
 // an additional check that the correct rsa public key has been supplied.
 // Use this instead of SignerVerifier.SignJWT.
 func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte, opts ...Opts) ([]byte, error) {
-	_, err := jws.Verify(jwt, jws.WithKey(jwa.RS256, rsaPublicKey))
+	_, err := jws.Verify(jwt, jws.WithKey(jwa.RS256(), rsaPublicKey))
 	if err != nil {
 		return nil, fmt.Errorf("incorrect public key supplied when GQ signing jwt: %w", err)
 	}
@@ -189,10 +188,18 @@ func OriginalJWTHeaders(jwt []byte) ([]byte, error) {
 	// a JWT is guaranteed to have exactly one signature
 	headers := token.Signatures()[0].ProtectedHeaders()
 
-	if headers.Algorithm() != GQ256 {
-		return nil, fmt.Errorf("expected GQ256 alg, got %s", headers.Algorithm())
+	headersAlg, ok := headers.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("unable to retrieve headers algorithm")
+	}
+	if headersAlg.String() != jose.GQ256 {
+		return nil, fmt.Errorf("expected GQ256 alg, got %s", headersAlg.String())
 	}
 
-	origHeaders := []byte(headers.KeyID())
+	headersKeyID, ok := headers.KeyID()
+	if !ok {
+		return nil, fmt.Errorf("unable to retrieve headers key ID")
+	}
+	origHeaders := []byte(headersKeyID)
 	return origHeaders, nil
 }

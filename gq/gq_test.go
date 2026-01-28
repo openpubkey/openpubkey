@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,8 @@ func TestGQ256SignJWT(t *testing.T) {
 	require.NotEqual(t, oidcPrivKey, oidcPrivKeyWrong)
 
 	gqToken2, err := GQ256SignJWT(&oidcPrivKeyWrong.PublicKey, idToken)
-	require.EqualError(t, err, "incorrect public key supplied when GQ signing jwt: could not verify message using any of the signatures or keys")
+	require.ErrorContains(t, err, "incorrect public key supplied when GQ signing jwt")
+	require.ErrorContains(t, err, "could not verify message using any of the signatures or keys")
 	require.Nil(t, gqToken2)
 
 	// Test specifying with extra claims
@@ -120,7 +121,7 @@ func TestVerifyModifiedIdPayload(t *testing.T) {
 	modifiedToken, err := modifyTokenPayload(idToken, "fail")
 	require.NoError(t, err)
 
-	_, err = jws.Verify(modifiedToken, jws.WithKey(jwa.RS256, oidcPubKey))
+	_, err = jws.Verify(modifiedToken, jws.WithKey(jwa.RS256(), oidcPubKey))
 	require.Error(t, err, "ID token signature should fail for modified token")
 
 	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
@@ -185,7 +186,7 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 }
 
 func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
-	alg := jwa.RS256 // RSASSA-PKCS-v1.5 using SHA-256
+	alg := jwa.RS256() // RSASSA-PKCS-v1.5 using SHA-256
 
 	oidcHeader := jws.NewHeaders()
 	err := oidcHeader.Set(jws.AlgorithmKey, alg)
@@ -235,6 +236,11 @@ func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
 		return nil, false, err
 	}
 
-	claimValue, ok := headers.Get(claimKey)
-	return claimValue, ok, nil
+	var claimValue string
+	err = headers.Get(claimKey, &claimValue)
+	if err != nil {
+		// swallow error and communicate via bool instead
+		return nil, false, nil
+	}
+	return claimValue, true, nil
 }

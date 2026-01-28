@@ -25,18 +25,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
 	"github.com/openpubkey/openpubkey/util"
 )
 
 func TestPkToken(t *testing.T) {
-	alg := jwa.ES256
+	alg := jose.ES256
 
 	signingKey, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestPkToken(t *testing.T) {
 
 	actualAlg, ok := pkt.ProviderAlgorithm()
 	require.True(t, ok)
-	require.Equal(t, "RS256", actualAlg.String())
+	require.Equal(t, jose.RS256, actualAlg)
 
 }
 

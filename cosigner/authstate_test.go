@@ -19,8 +19,8 @@ package cosigner_test
 import (
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/cosigner"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ import (
 
 func TestAuthState(t *testing.T) {
 	// Generate the key pair for our cosigner
-	alg := jwa.ES256
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err, "failed to generate key pair")
 

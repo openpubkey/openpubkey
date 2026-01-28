@@ -18,30 +18,36 @@ package clientinstance
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 // Client Instance Claims, referred also as "cic" in the OpenPubKey paper
 type Claims struct {
-	publicKey jwk.Key
+	publicKey crypto.PublicKey
+	algorithm string
 
 	// Claims are stored in the protected header portion of JWS signature
 	protected map[string]any
 }
 
 // Client instance claims must relate to a single key pair
-func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
-	// Make sure our JWK has the algorithm header set
-	if publicKey.Algorithm().String() == "" {
-		return nil, fmt.Errorf("user JWK requires algorithm to be set")
+func NewClaims(publicKey crypto.PublicKey, claims map[string]any) (*Claims, error) {
+	jwkKey, err := jwk.PublicKeyOf(publicKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Make sure no claims are using our reserved values
@@ -56,14 +62,20 @@ func NewClaims(publicKey jwk.Key, claims map[string]any) (*Claims, error) {
 		return nil, fmt.Errorf("failed to generate random value: %w", err)
 	}
 
+	alg, ok := jwkKey.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("failed to get algorithm from jwk key")
+	}
+
 	// Assign required values
 	claims["typ"] = "CIC"
-	claims["alg"] = publicKey.Algorithm().String()
-	claims["upk"] = publicKey
+	claims["alg"] = alg
+	claims["upk"] = jwkKey
 	claims["rz"] = rand
 
 	return &Claims{
 		publicKey: publicKey,
+		algorithm: alg.String(),
 		protected: claims,
 	}, nil
 }
@@ -88,21 +100,64 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	alg, ok := protected["alg"]
 	if !ok {
 		return nil, fmt.Errorf(`missing required "alg" claim`)
-	} else if alg != upkjwk.Algorithm() {
+	}
+	upkAlg, ok := upkjwk.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf(`failed to get algorithm from jwk key`)
+	}
+	if alg != upkAlg {
 		return nil, fmt.Errorf(`provided "alg" value different from algorithm provided in "upk" jwk`)
 	}
+	// Export to any first, then convert to the appropriate concrete type
+	// This is necessary because jwk.Export needs to know the concrete type
+	var pubKeyAny any
+	if err := jwk.Export(upkjwk, &pubKeyAny); err != nil {
+		return nil, fmt.Errorf("failed to extract public key from JWK: %w", err)
+	}
+
+	// If we got a private key (crypto.Signer), extract its public key
+	if signer, ok := pubKeyAny.(crypto.Signer); ok {
+		pubKeyAny = signer.Public()
+	}
+
+	var pubKey crypto.PublicKey
+	// Validate that key type matches the declared algorithm
+	switch upkAlg {
+	case jwa.RS256():
+		rsaKey, ok := pubKeyAny.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", upkAlg, pubKeyAny)
+		}
+		pubKey = rsaKey
+	case jwa.ES256():
+		ecdsaKey, ok := pubKeyAny.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", upkAlg, pubKeyAny)
+		}
+		pubKey = ecdsaKey
+	case jwa.EdDSA():
+		edKey, ok := pubKeyAny.(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", upkAlg, pubKeyAny)
+		}
+		pubKey = edKey
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", upkAlg)
+	}
+
 	return &Claims{
-		publicKey: upkjwk,
+		publicKey: pubKey,
+		algorithm: upkAlg.String(),
 		protected: protected,
 	}, nil
 }
 
-func (c *Claims) PublicKey() jwk.Key {
+func (c *Claims) PublicKey() crypto.PublicKey {
 	return c.publicKey
 }
 
-func (c *Claims) KeyAlgorithm() jwa.KeyAlgorithm {
-	return c.publicKey.Algorithm()
+func (c *Claims) KeyAlgorithm() jose.KeyAlgorithm {
+	return jose.KeyAlgorithm(c.algorithm)
 }
 
 // Returns a hash of all client instance claims which includes a random value
@@ -117,7 +172,7 @@ func (c *Claims) Hash() ([]byte, error) {
 
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
-func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []byte) ([]byte, error) {
+func (c *Claims) Sign(signer crypto.Signer, algorithm jose.KeyAlgorithm, token []byte) ([]byte, error) {
 	_, payload, _, err := jws.SplitCompact(token)
 	if err != nil {
 		return nil, err
@@ -136,10 +191,15 @@ func (c *Claims) Sign(signer crypto.Signer, algorithm jwa.KeyAlgorithm, token []
 		}
 	}
 
+	jwxAlg, ok := jwx.FromJoseAlgorithm(algorithm)
+	if !ok {
+		return nil, fmt.Errorf("unsupported key algorithm: %s", algorithm)
+	}
+
 	cicToken, err := jws.Sign(
 		payloadDecoded,
 		jws.WithKey(
-			algorithm,
+			jwxAlg,
 			signer,
 			jws.WithProtectedHeaders(headers),
 		),

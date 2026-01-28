@@ -21,7 +21,7 @@ import (
 	"crypto"
 	"encoding/json"
 
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 )
 
 func MockGetJwksByIssuer(publicKeys []crypto.PublicKey, keyIDs []string, algs []string) (JwksFetchFunc, error) {

@@ -26,8 +26,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/openpubkey/openpubkey/jose"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -37,7 +37,7 @@ type JwksServer struct {
 }
 
 // A very simple JWKS server for our MFA Cosigner example code.
-func NewJwksServer(signer crypto.Signer, alg jwa.SignatureAlgorithm) (*JwksServer, string, error) {
+func NewJwksServer(signer crypto.Signer, alg jose.KeyAlgorithm) (*JwksServer, string, error) {
 	// Compute the kid (Key ID) as the SHA-3 of the public key
 	pubkey := signer.Public().(*ecdsa.PublicKey) // TODO: handle non-ecdsa signers
 	pubkeyBytes := elliptic.Marshal(pubkey, pubkey.X, pubkey.Y)

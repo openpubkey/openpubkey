@@ -21,9 +21,9 @@ import (
 	"crypto/rsa"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,10 +33,10 @@ func TestVerifySignedMessage_TypOverride(t *testing.T) {
 	require.NoError(t, err)
 
 	// Convert RSA public key to JWK and set "alg" to RS256
-	jwkKey, err := jwk.FromRaw(&key.PublicKey)
+	jwkKey, err := jwk.Import(&key.PublicKey)
 	require.NoError(t, err)
 
-	err = jwkKey.Set(jwk.AlgorithmKey, jwa.RS256)
+	err = jwkKey.Set(jwk.AlgorithmKey, jwa.RS256())
 	require.NoError(t, err, "failed to set JWK alg")
 
 	// Use a consistent payload for both Op and Cic
@@ -44,18 +44,18 @@ func TestVerifySignedMessage_TypOverride(t *testing.T) {
 
 	// Create a mock Cic signature with "rz" and "upk" claims
 	cicProtected := jws.NewHeaders()
-	require.NoError(t, cicProtected.Set(jws.AlgorithmKey, jwa.RS256))
+	require.NoError(t, cicProtected.Set(jws.AlgorithmKey, jwa.RS256()))
 	require.NoError(t, cicProtected.Set(jws.TypeKey, "CIC"))
 	require.NoError(t, cicProtected.Set("rz", "test-randomness")) // Required "rz" claim
 	require.NoError(t, cicProtected.Set("upk", jwkKey))           // Required "upk" claim with matching alg
-	cicOsm, err := jws.Sign(payload, jws.WithKey(jwa.RS256, key, jws.WithProtectedHeaders(cicProtected)))
+	cicOsm, err := jws.Sign(payload, jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(cicProtected)))
 	require.NoError(t, err, "failed to create mock Cic")
 
 	// Create a mock Op signature (required by PKToken)
 	opProtected := jws.NewHeaders()
-	require.NoError(t, opProtected.Set(jws.AlgorithmKey, jwa.RS256))
+	require.NoError(t, opProtected.Set(jws.AlgorithmKey, jwa.RS256()))
 	require.NoError(t, opProtected.Set(jws.TypeKey, "JWT")) // OIDC type
-	opToken, err := jws.Sign(payload, jws.WithKey(jwa.RS256, key, jws.WithProtectedHeaders(opProtected)))
+	opToken, err := jws.Sign(payload, jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(opProtected)))
 	require.NoError(t, err, "failed to create mock Op")
 
 	// Initialize PKToken with Op and Cic signatures
@@ -68,10 +68,10 @@ func TestVerifySignedMessage_TypOverride(t *testing.T) {
 
 	// Test 1: Verify message with "osm" typ
 	osmProtected := jws.NewHeaders()
-	require.NoError(t, osmProtected.Set(jws.AlgorithmKey, jwa.RS256))
+	require.NoError(t, osmProtected.Set(jws.AlgorithmKey, jwa.RS256()))
 	require.NoError(t, osmProtected.Set(jws.KeyIDKey, hash)) // Use real hash as "kid"
 	require.NoError(t, osmProtected.Set(jws.TypeKey, "osm"))
-	osm, err := jws.Sign([]byte("test message"), jws.WithKey(jwa.RS256, key, jws.WithProtectedHeaders(osmProtected)))
+	osm, err := jws.Sign([]byte("test message"), jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(osmProtected)))
 	require.NoError(t, err, "failed to create mock osm")
 
 	result, err := p.VerifySignedMessage(osm)
@@ -81,10 +81,10 @@ func TestVerifySignedMessage_TypOverride(t *testing.T) {
 
 	// Test 2: Verify message with "JWT" typ
 	jwtProtected := jws.NewHeaders()
-	require.NoError(t, jwtProtected.Set(jws.AlgorithmKey, jwa.RS256))
+	require.NoError(t, jwtProtected.Set(jws.AlgorithmKey, jwa.RS256()))
 	require.NoError(t, jwtProtected.Set(jws.KeyIDKey, hash)) // Use real hash as "kid"
 	require.NoError(t, jwtProtected.Set(jws.TypeKey, "JWT"))
-	jwtOsm, err := jws.Sign([]byte("jwt message"), jws.WithKey(jwa.RS256, key, jws.WithProtectedHeaders(jwtProtected)))
+	jwtOsm, err := jws.Sign([]byte("jwt message"), jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(jwtProtected)))
 	require.NoError(t, err, "failed to create mock JWT")
 
 	result, err = p.VerifySignedMessage(jwtOsm, WithTyp("JWT"))
