@@ -119,35 +119,30 @@ func ParseClaims(protected map[string]any) (*Claims, error) {
 	var pubKey crypto.PublicKey
 	if signer, ok := pubKeyAny.(crypto.Signer); ok {
 		pubKey = signer.Public()
-	} else {
-		// Validate that key type matches the declared algorithm
-		switch upkAlg {
-		case jwa.RS256():
-			rsaKey, ok := pubKeyAny.(*rsa.PublicKey)
-			if !ok {
-				return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", upkAlg, pubKeyAny)
-			}
-			pubKey = rsaKey
-		case jwa.ES256():
-			ecdsaKey, ok := pubKeyAny.(*ecdsa.PublicKey)
-			if !ok {
-				return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", upkAlg, pubKeyAny)
-			}
-			pubKey = ecdsaKey
-		case jwa.EdDSA():
-			edKey, ok := pubKeyAny.(ed25519.PublicKey)
-			if !ok {
-				return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", upkAlg, pubKeyAny)
-			}
-			pubKey = edKey
-		default:
-			// Try to use as crypto.PublicKey directly
-			if pk, ok := pubKeyAny.(crypto.PublicKey); ok {
-				pubKey = pk
-			} else {
-				return nil, fmt.Errorf("unsupported algorithm: %s", upkAlg)
-			}
+	}
+
+	// Validate that key type matches the declared algorithm
+	switch upkAlg {
+	case jwa.RS256():
+		rsaKey, ok := pubKeyAny.(*rsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", upkAlg, pubKeyAny)
 		}
+		pubKey = rsaKey
+	case jwa.ES256():
+		ecdsaKey, ok := pubKeyAny.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires ECDSA key, got %T", upkAlg, pubKeyAny)
+		}
+		pubKey = ecdsaKey
+	case jwa.EdDSA():
+		edKey, ok := pubKeyAny.(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", upkAlg, pubKeyAny)
+		}
+		pubKey = edKey
+	default:
+		return nil, fmt.Errorf("unsupported algorithm: %s", upkAlg)
 	}
 
 	return &Claims{

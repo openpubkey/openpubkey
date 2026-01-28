@@ -258,9 +258,6 @@ func verifyCicSignature(pkt *pktoken.PKToken) error {
 	if !ok {
 		return fmt.Errorf("unsupported key algorithm: %s", cic.KeyAlgorithm())
 	}
-	if err := jwkKey.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
-		return fmt.Errorf("failed to set algorithm on JWK: %w", err)
-	}
 
 	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwaAlg, jwkKey))
 	return err
