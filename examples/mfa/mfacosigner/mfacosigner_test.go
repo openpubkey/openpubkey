@@ -22,9 +22,9 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	wauthnmock "github.com/openpubkey/openpubkey/examples/mfa/mfacosigner/mocks"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -34,7 +34,7 @@ import (
 func TestFullFlow(t *testing.T) {
 	// Step 0: Setup
 	// Create our PK Token and signer
-	alg := jwa.ES256
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestBadCosSigTyp(t *testing.T) {
 	// and cover all possible typ claims and outcomes.
 
 	// Create our PK Token and signer
-	alg := jwa.ES256
+	alg := jose.ES256
 	signer, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 

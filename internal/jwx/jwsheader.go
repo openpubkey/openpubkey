@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2026 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,29 +14,23 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package cosigner
+package jwx
 
 import (
-	"crypto"
-	"encoding/json"
+	"fmt"
 
-	"github.com/openpubkey/openpubkey/jose"
-	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/lestrrat-go/jwx/v3/jws"
 )
 
-type Cosigner struct {
-	Alg    jose.KeyAlgorithm
-	Signer crypto.Signer
-}
+func HeadersAsMap(headers jws.Headers) (map[string]any, error) {
+	headersMap := make(map[string]any)
+	for _, key := range headers.Keys() {
+		var value any
+		if err := headers.Get(key, &value); err != nil {
+			return nil, fmt.Errorf("get value for %s: %w", key, err)
+		}
+		headersMap[key] = value
+	}
 
-func (c *Cosigner) Cosign(pkt *pktoken.PKToken, cosClaims pktoken.CosignerClaims) ([]byte, error) {
-	jsonBytes, err := json.Marshal(cosClaims)
-	if err != nil {
-		return nil, err
-	}
-	var headers map[string]any
-	if err := json.Unmarshal(jsonBytes, &headers); err != nil {
-		return nil, err
-	}
-	return pkt.SignToken(c.Signer, c.Alg, headers)
+	return headersMap, nil
 }

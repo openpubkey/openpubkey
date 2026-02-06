@@ -26,10 +26,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
@@ -131,13 +134,13 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	if algStr == "" {
 		return fmt.Errorf("provider algorithm type missing")
 	}
-	alg := jwa.SignatureAlgorithm(algStr)
-	if alg != gq.GQ256 && v.options.GQOnly {
+	alg := jwa.NewSignatureAlgorithm(algStr)
+	if alg.String() != jose.GQ256 && v.options.GQOnly {
 		return fmt.Errorf("non-GQ signatures are not supported")
 	}
 
-	switch alg {
-	case gq.GQ256:
+	switch alg.String() {
+	case jose.GQ256:
 		// GQ signatures need special handling (extract original headers, etc.)
 		if err := v.verifyGQSig(ctx, idt); err != nil {
 			return fmt.Errorf("error verifying OP GQ signature on PK Token: %w", err)
@@ -151,15 +154,15 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 		// Validate that key type matches the algorithm in the token
 		switch alg {
-		case jwa.RS256:
+		case jwa.RS256():
 			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
 				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
 			}
-		case jwa.ES256:
+		case jwa.ES256():
 			if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
 				return fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
 			}
-		case jwa.EdDSA:
+		case jwa.EdDSA():
 			if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
 				return fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
 			}
@@ -246,7 +249,17 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		if err != nil {
 			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
 		}
-		cicJwkStr, err := json.Marshal(cic.PublicKey())
+		cicJwk, err := jwk.PublicKeyOf(cic.PublicKey())
+		if err != nil {
+			return fmt.Errorf("error converting CIC public key to JWK: %w", err)
+		}
+		jwaAlg, ok := jwx.FromJoseAlgorithm(cic.KeyAlgorithm())
+		if ok {
+			if err := cicJwk.Set(jwk.AlgorithmKey, jwaAlg); err != nil {
+				return fmt.Errorf("error setting algorithm on CIC JWK: %w", err)
+			}
+		}
+		cicJwkStr, err := json.Marshal(cicJwk)
 		if err != nil {
 			return fmt.Errorf("error marshalling jwk in CIC: %w", err)
 		}
@@ -279,7 +292,7 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 	if algStr == "" {
 		return fmt.Errorf("missing provider algorithm header")
 	}
-	if algStr != gq.GQ256.String() {
+	if algStr != jose.GQ256 {
 		return fmt.Errorf("signature is not of type GQ")
 	}
 
@@ -288,8 +301,11 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 		return fmt.Errorf("malformed ID Token headers: %w", err)
 	}
 
-	origAlg := origHeaders.Algorithm()
-	if origAlg != jwa.RS256 {
+	origAlg, ok := origHeaders.Algorithm()
+	if !ok {
+		return fmt.Errorf("missing algorithm in original headers")
+	}
+	if origAlg != jwa.RS256() {
 		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", origAlg)
 	}
 

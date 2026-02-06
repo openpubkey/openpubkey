@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/pktoken"
 )
@@ -97,7 +97,11 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 	if header.Algorithm != alg {
 		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", header.KeyID, alg, header.Algorithm)
 	}
-	jwsPubkey := jws.WithKey(jwa.KeyAlgorithmFrom(alg), key)
+	parsedAlg, err := jwa.KeyAlgorithmFrom(alg)
+	if err != nil {
+		return fmt.Errorf("failed to parse key algorithm from %s: %w", alg, err)
+	}
+	jwsPubkey := jws.WithKey(parsedAlg, key)
 	_, err = jws.Verify(pkt.CosToken, jwsPubkey)
 
 	return err

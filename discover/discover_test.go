@@ -29,9 +29,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.RSAEKey:      "AQAB",
 				jwk.RSANKey:      "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
 			},
-			expectedAlg: jwa.RS256.String(),
+			expectedAlg: jwa.RS256().String(),
 		},
 		{
 			name: "alg=RS256 with private key",
@@ -69,7 +69,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.RSADQKey:     "s9lAH9fggBsoFR8Oac2R_E2gw282rT2kGOAhvIllETE1efrA6huUUvMfBcMpn8lqeW6vzznYY5SSQF7pMdC_agI3nG8Ibp1BUb0JUiraRNqUfLhcQb_d9GF4Dh7e74WbRsobRonujTYN1xCaP6TO61jvWrX-L18txXw494Q_cgk",
 				jwk.RSAQIKey:     "GyM_p6JrXySiz1toFgKbWV-JdI3jQ4ypu9rbMWx3rQJBfmt0FoYzgUIZEVFEcOqwemRN81zoDAaa-Bk0KWNGDjJHZDdDmFhW3AN7lI-puxk_mHZGJ11rxyR8O55XLSe3SPmRfKwZI6yU24ZxvQKFYItdldUKGzO6Ia6zTKhAVRU",
 			},
-			expectedAlg: jwa.RS256.String(),
+			expectedAlg: jwa.RS256().String(),
 		},
 		{
 			name: "alg=ES256",
@@ -81,7 +81,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.ECDSAYKey:    "4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM",
 				jwk.ECDSADKey:    "870MB6gfuTJ4HtUnUvYMyJpr5eUZNP4Bk43bVdj3eAE",
 			},
-			expectedAlg: jwa.ES256.String(),
+			expectedAlg: jwa.ES256().String(),
 		},
 		{
 			name: "alg=EdDSA",
@@ -91,7 +91,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.OKPCrvKey:    "Ed25519",
 				jwk.OKPXKey:      "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
 			},
-			expectedAlg: jwa.EdDSA.String(),
+			expectedAlg: jwa.EdDSA().String(),
 		},
 		{
 			name: "alg is missing",
@@ -102,7 +102,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 				jwk.RSAEKey:     "AQAB",
 			},
 			// If "alg" key is missing, code assumes algorithm is RSA/RS256
-			expectedAlg: jwa.RS256.String(),
+			expectedAlg: jwa.RS256().String(),
 		},
 		{
 			name: "alg is unknown",
@@ -124,7 +124,7 @@ func TestNewPublicKeyRecord(t *testing.T) {
 			key, err := jwk.ParseKey(keyJsonBytes)
 			require.NoError(t, err, "jwk.ParseKey failed to parse keyJsonBytes")
 
-			gotPublicKeyRecord, err := NewPublicKeyRecord(key, commonIssuer)
+			gotPublicKeyRecord, err := publicKeyRecordFromJWK(key, commonIssuer)
 
 			if tt.shouldError {
 				require.Error(t, err)
@@ -164,8 +164,8 @@ func TestPublicKeyFinder(t *testing.T) {
 	require.NoError(t, err)
 	publicKeys = append(publicKeys, signer.Public())
 	keyIDs = append(keyIDs, "ABCDEF")
-	algs = append(algs, string(jwa.ES256))
-	idToken := CreateIDToken(t, issuer, signer, string(jwa.ES256), "ABCDEF")
+	algs = append(algs, jwa.ES256().String())
+	idToken := CreateIDToken(t, issuer, signer, jwa.ES256().String(), "ABCDEF")
 	idTokens = append(idTokens, idToken)
 
 	// Add EdDSA key
@@ -173,8 +173,8 @@ func TestPublicKeyFinder(t *testing.T) {
 	require.NoError(t, err)
 	publicKeys = append(publicKeys, edPubKey)
 	keyIDs = append(keyIDs, "ED25519-KEY")
-	algs = append(algs, string(jwa.EdDSA))
-	edToken := CreateIDToken(t, issuer, edPrivKey, string(jwa.EdDSA), "ED25519-KEY")
+	algs = append(algs, jwa.EdDSA().String())
+	edToken := CreateIDToken(t, issuer, edPrivKey, jwa.EdDSA().String(), "ED25519-KEY")
 	idTokens = append(idTokens, edToken)
 
 	mockJwks, err := MockGetJwksByIssuer(publicKeys, keyIDs, algs)
@@ -201,7 +201,7 @@ func TestPublicKeyFinder(t *testing.T) {
 	}
 
 	for i := 0; i < len(publicKeys); i++ {
-		jwk, err := jwk.FromRaw(publicKeys[i])
+		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)
 		require.NoError(t, err)
@@ -278,7 +278,7 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 	}
 
 	for i := 0; i < len(publicKeys); i++ {
-		jwk, err := jwk.FromRaw(publicKeys[i])
+		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)
 		require.NoError(t, err)
@@ -344,7 +344,7 @@ func TestGQTokens(t *testing.T) {
 	}
 
 	for i := 0; i < len(publicKeys); i++ {
-		jwk, err := jwk.FromRaw(publicKeys[i])
+		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)
 		require.NoError(t, err)
@@ -381,10 +381,13 @@ func CreateIDToken(t *testing.T, issuer string, signer crypto.Signer, alg string
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 
+	keyAlg, err := jwa.KeyAlgorithmFrom(alg)
+	require.NoError(t, err)
+
 	idToken, err := jws.Sign(
 		payloadBytes,
 		jws.WithKey(
-			jwa.KeyAlgorithmFrom(alg),
+			keyAlg,
 			signer,
 			jws.WithProtectedHeaders(headers),
 		),

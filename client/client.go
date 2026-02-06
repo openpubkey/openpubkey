@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwk"
 
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers"
@@ -44,7 +44,7 @@ type OpkClient struct {
 	Op           OpenIdProvider
 	cosP         *CosignerProvider
 	signer       crypto.Signer
-	alg          jwa.KeyAlgorithm
+	alg          jose.KeyAlgorithm
 	pkToken      *pktoken.PKToken
 	refreshToken []byte
 	accessToken  []byte
@@ -60,8 +60,8 @@ type ClientOpts func(o *OpkClient)
 // Example use:
 //
 //	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-//	WithSigner(signer, jwa.ES256)
-func WithSigner(signer crypto.Signer, alg jwa.KeyAlgorithm) ClientOpts {
+//	WithSigner(signer, jose.ES256)
+func WithSigner(signer crypto.Signer, alg jose.KeyAlgorithm) ClientOpts {
 	return func(o *OpkClient) {
 		o.signer = signer
 		o.alg = alg
@@ -83,21 +83,21 @@ func New(op OpenIdProvider, opts ...ClientOpts) (*OpkClient, error) {
 	client := &OpkClient{
 		Op:     op,
 		signer: nil,
-		alg:    nil,
+		alg:    "",
 	}
 
 	for _, applyOpt := range opts {
 		applyOpt(client)
 	}
 
-	if client.alg == nil && client.signer != nil {
-		return nil, fmt.Errorf("signer specified but alg is nil, must specify alg of signer")
+	if client.alg == "" && client.signer != nil {
+		return nil, fmt.Errorf("signer specified but alg is not set, must specify alg of signer")
 	}
 
 	if client.signer == nil {
 		// Generate signer for specified alg. If no alg specified, defaults to ES256
-		if client.alg == nil {
-			client.alg = jwa.ES256
+		if client.alg == "" {
+			client.alg = jose.ES256
 		}
 
 		signer, err := util.GenKeyPair(client.alg)
@@ -182,7 +182,7 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 func (o *OpkClient) oidcAuth(
 	ctx context.Context,
 	signer crypto.Signer,
-	alg jwa.KeyAlgorithm,
+	alg jose.KeyAlgorithm,
 	extraClaims map[string]any,
 ) (*pktoken.PKToken, error) {
 	// keep track of any additional verifierChecks for the verifier
@@ -206,7 +206,7 @@ func (o *OpkClient) oidcAuth(
 
 	// Check if the OP supports OpenID key binding and if it does pass the signer so it can perform DPoP
 	if keyBindingOp, ok := o.Op.(*providers.KeyBindingOp); ok {
-		if err := keyBindingOp.ConfigKeyBinding(o.signer, o.alg.String()); err != nil {
+		if err := keyBindingOp.ConfigKeyBinding(o.signer, o.alg); err != nil {
 			return nil, fmt.Errorf("error configuring OP to perform key binding: %w", err)
 		}
 	}
@@ -284,7 +284,7 @@ func (o *OpkClient) GetSigner() crypto.Signer {
 
 // GetAlg returns the algorithm of the client's key pair
 // (Public Key, Signing Key)
-func (o *OpkClient) GetAlg() jwa.KeyAlgorithm {
+func (o *OpkClient) GetAlg() jose.KeyAlgorithm {
 	return o.alg
 }
 
