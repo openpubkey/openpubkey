@@ -224,3 +224,151 @@ func TestRemoteRedirectURI(t *testing.T) {
 	// redirect URI param is set. We do not care about the result.
 	_, _ = op.RequestTokens(ctx, GenCIC(t))
 }
+
+func TestCallbackHTML(t *testing.T) {
+	testCases := []struct {
+		name             string
+		callbackHTML     string
+		setCallback      bool
+		expectedResponse string
+	}{
+		{
+			name:             "default callback HTML",
+			setCallback:      false,
+			expectedResponse: "You may now close this window",
+		},
+		{
+			name:             "custom plain text",
+			callbackHTML:     "Authentication successful! You can close this tab now.",
+			setCallback:      true,
+			expectedResponse: "Authentication successful! You can close this tab now.",
+		},
+		{
+			name:             "custom HTML",
+			callbackHTML:     "<html><body><h1>Success!</h1><p>You may close this window.</p></body></html>",
+			setCallback:      true,
+			expectedResponse: "<html><body><h1>Success!</h1><p>You may close this window.</p></body></html>",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientId := "fake-client-id"
+			issuer := googleIssuer
+
+			opts := GetDefaultStandardOpOptions(issuer, clientId)
+			opts.ClientSecret = "test-secret"
+
+			// Set custom callback HTML if this test case requires it
+			if tc.setCallback {
+				opts.CallbackHTML = tc.callbackHTML
+			}
+
+			idp, err := mocks.NewMockOp(issuer, []mocks.Subject{
+				{
+					SubjectID: "alice@gmail.com",
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, idp)
+
+			expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+			idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+				CommitFunc: mocks.AddNonceCommit,
+				Issuer:     issuer,
+				Nonce:      "empty",
+				NoNonce:    false,
+				Aud:        clientId,
+				KeyID:      expKeyID,
+				NoKeyID:    false,
+				Alg:        expRecord.Alg,
+				NoAlg:      false,
+				SigningKey: expSigningKey,
+			}
+
+			rt := idp.GetHTTPClient()
+			require.NotNil(t, rt)
+			opts.HttpClient = rt
+			opts.OpenBrowser = false
+
+			op := NewStandardOpWithOptions(opts)
+
+			userAuth := mocks.UserBrowserInteractionMock{
+				SubjectId: "alice@gmail.com",
+			}
+
+			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+			opUnwrapped := op.(*StandardOp)
+			opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+			cic := GenCIC(t)
+			require.NotNil(t, cic)
+
+			tokens, err := op.RequestTokens(context.Background(), cic)
+			require.NoError(t, err)
+			require.NotNil(t, tokens)
+
+			// The test verifies that the feature is configurable and the value is
+			// correctly stored in StandardOp. The actual HTTP response verification
+			// would require intercepting the callback, which is complex with the
+			// current mock setup. The important part is that CallbackHTML is
+			// properly passed through to StandardOp.
+			require.Equal(t, tc.expectedResponse, opUnwrapped.CallbackHTML,
+				"CallbackHTML should be set correctly in StandardOp")
+		})
+	}
+}
+
+func TestCallbackHTMLEmptyDefaults(t *testing.T) {
+	clientId := "fake-client-id"
+	issuer := googleIssuer
+
+	opts := GetDefaultStandardOpOptions(issuer, clientId)
+	opts.CallbackHTML = ""
+
+	op := NewStandardOpWithOptions(opts)
+	opUnwrapped := op.(*StandardOp)
+	require.Equal(t, defaultCallbackHTML, opUnwrapped.CallbackHTML,
+		"CallbackHTML should default when empty")
+}
+
+func TestCallbackHTMLProviderSpecific(t *testing.T) {
+	// Test that CallbackHTML works with provider-specific options
+	customHTML := "<html><body><h1>Custom Success!</h1></body></html>"
+
+	t.Run("GoogleOptions", func(t *testing.T) {
+		opts := GetDefaultGoogleOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewGoogleOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from GoogleOptions")
+	})
+
+	t.Run("AzureOptions", func(t *testing.T) {
+		opts := GetDefaultAzureOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewAzureOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from AzureOptions")
+	})
+
+	t.Run("GitlabOptions", func(t *testing.T) {
+		opts := GetDefaultGitlabOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewGitlabOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from GitlabOptions")
+	})
+
+	t.Run("HelloOptions", func(t *testing.T) {
+		opts := GetDefaultHelloOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewHelloOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOp)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from HelloOptions")
+	})
+}
