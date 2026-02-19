@@ -292,6 +292,7 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 			s.httpSessionHook(w, r)
 			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			if _, err := w.Write([]byte(s.CallbackHTML)); err != nil {
 				logrus.Error(err)
 			}
