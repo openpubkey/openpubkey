@@ -34,6 +34,15 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
+const defaultCallbackHTML = "You may now close this window"
+
+func callbackHTMLOrDefault(value string) string {
+	if value == "" {
+		return defaultCallbackHTML
+	}
+	return value
+}
+
 // StandardOpOptions is an options struct that configures how providers.StandardOp
 // operates. See providers.GetDefaultStandardOpOptions for the recommended default
 // values to use when using the standardOp for a custom OpenIdProvider.
@@ -82,6 +91,9 @@ type StandardOpOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
@@ -101,6 +113,7 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 		OpenBrowser:       true,
 		HttpClient:        nil,
 		IssuedAtOffset:    1 * time.Minute,
+		CallbackHTML:      defaultCallbackHTML,
 	}
 }
 
@@ -121,6 +134,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
+		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 		issuer:                    opts.Issuer,
 		browserOpenOverride:       nil,
 		requestTokensOverrideFunc: nil,
@@ -144,6 +158,7 @@ type StandardOp struct {
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
+	CallbackHTML              string
 	ExtraURLParamOpts         []rp.URLParamOpt // Use this to set additional URL params on auth request to the OP
 	issuer                    string
 	server                    *http.Server
@@ -277,7 +292,8 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 			s.httpSessionHook(w, r)
 			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
-			if _, err := w.Write([]byte("You may now close this window")); err != nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if _, err := w.Write([]byte(s.CallbackHTML)); err != nil {
 				logrus.Error(err)
 			}
 		}

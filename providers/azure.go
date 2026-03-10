@@ -76,6 +76,9 @@ type AzureOptions struct {
 	// More details can be found at
 	// https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens
 	TenantID string
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 func GetDefaultAzureOpOptions() *AzureOptions {
@@ -96,6 +99,7 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
+		CallbackHTML:   defaultCallbackHTML,
 	}
 }
 
@@ -122,6 +126,7 @@ func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
 			IssuedAtOffset:            opts.IssuedAtOffset,
+			CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 			issuer:                    opts.Issuer,
 			RemoteRedirectURI:         opts.RemoteRedirectURI,
 			requestTokensOverrideFunc: nil,

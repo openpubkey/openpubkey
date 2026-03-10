@@ -68,6 +68,9 @@ type GitlabOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 // NewGitlabOp creates a Gitlab OP (OpenID Provider) using the
@@ -95,6 +98,7 @@ func GetDefaultGitlabOpOptions() *GitlabOptions {
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
+		CallbackHTML:   defaultCallbackHTML,
 	}
 }
 
@@ -111,6 +115,7 @@ func NewGitlabOpWithOptions(opts *GitlabOptions) BrowserOpenIdProvider {
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
 			IssuedAtOffset:            opts.IssuedAtOffset,
+			CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 			issuer:                    opts.Issuer,
 			requestTokensOverrideFunc: nil,
 			publicKeyFinder: discover.PublicKeyFinder{
