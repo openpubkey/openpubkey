@@ -116,10 +116,10 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 
 			authCode := "SplxlOBeZQQYbYS6WxSbIA"
 			cHash := sha256.Sum256([]byte(authCode))
-			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
+			cS256B64 := base64.RawURLEncoding.EncodeToString(cHash[:])
 
 			dpopPayload := tc.dpopPayload
-			dpopPayload["c_hash"] = cHashB64
+			dpopPayload["c_s256"] = cS256B64
 
 			payloadJson, err := json.Marshal(dpopPayload)
 			require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 			require.NotNil(t, jwsDpopCompact, "generated DPoP JWS is nil")
 
 			requiredClaims := map[string]any{
-				"c_hash": cHashB64,
+				"c_s256": cS256B64,
 			}
 
 			jwkMapRet, err := validateDPoPReturnJwk(string(jwsDpopCompact), string(tc.jkt), requiredClaims)

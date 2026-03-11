@@ -30,7 +30,7 @@ type DpopJwt struct {
 }
 
 type DpopClaims struct {
-	CHash string `json:"c_hash,omitempty"` // Code Hash SHA256 of authorization code (only present in authorization code flow)
+	CS256 string `json:"c_s256,omitempty"` // SHA256 of authorization code (only present in authorization code flow)
 	Htm   string `json:"htm"`              // HTTP Method
 	Htu   string `json:"htu"`              // HTTP URI
 	Iat   int64  `json:"iat"`              // Issued At
@@ -119,8 +119,8 @@ func (dc *DpopClaims) MatchesClaims(claimsToMatch map[string]any) (bool, error) 
 			gotValue = dc.Iat
 		case "jti":
 			gotValue = dc.Jti
-		case "c_hash":
-			gotValue = dc.CHash
+		case "c_s256":
+			gotValue = dc.CS256
 		default:
 			return false, fmt.Errorf("claim %s not found in DPoP", key)
 		}
