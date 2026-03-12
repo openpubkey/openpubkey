@@ -165,7 +165,7 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		Htu:   htu,
 		Jti:   jti,
 		Iat:   iat,
-		CHash: base64.RawURLEncoding.EncodeToString(cHash[:]),
+		CS256: base64.RawURLEncoding.EncodeToString(cHash[:]),
 	}
 
 	payloadStr, err := json.Marshal(payload)

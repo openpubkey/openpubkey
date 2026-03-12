@@ -1,6 +1,6 @@
 {
   "payload": {
-    "c_hash": "WJINbgXelEpA1I6Ami2G1a3hKKmU4SI1D0s5ZpCXdF0",
+    "c_s256": "WJINbgXelEpA1I6Ami2G1a3hKKmU4SI1D0s5ZpCXdF0",
     "htm": "POST",
     "htu": "https://op.example.com/token",
     "iat": 1761937449,
@@ -18,7 +18,7 @@
         },
         "typ": "dpop+jwt"
       },
-      "signature": "WrB225xAnx3awLVzQV0CAO8TeTd8BX6dXTCrQzxABQ8KtEIq2Qw4SDCKkhp4gKJs8i4z4f_OPsqF9cybQZegDQ"
+      "signature": "9B3BBLalqrX-Qv6WcFejHoC4frMplnmP8Xiwx6BzzzIEIkruRJJesZAm_jFobxJjjGgzav7AWrUNQchl8-GMBQ"
     }
   ]
 }
