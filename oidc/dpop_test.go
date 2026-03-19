@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -49,8 +49,8 @@ func TestDPoPMatch(t *testing.T) {
 			expectedErr: "claim jti in DPoP has unexpected value, got different-jti, want unique-jti"},
 		{name: "Claim doesn't exist",
 			dpopClaims:  DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "different-jti"},
-			claimMap:    map[string]any{"cHash": "abc123"},
-			expectedErr: "claim cHash not found in DPoP"},
+			claimMap:    map[string]any{"fakeClaim": "abc123"},
+			expectedErr: "claim fakeClaim not found in DPoP"},
 		{name: "Claim has different type",
 			dpopClaims:  DpopClaims{Htm: "GET", Htu: "https://example.com/resource", Jti: "different-jti"},
 			claimMap:    map[string]any{"htm": "GET", "jti": 12345},
@@ -108,7 +108,7 @@ func TestValidateDPoPJwk(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			signer := testutils.DeterministicTestKeyPair(t, tc.alg)
-			jwkKey, err := jwk.FromRaw(signer.Public())
+			jwkKey, err := jwk.Import(signer.Public())
 			require.NoError(t, err, tc.name)
 
 			err = jwkKey.Set(jwk.AlgorithmKey, tc.alg)
@@ -118,11 +118,11 @@ func TestValidateDPoPJwk(t *testing.T) {
 			require.NoError(t, err, tc.name)
 
 			authCode := "SplxlOBeZQQYbYS6WxSbIA"
-			cHash := sha256.Sum256([]byte(authCode))
-			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
+			cS256 := sha256.Sum256([]byte(authCode))
+			cS256B64 := base64.RawURLEncoding.EncodeToString(cS256[:])
 
 			dpopPayload := tc.dpopPayload
-			dpopPayload["c_hash"] = cHashB64
+			dpopPayload["c_s256"] = cS256B64
 
 			payloadJson, err := json.Marshal(dpopPayload)
 			require.NoError(t, err)
@@ -135,12 +135,14 @@ func TestValidateDPoPJwk(t *testing.T) {
 			err = headers.Set("jwk", jwkKey)
 			require.NoError(t, err, tc.name)
 
-			jwsDpopCompact, err := jws.Sign(payloadJson, jws.WithKey(jwa.KeyAlgorithmFrom(tc.alg), signer, jws.WithProtectedHeaders(headers)))
+			keyAlg, err := jwa.KeyAlgorithmFrom(tc.alg)
+			require.NoError(t, err, tc.name)
+			jwsDpopCompact, err := jws.Sign(payloadJson, jws.WithKey(keyAlg, signer, jws.WithProtectedHeaders(headers)))
 			require.NoError(t, err, tc.name)
 			require.NotNil(t, jwsDpopCompact, "generated DPoP JWS is nil")
 
 			requiredClaims := map[string]any{
-				"c_hash": cHashB64,
+				"c_s256": cS256B64,
 			}
 
 			dpopJwt, err := NewDpopJwt(jwsDpopCompact)

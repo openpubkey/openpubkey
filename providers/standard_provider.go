@@ -38,6 +38,15 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
+const defaultCallbackHTML = "You may now close this window"
+
+func callbackHTMLOrDefault(value string) string {
+	if value == "" {
+		return defaultCallbackHTML
+	}
+	return value
+}
+
 // StandardOpOptions is an options struct that configures how providers.StandardOp
 // operates. See providers.GetDefaultStandardOpOptions for the recommended default
 // values to use when using the standardOp for a custom OpenIdProvider.
@@ -66,6 +75,10 @@ type StandardOpOptions struct {
 	// flow exchange. Ensure that your OIDC application is configured to accept
 	// these URIs otherwise an error may occur.
 	RedirectURIs []string
+	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
+	// RedirectURIs value sent to the OP during authorization. We still open a
+	// localhost URI expecting the remote server to proxy the request to a localhost port.
+	RemoteRedirectURI string
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
@@ -84,6 +97,9 @@ type StandardOpOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
@@ -99,11 +115,13 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign:         false,
+		RemoteRedirectURI: "",
+    GQSign:         false,
 		DeviceFlow:     false,
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
+    CallbackHTML:      defaultCallbackHTML,
 	}
 }
 
@@ -119,11 +137,13 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		PromptType:                opts.PromptType,
 		AccessType:                opts.AccessType,
 		RedirectURIs:              opts.RedirectURIs,
+		RemoteRedirectURI:         opts.RemoteRedirectURI,
 		GQSign:                    opts.GQSign,
 		DeviceFlow:                opts.DeviceFlow,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
+		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 		issuer:                    opts.Issuer,
 		browserOpenOverride:       nil,
 		requestTokensOverrideFunc: nil,
@@ -142,12 +162,14 @@ type StandardOp struct {
 	PromptType                string
 	AccessType                string
 	RedirectURIs              []string
+	RemoteRedirectURI         string
 	GQSign                    bool
 	DeviceFlow                bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
-	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
+	CallbackHTML              string
+  ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer                    string
 	server                    *http.Server
 	browserOpenOverride       BrowserOpenOverrideFunc
@@ -232,13 +254,18 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
 
+	redirectURIParam := redirectURI.String()
+	if s.RemoteRedirectURI != "" {
+		redirectURIParam = s.RemoteRedirectURI
+	}
+
 	// The reason we don't set the relyingParty on the struct and reuse it,
 	// is because refresh requests require a slightly different set of
 	// options. For instance we want the option to check the nonce (WithNonce)
 	// here, but in RefreshTokens we don't want that option set because
 	// a refreshed ID token doesn't have a nonce.
 	relyingParty, err := rp.NewRelyingPartyOIDC(ctx,
-		s.issuer, s.clientID, s.ClientSecret, redirectURI.String(),
+		s.issuer, s.clientID, s.ClientSecret, redirectURIParam,
 		s.Scopes, options...)
 	if err != nil {
 		return nil, fmt.Errorf("error creating provider: %w", err)
@@ -286,7 +313,8 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 			s.httpSessionHook(w, r)
 			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
-			if _, err := w.Write([]byte("You may now close this window")); err != nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if _, err := w.Write([]byte(s.CallbackHTML)); err != nil {
 				logrus.Error(err)
 			}
 		}

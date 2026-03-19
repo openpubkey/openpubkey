@@ -54,6 +54,10 @@ type GoogleOptions struct {
 	// flow exchange. Ensure that your OIDC application is configured to accept
 	// these URIs otherwise an error may occur.
 	RedirectURIs []string
+	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
+	// RedirectURIs value sent to the OP during authorization. We still open a
+	// localhost URI expecting the remote server to proxy the request to a localhost port.
+	RemoteRedirectURI string
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
@@ -72,6 +76,9 @@ type GoogleOptions struct {
 	// IssuedAtOffset configures the offset to add when validating the "iss" and
 	// "exp" claims of received ID tokens from the OP.
 	IssuedAtOffset time.Duration
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
@@ -93,6 +100,7 @@ func GetDefaultGoogleOpOptions() *GoogleOptions {
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
+		CallbackHTML:   defaultCallbackHTML,
 	}
 }
 
@@ -116,10 +124,12 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 			PromptType:                opts.PromptType,
 			AccessType:                opts.AccessType,
 			RedirectURIs:              opts.RedirectURIs,
+			RemoteRedirectURI:         opts.RemoteRedirectURI,
 			GQSign:                    opts.GQSign,
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
 			IssuedAtOffset:            opts.IssuedAtOffset,
+			CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 			issuer:                    opts.Issuer,
 			DeviceFlow:                opts.DeviceFlow,
 			requestTokensOverrideFunc: nil,

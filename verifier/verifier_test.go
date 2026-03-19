@@ -22,9 +22,10 @@ import (
 	"crypto/rsa"
 	"testing"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/jose"
 	pktoken_mocks "github.com/openpubkey/openpubkey/pktoken/mocks"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/providers/mocks"
@@ -169,10 +170,12 @@ func TestVerifier(t *testing.T) {
 	require.Error(t, err)
 
 	// Specify a custom public key discoverer that returns the incorrect key and check that verification fails
-	alg := jwa.RS256
+	alg := jwa.RS256()
 	signer, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signer.Public(), pkt.Op.ProtectedHeaders().KeyID(), string(alg))
+	pktKeyID, ok := pkt.Op.ProtectedHeaders().KeyID()
+	require.True(t, ok)
+	jwksFunc, err := discover.MockGetJwksByIssuerOneKey(signer.Public(), pktKeyID, alg.String())
 	require.NoError(t, err)
 
 	providerVerifier = providers.NewProviderVerifier(provider.Issuer(), providers.ProviderVerifierOpts{
@@ -270,7 +273,7 @@ func TestVerifierExpirationPolicy(t *testing.T) {
 
 func TestCICSignature(t *testing.T) {
 	clientID := "test_client_id"
-	alg := jwa.ES256
+	alg := jose.ES256
 	cicSigner, err := util.GenKeyPair(alg)
 	require.NoError(t, err)
 	sigFailure := "error verifying client signature on PK Token"
@@ -392,13 +395,14 @@ func TestGQCommitment(t *testing.T) {
 				require.ErrorContains(t, err, tc.expError)
 			} else {
 				require.NoError(t, err)
-				cicHash, ok := pkt.Op.ProtectedHeaders().Get("cic")
+				var cicHash string
+				err := pkt.Op.ProtectedHeaders().Get("cic", &cicHash)
 				if tc.gqCommitment == false {
-					require.False(t, ok)
-					require.Nil(t, cicHash)
+					require.Error(t, err)
+					require.Empty(t, cicHash)
 				} else {
-					require.True(t, ok)
-					require.NotNil(t, cicHash)
+					require.NoError(t, err)
+					require.NotEmpty(t, cicHash)
 
 					cic, err := pkt.GetCicValues()
 					require.NoError(t, err)

@@ -19,15 +19,19 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStandardProviders(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name         string
 		gqSign       bool
@@ -127,7 +131,8 @@ func TestStandardProviders(t *testing.T) {
 				headers := jws.NewHeaders()
 				err = json.Unmarshal(headerJson, &headers)
 				require.NoError(t, err, tc.name)
-				algFound := headers.Algorithm()
+				algFound, ok := headers.Algorithm()
+				require.True(t, ok, "alg should be present")
 				require.Equal(t, string("GQ256"), algFound.String(), "alg in jwt header should match GQ256")
 			} else {
 				payload, err := util.Base64DecodeForJWT(payloadB64)
@@ -173,4 +178,197 @@ func TestDefaultConstructors(t *testing.T) {
 
 	helloOp := NewHelloOp()
 	require.NotNil(t, helloOp, "Hello provider should be created")
+}
+
+func TestRemoteRedirectURI(t *testing.T) {
+	// As this test opens a http listener on a specific port, it is best to not run in parallel in order to avoid port conflicts
+
+	remoteRedirectURIExpected := "http://localhost:8182/login-callback"
+	opts := GetDefaultGoogleOpOptions()
+	opts.RemoteRedirectURI = remoteRedirectURIExpected
+	op, err := CreateMockGoogleOpWithOpts(opts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+
+	// This checks that we can override the redirect URI by opening a
+	// http listener to make sure we get redirected to the expected redirect URI
+	// that we set above
+	ctx, cancel := context.WithCancel(context.Background())
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login-callback", func(w http.ResponseWriter, r *http.Request) {
+		defer cancel()
+		uriReceived := r.URL.String()
+		require.Contains(t, uriReceived, "/login-callback?code=", "callback URI path should match")
+	})
+
+	ln, err := net.Listen("tcp", "localhost:8182")
+	require.NoError(t, err)
+	srv := &http.Server{Handler: mux}
+
+	go func() {
+		err := srv.Serve(ln)
+		if err != nil && err != http.ErrServerClosed {
+			t.Errorf("server error: %v", err)
+		}
+	}()
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	})
+
+	// We only call request tokens to trigger the callback to see if the correct
+	// redirect URI param is set. We do not care about the result.
+	_, _ = op.RequestTokens(ctx, GenCIC(t))
+}
+
+func TestCallbackHTML(t *testing.T) {
+	testCases := []struct {
+		name             string
+		callbackHTML     string
+		setCallback      bool
+		expectedResponse string
+	}{
+		{
+			name:             "default callback HTML",
+			setCallback:      false,
+			expectedResponse: "You may now close this window",
+		},
+		{
+			name:             "custom plain text",
+			callbackHTML:     "Authentication successful! You can close this tab now.",
+			setCallback:      true,
+			expectedResponse: "Authentication successful! You can close this tab now.",
+		},
+		{
+			name:             "custom HTML",
+			callbackHTML:     "<html><body><h1>Success!</h1><p>You may close this window.</p></body></html>",
+			setCallback:      true,
+			expectedResponse: "<html><body><h1>Success!</h1><p>You may close this window.</p></body></html>",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			clientId := "fake-client-id"
+			issuer := googleIssuer
+
+			opts := GetDefaultStandardOpOptions(issuer, clientId)
+			opts.ClientSecret = "test-secret"
+
+			// Set custom callback HTML if this test case requires it
+			if tc.setCallback {
+				opts.CallbackHTML = tc.callbackHTML
+			}
+
+			idp, err := mocks.NewMockOp(issuer, []mocks.Subject{
+				{
+					SubjectID: "alice@gmail.com",
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, idp)
+
+			expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+			idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+				CommitFunc: mocks.AddNonceCommit,
+				Issuer:     issuer,
+				Nonce:      "empty",
+				NoNonce:    false,
+				Aud:        clientId,
+				KeyID:      expKeyID,
+				NoKeyID:    false,
+				Alg:        expRecord.Alg,
+				NoAlg:      false,
+				SigningKey: expSigningKey,
+			}
+
+			rt := idp.GetHTTPClient()
+			require.NotNil(t, rt)
+			opts.HttpClient = rt
+			opts.OpenBrowser = false
+
+			op := NewStandardOpWithOptions(opts)
+
+			userAuth := mocks.UserBrowserInteractionMock{
+				SubjectId: "alice@gmail.com",
+			}
+
+			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
+			opUnwrapped := op.(*StandardOp)
+			opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
+
+			cic := GenCIC(t)
+			require.NotNil(t, cic)
+
+			tokens, err := op.RequestTokens(context.Background(), cic)
+			require.NoError(t, err)
+			require.NotNil(t, tokens)
+
+			// The test verifies that the feature is configurable and the value is
+			// correctly stored in StandardOp. The actual HTTP response verification
+			// would require intercepting the callback, which is complex with the
+			// current mock setup. The important part is that CallbackHTML is
+			// properly passed through to StandardOp.
+			require.Equal(t, tc.expectedResponse, opUnwrapped.CallbackHTML,
+				"CallbackHTML should be set correctly in StandardOp")
+		})
+	}
+}
+
+func TestCallbackHTMLEmptyDefaults(t *testing.T) {
+	clientId := "fake-client-id"
+	issuer := googleIssuer
+
+	opts := GetDefaultStandardOpOptions(issuer, clientId)
+	opts.CallbackHTML = ""
+
+	op := NewStandardOpWithOptions(opts)
+	opUnwrapped := op.(*StandardOp)
+	require.Equal(t, defaultCallbackHTML, opUnwrapped.CallbackHTML,
+		"CallbackHTML should default when empty")
+}
+
+func TestCallbackHTMLProviderSpecific(t *testing.T) {
+	// Test that CallbackHTML works with provider-specific options
+	customHTML := "<html><body><h1>Custom Success!</h1></body></html>"
+
+	t.Run("GoogleOptions", func(t *testing.T) {
+		opts := GetDefaultGoogleOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewGoogleOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from GoogleOptions")
+	})
+
+	t.Run("AzureOptions", func(t *testing.T) {
+		opts := GetDefaultAzureOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewAzureOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from AzureOptions")
+	})
+
+	t.Run("GitlabOptions", func(t *testing.T) {
+		opts := GetDefaultGitlabOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewGitlabOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOpRefreshable)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from GitlabOptions")
+	})
+
+	t.Run("HelloOptions", func(t *testing.T) {
+		opts := GetDefaultHelloOpOptions()
+		opts.CallbackHTML = customHTML
+		op := NewHelloOpWithOptions(opts)
+		opUnwrapped := op.(*StandardOp)
+		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
+			"CallbackHTML should be set correctly from HelloOptions")
+	})
 }

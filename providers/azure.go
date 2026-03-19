@@ -49,6 +49,10 @@ type AzureOptions struct {
 	// flow exchange. Ensure that your OIDC application is configured to accept
 	// these URIs otherwise an error may occur.
 	RedirectURIs []string
+	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
+	// RedirectURIs value sent to the OP during authorization. We still open a
+	// localhost URI expecting the remote server to proxy the request to a localhost port.
+	RemoteRedirectURI string
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
@@ -74,6 +78,9 @@ type AzureOptions struct {
 	// More details can be found at
 	// https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens
 	TenantID string
+	// CallbackHTML is the HTML content to display to the user after successful
+	// authentication. If empty, defaults to "You may now close this window".
+	CallbackHTML string
 }
 
 func GetDefaultAzureOpOptions() *AzureOptions {
@@ -94,6 +101,7 @@ func GetDefaultAzureOpOptions() *AzureOptions {
 		OpenBrowser:    true,
 		HttpClient:     nil,
 		IssuedAtOffset: 1 * time.Minute,
+		CallbackHTML:   defaultCallbackHTML,
 	}
 }
 
@@ -121,7 +129,9 @@ func NewAzureOpWithOptions(opts *AzureOptions) BrowserOpenIdProvider {
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
 			IssuedAtOffset:            opts.IssuedAtOffset,
+			CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 			issuer:                    opts.Issuer,
+			RemoteRedirectURI:         opts.RemoteRedirectURI,
 			requestTokensOverrideFunc: nil,
 			publicKeyFinder: discover.PublicKeyFinder{
 				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {

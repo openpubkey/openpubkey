@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lestrrat-go/jwx/v2/jws"
-	"github.com/openpubkey/openpubkey/gq"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/internal/jwx"
+	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 )
@@ -90,7 +92,7 @@ func GQOnly() Check {
 			return fmt.Errorf("missing provider algorithm header")
 		}
 
-		if alg != gq.GQ256 {
+		if alg != jose.GQ256 {
 			return fmt.Errorf("non-GQ signatures are not supported")
 		}
 		return nil
@@ -247,6 +249,16 @@ func verifyCicSignature(pkt *pktoken.PKToken) error {
 		return err
 	}
 
-	_, err = jws.Verify(pkt.CicToken, jws.WithKey(cic.PublicKey().Algorithm(), cic.PublicKey()))
+	jwkKey, err := jwk.PublicKeyOf(cic.PublicKey())
+	if err != nil {
+		return fmt.Errorf("failed to import public key: %w", err)
+	}
+
+	jwaAlg, ok := jwx.FromJoseAlgorithm(cic.KeyAlgorithm())
+	if !ok {
+		return fmt.Errorf("unsupported key algorithm: %s", cic.KeyAlgorithm())
+	}
+
+	_, err = jws.Verify(pkt.CicToken, jws.WithKey(jwaAlg, jwkKey))
 	return err
 }

@@ -28,9 +28,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v2/jwa"
-	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
@@ -429,9 +429,9 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			}
 
 			cHash := sha256.Sum256([]byte(authSession.AuthCode))
-			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
+			cS256B64 := base64.RawURLEncoding.EncodeToString(cHash[:])
 			claimsRequired := map[string]any{
-				"c_hash": cHashB64,
+				"c_s256": cS256B64,
 				"htm":    "POST",
 				"htu":    m.GetTokenURI(),
 			}
@@ -593,12 +593,20 @@ func validateDPoPReturnJwk(dpop string, jktExpected string, claimsRequired map[s
 	if algInPh == "" {
 		return nil, fmt.Errorf("no alg in protected header of DPoP header")
 	}
-	if algInPh != key.Algorithm().String() {
-		return nil, fmt.Errorf("in DPoP header the alg (%s) in JWK doesn't match alg (%s) in protected header", key.Algorithm(), algInPh)
+	keyAlg, ok := key.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("failed to get algorithm from JWK")
+	}
+	if algInPh != keyAlg.String() {
+		return nil, fmt.Errorf("in DPoP header the alg (%s) in JWK doesn't match alg (%s) in protected header", keyAlg.String(), algInPh)
 	}
 
 	// Check that the DPoP header is correctly signed by the JWK in the DPoP header
-	if _, err := jws.Verify([]byte(dpopJwt.GetRaw()), jws.WithKey(jwa.KeyAlgorithmFrom(algInPh), key)); err != nil {
+	headerKeyAlg, err := jwa.KeyAlgorithmFrom(algInPh)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key algorithm from alg in DPoP header: %w", err)
+	}
+	if _, err := jws.Verify([]byte(dpopJwt.GetRaw()), jws.WithKey(headerKeyAlg, key)); err != nil {
 		return nil, fmt.Errorf("failed to verify DPoP header signature: %w", err)
 	}
 
