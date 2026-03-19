@@ -10,8 +10,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/sirupsen/logrus v1.9.3
-	github.com/yeqown/go-qrcode/v2 v2.2.5
 	github.com/stretchr/testify v1.11.1
+	github.com/yeqown/go-qrcode/v2 v2.2.5
 	github.com/zitadel/oidc/v3 v3.23.2
 	golang.org/x/crypto v0.45.0
 )
@@ -27,8 +27,8 @@ require (
 	github.com/lestrrat-go/httprc/v3 v3.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
-	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
+	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/zitadel/logging v0.6.0 // indirect
 	github.com/zitadel/schema v1.3.0 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect

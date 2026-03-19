@@ -116,12 +116,12 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 			"http://localhost:11110/login-callback",
 		},
 		RemoteRedirectURI: "",
-    GQSign:         false,
-		DeviceFlow:     false,
-		OpenBrowser:    true,
-		HttpClient:     nil,
-		IssuedAtOffset: 1 * time.Minute,
-    CallbackHTML:      defaultCallbackHTML,
+		GQSign:            false,
+		DeviceFlow:        false,
+		OpenBrowser:       true,
+		HttpClient:        nil,
+		IssuedAtOffset:    1 * time.Minute,
+		CallbackHTML:      defaultCallbackHTML,
 	}
 }
 
@@ -169,7 +169,7 @@ type StandardOp struct {
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
 	CallbackHTML              string
-  ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
+	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer                    string
 	server                    *http.Server
 	browserOpenOverride       BrowserOpenOverrideFunc
