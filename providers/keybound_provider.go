@@ -35,7 +35,6 @@ import (
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
 )
 
 // KeyBindingOp configures standardOp to use the OIDC key binding protocol as described in the
@@ -61,7 +60,10 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 	if err != nil {
 		return err
 	}
-	s.StandardOp.ExtraURLParamOpts = append(s.StandardOp.ExtraURLParamOpts, rp.WithURLParam("dpop_jkt", string(jktb64)))
+	if s.StandardOp.ExtraURLParamOpts == nil {
+		s.StandardOp.ExtraURLParamOpts = map[string]string{}
+	}
+	s.StandardOp.ExtraURLParamOpts["dpop_jkt"] = string(jktb64)
 
 	// Override the StandardOp's HTTP client so we can read the authcode and set the DPoP header
 	if s.StandardOp.HttpClient == nil {
@@ -125,11 +127,19 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		if err != nil {
 			return nil, err
 		}
-		authCode := form.Get("code")
+
+		var code string
+		if form.Has("code") {
+			code = form.Get("code")
+		}
+		// If device_code is present, we should use that instead of code (for device flow)
+		if form.Has("device_code") {
+			code = form.Get("device_code")
+		}
 		jti := randomB64(16)
 		iat := time.Now().Add(-30 * time.Second).Unix()
 
-		token, err := CreateDpopJwt(htm, htu, jti, authCode, iat, t.Signer, t.Alg)
+		token, err := CreateDpopJwt(htm, htu, jti, code, iat, t.Signer, t.Alg)
 		if err != nil {
 			return nil, err
 		}
@@ -159,13 +169,17 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		return nil, err
 	}
 
-	cHash := sha256.Sum256([]byte(authcode))
 	payload := oidc.DpopClaims{
-		Htm:   htm,
-		Htu:   htu,
-		Jti:   jti,
-		Iat:   iat,
-		CS256: base64.RawURLEncoding.EncodeToString(cHash[:]),
+		Htm: htm,
+		Htu: htu,
+		Jti: jti,
+		Iat: iat,
+	}
+
+	if authcode != "" {
+		// In the refresh flow we don't have an authcode to include as the c_hash claim
+		cHash := sha256.Sum256([]byte(authcode))
+		payload.CS256 = base64.RawURLEncoding.EncodeToString(cHash[:])
 	}
 
 	payloadStr, err := json.Marshal(payload)

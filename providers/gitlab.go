@@ -55,6 +55,8 @@ type GitlabOptions struct {
 	// GQSign denotes if the received ID token should be upgraded to a GQ token
 	// using GQ signatures.
 	GQSign bool
+	// DeviceFlow denotes if the OIDC Device Flow should be used instead of the authorization code flow.
+	DeviceFlow bool
 	// OpenBrowser denotes if the client's default browser should be opened
 	// automatically when performing the OIDC authorization flow. This value
 	// should typically be set to true, unless performing some headless
@@ -112,6 +114,7 @@ func NewGitlabOpWithOptions(opts *GitlabOptions) BrowserOpenIdProvider {
 			RedirectURIs:              opts.RedirectURIs,
 			RemoteRedirectURI:         opts.RemoteRedirectURI,
 			GQSign:                    opts.GQSign,
+			DeviceFlow:                opts.DeviceFlow,
 			OpenBrowser:               opts.OpenBrowser,
 			HttpClient:                opts.HttpClient,
 			IssuedAtOffset:            opts.IssuedAtOffset,
