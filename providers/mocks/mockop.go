@@ -485,7 +485,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			cHash := sha256.Sum256([]byte(deviceAuthSession.DeviceCode))
 			cHashB64 := base64.RawURLEncoding.EncodeToString(cHash[:])
 			claimsRequired := map[string]any{
-				"c_hash": cHashB64,
+				"c_s256": cHashB64,
 				"htm":    "POST",
 				"htu":    m.GetTokenURI(),
 			}
