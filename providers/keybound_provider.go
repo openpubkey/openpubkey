@@ -169,13 +169,17 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		return nil, err
 	}
 
-	cHash := sha256.Sum256([]byte(authcode))
 	payload := oidc.DpopClaims{
-		Htm:   htm,
-		Htu:   htu,
-		Jti:   jti,
-		Iat:   iat,
-		CS256: base64.RawURLEncoding.EncodeToString(cHash[:]),
+		Htm: htm,
+		Htu: htu,
+		Jti: jti,
+		Iat: iat,
+	}
+
+	if authcode != "" {
+		// In the refresh flow we don't have an authcode to include as the c_hash claim
+		cHash := sha256.Sum256([]byte(authcode))
+		payload.CS256 = base64.RawURLEncoding.EncodeToString(cHash[:])
 	}
 
 	payloadStr, err := json.Marshal(payload)

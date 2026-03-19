@@ -63,7 +63,7 @@ type StandardOpOptions struct {
 	// Scopes is the list of scopes to send to the OP in the initial
 	// authorization request.
 	Scopes []string
-	// ExtraURLParamOpts is a list of additional URL parameters to include in the auth request to the OP.
+	// ExtraURLParamOpts is a map of additional URL parameters to include in the auth request to the OP.
 	ExtraURLParamOpts map[string]string
 	// PromptType is the type of prompt to use when requesting authorization from the user. Typically
 	// this is set to "consent".
@@ -374,9 +374,9 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	case retTokens := <-chTokens:
 		// retTokens is a zitadel/oidc struct. We turn it into our simpler token struct
 		return &simpleoidc.Tokens{
-			IDToken:      []byte(retTokens.IDToken),
-			RefreshToken: []byte(retTokens.RefreshToken),
-			AccessToken:  []byte(retTokens.AccessToken)}, nil
+			IDToken:      nilIfEmpty(retTokens.IDToken),
+			RefreshToken: nilIfEmpty(retTokens.RefreshToken),
+			AccessToken:  nilIfEmpty(retTokens.AccessToken)}, nil
 	}
 }
 
@@ -487,9 +487,9 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	}
 
 	return &simpleoidc.Tokens{
-		IDToken:      []byte(atr.IDToken),
-		RefreshToken: []byte(atr.RefreshToken),
-		AccessToken:  []byte(atr.AccessToken)}, nil
+		IDToken:      nilIfEmpty(atr.IDToken),
+		RefreshToken: nilIfEmpty(atr.RefreshToken),
+		AccessToken:  nilIfEmpty(atr.AccessToken)}, nil
 }
 
 func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
@@ -531,9 +531,9 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 	}
 
 	return &simpleoidc.Tokens{
-		IDToken:      []byte(retTokens.IDToken),
-		RefreshToken: []byte(retTokens.RefreshToken),
-		AccessToken:  []byte(retTokens.AccessToken)}, nil
+		IDToken:      nilIfEmpty(retTokens.IDToken),
+		RefreshToken: nilIfEmpty(retTokens.RefreshToken),
+		AccessToken:  nilIfEmpty(retTokens.AccessToken)}, nil
 }
 
 func (s *StandardOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
@@ -583,6 +583,14 @@ func (s *StandardOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, orig
 	}
 	_, err = rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier())
 	return err
+}
+
+// Used to ensure that when casting a string to a []byte, if the string is empty we return a nil []byte instead of a []byte with length 0.
+func nilIfEmpty(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	return []byte(s)
 }
 
 type BrowserOpenOverrideFunc func(url string) error
