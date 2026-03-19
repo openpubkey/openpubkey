@@ -33,11 +33,11 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/openpubkey/openpubkey/oidc"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 // KeyBindingOp configures standardOp to use the OIDC key binding protocol as described in the
@@ -131,43 +131,32 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			return nil, err
 		}
 
+		var code string
 		grantType := form.Get("grant_type")
 		switch grantType {
 		case "authorization_code":
-			code := form.Get("code")
-			// If device_code is present, we should use that instead of code (for device flow)
-			if form.Has("device_code") {
-				code = form.Get("device_code")
-			}
-
-			jti := randomB64(16)
-			iat := time.Now().Add(-30 * time.Second).Unix()
-			token, err := CreateDpopJwt(htm, htu, jti, code, iat, t.Signer, t.Alg)
-			if err != nil {
-				return nil, err
-			}
-			req.Header.Set("DPoP", string(token))
-
-			return t.Base.RoundTrip(req)
+			// For authorization code flow, we set the code to the authcode
+			code = form.Get("code")
+		case "urn:ietf:params:oauth:grant-type:device_code":
+			// If device_code is present, we should use that instead of authcode (for device flow)
+			code = form.Get("device_code")
 		case "refresh_token":
-
 			// This should not happen, but in case a bug causes the authcode to be set, fail early with a meaningful error message
 			if authcode := form.Get("code"); authcode != "" {
 				return nil, fmt.Errorf("refresh_token grant_type should not have authcode set (got authcode=%s)", authcode)
 			}
-
-			jti := randomB64(16)
-			iat := time.Now().Add(-30 * time.Second).Unix()
-			token, err := CreateDpopJwt(htm, htu, jti, "", iat, t.Signer, t.Alg)
-			if err != nil {
-				return nil, err
-			}
-			req.Header.Set("DPoP", string(token))
-
-			return t.Base.RoundTrip(req)
 		default:
 			return nil, fmt.Errorf("unsupported grant_type for DPoP: %s", grantType)
 		}
+
+		jti := randomB64(16)
+		iat := time.Now().Add(-30 * time.Second).Unix()
+		token, err := CreateDpopJwt(htm, htu, jti, code, iat, t.Signer, t.Alg)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("DPoP", string(token))
+		return t.Base.RoundTrip(req)
 
 	}
 	return t.Base.RoundTrip(req)
@@ -192,7 +181,7 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 		return nil, err
 	}
 
-	payload := oidc.DpopClaims{
+	payload := simpleoidc.DpopClaims{
 		Htm: htm,
 		Htu: htu,
 		Jti: jti,
