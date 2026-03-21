@@ -82,9 +82,8 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 	return &HelloOptions{
 		Issuer:     helloIssuer,
 		ClientID:   "app_xejobTKEsDNSRd5vofKB2iay_2rN",
-		Scopes:     []string{"openid profile email"},
+		Scopes:     []string{"openid profile email offline_access"},
 		PromptType: "consent",
-		AccessType: "offline",
 		RedirectURIs: []string{
 			"http://localhost:3000/login-callback",
 			"http://localhost:10001/login-callback",
@@ -149,8 +148,10 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewHelloKeyBindingOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
-	return &HelloKeyBindingOp{
-		StandardOp: *newHelloOpWithOptions(opts),
+	return &KeyBindingOpRefreshable{
+		KeyBindingOp: KeyBindingOp{
+			StandardOp: *newHelloOpWithOptions(opts),
+		},
 	}
 }
 
@@ -237,11 +238,10 @@ func CreateMockHelloKeyBindingOpWithOpts(helloOpOpts *HelloOptions, userActions 
 	helloOpOpts.HttpClient = rt
 	helloOpOpts.OpenBrowser = false // Don't open the browser in tests
 
-	// TODO: Determine where to put "key binding" in names
 	helloOp := NewHelloKeyBindingOpWithOptions(helloOpOpts)
 
 	browserOpenOverrideFn := userActions.BrowserOpenOverrideFunc(idp)
-	op := helloOp.(*HelloKeyBindingOp)
+	op := helloOp.(*KeyBindingOpRefreshable)
 	op.SetOpenBrowserOverride(browserOpenOverrideFn)
 
 	return op, nil

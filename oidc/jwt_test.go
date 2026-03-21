@@ -72,9 +72,10 @@ func TestJwtMarshaling(t *testing.T) {
 func TestJwtCompare(t *testing.T) {
 
 	testCases := []struct {
-		name                string
-		t1, t2              string
-		expIdErr, expAgeErr string
+		name                           string
+		t1, t2                         string
+		expIdErr, expAgeErr, expCnfErr string
+		checkSameCnf                   bool
 	}{
 		{name: "Happy case",
 			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
@@ -87,7 +88,7 @@ func TestJwtCompare(t *testing.T) {
 			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
 			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"567","aud":"abc","exp":35,"iat":12,"email":"alice@example.com"}.fakesignature
 			t2:       "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiNTY3IiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
-			expIdErr: "token have a different subject claims",
+			expIdErr: "tokens have different subject claims",
 		},
 		{name: "Different Issuers",
 			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
@@ -102,6 +103,37 @@ func TestJwtCompare(t *testing.T) {
 			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":35,"iat":10,"email":"alice@example.com"}.fakesignature
 			t2:        "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMCwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
 			expAgeErr: "tokens not issued in correct order",
+		},
+		{name: "Happy case cnf Matches",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","cnf":{"jwk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk","y":"H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"}},"exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiNmhncndSNDdHcVI2d3BlVFVBdXN4Qllid25PNUlfQjVuVGFPMFlINzVVayIsInkiOiJIMFp0STFCYnl0bHZmbjNlajNlVzBxVmtYcHl1RlNSVm11THR3UnEzVXlNIn19LCJleHAiOjM0LCJpYXQiOjEyLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwibm9uY2UiOiIweDBCRUUifQ.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","cnf":{"jwk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk","y":"H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"}},"exp":34,"iat":14,"email":"alice@example.com","nonce":"0x0EEB"}.fakesignature
+			t2:           "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiNmhncndSNDdHcVI2d3BlVFVBdXN4Qllid25PNUlfQjVuVGFPMFlINzVVayIsInkiOiJIMFp0STFCYnl0bHZmbjNlajNlVzBxVmtYcHl1RlNSVm11THR3UnEzVXlNIn19LCJleHAiOjM0LCJpYXQiOjE0LCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwibm9uY2UiOiIweDBFRUIifQ.ZmFrZXNpZ25hdHVyZQ",
+			checkSameCnf: true,
+		},
+		{name: "Different Cnf",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","cnf":{"jwk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"6hgrwR47GqR6wpeTUAusxBYbwnO5I_B5nTaO0YH75Uk","y":"H0ZtI1Bbytlvfn3ej3eW0qVkXpyuFSRVmuLtwRq3UyM"}},"exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoiNmhncndSNDdHcVI2d3BlVFVBdXN4Qllid25PNUlfQjVuVGFPMFlINzVVayIsInkiOiJIMFp0STFCYnl0bHZmbjNlajNlVzBxVmtYcHl1RlNSVm11THR3UnEzVXlNIn19LCJleHAiOjM0LCJpYXQiOjEyLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwibm9uY2UiOiIweDBCRUUifQ.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","cnf":{"jwk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy","y":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}},"exp":35,"iat":14,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t2:           "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoieXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eSIsInkiOiJ6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enoifX0sImV4cCI6MzUsImlhdCI6MTQsImVtYWlsIjoiYWxpY2VAZXhhbXBsZS5jb20iLCJub25jZSI6IjB4MEJFRSJ9.ZmFrZXNpZ25hdHVyZQ",
+			checkSameCnf: true,
+			expCnfErr:    "different cnf claims",
+		},
+		{name: "Different Cnf (missing Cnf)",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","cnf":{"jwk":{"alg":"ES256","crv":"P-256","kty":"EC","x":"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy","y":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}},"exp":35,"iat":14,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t2:           "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiY25mIjp7Imp3ayI6eyJhbGciOiJFUzI1NiIsImNydiI6IlAtMjU2Iiwia3R5IjoiRUMiLCJ4IjoieXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eSIsInkiOiJ6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enp6enoifX0sImV4cCI6MzUsImlhdCI6MTQsImVtYWlsIjoiYWxpY2VAZXhhbXBsZS5jb20iLCJub25jZSI6IjB4MEJFRSJ9.ZmFrZXNpZ25hdHVyZQ",
+			checkSameCnf: true,
+			expCnfErr:    "different cnf claims",
+		},
+		{name: "Both Cnf claims nil case",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":34,"iat":12,"email":"alice@example.com","nonce":"0x0BEE"}.fakesignature
+			t1: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNCwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5vbmNlIjoiMHgwQkVFIn0.ZmFrZXNpZ25hdHVyZQ",
+			// {"alg":"RS256","typ":"JWT","kid":"1234"}.{"iss":"https://example.com","sub":"123","aud":"abc","exp":35,"iat":12,"email":"alice@example.com"}.fakesignature
+			t2:           "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEyMzQifQ.eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoiMTIzIiwiYXVkIjoiYWJjIiwiZXhwIjozNSwiaWF0IjoxMiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSJ9.ZmFrZXNpZ25hdHVyZQ",
+			checkSameCnf: true,
+			expCnfErr:    "both tokens have nil cnf claims",
 		},
 	}
 
@@ -121,6 +153,16 @@ func TestJwtCompare(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			if tc.checkSameCnf {
+				err = SameCnf([]byte(tc.t1), []byte(tc.t2))
+				if tc.expCnfErr != "" {
+					require.ErrorContains(t, err, tc.expCnfErr)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+
 		})
 	}
 }

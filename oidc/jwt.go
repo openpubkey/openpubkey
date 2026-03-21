@@ -18,6 +18,7 @@ package oidc
 
 import (
 	"fmt"
+	"reflect"
 )
 
 type Jwt struct {
@@ -98,8 +99,31 @@ func SameIdentity(t1, t2 []byte) error {
 	}
 
 	if token1.GetClaims().Subject != token2.GetClaims().Subject {
-		return fmt.Errorf("token have a different subject claims")
+		return fmt.Errorf("tokens have different subject claims")
 	}
+	return nil
+}
+
+// Checks that both tokens have the same cnf claim. We use this for key binding as
+// we put the JWK in the cnf claim.
+func SameCnf(t1, t2 []byte) error {
+	token1, err := NewJwt(t1)
+	if err != nil {
+		return err
+	}
+	token2, err := NewJwt(t2)
+	if err != nil {
+		return err
+	}
+
+	if token1.GetClaims().Cnf == nil && token2.GetClaims().Cnf == nil {
+		return fmt.Errorf("both tokens have nil cnf claims")
+	}
+
+	if !reflect.DeepEqual(token1.GetClaims().Cnf, token2.GetClaims().Cnf) {
+		return fmt.Errorf("tokens have different cnf claims %s != %s", token1.GetClaims().Cnf, token2.GetClaims().Cnf)
+	}
+
 	return nil
 }
 
