@@ -39,6 +39,7 @@ type OpenIdProvider interface {
 	VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
+// Interface for an OpenIdProvider that uses the web browser
 type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	ClientID() string

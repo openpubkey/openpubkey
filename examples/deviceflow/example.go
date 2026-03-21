@@ -62,7 +62,7 @@ func login() error {
 	// We have to use a different client ID/secret for device flow as the standard one is tied to auth code flow.
 	helloOpOptions.ClientID = "app_fzr7iWr50CWQkGDrLCZBYQc4_2Ak"
 	helloOpOptions.DeviceFlow = true
-	helloOp := providers.NewHelloOpWithOptions(helloOpOptions)
+	helloOp := providers.NewHelloKeyBindingOpWithOptions(helloOpOptions)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
@@ -106,36 +106,21 @@ func login() error {
 	}
 	fmt.Println("Compact", len(pktCom), string(pktCom))
 
-	if opkClient.Op != helloOp {
-		newPkt, err := opkClient.Refresh(ctx)
-		if err != nil {
-			return err
-		}
-		fmt.Println("refreshed ID Token", string(newPkt.FreshIDToken))
+	newPkt, err := opkClient.Refresh(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("refreshed ID Token", string(newPkt.FreshIDToken))
 
-		// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-		ops := []verifier.ProviderVerifier{googleOp, azureOp}
-		pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
-		if err != nil {
-			return err
-		}
-		err = pktVerifier.VerifyPKToken(context.Background(), newPkt)
-		if err != nil {
-			return err
-		}
-	} else {
-		// HelloOP does not support refresh tokens
-		fmt.Println("skipping ID Token refresh for Hello OP as it does not support refresh tokens")
-
-		ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp}
-		pktVerifier, err := verifier.NewFromMany(ops)
-		if err != nil {
-			return err
-		}
-		err = pktVerifier.VerifyPKToken(context.Background(), pkt)
-		if err != nil {
-			return err
-		}
+	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
+	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp}
+	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
+	if err != nil {
+		return err
+	}
+	err = pktVerifier.VerifyPKToken(context.Background(), newPkt)
+	if err != nil {
+		return err
 	}
 	return nil
 }
