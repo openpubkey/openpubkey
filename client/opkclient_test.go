@@ -321,7 +321,6 @@ func TestKeybindingDeviceFlow(t *testing.T) {
 func TestDeviceFlow(t *testing.T) {
 	helloOpOpts := providers.GetDefaultHelloOpOptions()
 	helloOpOpts.DeviceFlow = true
-
 	op, err := providers.CreateMockHelloOpWithOpts(helloOpOpts,
 		mocks.UserBrowserInteractionMock{
 			SubjectId: "alice@gmail.com",

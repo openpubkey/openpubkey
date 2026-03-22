@@ -18,6 +18,7 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,6 +39,7 @@ type OpenIdProvider interface {
 	VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error
 }
 
+// Interface for an OpenIdProvider that uses the web browser
 type BrowserOpenIdProvider interface {
 	OpenIdProvider
 	ClientID() string
@@ -50,6 +52,12 @@ type RefreshableOpenIdProvider interface {
 	OpenIdProvider
 	RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error)
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
+}
+
+// Interface for an OpenIdProvider that supports key binding of the ID Token
+type KeyBindingOpenIdProvider interface {
+	OpenIdProvider
+	ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) error
 }
 
 const KEYBOUND_TYP = "id_token+cnf"
