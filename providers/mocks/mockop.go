@@ -441,11 +441,10 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 				return nil, fmt.Errorf("failed to validate DPoP JWT: %w", err)
 			}
 
-			extraClaims := m.MockProviderBackend.IDTokenTemplate.ExtraClaims
 			if m.MockProviderBackend.IDTokenTemplate.ExtraClaims == nil {
 				m.MockProviderBackend.IDTokenTemplate.ExtraClaims = map[string]any{}
 			}
-			extraClaims["cnf"] = map[string]any{
+			m.MockProviderBackend.IDTokenTemplate.ExtraClaims["cnf"] = map[string]any{
 				"jwk": jwkMap,
 			}
 
