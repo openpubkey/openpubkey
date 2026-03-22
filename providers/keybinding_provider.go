@@ -148,14 +148,15 @@ func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		default:
 			return nil, fmt.Errorf("unsupported grant_type for DPoP: %s", grantType)
 		}
-
 		jti := randomB64(16)
 		iat := time.Now().Add(-30 * time.Second).Unix()
+
 		token, err := CreateDpopJwt(htm, htu, jti, code, iat, t.Signer, t.Alg)
 		if err != nil {
 			return nil, err
 		}
 		req.Header.Set("DPoP", string(token))
+
 		return t.Base.RoundTrip(req)
 
 	}
