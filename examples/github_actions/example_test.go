@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2026 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package gitlab_example
+package github_actions_example
 
 import (
 	"testing"
@@ -24,10 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitlabExample(t *testing.T) {
+func TestGithubActionsExample(t *testing.T) {
 	op, err := simpleop.New(
-		"https://gitlab.com",
-		simpleop.WithCommitType(providers.CommitTypesEnum.GQ_BOUND),
+		"https://token.actions.githubusercontent.com",
+		simpleop.WithGQSign(true),
+		simpleop.WithCommitType(providers.CommitTypesEnum.AUD_CLAIM),
 	)
 	require.NoError(t, err)
 
@@ -35,6 +36,6 @@ func TestGitlabExample(t *testing.T) {
 		altOp: op,
 	}
 
-	err = SignWithGitlab(opts)
+	err = SignWithGithubActions(opts)
 	require.NoError(t, err)
 }

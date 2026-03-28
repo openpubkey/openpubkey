@@ -1,4 +1,4 @@
-// Copyright 2024 OpenPubkey
+// Copyright 2026 OpenPubkey
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,27 +14,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package gitlab_example
+//go:build integration
+
+package github_actions_example
 
 import (
 	"testing"
 
-	"github.com/openpubkey/openpubkey/providers"
-	"github.com/openpubkey/openpubkey/simpleop"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitlabExample(t *testing.T) {
-	op, err := simpleop.New(
-		"https://gitlab.com",
-		simpleop.WithCommitType(providers.CommitTypesEnum.GQ_BOUND),
-	)
-	require.NoError(t, err)
-
-	opts := Opts{
-		altOp: op,
-	}
-
-	err = SignWithGitlab(opts)
+func TestGithubActionsIntegration(t *testing.T) {
+	// This test runs only in GitHub Actions with id-token: write permission.
+	// It exercises the real OIDC flow against GitHub's token endpoint.
+	err := SignWithGithubActions()
 	require.NoError(t, err)
 }
