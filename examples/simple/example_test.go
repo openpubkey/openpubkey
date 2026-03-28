@@ -20,22 +20,15 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/simpleop"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGitlabExample(t *testing.T) {
-	providerOpts := providers.MockProviderOpts{
-		Issuer:     "mockIssuer",
-		GQSign:     true,
-		NumKeys:    2,
-		CommitType: providers.CommitTypesEnum.GQ_BOUND,
-		VerifierOpts: providers.ProviderVerifierOpts{
-			CommitType:        providers.CommitTypesEnum.GQ_BOUND,
-			SkipClientIDCheck: true, // For GQCommitments we skip this check since the audience is set to the hardcoded prefix
-			GQOnly:            true,
-		},
-	}
-	op, _, _, err := providers.NewMockProvider(providerOpts)
+func TestSimpleExample(t *testing.T) {
+	op, err := simpleop.New(
+		"https://accounts.example.com",
+		simpleop.WithCommitType(providers.CommitTypesEnum.GQ_BOUND),
+	)
 	require.NoError(t, err)
 
 	pktJson, signedMsg, err := Sign(op)

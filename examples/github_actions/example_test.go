@@ -20,23 +20,16 @@ import (
 	"testing"
 
 	"github.com/openpubkey/openpubkey/providers"
+	"github.com/openpubkey/openpubkey/simpleop"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGithubActionsExample(t *testing.T) {
-	providerOpts := providers.MockProviderOpts{
-		Issuer:     "https://token.actions.githubusercontent.com",
-		ClientID:   "test_client_id",
-		GQSign:     true,
-		NumKeys:    2,
-		CommitType: providers.CommitTypesEnum.AUD_CLAIM,
-		VerifierOpts: providers.ProviderVerifierOpts{
-			SkipClientIDCheck: true,
-			GQOnly:            true,
-			CommitType:        providers.CommitTypesEnum.AUD_CLAIM,
-		},
-	}
-	op, _, _, err := providers.NewMockProvider(providerOpts)
+	op, err := simpleop.New(
+		"https://token.actions.githubusercontent.com",
+		simpleop.WithGQSign(true),
+		simpleop.WithCommitType(providers.CommitTypesEnum.AUD_CLAIM),
+	)
 	require.NoError(t, err)
 
 	opts := Opts{
