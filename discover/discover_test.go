@@ -199,20 +199,23 @@ func TestPublicKeyFinder(t *testing.T) {
 	mockJwks, err := MockGetJwksByIssuer(publicKeys, keyIDs, algs)
 	require.NoError(t, err)
 
-	finder := &PublicKeyFinder{
-		JwksFunc: mockJwks,
-	}
+	finder := NewPubkeyFinderWithCache(mockJwks, NewMapDiscoveryCache(), time.Hour)
 
 	for i := range publicKeys {
-		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, keyIDs[i])
+		pubkeyRecord, wasCached, err := finder.ByKeyID(ctx, issuer, keyIDs[i], true)
 		require.NoError(t, err)
+		if i == 0 {
+			require.False(t, wasCached, "First call should have fetched fresh JWKS")
+		} else {
+			require.True(t, wasCached, "Second and subsequent calls should use cached JWKS")
+		}
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
 	for i := range publicKeys {
-		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
+		pubkeyRecord, _, err := finder.ByToken(ctx, issuer, idTokens[i], true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -226,7 +229,7 @@ func TestPublicKeyFinder(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
+		pubkeyRecord, _, err := finder.ByJKT(ctx, issuer, string(jktB64), true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -234,25 +237,25 @@ func TestPublicKeyFinder(t *testing.T) {
 	}
 
 	// Test failure cases
-	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "not-a-key-id")
+	pubkeyRecord, _, err := finder.ByKeyID(ctx, issuer, "not-a-key-id", true)
 	require.Error(t, err)
 	require.Nil(t, pubkeyRecord)
 
 	wrongSigner, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	wrongIdToken := CreateIDToken(t, issuer, wrongSigner, "RS256", "not-a-key-id")
-	pubkeyRecord, err = finder.ByToken(ctx, issuer, wrongIdToken)
+	pubkeyRecord, _, err = finder.ByToken(ctx, issuer, wrongIdToken, true)
 	require.EqualError(t, err, "no matching public key found for kid not-a-key-id")
 	require.Nil(t, pubkeyRecord)
 
 	// Tests we don't return the wrong Public Key even if not kid is supplied
 	wrongIdToken2 := CreateIDToken(t, issuer, wrongSigner, "RS256", "")
-	pubkeyRecord, err = finder.ByToken(ctx, issuer, wrongIdToken2)
+	pubkeyRecord, _, err = finder.ByToken(ctx, issuer, wrongIdToken2, true)
 	require.EqualError(t, err, "no matching public key found for kid ")
 	require.Nil(t, pubkeyRecord)
 
 	wrongJKT := "not-a-jkt"
-	pubkeyRecord, err = finder.ByJKT(ctx, issuer, wrongJKT)
+	pubkeyRecord, _, err = finder.ByJKT(ctx, issuer, wrongJKT, true)
 	require.EqualError(t, err, "no matching public key found for jkt not-a-jkt")
 	require.Nil(t, pubkeyRecord)
 }
@@ -278,16 +281,21 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 	mockJwks, err := MockGetJwksByIssuer(publicKeys, nil, algs)
 	require.NoError(t, err)
 
-	finder := &PublicKeyFinder{
-		JwksFunc: mockJwks,
-	}
-
-	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "1234")
-	require.EqualError(t, err, "no matching public key found for kid 1234", "no kid (keyID) ByKeyID should return nothing")
-	require.Nil(t, pubkeyRecord)
+	finder := NewPubkeyFinderWithCache(mockJwks, NewMapDiscoveryCache(), time.Hour)
 
 	for i := range publicKeys {
-		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
+		pubkeyRecord, wasCached, err := finder.ByKeyID(ctx, issuer, "1234", true)
+		require.EqualError(t, err, "no matching public key found for kid 1234", "no kid (keyID) ByKeyID should return nothing")
+		if i == 0 {
+			require.False(t, wasCached, "First call should have fetched fresh JWKS")
+		} else {
+			require.True(t, wasCached, "Second and subsequent calls should use cached JWKS")
+		}
+		require.Nil(t, pubkeyRecord)
+	}
+
+	for i := range publicKeys {
+		pubkeyRecord, _, err := finder.ByToken(ctx, issuer, idTokens[i], true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -301,7 +309,7 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
+		pubkeyRecord, _, err := finder.ByJKT(ctx, issuer, string(jktB64), true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -340,20 +348,23 @@ func TestGQTokens(t *testing.T) {
 	mockJwks, err := MockGetJwksByIssuer(publicKeys, keyIDs, algs)
 	require.NoError(t, err)
 
-	finder := &PublicKeyFinder{
-		JwksFunc: mockJwks,
-	}
+	finder := NewPubkeyFinderWithCache(mockJwks, NewMapDiscoveryCache(), time.Hour)
 
 	for i := range publicKeys {
-		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, keyIDs[i])
+		pubkeyRecord, wasCached, err := finder.ByKeyID(ctx, issuer, keyIDs[i], true)
 		require.NoError(t, err)
+		if i == 0 {
+			require.False(t, wasCached, "First call should have fetched fresh JWKS")
+		} else {
+			require.True(t, wasCached, "Second and subsequent calls should use cached JWKS")
+		}
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
 	for i := range publicKeys {
-		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
+		pubkeyRecord, _, err := finder.ByToken(ctx, issuer, idTokens[i], true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
@@ -367,7 +378,7 @@ func TestGQTokens(t *testing.T) {
 		require.NoError(t, err)
 		jktB64 := util.Base64EncodeForJWT(jkt)
 
-		pubkeyRecord, err := finder.ByJKT(ctx, issuer, string(jktB64))
+		pubkeyRecord, _, err := finder.ByJKT(ctx, issuer, string(jktB64), true)
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
 		require.Equal(t, algs[i], pubkeyRecord.Alg)
