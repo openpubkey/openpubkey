@@ -100,6 +100,15 @@ type StandardOpOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// Cache is the discovery cache (if any) used by this provider
+	Cache discover.DiscoveryCache
+	// StandardMaxAge is the standard maximum age of a cache entry before it
+	// is considered expired
+	StandardMaxAge time.Duration
+	// FallbackMaxAge is the absolute maximum age of a cache entry - entries
+	// older than the StandardMaxAge but younger than the FallbackMaxAge may be
+	// used if the provider's JWKS endpoint cannot be reached
+	FallbackMaxAge time.Duration
 }
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
@@ -151,6 +160,9 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
 				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 			},
+			Cache:          opts.Cache,
+			StandardMaxAge: opts.StandardMaxAge,
+			FallbackMaxAge: opts.FallbackMaxAge,
 		},
 	}
 }
@@ -536,12 +548,12 @@ func (s *StandardOpRefreshable) RefreshTokens(ctx context.Context, refreshToken 
 		AccessToken:  nilIfEmpty(retTokens.AccessToken)}, nil
 }
 
-func (s *StandardOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return s.publicKeyFinder.ByToken(ctx, s.issuer, token)
+func (s *StandardOp) PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return s.publicKeyFinder.ByToken(ctx, s.issuer, token, mayUseCache)
 }
 
-func (s *StandardOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return s.publicKeyFinder.ByKeyID(ctx, s.issuer, keyID)
+func (s *StandardOp) PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return s.publicKeyFinder.ByKeyID(ctx, s.issuer, keyID, mayUseCache)
 }
 
 func (s *StandardOp) Issuer() string {

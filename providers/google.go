@@ -79,6 +79,15 @@ type GoogleOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// Cache is the discovery cache (if any) used by this provider
+	Cache discover.DiscoveryCache
+	// StandardMaxAge is the standard maximum age of a cache entry before it
+	// is considered expired
+	StandardMaxAge time.Duration
+	// FallbackMaxAge is the absolute maximum age of a cache entry - entries
+	// older than the StandardMaxAge but younger than the FallbackMaxAge may be
+	// used if the provider's JWKS endpoint cannot be reached
+	FallbackMaxAge time.Duration
 }
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
@@ -137,6 +146,9 @@ func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
 					return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 				},
+				Cache:          opts.Cache,
+				StandardMaxAge: opts.StandardMaxAge,
+				FallbackMaxAge: opts.FallbackMaxAge,
 			},
 		},
 	}

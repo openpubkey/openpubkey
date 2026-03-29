@@ -32,8 +32,8 @@ import (
 // an ID Token
 type OpenIdProvider interface {
 	RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error)
-	PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error)
-	PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error)
+	PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error)
+	PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error)
 	// Returns the OpenID provider issuer as seen in ID token e.g. "https://accounts.google.com"
 	Issuer() string
 	VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error

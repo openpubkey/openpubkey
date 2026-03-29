@@ -62,7 +62,7 @@ func TestMockProviderTest(t *testing.T) {
 	}{}
 	err = json.Unmarshal(payload, &payloadClaims)
 	require.NoError(t, err)
-	pkRecord, err := provider.PublicKeyByToken(context.Background(), idToken)
+	pkRecord, _, err := provider.PublicKeyByToken(context.Background(), idToken, false)
 	require.NoError(t, err)
 
 	// Check that GQ Signature verifies
