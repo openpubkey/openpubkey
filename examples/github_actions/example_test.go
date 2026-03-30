@@ -39,10 +39,7 @@ func TestGithubActionsExample(t *testing.T) {
 	op, _, _, err := providers.NewMockProvider(providerOpts)
 	require.NoError(t, err)
 
-	opts := Opts{
-		altOp: op,
-	}
-
-	err = SignWithGithubActions(opts)
+	example := &GithubActionsExample{Op: op}
+	err = example.Run()
 	require.NoError(t, err)
 }

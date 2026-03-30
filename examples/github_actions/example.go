@@ -26,19 +26,15 @@ import (
 	"github.com/openpubkey/openpubkey/verifier"
 )
 
-type Opts struct {
-	altOp providers.OpenIdProvider
+type GithubActionsExample struct {
+	// Op overrides the default GitHub Actions provider. Used for testing.
+	Op providers.OpenIdProvider
 }
 
-func SignWithGithubActions(opts ...Opts) error {
-	var op providers.OpenIdProvider
-	var err error
-
-	// If an alternative OP is provided, use that instead of the default.
-	// Currently only used for testing where a mockOP is provided.
-	if len(opts) > 0 && opts[0].altOp != nil {
-		op = opts[0].altOp
-	} else {
+func (e *GithubActionsExample) Run() error {
+	op := e.Op
+	if op == nil {
+		var err error
 		// Creates OpenID Provider (OP) from GitHub Actions environment variables
 		op, err = providers.NewGithubOpFromEnvironment()
 		if err != nil {

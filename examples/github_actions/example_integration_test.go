@@ -27,6 +27,7 @@ import (
 func TestGithubActionsIntegration(t *testing.T) {
 	// This test runs only in GitHub Actions with id-token: write permission.
 	// It exercises the real OIDC flow against GitHub's token endpoint.
-	err := SignWithGithubActions()
+	example := &GithubActionsExample{}
+	err := example.Run()
 	require.NoError(t, err)
 }
