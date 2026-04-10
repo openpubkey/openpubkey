@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -96,10 +97,22 @@ func DefaultPubkeyFinder() *PublicKeyFinder {
 	}
 }
 
+func NewPubkeyFinderWithCache(f JwksFetchFunc, cache DiscoveryCache, maxAge time.Duration) *PublicKeyFinder {
+	return &PublicKeyFinder{
+		JwksFunc:       f,
+		Cache:          cache,
+		StandardMaxAge: maxAge,
+		FallbackMaxAge: maxAge * 2,
+	}
+}
+
 type JwksFetchFunc func(ctx context.Context, issuer string) ([]byte, error)
 
 type PublicKeyFinder struct {
-	JwksFunc JwksFetchFunc
+	JwksFunc       JwksFetchFunc
+	Cache          DiscoveryCache
+	StandardMaxAge time.Duration
+	FallbackMaxAge time.Duration
 }
 
 // GetJwksByIssuer fetches the JWKS from the issuer's JWKS endpoint found at the
@@ -137,49 +150,79 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 	return io.ReadAll(resp.Body)
 }
 
-func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {
-	jwksJson, err := f.JwksFunc(ctx, issuer)
+func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string, mayUseCache bool) (jwk.Set, bool, error) {
+	var jwksJson []byte
+	var err error
+	if mayUseCache && f.Cache != nil {
+		jwksJson, err = f.Cache.Read(ctx, issuer, f.StandardMaxAge)
+		if err == nil {
+			jwks := jwk.NewSet()
+			if err := json.Unmarshal(jwksJson, jwks); err == nil {
+				return jwks, true, nil
+			}
+		}
+	}
+	// if we get to here, either we were instructed not to use the cache, or
+	// there was no unexpired JWKS in the cache, or the JWKS that we pulled
+	// from the cache could not be parsed - go out to the provider
+	jwksJson, err = f.JwksFunc(ctx, issuer)
+	wasFallback := false
 	if err != nil {
-		return nil, fmt.Errorf(`failed to fetch JWKS: %w`, err)
+		// failed to fetch from provider, so see if the cache can provide a
+		// fallback possibly-expired key
+		var cacheErr any = struct{}{}
+		if f.Cache != nil {
+			jwksJson, cacheErr = f.Cache.Read(ctx, issuer, f.StandardMaxAge)
+		}
+		if cacheErr != nil {
+			// failed to fetch fallback key from cache - return the original
+			// provider error
+			return nil, false, fmt.Errorf(`failed to fetch JWKS: %w`, err)
+		}
+		wasFallback = true
 	}
 	jwks := jwk.NewSet()
 	if err := json.Unmarshal(jwksJson, jwks); err != nil {
-		return nil, fmt.Errorf(`failed to unmarshal JWKS: %w`, err)
+		return nil, false, fmt.Errorf(`failed to unmarshal JWKS: %w`, err)
 	}
-	return jwks, nil
+	if !wasFallback && f.Cache != nil {
+		_ = f.Cache.Write(issuer, jwksJson)
+		// TODO log if cache write fails
+	}
+	return jwks, wasFallback, nil
 }
 
 // ByToken looks up an OP public key in the JWKS using the KeyID (kid) in the
 // protected header from the supplied token.
-func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte) (*PublicKeyRecord, error) {
+func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []byte, mayUseCache bool) (*PublicKeyRecord, bool, error) {
 	jwt, err := jws.Parse(token)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing JWK in JWKS: %w", err)
+		return nil, false, fmt.Errorf("error parsing JWK in JWKS: %w", err)
 	}
 	// a JWT is guaranteed to have exactly one signature
 	headers := jwt.Signatures()[0].ProtectedHeaders()
 
 	headersAlg, ok := headers.Algorithm()
 	if !ok {
-		return nil, fmt.Errorf("error getting algorithm from JWT headers")
+		return nil, false, fmt.Errorf("error getting algorithm from JWT headers")
 	}
 	keyID, _ := headers.KeyID()
 	if headersAlg.String() == jose.GQ256 {
 		origHeadersJson, err := util.Base64DecodeForJWT([]byte(keyID))
 		if err != nil {
-			return nil, fmt.Errorf("error base64 decoding GQ kid: %w", err)
+			return nil, false, fmt.Errorf("error base64 decoding GQ kid: %w", err)
 		}
 
 		// If GQ then replace the GQ headers with the original headers
 		err = json.Unmarshal(origHeadersJson, &headers)
 		if err != nil {
-			return nil, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
+			return nil, false, fmt.Errorf("error unmarshalling GQ kid to original headers: %w", err)
 		}
 		// Extract the kid from the original headers after unmarshaling
 		keyID, _ = headers.KeyID()
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyID(ctx, issuer, keyID)
+	return f.ByKeyID(ctx, issuer, keyID, mayUseCache)
 }
 
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
@@ -201,30 +244,32 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 // When used with JWS or JWE, the "kid" value is used to match a JWS or
 // JWE "kid" Header Parameter value." - RFC 7517
 // https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
-func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string) (*PublicKeyRecord, error) {
-	jwks, err := f.fetchAndParseJwks(ctx, issuer)
+func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string, mayUseCache bool) (*PublicKeyRecord, bool, error) {
+	jwks, wasCached, err := f.fetchAndParseJwks(ctx, issuer, mayUseCache)
 	if err != nil {
-		return nil, fmt.Errorf(`failed to fetch JWK set: %w`, err)
+		return nil, wasCached, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
 
 	key, ok := jwks.LookupKeyID(keyID)
 	if ok {
-		return publicKeyRecordFromJWK(key, issuer)
+		pk, err := publicKeyRecordFromJWK(key, issuer)
+		return pk, wasCached, err
 	} else if keyID == "" && jwks.Len() == 1 {
 		key, ok := jwks.Key(0)
 		if !ok {
-			return nil, fmt.Errorf("failed to get key from JWK set")
+			return nil, wasCached, fmt.Errorf("failed to get key from JWK set")
 		}
-		return publicKeyRecordFromJWK(key, issuer)
+		pk, err := publicKeyRecordFromJWK(key, issuer)
+		return pk, wasCached, err
 	}
 
-	return nil, fmt.Errorf("no matching public key found for kid %s", keyID)
+	return nil, wasCached, fmt.Errorf("no matching public key found for kid %s", keyID)
 }
 
-func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) (*PublicKeyRecord, error) {
-	jwks, err := f.fetchAndParseJwks(ctx, issuer)
+func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string, mayUseCache bool) (*PublicKeyRecord, bool, error) {
+	jwks, wasCached, err := f.fetchAndParseJwks(ctx, issuer, mayUseCache)
 	if err != nil {
-		return nil, err
+		return nil, wasCached, err
 	}
 
 	for i := range jwks.Len() {
@@ -234,13 +279,14 @@ func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string) 
 		}
 		jktOfKey, err := key.Thumbprint(crypto.SHA256)
 		if err != nil {
-			return nil, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)
+			return nil, wasCached, fmt.Errorf("error computing Thumbprint of key in JWKS: %w", err)
 		}
 		jktOfKeyB64 := util.Base64EncodeForJWT(jktOfKey)
 		if jkt == string(jktOfKeyB64) {
-			return publicKeyRecordFromJWK(key, issuer)
+			pk, err := publicKeyRecordFromJWK(key, issuer)
+			return pk, wasCached, err
 		}
 	}
 
-	return nil, fmt.Errorf("no matching public key found for jkt %s", jkt)
+	return nil, wasCached, fmt.Errorf("no matching public key found for jkt %s", jkt)
 }

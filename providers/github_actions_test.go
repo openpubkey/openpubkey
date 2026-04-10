@@ -96,7 +96,7 @@ func TestGithubOpTableTest(t *testing.T) {
 	}{}
 	err = json.Unmarshal(payload, &payloadClaims)
 	require.NoError(t, err)
-	pkRecord, err := op.PublicKeyByToken(context.Background(), idToken)
+	pkRecord, _, err := op.PublicKeyByToken(context.Background(), idToken, true)
 	require.NoError(t, err)
 
 	// Check that GQ Signature verifies

@@ -75,7 +75,7 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 		return nil, fmt.Errorf("gq signatures require ID Token signed with an RSA key, ID Token alg was (%s)", alg.String())
 	}
 
-	opKey, err := op.PublicKeyByToken(ctx, idToken)
+	opKey, _, err := op.PublicKeyByToken(ctx, idToken, true)
 	if err != nil {
 		return nil, err
 	}
