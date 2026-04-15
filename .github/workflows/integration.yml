@@ -1,0 +1,28 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  github-actions-integration:
+    name: GitHub Actions OIDC Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run integration tests
+        run: go test -tags integration -v ./examples/github_actions/
