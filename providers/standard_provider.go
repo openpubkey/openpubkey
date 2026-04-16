@@ -19,7 +19,9 @@ package providers
 import (
 	"context"
 	"crypto"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,6 +35,7 @@ import (
 	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/sirupsen/logrus"
+	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	oidchttp "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -84,6 +87,9 @@ type StandardOpOptions struct {
 	GQSign bool
 	// DeviceFlow denotes if the client should use the device flow instead of the standard
 	DeviceFlow bool
+	// ClientCredentialsFlow denotes if the client should use the client credentials
+	// flow to request tokens when RequestTokens is called.
+	ClientCredentialsFlow bool
 	// OpenBrowser denotes if the client's default browser should be opened
 	// automatically when performing the OIDC authorization flow. This value
 	// should typically be set to true, unless performing some headless
@@ -115,13 +121,14 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		RemoteRedirectURI: "",
-		GQSign:            false,
-		DeviceFlow:        false,
-		OpenBrowser:       true,
-		HttpClient:        nil,
-		IssuedAtOffset:    1 * time.Minute,
-		CallbackHTML:      defaultCallbackHTML,
+		RemoteRedirectURI:     "",
+		GQSign:                false,
+		DeviceFlow:            false,
+		ClientCredentialsFlow: false,
+		OpenBrowser:           true,
+		HttpClient:            nil,
+		IssuedAtOffset:        1 * time.Minute,
+		CallbackHTML:          defaultCallbackHTML,
 	}
 }
 
@@ -140,6 +147,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		RemoteRedirectURI:         opts.RemoteRedirectURI,
 		GQSign:                    opts.GQSign,
 		DeviceFlow:                opts.DeviceFlow,
+		ClientCredentialsFlow:     opts.ClientCredentialsFlow,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
@@ -165,6 +173,7 @@ type StandardOp struct {
 	RemoteRedirectURI         string
 	GQSign                    bool
 	DeviceFlow                bool
+	ClientCredentialsFlow     bool
 	OpenBrowser               bool
 	HttpClient                *http.Client
 	IssuedAtOffset            time.Duration
@@ -188,6 +197,7 @@ type StandardOpRefreshable struct {
 var _ OpenIdProvider = (*StandardOp)(nil)
 var _ BrowserOpenIdProvider = (*StandardOp)(nil)
 var _ RefreshableOpenIdProvider = (*StandardOpRefreshable)(nil)
+var _ ClientCredentialsOpenIdProvider = (*StandardOp)(nil)
 
 // NewStandardOp creates a standard OP (OpenID Provider) using the
 // default configuration options and returns a BrowserOpenIdProvider.
@@ -204,6 +214,10 @@ func (s *StandardOp) requestTokens(ctx context.Context, cicHash string) (*simple
 
 	if s.DeviceFlow {
 		return s.deviceFlowRequestTokens(ctx, cicHash)
+	}
+
+	if s.ClientCredentialsFlow {
+		return s.clientCredentialsRequestTokens(ctx, cicHash)
 	}
 
 	return s.defaultRequestTokens(ctx, cicHash)
@@ -381,6 +395,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 }
 
 func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
+	if s.ClientCredentialsFlow && !s.GQSign {
+		return nil, fmt.Errorf("client credentials flow requires GQ signatures")
+	}
+
 	// Define our commitment as the hash of the client instance claims
 	cicHash, err := cic.Hash()
 	if err != nil {
@@ -390,16 +408,106 @@ func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 	if err != nil {
 		return nil, err
 	}
+
+	providerToken := tokens.IDToken
+	if s.ClientCredentialsFlow && len(providerToken) == 0 {
+		providerToken = tokens.AccessToken
+	}
+
 	if s.GQSign {
-		idToken := tokens.IDToken
-		if gqToken, err := CreateGQToken(ctx, idToken, s); err != nil {
-			return nil, err
-		} else {
-			tokens.IDToken = gqToken
-			return tokens, nil
+		if len(providerToken) == 0 {
+			return nil, fmt.Errorf("cannot apply GQ signature: missing provider token")
 		}
+
+		var gqToken []byte
+		if s.ClientCredentialsFlow {
+			gqToken, err = CreateGQBoundToken(ctx, providerToken, s, string(cicHash))
+		} else {
+			gqToken, err = CreateGQToken(ctx, providerToken, s)
+		}
+		if err != nil {
+			return nil, err
+		}
+		tokens.IDToken = gqToken
+		return tokens, nil
 	}
 	return tokens, nil
+}
+
+func (s *StandardOp) RequestClientCredentialsTokens(ctx context.Context, scopes []string) (*simpleoidc.Tokens, error) {
+	if s.ClientSecret == "" {
+		return nil, fmt.Errorf("client credentials flow requires a client secret")
+	}
+
+	httpClient := s.HttpClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	discovery, err := oidcclient.Discover(ctx, s.issuer, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover OIDC configuration: %w", err)
+	}
+
+	requestScopes := scopes
+	if len(requestScopes) == 0 {
+		requestScopes = s.Scopes
+	}
+
+	values := url.Values{}
+	values.Set("grant_type", "client_credentials")
+	values.Set("client_id", s.clientID)
+	values.Set("client_secret", s.ClientSecret)
+	if len(requestScopes) > 0 {
+		values.Set("scope", strings.Join(requestScopes, " "))
+	}
+	for k, v := range s.ExtraURLParamOpts {
+		values.Set(k, v)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, discovery.TokenEndpoint, strings.NewReader(values.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request client credentials token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("token endpoint returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResponse struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		IDToken      string `json:"id_token"`
+	}
+	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode token response: %w", err)
+	}
+
+	if tokenResponse.AccessToken == "" && tokenResponse.IDToken == "" {
+		return nil, fmt.Errorf("token endpoint response missing access_token and id_token")
+	}
+
+	return &simpleoidc.Tokens{
+		IDToken:      nilIfEmpty(tokenResponse.IDToken),
+		RefreshToken: nilIfEmpty(tokenResponse.RefreshToken),
+		AccessToken:  nilIfEmpty(tokenResponse.AccessToken),
+	}, nil
+}
+
+func (s *StandardOp) clientCredentialsRequestTokens(ctx context.Context, _ string) (*simpleoidc.Tokens, error) {
+	return s.RequestClientCredentialsTokens(ctx, s.Scopes)
 }
 
 func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {
@@ -553,11 +661,24 @@ func (s *StandardOp) ClientID() string {
 }
 
 func (s *StandardOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clientinstance.Claims) error {
+	commitType := CommitTypesEnum.NONCE_CLAIM
+	gqOnly := false
+	skipClientIDCheck := false
+
+	if s.ClientCredentialsFlow {
+		commitType = CommitTypesEnum.GQ_BOUND
+		gqOnly = true
+		// GQ commitment verification requires skipping strict client-id/audience check.
+		skipClientIDCheck = true
+	}
+
 	vp := NewProviderVerifier(
 		s.issuer,
 		ProviderVerifierOpts{
-			CommitType:        CommitTypesEnum.NONCE_CLAIM,
+			CommitType:        commitType,
 			ClientID:          s.clientID,
+			SkipClientIDCheck: skipClientIDCheck,
+			GQOnly:            gqOnly,
 			DiscoverPublicKey: &s.publicKeyFinder,
 		})
 	return vp.VerifyIDToken(ctx, idt, cic)
