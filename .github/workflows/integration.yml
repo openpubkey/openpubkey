@@ -2,7 +2,7 @@ name: Integration Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # SECURITY CRITICAL: DO NOT delete this line, DO NOT allow this to run on other branches. This integration tests can read github ID Tokens for this project.
 
 jobs:
   github-actions-integration:
