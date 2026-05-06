@@ -366,7 +366,7 @@ The CIC does still function as proof the identity holds the signing key associat
     {
       "protected": {
         "alg": "RS256",
-        "typ": "id_token+cnf",
+        "typ": "dpop+id_token",
         "kid": "2025-09-05T11:09:18.267Z_ab4-956-RS256"
       },
       "signature": "CqXs..."
