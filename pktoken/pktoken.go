@@ -39,7 +39,7 @@ type SignatureType string
 
 const (
 	OIDC   SignatureType = "JWT"
-	OIDCKB SignatureType = "id_token+cnf" // For OIDC with key binding
+	OIDCKB SignatureType = "dpop+id_token" // For OIDC with key binding
 	CIC    SignatureType = "CIC"
 	COS    SignatureType = "COS"
 )

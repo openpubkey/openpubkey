@@ -125,7 +125,7 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 			require.NoError(t, err)
 
 			headers := jws.NewHeaders()
-			err = headers.Set("typ", "dpop+id_token")
+			err = headers.Set("typ", "dpop+jwt")
 			require.NoError(t, err, tc.name)
 			err = headers.Set("alg", tc.alg)
 			require.NoError(t, err, tc.name)

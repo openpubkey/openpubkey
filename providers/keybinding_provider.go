@@ -172,7 +172,7 @@ func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Sign
 	}
 
 	ph := jws.NewHeaders()
-	if err := ph.Set("typ", "dpop+id_token"); err != nil {
+	if err := ph.Set("typ", "dpop+jwt"); err != nil {
 		return nil, err
 	}
 	if err := ph.Set("alg", alg); err != nil {

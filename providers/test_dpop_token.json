@@ -16,9 +16,9 @@
           "kty": "OKP",
           "x": "fmkTfA6VJtkaSZL0j9m-DRke3K9xMxxabuqLOPa-G7E"
         },
-        "typ": "dpop+id_token"
+        "typ": "dpop+jwt"
       },
-      "signature": "pZYgofdve1UudA_gJHwMHsf4LPgNSgiLjPkSku6_Ns06Q3zUHzgPNLevwjL2NqhJbxIn0WHWoymKwUANK9ZACQ"
+      "signature": "9B3BBLalqrX-Qv6WcFejHoC4frMplnmP8Xiwx6BzzzIEIkruRJJesZAm_jFobxJjjGgzav7AWrUNQchl8-GMBQ"
     }
   ]
 }

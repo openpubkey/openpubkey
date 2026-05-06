@@ -263,7 +263,7 @@ This was generated using <https://playground.hello.dev/> with gitlab claims enab
     {
       "protected": {
         "alg": "RS256",
-        "typ": "id_token+cnf",
+        "typ": "dpop+id_token",
         "kid": "2025-09-05T11:09:18.267Z_ab4-956-RS256"
       },
       "signature": "CqXs..."

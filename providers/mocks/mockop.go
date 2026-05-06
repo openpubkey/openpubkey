@@ -451,7 +451,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			if m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims == nil {
 				m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{}
 			}
-			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims["typ"] = "id_token+cnf"
+			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims["typ"] = "dpop+id_token"
 		}
 		cicHash := authSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
@@ -504,7 +504,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 				},
 			}
 			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
-				"typ": "id_token+cnf",
+				"typ": "dpop+id_token",
 			}
 		}
 	case "refresh_token":
@@ -545,7 +545,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 				},
 			}
 			m.MockProviderBackend.IDTokenTemplate.ExtraProtectedClaims = map[string]any{
-				"typ": "id_token+cnf",
+				"typ": "dpop+id_token",
 			}
 		}
 
