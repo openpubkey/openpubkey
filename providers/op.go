@@ -54,6 +54,12 @@ type RefreshableOpenIdProvider interface {
 	VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error
 }
 
+// Interface for an OpenIdProvider that supports OAuth2 client credentials flow.
+type ClientCredentialsOpenIdProvider interface {
+	OpenIdProvider
+	RequestClientCredentialsTokens(ctx context.Context, scopes []string) (*simpleoidc.Tokens, error)
+}
+
 // Interface for an OpenIdProvider that supports key binding of the ID Token
 type KeyBindingOpenIdProvider interface {
 	OpenIdProvider

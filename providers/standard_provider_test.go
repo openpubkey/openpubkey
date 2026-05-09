@@ -21,10 +21,12 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -371,4 +373,99 @@ func TestCallbackHTMLProviderSpecific(t *testing.T) {
 		require.Equal(t, customHTML, opUnwrapped.CallbackHTML,
 			"CallbackHTML should be set correctly from HelloOptions")
 	})
+}
+
+func TestClientCredentialsWithGQCommitment(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	issuer := server.URL + "/realms/test"
+
+	mockBackend, err := mocks.NewMockProviderBackend(issuer, "RS256", 1)
+	require.NoError(t, err)
+	signer, keyID, record := mockBackend.RandomSigningKey()
+
+	idTemplate := &mocks.IDTokenTemplate{
+		CommitFunc: mocks.NoClaimCommit,
+		Issuer:     issuer,
+		NoNonce:    true,
+		Aud:        AudPrefixForGQCommitment + "client-credentials",
+		KeyID:      keyID,
+		NoKeyID:    false,
+		Alg:        record.Alg,
+		NoAlg:      false,
+		SigningKey: signer,
+	}
+	tok, err := idTemplate.IssueTokens()
+	require.NoError(t, err)
+
+	jwksJSON, err := mockBackend.GetJwks()
+	require.NoError(t, err)
+
+	mux.HandleFunc("/realms/test/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":         issuer,
+			"token_endpoint": server.URL + "/token",
+			"jwks_uri":       server.URL + "/jwks",
+		})
+	})
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(jwksJSON)
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "client_credentials", r.FormValue("grant_type"))
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": string(tok.IDToken),
+			"token_type":   "Bearer",
+			"expires_in":   300,
+		})
+	})
+
+	opts := GetDefaultStandardOpOptions(issuer, "test-client-id")
+	opts.ClientSecret = "test-client-secret"
+	opts.HttpClient = server.Client()
+	opts.ClientCredentialsFlow = true
+	opts.GQSign = true
+
+	op := NewStandardOpWithOptions(opts)
+	opStd, ok := op.(*StandardOp)
+	require.True(t, ok)
+
+	cic := GenCIC(t)
+	tokens, err := opStd.RequestTokens(context.Background(), cic)
+	require.NoError(t, err)
+	require.NotEmpty(t, tokens.AccessToken)
+	require.NotEmpty(t, tokens.IDToken)
+	require.NotEqual(t, string(tokens.AccessToken), string(tokens.IDToken))
+
+	jwt, err := oidc.NewJwt(tokens.IDToken)
+	require.NoError(t, err)
+	require.Equal(t, "GQ256", jwt.GetSignature().GetProtectedClaims().Alg)
+
+	err = opStd.VerifyIDToken(context.Background(), tokens.IDToken, cic)
+	require.NoError(t, err)
+
+	wrongCIC := GenCIC(t)
+	err = opStd.VerifyIDToken(context.Background(), tokens.IDToken, wrongCIC)
+	require.ErrorContains(t, err, "commitment claim doesn't match")
+}
+
+func TestClientCredentialsRequiresGQSign(t *testing.T) {
+	issuer := "https://issuer.example"
+	opts := GetDefaultStandardOpOptions(issuer, "test-client-id")
+	opts.ClientSecret = "test-client-secret"
+	opts.ClientCredentialsFlow = true
+	opts.GQSign = false
+
+	op := NewStandardOpWithOptions(opts)
+	opStd, ok := op.(*StandardOp)
+	require.True(t, ok)
+
+	_, err := opStd.RequestTokens(context.Background(), GenCIC(t))
+	require.ErrorContains(t, err, "client credentials flow requires GQ signatures")
 }
