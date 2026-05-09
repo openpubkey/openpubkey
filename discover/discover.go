@@ -123,18 +123,14 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 
 	response, err := httpClient.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}
 	defer response.Body.Close()
 
-	resp, err := httpClient.Get(discConf.JwksURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch to JWKS: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("received non-200 from JWKS URI: %s", http.StatusText(response.StatusCode))
 	}
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(response.Body)
 }
 
 func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string) (jwk.Set, error) {

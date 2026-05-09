@@ -66,7 +66,7 @@ type KeyBindingOpenIdProvider interface {
 	ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) error
 }
 
-const KEYBOUND_TYP = "id_token+cnf"
+const KEYBOUND_TYP = "dpop+id_token"
 
 type CommitType struct {
 	Claim        string

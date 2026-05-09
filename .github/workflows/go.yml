@@ -1,6 +1,7 @@
 name: Go Checks
 
 on:
+  push:
   pull_request:
     paths:
       - "**.go"
@@ -24,6 +25,7 @@ jobs:
   gotest:
     name: Run Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

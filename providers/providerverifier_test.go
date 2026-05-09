@@ -37,7 +37,7 @@ func TestProviderVerifier(t *testing.T) {
 		GQCommitment: false,
 	}
 
-	keybindingTyp := "id_token+cnf"
+	keybindingTyp := "dpop+id_token"
 	standardTyp := "jwt"
 
 	correctAud := AudPrefixForGQCommitment
@@ -71,7 +71,7 @@ func TestProviderVerifier(t *testing.T) {
 			correctCicHash: true},
 		{name: "Claim Commitment wrong typ claim (ES256)", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "ES256",
-			expError:       "expected commitment type nonce but got key-bound ID token (typ=id_token+cnf)",
+			expError:       "expected commitment type nonce but got key-bound ID token (typ=dpop+id_token)",
 			correctCicHash: true},
 		{name: "Key Binding happy case", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
@@ -83,7 +83,7 @@ func TestProviderVerifier(t *testing.T) {
 			correctCicHash: false},
 		{name: "Key Binding wrong typ claim", aud: clientID, clientID: clientID, typClaim: standardTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
-			expError:       "expected key-bound ID token (typ=id_token+cnf) but got ID Token (typ=jwt)",
+			expError:       "expected key-bound ID token (typ=dpop+id_token) but got ID Token (typ=jwt)",
 			correctCicHash: false},
 		{name: "Claim Commitment happy case (EdDSA)", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "EdDSA",
