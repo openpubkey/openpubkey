@@ -163,12 +163,12 @@ func (m *MockProvider) RefreshTokens(ctx context.Context, _ []byte) (*simpleoidc
 	return tokens, nil
 }
 
-func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return m.publicKeyFinder.ByToken(ctx, m.issuer, token)
+func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return m.publicKeyFinder.ByToken(ctx, m.issuer, token, mayUseCache)
 }
 
-func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID)
+func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID, mayUseCache)
 }
 
 func (m *MockProvider) Issuer() string {
@@ -192,7 +192,7 @@ func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byt
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
 
-	pkr, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt)
+	pkr, _, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt, false)
 	if err != nil {
 		return err
 	}
@@ -217,11 +217,11 @@ func (nro *NonRefreshableOp) RequestTokens(ctx context.Context, cic *clientinsta
 	tokens, err := nro.op.RequestTokens(ctx, cic)
 	return &simpleoidc.Tokens{IDToken: tokens.IDToken}, err
 }
-func (nro *NonRefreshableOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return nro.op.PublicKeyByKeyId(ctx, keyID)
+func (nro *NonRefreshableOp) PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return nro.op.PublicKeyByKeyId(ctx, keyID, mayUseCache)
 }
-func (nro *NonRefreshableOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return nro.op.PublicKeyByToken(ctx, token)
+func (nro *NonRefreshableOp) PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return nro.op.PublicKeyByToken(ctx, token, mayUseCache)
 }
 func (nro *NonRefreshableOp) Issuer() string {
 	return nro.op.Issuer()

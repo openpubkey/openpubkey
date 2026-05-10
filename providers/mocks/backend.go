@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	mathrand "math/rand"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/discover"
@@ -50,8 +51,8 @@ func NewMockProviderBackend(issuer string, alg string, numKeys int) (*MockProvid
 	idtTemplate := DefaultIDTokenTemplate()
 	return &MockProviderBackend{
 		Issuer: issuer,
-		PublicKeyFinder: discover.PublicKeyFinder{
-			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+		PublicKeyFinder: *discover.NewPubkeyFinderWithCache(
+			func(ctx context.Context, issuer string) ([]byte, error) {
 				keySet := jwk.NewSet()
 				for kid, record := range providerPublicKeySet {
 					jwkKey, err := jwk.PublicKeyOf(record.PublicKey)
@@ -72,7 +73,9 @@ func NewMockProviderBackend(issuer string, alg string, numKeys int) (*MockProvid
 				}
 				return json.MarshalIndent(keySet, "", "  ")
 			},
-		},
+			discover.NewMapDiscoveryCache(),
+			time.Hour,
+		),
 		ProviderSigningKeySet: providerSigningKeySet,
 		ProviderPublicKeySet:  providerPublicKeySet,
 		IDTokenTemplate:       &idtTemplate,

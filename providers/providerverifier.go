@@ -147,33 +147,17 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 		}
 	default:
 		// Generic verification for RS256, ES256, EdDSA, and future algorithms
-		pubKeyRecord, err := v.providerPublicKey(ctx, idToken)
-		if err != nil {
-			return fmt.Errorf("failed to get OP public key: %w", err)
+		if wasCached, err := v.verifyIDTokenSig(ctx, idToken, alg, true); err != nil {
+			if !wasCached {
+				// failed to verify with a fresh JWK - this is a definite failure
+				return err
+			}
+			// failed to verify with a cached JWK, try again without cache
+			if _, err := v.verifyIDTokenSig(ctx, idToken, alg, false); err != nil {
+				return err
+			}
 		}
 
-		// Validate that key type matches the algorithm in the token
-		switch alg {
-		case jwa.RS256():
-			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
-				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
-			}
-		case jwa.ES256():
-			if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
-				return fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
-			}
-		case jwa.EdDSA():
-			if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
-				return fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
-			}
-		default:
-			return fmt.Errorf("unsupported signature algorithm %s", alg)
-		}
-
-		// jws.Verify handles all algorithms generically
-		if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
-			return fmt.Errorf("signature verification failed: %w", err)
-		}
 	}
 
 	if err := v.verifyCommitment(idt, cic); err != nil {
@@ -183,10 +167,46 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	return nil
 }
 
+// verifyIDTokenSig verifies a non-GQ ID token signature.  Returns a bool indicating
+// whether the key it used to attempt verification came from a cache (true) or was
+// freshly retrieved from the provider (false), and the error (if any) that occurred
+// during verification.
+func (v *DefaultProviderVerifier) verifyIDTokenSig(ctx context.Context, idToken []byte, alg jwa.SignatureAlgorithm, mayUseCache bool) (bool, error) {
+	pubKeyRecord, wasCached, err := v.providerPublicKey(ctx, idToken, mayUseCache)
+	if err != nil {
+		return wasCached, fmt.Errorf("failed to get OP public key: %w", err)
+	}
+
+	// Validate that key type matches the algorithm in the token
+	switch alg {
+	case jwa.RS256():
+		if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
+			return wasCached, fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
+		}
+	case jwa.ES256():
+		if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
+			return wasCached, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
+		}
+	case jwa.EdDSA():
+		if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
+			return wasCached, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
+		}
+	default:
+		// we always return wasCached as false here, since an unsupported algorithm is always a hard fail
+		return false, fmt.Errorf("unsupported signature algorithm %s", alg)
+	}
+
+	// jws.Verify handles all algorithms generically
+	if _, err := jws.Verify(idToken, jws.WithKey(alg, pubKeyRecord.PublicKey)); err != nil {
+		return wasCached, fmt.Errorf("signature verification failed: %w", err)
+	}
+	return wasCached, nil
+}
+
 // This function takes in an OIDC Provider created ID token or GQ-signed modification of one and returns
 // the associated public key
-func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, idToken []byte) (*discover.PublicKeyRecord, error) {
-	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idToken)
+func (v *DefaultProviderVerifier) providerPublicKey(ctx context.Context, idToken []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idToken, mayUseCache)
 }
 
 func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientinstance.Claims) error {
@@ -316,23 +336,39 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 		return fmt.Errorf("issuer of ID Token (%s) doesn't match expected issuer (%s)", idt.GetClaims().Issuer, v.issuer)
 	}
 
-	publicKeyRecord, err := v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idt.GetRaw())
+	// try first allowing the issuer's JWT to come from the cache
+	if wasCached, err := v.verifyGQSigAgainstIssuer(ctx, idt, true); err != nil {
+		if !wasCached {
+			// failed to verify with a fresh JWK - this is a definite failure
+			return err
+		}
+		// failed to verify with a cached JWK, try again without cache
+		if _, err := v.verifyGQSigAgainstIssuer(ctx, idt, false); err != nil {
+			return err
+		}
+
+	}
+	return nil
+}
+
+func (v *DefaultProviderVerifier) verifyGQSigAgainstIssuer(ctx context.Context, idt *oidc.Jwt, mayUseCache bool) (bool, error) {
+	publicKeyRecord, wasCached, err := v.options.DiscoverPublicKey.ByToken(ctx, v.Issuer(), idt.GetRaw(), mayUseCache)
 	if err != nil {
-		return fmt.Errorf("failed to get provider public key: %w", err)
+		return wasCached, fmt.Errorf("failed to get provider public key: %w", err)
 	}
 
 	rsaKey, ok := publicKeyRecord.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		return fmt.Errorf("jwk is not an RSA key")
+		return wasCached, fmt.Errorf("jwk is not an RSA key")
 	}
 	ok, err = gq.GQ256VerifyJWT(rsaKey, idt.GetRaw())
 	if err != nil {
-		return err
+		return wasCached, err
 	}
 	if !ok {
-		return fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
+		return wasCached, fmt.Errorf("error verifying OP GQ signature on PK Token (ID Token invalid)")
 	}
-	return nil
+	return wasCached, nil
 }
 
 func originalTokenHeaders(token []byte) (jws.Headers, error) {
