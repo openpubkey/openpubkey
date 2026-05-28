@@ -549,6 +549,13 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 			}
 		}
 
+	case "client_credentials":
+		clientSecret := req.FormValue("client_secret")
+		if clientSecret == "" {
+			return nil, fmt.Errorf("missing client_secret in client credentials request")
+		}
+		// No nonce or auth code for client credentials — CIC commitment is added via GQ binding in RequestTokens.
+
 	default:
 		return nil, fmt.Errorf("unsupported grant_type: %s", grantType)
 	}

@@ -60,6 +60,10 @@ type HelloOptions struct {
 	GQSign bool
 	// DeviceFlow denotes if the OIDC Device Flow should be used instead of the authorization code flow.
 	DeviceFlow bool
+	// ClientCredentialsFlow denotes if the OAuth2 client credentials flow should be used.
+	ClientCredentialsFlow bool
+	// ClientSecret is the client secret used for the client credentials flow.
+	ClientSecret string
 	// OpenBrowser denotes if the client's default browser should be opened
 	// automatically when performing the OIDC authorization flow. This value
 	// should typically be set to true, unless performing some headless
@@ -123,6 +127,7 @@ func NewHelloOpWithOptions(opts *HelloOptions) BrowserOpenIdProvider {
 func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 	return &HelloOp{
 		clientID:                  opts.ClientID,
+		ClientSecret:              opts.ClientSecret,
 		Scopes:                    opts.Scopes,
 		RedirectURIs:              opts.RedirectURIs,
 		RemoteRedirectURI:         opts.RemoteRedirectURI,
@@ -130,6 +135,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 		AccessType:                opts.AccessType,
 		GQSign:                    opts.GQSign,
 		DeviceFlow:                opts.DeviceFlow,
+		ClientCredentialsFlow:     opts.ClientCredentialsFlow,
 		OpenBrowser:               opts.OpenBrowser,
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
