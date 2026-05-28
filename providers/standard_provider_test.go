@@ -420,9 +420,9 @@ func TestClientCredentialsWithGQCommitment(t *testing.T) {
 		require.Equal(t, "client_credentials", r.FormValue("grant_type"))
 
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"access_token": string(tok.IDToken),
-			"token_type":   "Bearer",
-			"expires_in":   300,
+			"id_token":   string(tok.IDToken),
+			"token_type": "Bearer",
+			"expires_in": 300,
 		})
 	})
 
@@ -439,7 +439,6 @@ func TestClientCredentialsWithGQCommitment(t *testing.T) {
 	cic := GenCIC(t)
 	tokens, err := opStd.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
-	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.IDToken)
 	require.NotEqual(t, string(tokens.AccessToken), string(tokens.IDToken))
 

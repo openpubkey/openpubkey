@@ -409,21 +409,18 @@ func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 		return nil, err
 	}
 
-	providerToken := tokens.IDToken
-	if s.ClientCredentialsFlow && len(providerToken) == 0 {
-		providerToken = tokens.AccessToken
-	}
+	idToken := tokens.IDToken
 
 	if s.GQSign {
-		if len(providerToken) == 0 {
-			return nil, fmt.Errorf("cannot apply GQ signature: missing provider token")
+		if len(idToken) == 0 {
+			return nil, fmt.Errorf("cannot apply GQ signature: missing id token")
 		}
 
 		var gqToken []byte
 		if s.ClientCredentialsFlow {
-			gqToken, err = CreateGQBoundToken(ctx, providerToken, s, string(cicHash))
+			gqToken, err = CreateGQBoundToken(ctx, idToken, s, string(cicHash))
 		} else {
-			gqToken, err = CreateGQToken(ctx, providerToken, s)
+			gqToken, err = CreateGQToken(ctx, idToken, s)
 		}
 		if err != nil {
 			return nil, err
@@ -434,7 +431,9 @@ func (s *StandardOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 	return tokens, nil
 }
 
-func (s *StandardOp) RequestClientCredentialsTokens(ctx context.Context, scopes []string) (*simpleoidc.Tokens, error) {
+func (s *StandardOp) clientCredentialsRequestTokens(ctx context.Context, _ string) (*simpleoidc.Tokens, error) {
+	scopes := s.Scopes
+
 	if s.ClientSecret == "" {
 		return nil, fmt.Errorf("client credentials flow requires a client secret")
 	}
@@ -495,8 +494,8 @@ func (s *StandardOp) RequestClientCredentialsTokens(ctx context.Context, scopes 
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
-	if tokenResponse.AccessToken == "" && tokenResponse.IDToken == "" {
-		return nil, fmt.Errorf("token endpoint response missing access_token and id_token")
+	if tokenResponse.IDToken == "" {
+		return nil, fmt.Errorf("token endpoint response missing id_token")
 	}
 
 	return &simpleoidc.Tokens{
@@ -504,10 +503,6 @@ func (s *StandardOp) RequestClientCredentialsTokens(ctx context.Context, scopes 
 		RefreshToken: nilIfEmpty(tokenResponse.RefreshToken),
 		AccessToken:  nilIfEmpty(tokenResponse.AccessToken),
 	}, nil
-}
-
-func (s *StandardOp) clientCredentialsRequestTokens(ctx context.Context, _ string) (*simpleoidc.Tokens, error) {
-	return s.RequestClientCredentialsTokens(ctx, s.Scopes)
 }
 
 func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string) (*simpleoidc.Tokens, error) {

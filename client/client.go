@@ -222,26 +222,18 @@ func (o *OpkClient) oidcAuth(
 	if err != nil {
 		return nil, fmt.Errorf("error requesting OIDC tokens from OpenID Provider: %w", err)
 	}
-	providerToken := tokens.IDToken
-	if len(providerToken) == 0 {
-		if _, ok := o.Op.(providers.ClientCredentialsOpenIdProvider); ok && len(tokens.AccessToken) > 0 {
-			providerToken = tokens.AccessToken
-		}
-	}
-	if len(providerToken) == 0 {
-		return nil, fmt.Errorf("provider response missing ID token")
-	}
+	idToken := tokens.IDToken
 	o.refreshToken = tokens.RefreshToken
 	o.accessToken = tokens.AccessToken
 
 	// Sign over the payload from the ID token and client instance claims
-	cicToken, err := cic.Sign(signer, alg, providerToken)
+	cicToken, err := cic.Sign(signer, alg, idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cic token: %w", err)
 	}
 
 	// Combine our ID token and signature over the cic to create our PK Token
-	pkt, err := pktoken.New(providerToken, cicToken)
+	pkt, err := pktoken.New(idToken, cicToken)
 	if err != nil {
 		return nil, fmt.Errorf("error creating PK Token: %w", err)
 	}
