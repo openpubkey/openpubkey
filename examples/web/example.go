@@ -88,15 +88,6 @@ func login(outputDir string, gqSign bool) error {
 	googleOpOptions.GQSign = gqSign
 	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
-	iss := "http://localhost:9000/application/o/test-key-binding/"
-	clientid := "kOHPhT0EQNTj0FNpnqjZ5a42kyXZDcmygvAURi1e"
-	authentik_opts := providers.GetDefaultStandardOpOptions(iss, clientid)
-	authentik_opts.RedirectURIs = []string{"http://localhost:8765/callback"}
-	authentik_opts.Scopes = append(authentik_opts.Scopes, "offline_access")
-
-	//authentikOp := providers.NewStandardOpWithOptions(authentik_opts)
-	authentikOp := providers.NewStandardKeyBindingOpWithOptions(authentik_opts)
-
 	azureOpOptions := providers.GetDefaultAzureOpOptions()
 	azureOpOptions.GQSign = gqSign
 	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
@@ -109,6 +100,21 @@ func login(outputDir string, gqSign bool) error {
 	helloOpOptions.GQSign = gqSign
 	helloOp := providers.NewHelloKeyBindingOpWithOptions(helloOpOptions)
 
+	// If custom OP args are set, create an custom provider
+	// Example: go run .\example.go login http://localhost:9000/application/o/test-key-binding/ kOHPhT0EQNTj0FNpnqjZ5a42kyXZDcmygvAURi1e http://localhost:8765/callback
+	var customOp providers.BrowserOpenIdProvider
+	if len(os.Args) == 5 {
+		iss := os.Args[2]
+		clientId := os.Args[3]
+		redirectURI := os.Args[4]
+
+		fmt.Printf("Custom provider set iss=%s, clientId=%s, redirectURI=%s\n", iss, clientId, redirectURI)
+		customOpOpts := providers.GetDefaultStandardOpOptions(iss, clientId)
+		customOpOpts.RedirectURIs = []string{redirectURI}
+		customOpOpts.Scopes = append(customOpOpts.Scopes, "offline_access")
+		customOp = providers.NewStandardKeyBindingOpWithOptions(customOpOpts)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -118,10 +124,14 @@ func login(outputDir string, gqSign bool) error {
 		cancel()
 	}()
 
+	providerList := []providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp}
+	if customOp != nil {
+		providerList = append(providerList, customOp)
+	}
+
 	openBrowser := true
 	op, err := choosers.NewWebChooser(
-		// []providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp},
-		[]providers.BrowserOpenIdProvider{authentikOp},
+		providerList,
 		openBrowser,
 	).ChooseOp(ctx)
 	if err != nil {
@@ -157,7 +167,7 @@ func login(outputDir string, gqSign bool) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp, authentikOp}
+	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp, customOp}
 	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err

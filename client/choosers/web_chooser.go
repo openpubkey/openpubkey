@@ -266,6 +266,7 @@ func IssuerToName(issuer string) (string, error) {
 			return strings.Split(strings.TrimPrefix(issuer, "https://"), "/")[0], nil
 
 		} else if strings.HasPrefix(issuer, "http://localhost") {
+			// Needed for OPs that run on localhost. Useful for testing against custom OP integrations.
 			return strings.Split(strings.TrimPrefix(issuer, "http://"), "/")[0], nil
 		}
 		return "", fmt.Errorf("invalid OpenID Provider issuer: %s", issuer)
