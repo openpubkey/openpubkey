@@ -107,7 +107,7 @@ type dPoPRoundTripper struct {
 }
 
 func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
+	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" || req.URL.Path == "/application/o/token/" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
 		u := *req.URL
 		u.Fragment = ""
 		u.Scheme = strings.ToLower(u.Scheme)

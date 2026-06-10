@@ -265,6 +265,8 @@ func IssuerToName(issuer string) (string, error) {
 			// e.g. https://accounts.google.com/fdsfa/fdsafsad -> accounts.google.com
 			return strings.Split(strings.TrimPrefix(issuer, "https://"), "/")[0], nil
 
+		} else if strings.HasPrefix(issuer, "http://localhost") {
+			return strings.Split(strings.TrimPrefix(issuer, "http://"), "/")[0], nil
 		}
 		return "", fmt.Errorf("invalid OpenID Provider issuer: %s", issuer)
 	}

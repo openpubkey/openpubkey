@@ -88,6 +88,15 @@ func login(outputDir string, gqSign bool) error {
 	googleOpOptions.GQSign = gqSign
 	googleOp := providers.NewGoogleOpWithOptions(googleOpOptions)
 
+	iss := "http://localhost:9000/application/o/test-key-binding/"
+	clientid := "kOHPhT0EQNTj0FNpnqjZ5a42kyXZDcmygvAURi1e"
+	authentik_opts := providers.GetDefaultStandardOpOptions(iss, clientid)
+	authentik_opts.RedirectURIs = []string{"http://localhost:8765/callback"}
+	authentik_opts.Scopes = append(authentik_opts.Scopes, "offline_access")
+
+	//authentikOp := providers.NewStandardOpWithOptions(authentik_opts)
+	authentikOp := providers.NewStandardKeyBindingOpWithOptions(authentik_opts)
+
 	azureOpOptions := providers.GetDefaultAzureOpOptions()
 	azureOpOptions.GQSign = gqSign
 	azureOp := providers.NewAzureOpWithOptions(azureOpOptions)
@@ -111,7 +120,8 @@ func login(outputDir string, gqSign bool) error {
 
 	openBrowser := true
 	op, err := choosers.NewWebChooser(
-		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp},
+		// []providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp},
+		[]providers.BrowserOpenIdProvider{authentikOp},
 		openBrowser,
 	).ChooseOp(ctx)
 	if err != nil {
@@ -147,7 +157,7 @@ func login(outputDir string, gqSign bool) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp}
+	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp, authentikOp}
 	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err
