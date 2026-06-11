@@ -167,7 +167,11 @@ func login(outputDir string, gqSign bool) error {
 	}
 
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
-	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp, customOp}
+	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp}
+	if customOp != nil {
+		ops = append(ops, customOp)
+	}
+
 	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err
