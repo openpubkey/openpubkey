@@ -313,6 +313,10 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	if err != nil {
 		return fmt.Errorf("error parsing key from original ID token: %w", err)
 	}
+
+	if _, exists := origKey.Algorithm(); !exists {
+		origKey.Set("alg", r.keyBindingSignerAlg) // Alg have been removed from the CNF by the OP, so set it manually when constructing the CIC
+	}
 	origCic, err := clientinstance.NewClaims(origKey, map[string]any{})
 	if err != nil {
 		return fmt.Errorf("error creating CIC from original ID token: %w", err)
