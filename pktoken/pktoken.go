@@ -104,6 +104,10 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 			//  to indicate that this object is a JWT."
 			//  https://datatracker.ietf.org/doc/html/rfc7519#section-5.1
 			typ = string(OIDC)
+		} else if typ == "at+JWT" {
+			// RFC 9068 access token JWTs carry the same identity claims as OIDC ID tokens.
+			// Ticino issues access tokens as at+JWT; treat them as OIDC tokens for OpenPubKey.
+			typ = string(OIDC)
 		}
 
 		sigType := SignatureType(typ)
@@ -359,6 +363,10 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 
 		if err := protected.Get(jws.TypeKey, &typeHeader); err == nil {
 			sigType = SignatureType(typeHeader)
+			if sigType == "at+JWT" {
+				// RFC 9068 access token JWTs; treat as OIDC tokens for OpenPubKey.
+				sigType = OIDC
+			}
 		} else {
 			// missing typ claim, assuming this is from the OIDC provider
 			sigType = OIDC
