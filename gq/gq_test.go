@@ -155,6 +155,21 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
+func TestNewSignerVerifierRejectsInvalidExponents(t *testing.T) {
+	for _, e := range []int{0, 1, 2, 4, 6} {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		key.E = e
+		sv, err := NewSignerVerifier(&key.PublicKey, 256)
+		if err == nil {
+			t.Errorf("NewSignerVerifier(E=%d) should have returned an error", e)
+		}
+		if sv != nil {
+			t.Errorf("NewSignerVerifier(E=%d) should have returned nil SignerVerifier", e)
+		}
+	}
+}
+
 func TestTComputationForSoundness(t *testing.T) {
 	// t = ceil(256 / floor(log2(E))), computed via integer arithmetic.
 	tests := []struct {

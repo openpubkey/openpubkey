@@ -132,8 +132,8 @@ func New256SignerVerifier(publicKey *rsa.PublicKey) (SignerVerifier, error) {
 //
 // The securityParameter parameter is the level of desired security in bits. 256 is recommended.
 func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerVerifier, error) {
-	if publicKey.E < 3 {
-		return nil, fmt.Errorf("unsupported RSA public key exponent: %d, must be at least 3", publicKey.E)
+	if publicKey.E < 3 || publicKey.E%2 == 0 {
+		return nil, fmt.Errorf("unsupported RSA public key exponent: %d, must be odd and at least 3", publicKey.E)
 	}
 	n, v, nBytes, vBytes, err := parsePublicKey(publicKey)
 	if err != nil {
