@@ -163,6 +163,9 @@ func TestTComputationForSoundness(t *testing.T) {
 		wantT    int
 	}{
 		{"E=65537 standard", 65537, 16}, // ceil(256 / 16) = 16
+		{"E=257", 257, 32},              // ceil(256 / 8) = 32
+		{"E=17", 17, 64},                // ceil(256 / 4) = 64
+		{"E=5", 5, 128},                 // ceil(256 / 2) = 128
 		{"E=3 small exponent", 3, 256},  // ceil(256 / 1) = 256
 	}
 	for _, tt := range tests {
