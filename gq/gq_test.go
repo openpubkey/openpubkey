@@ -162,8 +162,8 @@ func TestTComputationForSoundness(t *testing.T) {
 		exponent int
 		wantT    int
 	}{
-		{"E=65537 standard", 65537, 16},  // ceil(256 / 16) = 16
-		{"E=3 small exponent", 3, 256},   // ceil(256 / 1) = 256
+		{"E=65537 standard", 65537, 16}, // ceil(256 / 16) = 16
+		{"E=3 small exponent", 3, 256},  // ceil(256 / 1) = 256
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
