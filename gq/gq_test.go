@@ -155,15 +155,29 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
-func TestRejectUnsupportedPublicKey(t *testing.T) {
-	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	oidcPrivKey.E = 3
-	oidcPubKey := &oidcPrivKey.PublicKey
-
-	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
-	require.ErrorContains(t, err, "only 65537 is currently supported, unsupported RSA public key exponent")
-	require.Nil(t, signerVerifier)
+func TestTComputationForSoundness(t *testing.T) {
+	// t = ceil(256 / floor(log2(E))), computed via integer arithmetic.
+	tests := []struct {
+		name     string
+		exponent int
+		wantT    int
+	}{
+		{"E=65537 standard", 65537, 16},  // ceil(256 / 16) = 16
+		{"E=3 small exponent", 3, 256},   // ceil(256 / 1) = 256
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, err := rsa.GenerateKey(rand.Reader, 2048)
+			require.NoError(t, err)
+			key.E = tt.exponent
+			sv, err := NewSignerVerifier(&key.PublicKey, 256)
+			require.NoError(t, err)
+			svImpl := sv.(*signerVerifier)
+			if svImpl.t != tt.wantT {
+				t.Errorf("NewSignerVerifier(E=%d, securityParam=256).t = %d, want %d", tt.exponent, svImpl.t, tt.wantT)
+			}
+		})
+	}
 }
 
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
