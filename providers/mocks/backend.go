@@ -120,7 +120,7 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 			if signingKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader); err != nil {
 				return nil, nil, err
 			}
-		case "RS256":
+		case "RS256", "PS256":
 			if signingKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
 				return nil, nil, err
 			}
