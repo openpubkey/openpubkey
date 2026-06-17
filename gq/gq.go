@@ -135,6 +135,9 @@ func NewSignerVerifier(publicKey *rsa.PublicKey, securityParameter int) (SignerV
 	if publicKey.E < 3 || publicKey.E%2 == 0 {
 		return nil, fmt.Errorf("unsupported RSA public key exponent: %d, must be odd and at least 3", publicKey.E)
 	}
+	if securityParameter <= 0 {
+		return nil, fmt.Errorf("security parameter must be positive, got %d", securityParameter)
+	}
 	n, v, nBytes, vBytes, err := parsePublicKey(publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse RSA public key: %w", err)
