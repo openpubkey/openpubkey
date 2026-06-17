@@ -200,7 +200,7 @@ func TestTComputationForSoundness(t *testing.T) {
 }
 
 func TestSignVerifyJWTWithExponentE3(t *testing.T) {
-	privKey := generateRSAKeyWithExponent(t, 2048, 3)
+	privKey := generateTestRSAKeyWithExponent(t, 2048, 3)
 
 	idToken, err := createOIDCToken(privKey, "test")
 	require.NoError(t, err)
@@ -215,14 +215,17 @@ func TestSignVerifyJWTWithExponentE3(t *testing.T) {
 	require.True(t, ok, "GQ sign+verify with E=3 failed")
 }
 
-// generateRSAKeyWithExponent generates an RSA key with the given public exponent.
+// generateTestRSAKeyWithExponent generates an RSA key with the given public exponent.
 // rsa.GenerateKey always uses 65537, so this constructs the key manually.
 // e must be odd and >= 3; even or small values will never satisfy gcd(e, phi)=1 and loop forever.
-func generateRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
+// Intended for generating test keys for unittests.	DO NOT call this function if security is desired!
+func generateTestRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
 	t.Helper()
 	if e < 3 || e%2 == 0 {
 		t.Fatalf("generateRSAKeyWithExponent: e=%d is invalid; must be odd and >= 3", e)
 	}
+	// DO NOT use the code below in settings where security is desired.
+	// This code is for generating test data, not secure RSA keys
 	bigE := big.NewInt(int64(e))
 	one := big.NewInt(1)
 	for {
