@@ -154,7 +154,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 		// Validate that key type matches the algorithm in the token
 		switch alg {
-		case jwa.RS256():
+		case jwa.RS256(), jwa.PS256():
 			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
 				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
 			}

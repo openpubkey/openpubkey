@@ -110,6 +110,20 @@ func TestGQ256SignJWT(t *testing.T) {
 	require.Nil(t, gqTokenReservedClaim)
 }
 
+// TestGQ256SignJWT_PS256RejectsPS256 verifies that GQ256SignJWT rejects PS256 tokens.
+// GQ signing is incompatible with PS256: PSS padding uses a randomized salt, so
+// the encoded identity cannot be reconstructed deterministically for GQ1 verification.
+func TestGQ256SignJWT_RejectsPS256(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	idToken, err := createOIDCTokenPS256(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	_, err = GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
+	require.ErrorContains(t, err, "GQ signing requires an RS256-signed JWT")
+}
+
 func TestVerifyModifiedIdPayload(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -273,6 +287,40 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 	}
 	newToken := util.JoinJWTSegments(headers, util.Base64EncodeForJWT(modifiedPayload), signature)
 	return newToken, nil
+}
+
+func createOIDCTokenPS256(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
+	alg := jwa.PS256() // RSASSA-PSS using SHA-256
+
+	oidcHeader := jws.NewHeaders()
+	err := oidcHeader.Set(jws.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
+	err = oidcHeader.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
+
+	oidcPayload := map[string]any{
+		"sub": "1",
+		"iss": "test",
+		"aud": audience,
+		"iat": time.Now().Unix(),
+	}
+	payloadBytes, err := json.Marshal(oidcPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	return jws.Sign(
+		payloadBytes,
+		jws.WithKey(
+			alg,
+			oidcPrivKey,
+			jws.WithProtectedHeaders(oidcHeader),
+		),
+	)
 }
 
 func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {

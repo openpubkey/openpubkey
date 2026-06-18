@@ -128,7 +128,13 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 
 	var providerAlg jwa.KeyAlgorithm
 	if _, ok := t.SigningKey.Public().(*rsa.PublicKey); ok {
-		providerAlg = jwa.RS256()
+		if t.Alg == "PS256" {
+			providerAlg = jwa.PS256()
+		} else if t.Alg == "RS256" {
+			providerAlg = jwa.RS256()
+		} else {
+			return nil, fmt.Errorf("unsupported RSA algorithm: %s", t.Alg)
+		}
 	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {
 		providerAlg = jwa.ES256()
 	} else if _, ok := t.SigningKey.Public().(ed25519.PublicKey); ok {
