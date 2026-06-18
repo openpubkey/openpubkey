@@ -59,8 +59,13 @@ func WithExtraClaim(k string, v string) Opts {
 // the GQ signature. It is wrapper around SignerVerifier.SignJWT
 // an additional check that the correct rsa public key has been supplied.
 // Use this instead of SignerVerifier.SignJWT.
+// Supports RS256 and PS256 signed JWTs.
 func GQ256SignJWT(rsaPublicKey *rsa.PublicKey, jwt []byte, opts ...Opts) ([]byte, error) {
-	_, err := jws.Verify(jwt, jws.WithKey(jwa.RS256(), rsaPublicKey))
+	alg, err := rsaAlgFromJWT(jwt)
+	if err != nil {
+		return nil, fmt.Errorf("incorrect public key supplied when GQ signing jwt: %w", err)
+	}
+	_, err = jws.Verify(jwt, jws.WithKey(alg, rsaPublicKey))
 	if err != nil {
 		return nil, fmt.Errorf("incorrect public key supplied when GQ signing jwt: %w", err)
 	}
@@ -185,6 +190,26 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 	}
 
 	return bytes, nil
+}
+
+// rsaAlgFromJWT returns the algorithm declared in the JWT's protected header,
+// or an error if it is not RS256. GQ signing requires RS256 because PSS-based
+// algorithms (e.g. PS256) use a randomized salt, making the encoded identity
+// non-deterministic and incompatible with GQ1 verification.
+func rsaAlgFromJWT(jwt []byte) (jwa.KeyAlgorithm, error) {
+	token, err := jws.Parse(jwt)
+	if err != nil {
+		return nil, err
+	}
+	headers := token.Signatures()[0].ProtectedHeaders()
+	alg, ok := headers.Algorithm()
+	if !ok {
+		return nil, fmt.Errorf("missing alg header in JWT")
+	}
+	if alg != jwa.RS256() {
+		return nil, fmt.Errorf("GQ signing requires an RS256-signed JWT, got %s", alg)
+	}
+	return alg, nil
 }
 
 func OriginalJWTHeaders(jwt []byte) ([]byte, error) {

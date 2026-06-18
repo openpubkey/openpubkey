@@ -28,6 +28,25 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// TestGQRejectsPS256 verifies that createGQTokenAllParams rejects PS256-signed
+// tokens with a clear error. GQ signing is incompatible with PS256 because PSS
+// padding uses a randomized salt, making the identity non-deterministic.
+func TestGQRejectsPS256(t *testing.T) {
+	providerOpts := DefaultMockProviderOpts()
+	providerOpts.NumKeys = 1
+	providerOpts.Alg = "PS256"
+	providerOpts.CommitType = CommitTypesEnum.NONCE_CLAIM
+
+	op, _, idtTemplate, err := NewMockProvider(providerOpts)
+	require.NoError(t, err)
+
+	tokens, err := idtTemplate.IssueTokens()
+	require.NoError(t, err)
+
+	_, err = createGQTokenAllParams(context.Background(), tokens.IDToken, op, "", false)
+	require.ErrorContains(t, err, "gq signatures require ID Token signed with an RSA key, ID Token alg was (PS256)")
+}
+
 func TestGQ(t *testing.T) {
 
 	testCases := []struct {
