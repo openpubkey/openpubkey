@@ -65,7 +65,7 @@ func publicKeyRecordFromJWK(key jwk.Key, issuer string) (*PublicKeyRecord, error
 
 	// Validate that key type matches the declared algorithm
 	switch alg {
-	case jwa.RS256():
+	case jwa.RS256(), jwa.PS256():
 		if _, ok := pubKey.(*rsa.PublicKey); !ok {
 			return nil, fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKey)
 		}
