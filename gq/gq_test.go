@@ -20,6 +20,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -155,15 +157,103 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
-func TestRejectUnsupportedPublicKey(t *testing.T) {
-	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+func TestNewSignerVerifierRejectsInvalidExponents(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	oidcPrivKey.E = 3
-	oidcPubKey := &oidcPrivKey.PublicKey
+	// 0, 1, 2 are rejected by E < 3; 4 and 6 are rejected by E%2 == 0.
+	for _, e := range []int{0, 1, 2, 4, 6} {
+		t.Run(fmt.Sprintf("E=%d", e), func(t *testing.T) {
+			key.E = e
+			sv, err := NewSignerVerifier(&key.PublicKey, 256)
+			require.Error(t, err, "NewSignerVerifier(E=%d) should have returned an error", e)
+			require.ErrorContains(t, err, "unsupported RSA public key exponent")
+			require.Nil(t, sv)
+		})
+	}
+}
 
-	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
-	require.ErrorContains(t, err, "only 65537 is currently supported, unsupported RSA public key exponent")
-	require.Nil(t, signerVerifier)
+func TestTComputationForSoundness(t *testing.T) {
+	// t = ceil(256 / floor(log2(E))), computed via integer arithmetic.
+	tests := []struct {
+		name     string
+		exponent int
+		wantT    int
+	}{
+		{"E=65537 standard", 65537, 16}, // ceil(256 / 16) = 16
+		{"E=257", 257, 32},              // ceil(256 / 8) = 32
+		{"E=17", 17, 64},                // ceil(256 / 4) = 64
+		{"E=5", 5, 128},                 // ceil(256 / 2) = 128
+		{"E=3 small exponent", 3, 256},  // ceil(256 / 1) = 256
+	}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key.E = tt.exponent
+			sv, err := NewSignerVerifier(&key.PublicKey, 256)
+			require.NoError(t, err)
+			svImpl, ok := sv.(*signerVerifier)
+			require.True(t, ok, "expected *signerVerifier concrete type, got %T", sv)
+			require.Equal(t, tt.wantT, svImpl.t, "NewSignerVerifier(E=%d, securityParam=256).t", tt.exponent)
+		})
+	}
+}
+
+func TestSignVerifyJWTWithExponentE3(t *testing.T) {
+	privKey := generateTestRSAKeyWithExponent(t, 2048, 3)
+
+	idToken, err := createOIDCToken(privKey, "test")
+	require.NoError(t, err)
+
+	sv, err := NewSignerVerifier(&privKey.PublicKey, 256)
+	require.NoError(t, err)
+
+	gqToken, err := sv.SignJWT(idToken)
+	require.NoError(t, err)
+
+	ok := sv.VerifyJWT(gqToken)
+	require.True(t, ok, "GQ sign+verify with E=3 failed")
+}
+
+// generateTestRSAKeyWithExponent generates an RSA key with the given public exponent.
+// rsa.GenerateKey always uses 65537, so this constructs the key manually.
+// e must be odd and >= 3; even or small values will never satisfy gcd(e, phi)=1 and loop forever.
+// Intended for generating test keys for unittests.	DO NOT call this function if security is desired!
+func generateTestRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
+	t.Helper()
+	if e < 3 || e%2 == 0 {
+		t.Fatalf("generateRSAKeyWithExponent: e=%d is invalid; must be odd and >= 3", e)
+	}
+	// DO NOT use the code below in settings where security is desired.
+	// This code is for generating test data, not secure RSA keys
+	bigE := big.NewInt(int64(e))
+	one := big.NewInt(1)
+	for {
+		p, err := rand.Prime(rand.Reader, bits/2)
+		require.NoError(t, err)
+		q, err := rand.Prime(rand.Reader, bits/2)
+		require.NoError(t, err)
+
+		pMinus1 := new(big.Int).Sub(p, one)
+		qMinus1 := new(big.Int).Sub(q, one)
+		phi := new(big.Int).Mul(pMinus1, qMinus1)
+
+		gcd := new(big.Int).GCD(nil, nil, bigE, phi)
+		if gcd.Cmp(one) != 0 {
+			continue
+		}
+
+		n := new(big.Int).Mul(p, q)
+		d := new(big.Int).ModInverse(bigE, phi)
+
+		key := &rsa.PrivateKey{
+			PublicKey: rsa.PublicKey{N: n, E: e},
+			D:         d,
+			Primes:    []*big.Int{p, q},
+		}
+		key.Precompute()
+		return key
+	}
 }
 
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
