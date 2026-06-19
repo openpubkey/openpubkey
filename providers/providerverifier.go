@@ -305,8 +305,8 @@ func (v *DefaultProviderVerifier) verifyGQSig(ctx context.Context, idt *oidc.Jwt
 	if !ok {
 		return fmt.Errorf("missing algorithm in original headers")
 	}
-	if origAlg != jwa.RS256() {
-		return fmt.Errorf("expected original headers to contain RS256 alg, got %s", origAlg)
+	if origAlg != jwa.RS256() && origAlg != jwa.PS256() {
+		return fmt.Errorf("expected original headers to contain RS256 or PS256 alg, got %s", origAlg)
 	}
 
 	if idt.GetClaims().Issuer == "" {

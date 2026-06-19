@@ -24,6 +24,7 @@ import (
 
 	"filippo.io/bigmod"
 	"github.com/awnumar/memguard"
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
@@ -95,7 +96,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 		applyOpt(options)
 	}
 	// Ensure that someone doesn't use a reserved protected header claim name
-	for _, reserved := range []string{"alg", "typ", "kid"} {
+	for _, reserved := range []string{"alg", "typ", "kid", pssSaltHeader} {
 		if _, ok := options.extraClaims[reserved]; ok {
 			return nil, fmt.Errorf("use of reserved header name, %s, in additional headers", reserved)
 		}
@@ -107,6 +108,13 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 	}
 
 	signingPayload := util.JoinJWTSegments(origHeaders, payload)
+
+	// When jwt is parsed it's split into base64-encoded bytes, but
+	// we need the raw signature to calculate mod inverse
+	decodedSig, err := util.Base64DecodeForJWT(signature)
+	if err != nil {
+		return nil, err
+	}
 
 	headers := jws.NewHeaders()
 	err = headers.Set(jws.AlgorithmKey, jose.GQ256)
@@ -122,6 +130,25 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 		return nil, err
 	}
 
+	// PS256 (RSASSA-PSS) encodes a random salt inside the RSA signature s. GQ
+	// strips s, so to let the verifier reconstruct the encoded message we
+	// recover the salt from s here and carry it in the GQ protected header.
+	// This reveals nothing GQ is meant to hide: the salt and EM are derivable
+	// from (message, salt) and the original signature s is still discarded.
+	origAlg, err := algFromOrigHeaders(origHeaders)
+	if err != nil {
+		return nil, err
+	}
+	if origAlg == jwa.PS256().String() {
+		salt, err := sv.recoverPSSSalt(decodedSig)
+		if err != nil {
+			return nil, fmt.Errorf("error recovering PSS salt: %w", err)
+		}
+		if err = headers.Set(pssSaltHeader, string(util.Base64EncodeForJWT(salt))); err != nil {
+			return nil, err
+		}
+	}
+
 	for k, v := range options.extraClaims {
 		if err = headers.Set(k, v); err != nil {
 			return nil, err
@@ -134,13 +161,6 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 	}
 
 	headersEnc := util.Base64EncodeForJWT(headersJSON)
-
-	// When jwt is parsed it's split into base64-encoded bytes, but
-	// we need the raw signature to calculate mod inverse
-	decodedSig, err := util.Base64DecodeForJWT(signature)
-	if err != nil {
-		return nil, err
-	}
 
 	// GQ1 private number (Q) is inverse of RSA signature mod n
 	private, err := sv.modInverse(memguard.NewBufferFromBytes(decodedSig))
@@ -233,6 +253,21 @@ func (sv *signerVerifier) modInverse(b *memguard.LockedBuffer) (*memguard.Locked
 	defer b.Destroy()
 
 	return memguard.NewBufferFromBytes(mFinal.FillBytes(ret)), nil
+}
+
+// recoverPSSSalt recovers the PSS salt from a raw RSA signature s by computing
+// the encoded message EM = s^e mod n and decoding it per EMSA-PSS-VERIFY. This
+// is only valid for PS256-signed input; callers must check the original alg
+// first. The signature is assumed already validated against the public key.
+func (sv *signerVerifier) recoverPSSSalt(sig []byte) ([]byte, error) {
+	emBits := sv.n.BitLen() - 1
+	emLen := (emBits + 7) / 8
+
+	sigInt := new(big.Int).SetBytes(sig)
+	em := new(big.Int).Exp(sigInt, sv.v, modAsInt(sv.n))
+	emBytes := em.FillBytes(make([]byte, emLen))
+
+	return extractPSSSalt(emBytes, pssSaltLength, emBits)
 }
 
 func encodeProof(R, S []byte) []byte {
