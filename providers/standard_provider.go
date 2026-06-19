@@ -129,6 +129,10 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
+	return newStandardOpWithOptions(opts)
+}
+
+func newStandardOpWithOptions(opts *StandardOpOptions) *StandardOp {
 	return &StandardOp{
 		clientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
@@ -179,6 +183,14 @@ type StandardOp struct {
 	reuseBrowserWindowHook    chan string
 	keyBindingSigner          crypto.Signer
 	keyBindingSignerAlg       string
+}
+
+func NewStandardKeyBindingOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
+	return &KeyBindingOpRefreshable{
+		KeyBindingOp: KeyBindingOp{
+			StandardOp: *newStandardOpWithOptions(opts),
+		},
+	}
 }
 
 type StandardOpRefreshable struct {

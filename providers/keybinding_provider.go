@@ -107,7 +107,7 @@ type dPoPRoundTripper struct {
 }
 
 func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
+	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" || req.URL.Path == "/application/o/token/" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
 		u := *req.URL
 		u.Fragment = ""
 		u.Scheme = strings.ToLower(u.Scheme)
@@ -312,6 +312,11 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	origKey, err := jwk.ParseKey(origKeyJsonBytes)
 	if err != nil {
 		return fmt.Errorf("error parsing key from original ID token: %w", err)
+	}
+
+	if _, exists := origKey.Algorithm(); !exists {
+		err := origKey.Set("alg", r.keyBindingSignerAlg) // Alg have been removed from the CNF by the OP, so set it manually when constructing the CIC
+		return fmt.Errorf("error setting alg for CIC creation: %w", err)
 	}
 	origCic, err := clientinstance.NewClaims(origKey, map[string]any{})
 	if err != nil {
