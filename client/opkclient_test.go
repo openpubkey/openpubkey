@@ -339,3 +339,26 @@ func TestDeviceFlow(t *testing.T) {
 	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 	require.NoError(t, err)
 }
+
+func TestClientCredentialsFlow(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	helloOpOpts.ClientID = "OPENPUBKEY-PKTOKEN: app_xejobTKEsDNSRd5vofKB2iay_2rN"
+	helloOpOpts.ClientSecret = "test-client-secret"
+	helloOpOpts.ClientCredentialsFlow = true
+	helloOpOpts.GQSign = true
+	op, err := providers.CreateMockHelloOpWithOpts(helloOpOpts, mocks.UserBrowserInteractionMock{})
+	require.NoError(t, err)
+	require.NotNil(t, op)
+
+	c, err := client.New(op)
+	require.NoError(t, err)
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	cic, err := pkt.GetCicValues()
+	require.NoError(t, err)
+
+	err = c.Op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
+	require.NoError(t, err)
+}
