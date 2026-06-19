@@ -110,18 +110,93 @@ func TestGQ256SignJWT(t *testing.T) {
 	require.Nil(t, gqTokenReservedClaim)
 }
 
-// TestGQ256SignJWT_PS256RejectsPS256 verifies that GQ256SignJWT rejects PS256 tokens.
-// GQ signing is incompatible with PS256: PSS padding uses a randomized salt, so
-// the encoded identity cannot be reconstructed deterministically for GQ1 verification.
-func TestGQ256SignJWT_RejectsPS256(t *testing.T) {
+// TestGQ256SignJWT_PS256 verifies a full GQ round trip over a PS256 (RSASSA-PSS)
+// signed JWT: the salt is recovered from the OP signature at GQ-signing time,
+// carried in the GQ protected header, and used to reconstruct G at verify time.
+func TestGQ256SignJWT_PS256(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	idToken, err := createOIDCTokenPS256(oidcPrivKey, "test")
 	require.NoError(t, err)
 
-	_, err = GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
-	require.ErrorContains(t, err, "GQ signing requires an RS256-signed JWT")
+	gqToken, err := GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
+	require.NoError(t, err)
+
+	// The GQ token must carry the PSS salt.
+	salt, ok, err := getClaimInProtected("pss_salt", gqToken)
+	require.NoError(t, err)
+	require.True(t, ok, "PS256 GQ token must carry a pss_salt claim")
+	require.NotEmpty(t, salt)
+
+	ok2, err := GQ256VerifyJWT(&oidcPrivKey.PublicKey, gqToken)
+	require.NoError(t, err)
+	require.True(t, ok2, "PS256 GQ signature verification failed")
+}
+
+// TestGQ256SignJWT_PS256WrongKey checks that GQ signing a PS256 token with the
+// wrong public key fails at the pre-sign signature check.
+func TestGQ256SignJWT_PS256WrongKey(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	idToken, err := createOIDCTokenPS256(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	wrongKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	_, err = GQ256SignJWT(&wrongKey.PublicKey, idToken)
+	require.ErrorContains(t, err, "incorrect public key supplied when GQ signing jwt")
+}
+
+// TestGQ256VerifyJWT_PS256Tampered checks that tampering with the carried salt,
+// the payload, or stripping the salt claim all cause PS256 GQ verification to fail.
+func TestGQ256VerifyJWT_PS256Tampered(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	pubKey := &oidcPrivKey.PublicKey
+
+	idToken, err := createOIDCTokenPS256(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	gqToken, err := GQ256SignJWT(pubKey, idToken)
+	require.NoError(t, err)
+
+	t.Run("tampered salt", func(t *testing.T) {
+		tampered, err := flipPSSSaltByte(gqToken)
+		require.NoError(t, err)
+		ok, err := GQ256VerifyJWT(pubKey, tampered)
+		require.NoError(t, err)
+		require.False(t, ok, "verification should fail when the carried salt is tampered")
+	})
+
+	t.Run("tampered payload", func(t *testing.T) {
+		tampered, err := modifyTokenPayload(gqToken, "fail")
+		require.NoError(t, err)
+		ok, err := GQ256VerifyJWT(pubKey, tampered)
+		require.NoError(t, err)
+		require.False(t, ok, "verification should fail when the payload is tampered")
+	})
+
+	t.Run("missing salt claim", func(t *testing.T) {
+		stripped, err := stripPSSSaltClaim(gqToken)
+		require.NoError(t, err)
+		ok, err := GQ256VerifyJWT(pubKey, stripped)
+		require.NoError(t, err)
+		require.False(t, ok, "verification should fail when the salt claim is missing")
+	})
+
+	t.Run("wrong salt length", func(t *testing.T) {
+		// A salt that is not the JWA-mandated 32 bytes must be rejected.
+		short, err := rewriteProtectedHeader(gqToken, func(headers map[string]any) error {
+			headers["pss_salt"] = string(util.Base64EncodeForJWT(make([]byte, 16)))
+			return nil
+		})
+		require.NoError(t, err)
+		ok, err := GQ256VerifyJWT(pubKey, short)
+		require.NoError(t, err)
+		require.False(t, ok, "verification should fail when the salt length is not 32 bytes")
+	})
 }
 
 func TestVerifyModifiedIdPayload(t *testing.T) {
@@ -355,6 +430,55 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 			jws.WithProtectedHeaders(oidcHeader),
 		),
 	)
+}
+
+// rewriteProtectedHeader decodes the protected header of token, applies mutate
+// to the header map, and reassembles the token with the original payload and
+// signature segments.
+func rewriteProtectedHeader(token []byte, mutate func(map[string]any) error) ([]byte, error) {
+	headersB64, payload, signature, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, err
+	}
+	headersJSON, err := util.Base64DecodeForJWT(headersB64)
+	if err != nil {
+		return nil, err
+	}
+	var headers map[string]any
+	if err := json.Unmarshal(headersJSON, &headers); err != nil {
+		return nil, err
+	}
+	if err := mutate(headers); err != nil {
+		return nil, err
+	}
+	newJSON, err := json.Marshal(headers)
+	if err != nil {
+		return nil, err
+	}
+	return util.JoinJWTSegments(util.Base64EncodeForJWT(newJSON), payload, signature), nil
+}
+
+func flipPSSSaltByte(token []byte) ([]byte, error) {
+	return rewriteProtectedHeader(token, func(headers map[string]any) error {
+		saltB64, ok := headers["pss_salt"].(string)
+		if !ok {
+			return fmt.Errorf("no pss_salt claim to tamper")
+		}
+		salt, err := util.Base64DecodeForJWT([]byte(saltB64))
+		if err != nil {
+			return err
+		}
+		salt[0] ^= 0xff
+		headers["pss_salt"] = string(util.Base64EncodeForJWT(salt))
+		return nil
+	})
+}
+
+func stripPSSSaltClaim(token []byte) ([]byte, error) {
+	return rewriteProtectedHeader(token, func(headers map[string]any) error {
+		delete(headers, "pss_salt")
+		return nil
+	})
 }
 
 func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {

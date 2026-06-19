@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -29,6 +30,16 @@ import (
 //
 // Comments throughout refer to stages as specified in the ISO/IEC 14888-2 standard.
 func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) bool {
+	// The public Verify uses PKCS#1 v1.5 as the format mechanism (RS256). PS256
+	// support is routed through VerifyJWT, which reconstructs G via EMSA-PSS.
+	G := new(big.Int).SetBytes(encodePKCS1v15(sv.nBytes, identity))
+	return sv.verifyProof(proof, G, message)
+}
+
+// verifyProof runs the GQ1 verification stages against a precomputed public
+// number G. G is the format-mechanism-encoded identity (PKCS#1 v1.5 for RS256,
+// EMSA-PSS for PS256); see Verify and VerifyJWT.
+func (sv *signerVerifier) verifyProof(proof []byte, G *big.Int, message []byte) bool {
 	n, v, t := modAsInt(sv.n), sv.v, sv.t
 	nBytes, vBytes := sv.nBytes, sv.vBytes
 
@@ -39,11 +50,6 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 	if err != nil {
 		return false
 	}
-
-	// Stage 1 - create public number G
-	// currently this hardcoded to use PKCS#1 v1.5 padding as the format mechanism
-	paddedIdentity := encodePKCS1v15(nBytes, identity)
-	G := new(big.Int).SetBytes(paddedIdentity)
 
 	// Stage 2 - parse signature numbers and recalculate test number W*
 	// split R into t strings, each consisting of vBytes bytes
@@ -103,7 +109,34 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 
 	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
-	return sv.Verify(signature, signingPayload, signingPayload)
+	// Reconstruct the public number G using the format mechanism that matches
+	// the original JWT's signing algorithm. G is always recomputed from the
+	// signing payload here (never trusted from the token), so tampering with the
+	// preserved original headers or the carried salt changes G and fails verify.
+	origAlg, err := algFromOrigHeaders(origHeaders)
+	if err != nil {
+		return false
+	}
+
+	var G *big.Int
+	switch origAlg {
+	case jwa.RS256().String():
+		G = new(big.Int).SetBytes(encodePKCS1v15(sv.nBytes, signingPayload))
+	case jwa.PS256().String():
+		salt, err := pssSaltFromGQToken(jwt)
+		if err != nil {
+			return false
+		}
+		em, err := encodeEMSAPSS(signingPayload, salt, sv.n.BitLen()-1)
+		if err != nil {
+			return false
+		}
+		G = new(big.Int).SetBytes(em)
+	default:
+		return false
+	}
+
+	return sv.verifyProof(signature, G, signingPayload)
 }
 
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {

@@ -193,9 +193,12 @@ func randomBytes(rng io.Reader, byteCount int) ([]byte, error) {
 }
 
 // rsaAlgFromJWT returns the algorithm declared in the JWT's protected header,
-// or an error if it is not RS256. GQ signing requires RS256 because PSS-based
-// algorithms (e.g. PS256) use a randomized salt, making the encoded identity
-// non-deterministic and incompatible with GQ1 verification.
+// or an error if it is not one of the supported RSA algorithms (RS256, PS256).
+//
+// RS256 (PKCS#1 v1.5) is deterministic, so GQ can recompute the encoded identity
+// directly. PS256 (RSASSA-PSS) mixes in a random salt; GQ supports it by
+// extracting that salt at signing time and carrying it in the GQ protected
+// header (see SignJWT / VerifyJWT and pss.go).
 func rsaAlgFromJWT(jwt []byte) (jwa.KeyAlgorithm, error) {
 	token, err := jws.Parse(jwt)
 	if err != nil {
@@ -206,8 +209,8 @@ func rsaAlgFromJWT(jwt []byte) (jwa.KeyAlgorithm, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing alg header in JWT")
 	}
-	if alg != jwa.RS256() {
-		return nil, fmt.Errorf("GQ signing requires an RS256-signed JWT, got %s", alg)
+	if alg != jwa.RS256() && alg != jwa.PS256() {
+		return nil, fmt.Errorf("GQ signing requires an RS256- or PS256-signed JWT, got %s", alg)
 	}
 	return alg, nil
 }

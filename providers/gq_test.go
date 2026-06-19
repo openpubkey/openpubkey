@@ -28,23 +28,42 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-// TestGQRejectsPS256 verifies that createGQTokenAllParams rejects PS256-signed
-// tokens with a clear error. GQ signing is incompatible with PS256 because PSS
-// padding uses a randomized salt, making the identity non-deterministic.
-func TestGQRejectsPS256(t *testing.T) {
+// TestGQPS256 verifies that createGQTokenAllParams can GQ-sign a PS256-signed ID
+// Token and that the result verifies. GQ supports PS256 by carrying the PSS salt
+// recovered from the OP signature in the GQ protected header.
+func TestGQPS256(t *testing.T) {
 	providerOpts := DefaultMockProviderOpts()
 	providerOpts.NumKeys = 1
 	providerOpts.Alg = "PS256"
 	providerOpts.CommitType = CommitTypesEnum.NONCE_CLAIM
 
-	op, _, idtTemplate, err := NewMockProvider(providerOpts)
+	op, backend, idtTemplate, err := NewMockProvider(providerOpts)
 	require.NoError(t, err)
+
+	expPublicKey := maps.Values(backend.GetProviderPublicKeySet())[0].PublicKey
 
 	tokens, err := idtTemplate.IssueTokens()
 	require.NoError(t, err)
 
-	_, err = createGQTokenAllParams(context.Background(), tokens.IDToken, op, "", false)
-	require.ErrorContains(t, err, "gq signatures require ID Token signed with an RSA key, ID Token alg was (PS256)")
+	gqToken, err := createGQTokenAllParams(context.Background(), tokens.IDToken, op, "", false)
+	require.NoError(t, err)
+	require.NotNil(t, gqToken)
+
+	verifies, err := gq.GQ256VerifyJWT(expPublicKey.(*rsa.PublicKey), gqToken)
+	require.NoError(t, err)
+	require.True(t, verifies)
+
+	jwt, err := oidc.NewJwt(gqToken)
+	require.NoError(t, err)
+	typ, err := jwt.GetSignature().GetTyp()
+	require.NoError(t, err)
+	require.Equal(t, "JWT", typ)
+
+	jktFound := jwt.GetSignature().GetProtectedClaims().Jkt
+	require.NotEmpty(t, jktFound)
+	expJkt, err := createJkt(expPublicKey)
+	require.NoError(t, err)
+	require.Equal(t, expJkt, jktFound, "JKT in GQ ID Token does not match expected JKT")
 }
 
 func TestGQ(t *testing.T) {
