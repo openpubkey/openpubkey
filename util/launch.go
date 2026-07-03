@@ -17,25 +17,47 @@
 package util
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 )
 
 // https://stackoverflow.com/questions/39320371/how-start-web-server-to-open-page-in-browser-in-golang
 // open opens the specified URL in the default browser of the user.
+// url must be trusted: on Windows/WSL it is passed to powershell.exe -Command, which is vulnerable to injection if url contains untrusted input.
 func OpenUrl(url string) error {
-	var cmd string
-	var args []string
-
 	switch runtime.GOOS {
 	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start"}
+		return openWithPowerShell(url)
+
 	case "darwin":
-		cmd = "open"
+		return exec.Command("open", url).Start()
+
 	default: // "linux", "freebsd", "openbsd", "netbsd"
-		cmd = "xdg-open"
+		if isWSL() {
+			return openWithPowerShell(url)
+		}
+		return exec.Command("xdg-open", url).Start()
 	}
-	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
+}
+
+func openWithPowerShell(url string) error {
+	return exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-Command",
+		"Start-Process",
+		url,
+	).Start()
+}
+
+func isWSL() bool {
+	data, err := os.ReadFile("/proc/sys/kernel/osrelease")
+	if err != nil {
+		return false
+	}
+
+	release := strings.ToLower(string(data))
+	return strings.Contains(release, "microsoft") || strings.Contains(release, "wsl")
 }
