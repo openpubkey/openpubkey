@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -45,15 +46,45 @@ func OpenUrl(url string) error {
 	}
 }
 
+// validateHTTPURL rejects anything that isn't a hierarchical http(s) URL.
+func validateHTTPURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("refusing to open non-http(s) URL: %q", rawURL)
+	}
+	// Reject opaque "scheme:data" URLs (no "//"), e.g. "http:C:\Windows\...".
+	// url.Parse accepts these as valid with Scheme == "http", but they carry
+	// no host and are not something a browser should ever be pointed at.
+	if u.Host == "" {
+		return fmt.Errorf("refusing to open URL with no host: %q", rawURL)
+	}
+	return nil
+}
+
 // openWithPowerShell launches url via PowerShell using -EncodedCommand.
-// The URL is embedded as a PowerShell single-quoted string literal with
-// embedded single quotes escaped. This avoids injection through PowerShell
-// metacharacters in the URL. -EncodedCommand is used instead of -Command
-// because -Command re-joins and re-parses all trailing argv entries as a
-// single script, which would otherwise require additional care to avoid
-// argv-splitting ambiguity.
+// Only http/https URLs are accepted here, since Start-Process would
+// otherwise happily launch a local executable or other registered protocol
+// handler. The URL is passed through an environment variable rather than
+// embedded in the script text, so it is never parsed as PowerShell syntax
+// regardless of what characters it contains. -EncodedCommand is used instead
+// of -Command because -Command re-joins and re-parses all trailing argv
+// entries as a single script, which would otherwise require additional care
+// to avoid argv-splitting ambiguity.
 func openWithPowerShell(url string) error {
-	script := fmt.Sprintf("Start-Process '%s'", strings.ReplaceAll(url, "'", "''"))
+	if err := validateHTTPURL(url); err != nil {
+		return err
+	}
+
+	// Internal-only pass-through, not a supported/documented configuration
+	// variable: it exists solely to hand url to the child PowerShell process
+	// without it ever being parsed as script text. Set on cmd.Env below, so
+	// it is scoped to that one subprocess and never touches this process's
+	// or any user's actual environment.
+	const envVar = "OpenPubkeyBrowserURL"
+	const script = `Start-Process "$Env:` + envVar + `"`
 
 	u16 := utf16.Encode([]rune(script))
 	buf := make([]byte, len(u16)*2)
@@ -62,7 +93,9 @@ func openWithPowerShell(url string) error {
 	}
 	encoded := base64.StdEncoding.EncodeToString(buf)
 
-	return exec.Command("powershell.exe", "-NoProfile", "-EncodedCommand", encoded).Start()
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-EncodedCommand", encoded)
+	cmd.Env = append(os.Environ(), envVar+"="+url)
+	return cmd.Start()
 }
 
 func isWSL() bool {
