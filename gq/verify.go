@@ -96,14 +96,17 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 		return false
 	}
 
-	_, payload, signature, err := jws.SplitCompact(jwt)
+	gqHeaders, payload, signature, err := jws.SplitCompact(jwt)
 	if err != nil {
 		return false
 	}
 
-	signingPayload := util.JoinJWTSegments(origHeaders, payload)
+	// identity (from kid) forms G and must match the signer's RSA key;
+	// message covers the outer header so tampering it fails verification.
+	identity := util.JoinJWTSegments(origHeaders, payload)
+	message := util.JoinJWTSegments(gqHeaders, payload)
 
-	return sv.Verify(signature, signingPayload, signingPayload)
+	return sv.Verify(signature, identity, message)
 }
 
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {
