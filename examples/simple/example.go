@@ -96,7 +96,22 @@ func main() {
 	opOptions := providers.GetDefaultGoogleOpOptions()
 	// Change this to true to turn on GQ signatures
 	opOptions.GQSign = false
+	// Keep this true to open the authorization URL automatically, or change it
+	// to false to let the application present or open the URL itself.
+	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
+
+	// Applications can observe the URL opened by the library or handle it
+	// themselves when automatic browser opening is disabled. For example:
+	// err := providers.SetAuthorizationURLHandler(op, func(url string) error {
+	// 	fmt.Println("Authentication URL:", url)
+	// 	return nil
+	// })
+	// if err != nil {
+	// 	fmt.Println("Failed to configure authorization URL handler:", err)
+	// 	return
+	// }
+
 	pktJson, signedMsg, err := Sign(op)
 	if err != nil {
 		fmt.Println("Failed to sign message:", err)

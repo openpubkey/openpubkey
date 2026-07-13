@@ -18,6 +18,7 @@ package choosers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -171,6 +172,23 @@ func TestDuplicateProviderError(t *testing.T) {
 	op, err := webChooser.ChooseOp(context.Background())
 	require.ErrorContains(t, err, "provider in web chooser found with duplicate issuer: https://accounts.google.com")
 	require.Nil(t, op)
+}
+
+func TestAuthorizationURLHandlerReceivesChooserURL(t *testing.T) {
+	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
+	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, false)
+
+	expectedErr := errors.New("application could not present chooser URL")
+	var authorizationURL string
+	webChooser.SetAuthorizationURLHandler(func(url string) error {
+		authorizationURL = url
+		return expectedErr
+	})
+
+	op, err := webChooser.ChooseOp(context.Background())
+	require.Nil(t, op)
+	require.ErrorIs(t, err, expectedErr)
+	require.Contains(t, authorizationURL, "/chooser")
 }
 
 func TestIssuerToName(t *testing.T) {

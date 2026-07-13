@@ -33,6 +33,17 @@ opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
+By default, OpenPubkey opens the authorization URL in the user's browser. Applications can configure an authorization URL handler to print or log the URL that was opened:
+
+```golang
+err := providers.SetAuthorizationURLHandler(op, func(url string) error {
+	fmt.Println("Authentication URL:", url)
+	return nil
+})
+```
+
+The handler receives the authorization URL whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URL itself instead.
+
 Next we create the OpenPubkey client and call `opkClient.Auth`:
 
 ```golang
@@ -57,7 +68,7 @@ err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 msg, err := pkt.VerifySignedMessage(signedMsg)
 ```
 
-To run this example type: `go run .\examples\simple\example.go`.
+To run this example type: `go run ./examples/simple`.
 
 This will open a browser window to Google. If you authenticate to Google successfully, you should see: `Verification successful: anon.author.aardvark@gmail.com (https://accounts.google.com) signed the message 'All is discovered - flee at once'` where `anon.author.aardvark@gmail.com` is your gmail address.
 

@@ -34,7 +34,6 @@ import (
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/sirupsen/logrus"
 )
 
 type CosignerProvider struct {
@@ -103,9 +102,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 
 			if err != nil {
 				// Write the error message to the user
-				if _, err := w.Write([]byte(err.Error())); err != nil {
-					logrus.Error(err)
-				}
+				_, _ = w.Write([]byte(err.Error()))
 
 				select {
 				case errCh <- err:
@@ -113,9 +110,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 					return
 				}
 			} else {
-				if _, err := w.Write([]byte("You may now close this window")); err != nil {
-					logrus.Error(err)
-				}
+				_, _ = w.Write([]byte("You may now close this window"))
 
 				select {
 				case sigCh <- cosSig:
@@ -131,18 +126,17 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		Addr:    host,
 		Handler: mux,
 	}
-	logrus.Infof("listening on http://%s/", host)
-	logrus.Info("press ctrl+c to stop")
 	go func() {
 		err := server.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
+			select {
+			case errCh <- fmt.Errorf("cosigner callback server failed: %w", err):
+			case <-ctx.Done():
+			}
 		}
 	}()
 	defer func() {
-		if err := server.Shutdown(ctx); err != nil {
-			logrus.Error(err)
-		}
+		_ = server.Shutdown(ctx)
 	}()
 
 	pktJson, err := json.Marshal(pkt)

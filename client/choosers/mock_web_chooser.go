@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/openpubkey/openpubkey/providers"
-	"github.com/sirupsen/logrus"
 )
 
 func NewMockWebChooser(opList []providers.BrowserOpenIdProvider, opToChoose string) *WebChooser {
@@ -54,8 +53,6 @@ func BrowserOpenOverride(opToChoose string) func(string) error {
 			// Use retry logic here as well to handle timing issues with the OP server
 			resp, err := retryHTTPGet(selectOpUri)
 			if err != nil {
-				// Log error instead of panicking to avoid crashing tests
-				logrus.Errorf("Failed to select OP after retries: %v", err)
 				return
 			}
 			defer resp.Body.Close()

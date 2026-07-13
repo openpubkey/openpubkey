@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"time"
@@ -32,7 +33,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	oidchttp "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -145,7 +145,7 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 		issuer:                    opts.Issuer,
-		browserOpenOverride:       nil,
+		authorizationURLHandler:   nil,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -172,7 +172,7 @@ type StandardOp struct {
 	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer                    string
 	server                    *http.Server
-	browserOpenOverride       BrowserOpenOverrideFunc
+	authorizationURLHandler   AuthorizationURLHandler
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
@@ -214,9 +214,6 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if err != nil {
 		return nil, err
 	}
-	logrus.Infof("listening on http://%s/", ln.Addr().String())
-	logrus.Info("press ctrl+c to stop")
-
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
@@ -276,9 +273,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	}
 
 	shutdownServer := func() {
-		if err := s.server.Shutdown(ctx); err != nil {
-			logrus.Errorf("Failed to shutdown http server: %v", err)
-		}
+		_ = s.server.Shutdown(ctx)
 	}
 
 	URLParamOpts := []rp.URLParamOpt{
@@ -314,9 +309,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if _, err := w.Write([]byte(s.CallbackHTML)); err != nil {
-				logrus.Error(err)
-			}
+			_, _ = w.Write([]byte(s.CallbackHTML))
 		}
 	}
 
@@ -326,7 +319,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	go func() {
 		err := s.server.Serve(ln)
 		if err != nil && err != http.ErrServerClosed {
-			logrus.Error(err)
+			select {
+			case chErr <- fmt.Errorf("OIDC callback server failed: %w", err):
+			case <-ctx.Done():
+			}
 		}
 	}()
 
@@ -337,20 +333,21 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if s.reuseBrowserWindowHook != nil {
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
-		logrus.Infof("Opening browser to %s ", loginURI)
 		if err := util.OpenUrl(loginURI); err != nil {
-			logrus.Errorf("Failed to open url: %v", err)
+			shutdownServer()
+			return nil, fmt.Errorf("failed to open URL: %w", err)
 		}
-	} else {
-		// If s.OpenBrowser is false, tell the user what URL to open.
-		// This is useful when a user wants to use a different browser than the default one.
-		logrus.Infof("Open your browser to: %s ", loginURI)
+	} else if s.authorizationURLHandler == nil {
+		// Preserve the manual-browser behavior for existing applications. New
+		// applications should install an AuthorizationURLHandler and decide how
+		// to present the URL.
+		_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
 	}
 
-	// This is to mock out the OP interactions.
-	if s.browserOpenOverride != nil {
-		if err := s.browserOpenOverride(loginURI); err != nil {
-			logrus.Errorf("Failed to open url to mock browser: %v", err)
+	if s.authorizationURLHandler != nil {
+		if err := s.authorizationURLHandler(loginURI); err != nil {
+			shutdownServer()
+			return nil, fmt.Errorf("authorization URL handler failed: %w", err)
 		}
 	}
 
@@ -437,9 +434,6 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		oidchttp.FormAuthorization(func(values url.Values) {
 			values.Set("nonce", cicHash)
 			for k, v := range s.ExtraURLParamOpts {
-				if values.Has(k) {
-					logrus.Warnf("ExtraURLParamOpts config is overwriting existing URI param (%s) with value (%s)", k, v)
-				}
 				values.Set(k, v)
 			}
 		}))
@@ -453,10 +447,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	}
 
 	code, err := qrcode.Create(qrCodeURL)
-	if err != nil {
-		// do not fail, just log the error, user can still manually open the url
-		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
-	} else {
+	if err == nil {
 		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
 	}
 	textual := strings.Builder{}
@@ -593,12 +584,23 @@ func nilIfEmpty(s string) []byte {
 	return []byte(s)
 }
 
-type BrowserOpenOverrideFunc func(url string) error
+// BrowserOpenOverrideFunc is retained for source compatibility.
+// Deprecated: use AuthorizationURLHandler.
+type BrowserOpenOverrideFunc = AuthorizationURLHandler
+
+// SetAuthorizationURLHandler sets the application callback that receives the
+// authorization URL. The callback may display the URL, open a browser, or
+// otherwise hand the URL to the user. Callback errors are returned by
+// RequestTokens.
+func (s *StandardOp) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
+	s.authorizationURLHandler = handler
+}
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
 // This is used by tests and mocks to override the default behavior of opening the browser.
+// Deprecated: use SetAuthorizationURLHandler.
 func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.browserOpenOverride = fn
+	s.SetAuthorizationURLHandler(fn)
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

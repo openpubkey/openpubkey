@@ -26,12 +26,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"strings"
 
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/sirupsen/logrus"
 )
 
 //go:embed static/*
@@ -50,16 +50,22 @@ var chooserTemplateFile string
 // TODO: This should be an enum that can also autogenerate what gets passed to the template
 
 type WebChooser struct {
-	OpList              []providers.BrowserOpenIdProvider
-	opSelected          providers.BrowserOpenIdProvider
-	OpenBrowser         bool
-	useMockServer       bool
-	mockServer          *httptest.Server
-	server              *http.Server
-	browserOpenOverride BrowserOpenOverrideFunc
+	OpList                  []providers.BrowserOpenIdProvider
+	opSelected              providers.BrowserOpenIdProvider
+	OpenBrowser             bool
+	useMockServer           bool
+	mockServer              *httptest.Server
+	server                  *http.Server
+	authorizationURLHandler AuthorizationURLHandler
 }
 
-type BrowserOpenOverrideFunc func(url string) error
+// AuthorizationURLHandler handles the web chooser URL. Applications can use
+// it to display the URL, open a browser, or integrate it into their own UI.
+type AuthorizationURLHandler func(url string) error
+
+// BrowserOpenOverrideFunc is retained for source compatibility.
+// Deprecated: use AuthorizationURLHandler.
+type BrowserOpenOverrideFunc = AuthorizationURLHandler
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
 	return &WebChooser{
@@ -165,7 +171,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			go func() { // Put this in a go func so that it will not block the redirect
 				if wc.server != nil {
 					if err := wc.server.Shutdown(ctx); err != nil {
-						logrus.Errorf("Failed to shutdown http server: %v", err)
+						select {
+						case errCh <- fmt.Errorf("failed to shutdown HTTP server: %w", err):
+						default:
+						}
 					}
 				}
 			}()
@@ -205,9 +214,12 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}
 		wc.server = &http.Server{Handler: mux}
 		go func() {
-			err = wc.server.Serve(listener)
-			if err != nil && err != http.ErrServerClosed {
-				logrus.Error(err)
+			serveErr := wc.server.Serve(listener)
+			if serveErr != nil && serveErr != http.ErrServerClosed {
+				select {
+				case errCh <- fmt.Errorf("web chooser server failed: %w", serveErr):
+				case <-ctx.Done():
+				}
 			}
 		}()
 
@@ -221,20 +233,21 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}
 
 		if wc.OpenBrowser {
-			logrus.Infof("Opening browser to %s", loginURI)
 			if err := util.OpenUrl(loginURI); err != nil {
-				logrus.Errorf("Failed to open url: %v", err)
+				_ = wc.server.Shutdown(ctx)
+				return nil, fmt.Errorf("failed to open URL: %w", err)
 			}
-		} else {
-			// If wc.OpenBrowser is false, tell the user what URL to open.
-			// This is useful when a user wants to use a different browser than the default one.
-			logrus.Infof("Open your browser to: %s ", loginURI)
+		} else if wc.authorizationURLHandler == nil {
+			// Preserve the manual-browser behavior for existing applications. New
+			// applications should install an AuthorizationURLHandler and decide how
+			// to present the URL.
+			_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
 		}
 
-		if wc.browserOpenOverride != nil {
-			if err := wc.browserOpenOverride(loginURI); err != nil {
-				logrus.Errorf("Failed to open url: %v", err)
-				return nil, err
+		if wc.authorizationURLHandler != nil {
+			if err := wc.authorizationURLHandler(loginURI); err != nil {
+				_ = wc.server.Shutdown(ctx)
+				return nil, fmt.Errorf("authorization URL handler failed: %w", err)
 			}
 		}
 	}
@@ -270,8 +283,15 @@ func IssuerToName(issuer string) (string, error) {
 	}
 }
 
-// SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
-// This is used by tests and mocks to override the default behavior of opening the browser.
-func (s *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.browserOpenOverride = fn
+// SetAuthorizationURLHandler sets the application callback that receives the
+// chooser URL. The callback may display the URL, open a browser, or otherwise
+// hand the URL to the user. Callback errors are returned by ChooseOp.
+func (wc *WebChooser) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
+	wc.authorizationURLHandler = handler
+}
+
+// SetOpenBrowserOverride sets a function that receives the chooser URL.
+// Deprecated: use SetAuthorizationURLHandler.
+func (wc *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
+	wc.SetAuthorizationURLHandler(fn)
 }

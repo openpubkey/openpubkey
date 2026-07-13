@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -45,6 +46,30 @@ type BrowserOpenIdProvider interface {
 	ClientID() string
 	HookHTTPSession(h http.HandlerFunc)
 	ReuseBrowserWindowHook(chan string)
+}
+
+// AuthorizationURLHandler handles an authorization URL produced during a
+// browser-based authentication flow. Applications can use it to display the
+// URL, open a browser, or integrate the URL into their own user interface.
+type AuthorizationURLHandler func(url string) error
+
+// ErrAuthorizationURLHandlerUnsupported is returned when a browser provider
+// does not support configuring an AuthorizationURLHandler.
+var ErrAuthorizationURLHandlerUnsupported = errors.New("authorization URL handler is not supported by this provider")
+
+// SetAuthorizationURLHandler configures how an application handles the
+// authorization URL produced by a browser provider. It is kept outside the
+// BrowserOpenIdProvider interface so existing third-party implementations
+// remain source compatible.
+func SetAuthorizationURLHandler(provider BrowserOpenIdProvider, handler AuthorizationURLHandler) error {
+	configurable, ok := provider.(interface {
+		SetAuthorizationURLHandler(AuthorizationURLHandler)
+	})
+	if !ok {
+		return ErrAuthorizationURLHandlerUnsupported
+	}
+	configurable.SetAuthorizationURLHandler(handler)
+	return nil
 }
 
 // Interface for an OpenIdProvider that returns an ID Token, Refresh Token and Access Token

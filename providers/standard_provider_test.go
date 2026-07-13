@@ -319,6 +319,62 @@ func TestCallbackHTML(t *testing.T) {
 	}
 }
 
+func TestAuthorizationURLHandler(t *testing.T) {
+	clientID := "fake-client-id"
+	issuer := googleIssuer
+	opts := GetDefaultStandardOpOptions(issuer, clientID)
+	opts.OpenBrowser = false
+
+	idp, err := mocks.NewMockOp(issuer, []mocks.Subject{{SubjectID: "alice@gmail.com"}})
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		Aud:        clientID,
+		KeyID:      expKeyID,
+		Alg:        expRecord.Alg,
+		SigningKey: expSigningKey,
+	}
+	opts.HttpClient = idp.GetHTTPClient()
+
+	op := NewStandardOpWithOptions(opts)
+	browserInteraction := mocks.UserBrowserInteractionMock{SubjectId: "alice@gmail.com"}
+	openBrowser := browserInteraction.BrowserOpenOverrideFunc(idp)
+
+	var authorizationURL string
+	err = SetAuthorizationURLHandler(op, func(url string) error {
+		authorizationURL = url
+		return openBrowser(url)
+	})
+	require.NoError(t, err)
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.Contains(t, authorizationURL, "/login")
+}
+
+func TestAuthorizationURLHandlerBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			err := SetAuthorizationURLHandler(provider, func(string) error { return nil })
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestCallbackHTMLEmptyDefaults(t *testing.T) {
 	clientId := "fake-client-id"
 	issuer := googleIssuer
