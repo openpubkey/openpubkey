@@ -17,25 +17,93 @@
 package util
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+	"fmt"
+	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
+	"unicode/utf16"
 )
 
 // https://stackoverflow.com/questions/39320371/how-start-web-server-to-open-page-in-browser-in-golang
 // open opens the specified URL in the default browser of the user.
 func OpenUrl(url string) error {
-	var cmd string
-	var args []string
-
 	switch runtime.GOOS {
 	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start"}
+		return openWithPowerShell(url)
+
 	case "darwin":
-		cmd = "open"
+		return exec.Command("open", url).Start()
+
 	default: // "linux", "freebsd", "openbsd", "netbsd"
-		cmd = "xdg-open"
+		if isWSL() {
+			return openWithPowerShell(url)
+		}
+		return exec.Command("xdg-open", url).Start()
 	}
-	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
+}
+
+// validateHTTPURL rejects anything that isn't a hierarchical http(s) URL.
+func validateHTTPURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", rawURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("refusing to open non-http(s) URL: %q", rawURL)
+	}
+	// Reject opaque "scheme:data" URLs (no "//"), e.g. "http:C:\Windows\...".
+	// url.Parse accepts these as valid with Scheme == "http", but they carry
+	// no host and are not something a browser should ever be pointed at.
+	if u.Host == "" {
+		return fmt.Errorf("refusing to open URL with no host: %q", rawURL)
+	}
+	return nil
+}
+
+// openWithPowerShell launches url via PowerShell using -EncodedCommand.
+// Only http/https URLs are accepted here, since Start-Process would
+// otherwise happily launch a local executable or other registered protocol
+// handler. The URL is passed through an environment variable rather than
+// embedded in the script text, so it is never parsed as PowerShell syntax
+// regardless of what characters it contains. -EncodedCommand is used instead
+// of -Command because -Command re-joins and re-parses all trailing argv
+// entries as a single script, which would otherwise require additional care
+// to avoid argv-splitting ambiguity.
+func openWithPowerShell(url string) error {
+	if err := validateHTTPURL(url); err != nil {
+		return err
+	}
+
+	// Internal-only pass-through, not a supported/documented configuration
+	// variable: it exists solely to hand url to the child PowerShell process
+	// without it ever being parsed as script text. Set on cmd.Env below, so
+	// it is scoped to that one subprocess and never touches this process's
+	// or any user's actual environment.
+	const envVar = "OpenPubkeyBrowserURL"
+	const script = `Start-Process "$Env:` + envVar + `"`
+
+	u16 := utf16.Encode([]rune(script))
+	buf := make([]byte, len(u16)*2)
+	for i, r := range u16 {
+		binary.LittleEndian.PutUint16(buf[i*2:], r)
+	}
+	encoded := base64.StdEncoding.EncodeToString(buf)
+
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-EncodedCommand", encoded)
+	cmd.Env = append(os.Environ(), envVar+"="+url)
+	return cmd.Start()
+}
+
+func isWSL() bool {
+	data, err := os.ReadFile("/proc/sys/kernel/osrelease")
+	if err != nil {
+		return false
+	}
+
+	release := strings.ToLower(string(data))
+	return strings.Contains(release, "microsoft") || strings.Contains(release, "wsl")
 }
