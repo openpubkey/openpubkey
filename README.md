@@ -33,7 +33,7 @@ opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
-By default, OpenPubkey opens the authorization URL in the user's browser. Applications can configure an authorization URL handler to print or log the URL that was opened:
+By default, OpenPubkey opens the authorization URL in the user's browser. Applications can configure an authorization URL handler to print or log the URL before the library attempts to open it:
 
 ```golang
 err := providers.SetAuthorizationURLHandler(op, func(url string) error {

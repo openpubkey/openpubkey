@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
@@ -319,11 +320,13 @@ func TestCallbackHTML(t *testing.T) {
 	}
 }
 
-func TestAuthorizationURLHandler(t *testing.T) {
+func newAuthorizationURLTestOp(t *testing.T, openBrowser bool) (*StandardOp, func(string) error) {
+	t.Helper()
+
 	clientID := "fake-client-id"
 	issuer := googleIssuer
 	opts := GetDefaultStandardOpOptions(issuer, clientID)
-	opts.OpenBrowser = false
+	opts.OpenBrowser = openBrowser
 
 	idp, err := mocks.NewMockOp(issuer, []mocks.Subject{{SubjectID: "alice@gmail.com"}})
 	require.NoError(t, err)
@@ -340,21 +343,45 @@ func TestAuthorizationURLHandler(t *testing.T) {
 	}
 	opts.HttpClient = idp.GetHTTPClient()
 
-	op := NewStandardOpWithOptions(opts)
+	op := NewStandardOpWithOptions(opts).(*StandardOp)
 	browserInteraction := mocks.UserBrowserInteractionMock{SubjectId: "alice@gmail.com"}
-	openBrowser := browserInteraction.BrowserOpenOverrideFunc(idp)
+	return op, browserInteraction.BrowserOpenOverrideFunc(idp)
+}
+
+func TestAuthorizationURLHandlerRecoversFromBrowserOpenFailure(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	expectedOpenErr := errors.New("browser unavailable")
+	var browserOpenAttempted bool
+	op.openBrowser = func(string) error {
+		browserOpenAttempted = true
+		return expectedOpenErr
+	}
 
 	var authorizationURL string
-	err = SetAuthorizationURLHandler(op, func(url string) error {
+	err := SetAuthorizationURLHandler(op, func(url string) error {
 		authorizationURL = url
-		return openBrowser(url)
+		return completeAuthentication(url)
 	})
 	require.NoError(t, err)
 
 	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
 	require.NoError(t, err)
 	require.NotNil(t, tokens)
+	require.True(t, browserOpenAttempted)
 	require.Contains(t, authorizationURL, "/login")
+}
+
+func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, false)
+	expectedErr := errors.New("legacy callback error")
+	op.SetOpenBrowserOverride(func(url string) error {
+		require.NoError(t, completeAuthentication(url))
+		return expectedErr
+	})
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
 }
 
 func TestAuthorizationURLHandlerBuiltInProviders(t *testing.T) {

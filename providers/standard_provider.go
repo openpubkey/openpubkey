@@ -173,6 +173,7 @@ type StandardOp struct {
 	issuer                    string
 	server                    *http.Server
 	authorizationURLHandler   AuthorizationURLHandler
+	openBrowser               func(string) error
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
@@ -328,27 +329,32 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
 
-	// If reuseBrowserWindowHook is set, don't open a new browser window
-	// instead redirect the user's existing browser window
+	if s.authorizationURLHandler != nil {
+		if err := s.authorizationURLHandler(loginURI); err != nil {
+			shutdownServer()
+			return nil, fmt.Errorf("authorization URL handler failed: %w", err)
+		}
+	}
+
+	// If reuseBrowserWindowHook is set, don't open a new browser window.
+	// Instead, redirect the user's existing browser window.
 	if s.reuseBrowserWindowHook != nil {
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
-		if err := util.OpenUrl(loginURI); err != nil {
-			shutdownServer()
-			return nil, fmt.Errorf("failed to open URL: %w", err)
+		openBrowser := s.openBrowser
+		if openBrowser == nil {
+			openBrowser = util.OpenUrl
+		}
+		if err := openBrowser(loginURI); err != nil && s.authorizationURLHandler == nil {
+			// Preserve the previous continue-on-failure behavior while ensuring
+			// the user can still complete authentication manually.
+			_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
 		}
 	} else if s.authorizationURLHandler == nil {
 		// Preserve the manual-browser behavior for existing applications. New
 		// applications should install an AuthorizationURLHandler and decide how
 		// to present the URL.
 		_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
-	}
-
-	if s.authorizationURLHandler != nil {
-		if err := s.authorizationURLHandler(loginURI); err != nil {
-			shutdownServer()
-			return nil, fmt.Errorf("authorization URL handler failed: %w", err)
-		}
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
@@ -588,19 +594,23 @@ func nilIfEmpty(s string) []byte {
 // Deprecated: use AuthorizationURLHandler.
 type BrowserOpenOverrideFunc = AuthorizationURLHandler
 
-// SetAuthorizationURLHandler sets the application callback that receives the
-// authorization URL. The callback may display the URL, open a browser, or
-// otherwise hand the URL to the user. Callback errors are returned by
-// RequestTokens.
+// SetAuthorizationURLHandler sets the application callback that handles or
+// observes the authorization URL. See AuthorizationURLHandler for invocation
+// and error semantics.
 func (s *StandardOp) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
 	s.authorizationURLHandler = handler
 }
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
 // This is used by tests and mocks to override the default behavior of opening the browser.
+// Callback errors are ignored to preserve the historical behavior of this
+// deprecated API.
 // Deprecated: use SetAuthorizationURLHandler.
 func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.SetAuthorizationURLHandler(fn)
+	s.SetAuthorizationURLHandler(func(url string) error {
+		_ = fn(url)
+		return nil
+	})
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

@@ -57,10 +57,20 @@ type WebChooser struct {
 	mockServer              *httptest.Server
 	server                  *http.Server
 	authorizationURLHandler AuthorizationURLHandler
+	openBrowser             func(string) error
 }
 
-// AuthorizationURLHandler handles the web chooser URL. Applications can use
-// it to display the URL, open a browser, or integrate it into their own UI.
+// AuthorizationURLHandler receives the web chooser URL.
+//
+// The handler is called before automatic browser opening is attempted. This
+// ensures the application receives the URL even if the browser cannot be
+// opened. When automatic browser opening is disabled, the application can use
+// the handler to display the URL, open a browser, or integrate the URL into its
+// own user interface. Returning an error aborts provider selection and is
+// returned by WebChooser.ChooseOp. If automatic browser opening fails after a
+// handler has received the URL, the opening error is not returned; the handler
+// is expected to have made the URL available through an application-controlled
+// mechanism.
 type AuthorizationURLHandler func(url string) error
 
 // BrowserOpenOverrideFunc is retained for source compatibility.
@@ -232,10 +242,22 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 		}
 
-		if wc.OpenBrowser {
-			if err := util.OpenUrl(loginURI); err != nil {
+		if wc.authorizationURLHandler != nil {
+			if err := wc.authorizationURLHandler(loginURI); err != nil {
 				_ = wc.server.Shutdown(ctx)
-				return nil, fmt.Errorf("failed to open URL: %w", err)
+				return nil, fmt.Errorf("authorization URL handler failed: %w", err)
+			}
+		}
+
+		if wc.OpenBrowser {
+			openBrowser := wc.openBrowser
+			if openBrowser == nil {
+				openBrowser = util.OpenUrl
+			}
+			if err := openBrowser(loginURI); err != nil && wc.authorizationURLHandler == nil {
+				// Preserve the previous continue-on-failure behavior while ensuring
+				// the user can still complete authentication manually.
+				_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
 			}
 		} else if wc.authorizationURLHandler == nil {
 			// Preserve the manual-browser behavior for existing applications. New
@@ -244,12 +266,6 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
 		}
 
-		if wc.authorizationURLHandler != nil {
-			if err := wc.authorizationURLHandler(loginURI); err != nil {
-				_ = wc.server.Shutdown(ctx)
-				return nil, fmt.Errorf("authorization URL handler failed: %w", err)
-			}
-		}
 	}
 
 	select {
@@ -283,14 +299,16 @@ func IssuerToName(issuer string) (string, error) {
 	}
 }
 
-// SetAuthorizationURLHandler sets the application callback that receives the
-// chooser URL. The callback may display the URL, open a browser, or otherwise
-// hand the URL to the user. Callback errors are returned by ChooseOp.
+// SetAuthorizationURLHandler sets the application callback that handles or
+// observes the chooser URL. See AuthorizationURLHandler for invocation and
+// error semantics.
 func (wc *WebChooser) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
 	wc.authorizationURLHandler = handler
 }
 
 // SetOpenBrowserOverride sets a function that receives the chooser URL.
+// Callback errors continue to be returned by ChooseOp, preserving the
+// historical behavior of this deprecated API.
 // Deprecated: use SetAuthorizationURLHandler.
 func (wc *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
 	wc.SetAuthorizationURLHandler(fn)

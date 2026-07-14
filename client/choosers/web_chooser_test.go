@@ -191,6 +191,30 @@ func TestAuthorizationURLHandlerReceivesChooserURL(t *testing.T) {
 	require.Contains(t, authorizationURL, "/chooser")
 }
 
+func TestAuthorizationURLHandlerReceivesURLWhenBrowserOpenFails(t *testing.T) {
+	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
+	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	expectedOpenErr := errors.New("browser unavailable")
+	webChooser.openBrowser = func(string) error {
+		cancel()
+		return expectedOpenErr
+	}
+
+	var authorizationURL string
+	webChooser.SetAuthorizationURLHandler(func(url string) error {
+		authorizationURL = url
+		return nil
+	})
+
+	op, err := webChooser.ChooseOp(ctx)
+	require.Nil(t, op)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, expectedOpenErr)
+	require.Contains(t, authorizationURL, "/chooser")
+}
+
 func TestIssuerToName(t *testing.T) {
 	name, err := IssuerToName("https://accounts.google.com")
 	require.NoError(t, err)

@@ -48,19 +48,29 @@ type BrowserOpenIdProvider interface {
 	ReuseBrowserWindowHook(chan string)
 }
 
-// AuthorizationURLHandler handles an authorization URL produced during a
-// browser-based authentication flow. Applications can use it to display the
-// URL, open a browser, or integrate the URL into their own user interface.
+// AuthorizationURLHandler receives the authorization URL produced during a
+// browser-based authentication flow.
+//
+// The handler is called before automatic browser opening is attempted. This
+// ensures the application receives the URL even if the browser cannot be
+// opened. When automatic browser opening is disabled, the application can use
+// the handler to display the URL, open a browser, or integrate the URL into its
+// own user interface. Returning an error aborts the authentication flow and
+// returns that error to the caller. If automatic browser opening fails after a
+// handler has received the URL, the opening error is not returned; the handler
+// is expected to have made the URL available through an application-controlled
+// mechanism.
 type AuthorizationURLHandler func(url string) error
 
 // ErrAuthorizationURLHandlerUnsupported is returned when a browser provider
 // does not support configuring an AuthorizationURLHandler.
 var ErrAuthorizationURLHandlerUnsupported = errors.New("authorization URL handler is not supported by this provider")
 
-// SetAuthorizationURLHandler configures how an application handles the
-// authorization URL produced by a browser provider. It is kept outside the
-// BrowserOpenIdProvider interface so existing third-party implementations
-// remain source compatible.
+// SetAuthorizationURLHandler configures how an application handles or observes
+// the authorization URL produced by a browser provider. It is kept outside
+// the BrowserOpenIdProvider interface so existing third-party implementations
+// remain source compatible. See AuthorizationURLHandler for invocation and
+// error semantics.
 func SetAuthorizationURLHandler(provider BrowserOpenIdProvider, handler AuthorizationURLHandler) error {
 	configurable, ok := provider.(interface {
 		SetAuthorizationURLHandler(AuthorizationURLHandler)
