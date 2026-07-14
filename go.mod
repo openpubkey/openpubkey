@@ -13,7 +13,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/yeqown/go-qrcode/v2 v2.2.5
 	github.com/zitadel/oidc/v3 v3.23.2
-	golang.org/x/crypto v0.45.0
+	golang.org/x/crypto v0.52.0
 )
 
 require (
@@ -57,7 +57,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
