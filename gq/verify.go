@@ -96,14 +96,16 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 		return false
 	}
 
-	_, payload, signature, err := jws.SplitCompact(jwt)
+	gqHeaders, payload, signature, err := jws.SplitCompact(jwt)
 	if err != nil {
 		return false
 	}
 
-	signingPayload := util.JoinJWTSegments(origHeaders, payload)
+	// This ensures GQ signature covers the GQ protected header so an attacker can not alter the values in the GQ protected header
+	identity := util.JoinJWTSegments(origHeaders, payload)
+	message := util.JoinJWTSegments(gqHeaders, payload)
 
-	return sv.Verify(signature, signingPayload, signingPayload)
+	return sv.Verify(signature, identity, message)
 }
 
 func (sv *signerVerifier) decodeProof(s []byte) (R, S []byte, err error) {
