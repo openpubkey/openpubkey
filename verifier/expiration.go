@@ -124,7 +124,7 @@ func checkMaxAge(issuedAt int64, maxAge int64) (bool, error) {
 	if issuedAt < 0 {
 		return false, fmt.Errorf("issuedAt must be must be greater than zero (issuedAt = %v)", issuedAt)
 	}
-	if !(maxAge > 0) {
+	if maxAge <= 0 {
 		return false, fmt.Errorf("maxAge configuration must be greater than zero (maxAge = %v)", maxAge)
 	}
 	// Ensure we throw an error is something goes wrong and we get parameters so large they overflow

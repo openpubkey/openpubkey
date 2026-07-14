@@ -157,7 +157,7 @@ func TestPublicKeyFinder(t *testing.T) {
 	algs := []string{}
 	idTokens := [][]byte{}
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		algOp := "RS256"
 		signer, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestPublicKeyFinder(t *testing.T) {
 		JwksFunc: mockJwks,
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, keyIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
@@ -211,7 +211,7 @@ func TestPublicKeyFinder(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
@@ -219,7 +219,7 @@ func TestPublicKeyFinder(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)
@@ -282,13 +282,11 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 		JwksFunc: mockJwks,
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
-		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "1234")
-		require.EqualError(t, err, "no matching public key found for kid 1234", "no kid (keyID) ByKeyID should return nothing")
-		require.Nil(t, pubkeyRecord)
-	}
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "1234")
+	require.EqualError(t, err, "no matching public key found for kid 1234", "no kid (keyID) ByKeyID should return nothing")
+	require.Nil(t, pubkeyRecord)
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
@@ -296,7 +294,7 @@ func TestByTokenWhenOnePublicKey(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)
@@ -320,7 +318,7 @@ func TestGQTokens(t *testing.T) {
 	algs := []string{}
 	idTokens := [][]byte{}
 
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		algOp := "RS256"
 		signer, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)
@@ -346,7 +344,7 @@ func TestGQTokens(t *testing.T) {
 		JwksFunc: mockJwks,
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		pubkeyRecord, err := finder.ByKeyID(ctx, issuer, keyIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
@@ -354,7 +352,7 @@ func TestGQTokens(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		pubkeyRecord, err := finder.ByToken(ctx, issuer, idTokens[i])
 		require.NoError(t, err)
 		require.Equal(t, publicKeys[i], pubkeyRecord.PublicKey)
@@ -362,7 +360,7 @@ func TestGQTokens(t *testing.T) {
 		require.Equal(t, issuer, pubkeyRecord.Issuer)
 	}
 
-	for i := 0; i < len(publicKeys); i++ {
+	for i := range publicKeys {
 		jwk, err := jwk.Import(publicKeys[i])
 		require.NoError(t, err)
 		jkt, err := jwk.Thumbprint(crypto.SHA256)

@@ -110,7 +110,7 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 	providerSigningKeySet := map[string]crypto.Signer{}
 	providerPublicKeySet := map[string]discover.PublicKeyRecord{}
 
-	for i := 0; i < numKeys; i++ {
+	for i := range numKeys {
 		kid := fmt.Sprintf("kid-%d", i)
 
 		var signingKey crypto.Signer
@@ -133,8 +133,8 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 			return nil, nil, fmt.Errorf("unsupported alg: %s", alg)
 		}
 
-		providerSigningKeySet[string(kid)] = signingKey
-		providerPublicKeySet[string(kid)] = discover.PublicKeyRecord{
+		providerSigningKeySet[kid] = signingKey
+		providerPublicKeySet[kid] = discover.PublicKeyRecord{
 			PublicKey: signingKey.Public(),
 			Alg:       alg,
 			Issuer:    issuer,

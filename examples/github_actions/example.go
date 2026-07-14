@@ -68,7 +68,7 @@ func SignWithGithubActions(opts ...Opts) error {
 
 	pktCom, _ := pkt.Compact()
 	b64pktCom := base64.StdEncoding.EncodeToString(pktCom)
-	fmt.Println("pkt compact:", string(b64pktCom))
+	fmt.Println("pkt compact:", b64pktCom)
 
 	// Create a verifier to check that the PK Token is well formed
 	verifier, err := verifier.New(op)

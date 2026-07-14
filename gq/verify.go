@@ -48,13 +48,13 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 	// Stage 2 - parse signature numbers and recalculate test number W*
 	// split R into t strings, each consisting of vBytes bytes
 	Rs := make([]*big.Int, t)
-	for i := 0; i < t; i++ {
+	for i := range t {
 		Rs[i] = new(big.Int).SetBytes(R[i*vBytes : (i+1)*vBytes])
 	}
 
 	// split S into t strings, each consisting of nBytes bytes
 	Ss := make([]*big.Int, t)
-	for i := 0; i < t; i++ {
+	for i := range t {
 		s_i := new(big.Int).SetBytes(S[i*nBytes : (i+1)*nBytes])
 		// reject if S_i = 0 or >= n
 		if s_i.Cmp(big.NewInt(0)) == 0 || s_i.Cmp(n) != -1 {
@@ -68,7 +68,7 @@ func (sv *signerVerifier) Verify(proof []byte, identity []byte, message []byte) 
 	// combine to form W*
 
 	var Wstar []byte
-	for i := 0; i < t; i++ {
+	for i := range t {
 		l := new(big.Int).Exp(Ss[i], v, n)
 		r := new(big.Int).Exp(G, Rs[i], n)
 		Wstar_i := new(big.Int).Mul(l, r)

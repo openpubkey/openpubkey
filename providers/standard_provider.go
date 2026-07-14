@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -325,7 +326,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	go func() {
 		err := s.server.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logrus.Error(err)
 		}
 	}()
@@ -457,7 +458,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		// do not fail, just log the error, user can still manually open the url
 		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
 	} else {
-		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
+		fmt.Printf("\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
 	}
 	textual := strings.Builder{}
 	if code != "" {

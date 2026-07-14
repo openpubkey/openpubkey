@@ -71,7 +71,9 @@ func TestFullFlow(t *testing.T) {
 	redirectURI := fmt.Sprintf("%s%s", "http://localhost:5555", cosP.CallbackPath)
 
 	initAuthMsgJson, _, err := cosP.CreateInitAuthSig(redirectURI)
+	require.NoError(t, err)
 	sig, err := pkt.NewSignedMessage(initAuthMsgJson, signer)
+	require.NoError(t, err)
 	authID, err := cos.InitAuth(pkt, sig)
 	require.NoError(t, err)
 
@@ -159,7 +161,7 @@ func TestBadCosSigTyp(t *testing.T) {
 		protected := pktoken.CosignerClaims{
 			Issuer:      "https://example.com",
 			KeyID:       kid,
-			Algorithm:   string(alg),
+			Algorithm:   alg,
 			AuthID:      "test-auth-id",
 			AuthTime:    time.Now().Unix(),
 			IssuedAt:    time.Now().Unix(),

@@ -228,6 +228,7 @@ func TestVerifyModifiedGqProtectedHeader(t *testing.T) {
 	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("claim", gqSignedValue))
 	require.NoError(t, err)
 	gqHeadersB64, payload, signature, err := jws.SplitCompact(gqToken)
+	require.NoError(t, err)
 
 	// Replace base64("123456") with base64("abcdef")
 	modifiedGqHeaders := bytes.Replace(gqHeadersB64, gqSignedValueB64, modificationB64, 1)
@@ -237,7 +238,7 @@ func TestVerifyModifiedGqProtectedHeader(t *testing.T) {
 	modifiedGqToken := util.JoinJWTSegments(modifiedGqHeaders, payload, signature)
 	require.NotEqual(t, string(gqToken), modifiedGqToken, "modified token should not equal original token")
 
-	ok := signerVerifier.VerifyJWT([]byte(modifiedGqToken))
+	ok := signerVerifier.VerifyJWT(modifiedGqToken)
 	require.False(t, ok, "verify passed for tampered token")
 }
 
@@ -474,7 +475,7 @@ func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
 	err = headers.Get(claimKey, &claimValue)
 	if err != nil {
 		// swallow error and communicate via bool instead
-		return nil, false, nil
+		return nil, false, nil //nolint:nilerr // error is intentionally discarded
 	}
 	return claimValue, true, nil
 }
