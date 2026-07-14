@@ -236,7 +236,7 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 				v.options.GQAudiencePrefix, audStr)
 		}
 
-		// "cic" is in the outer header, which the GQ signature binds.
+		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token
 		commitment = idt.GetSignature().GetProtectedClaims().CIC
 		if commitment == "" {
 			return fmt.Errorf("missing GQ commitment")

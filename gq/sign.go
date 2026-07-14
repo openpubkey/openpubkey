@@ -148,7 +148,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 
 	defer private.Destroy()
 
-	// Sign over the new outer header so jkt/cic/extra claims are bound.
+	// Sign over the new GQ protected header so jkt/cic/extra claims are covered by the GQ signature and can not be altered without breaking signature verification
 	gqMessage := util.JoinJWTSegments(headersEnc, payload)
 	gqSig, err := sv.Sign(private.Bytes(), gqMessage)
 	if err != nil {
