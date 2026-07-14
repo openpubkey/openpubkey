@@ -206,7 +206,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		wc.server = &http.Server{Handler: mux}
 		go func() {
 			err = wc.server.Serve(listener)
-			if err != nil && err != http.ErrServerClosed {
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
 				logrus.Error(err)
 			}
 		}()
@@ -260,10 +260,10 @@ func IssuerToName(issuer string) (string, error) {
 	case strings.HasPrefix(issuer, "https://issuer.hello.coop"):
 		return "hello", nil
 	default:
-		if strings.HasPrefix(issuer, "https://") {
+		if after, ok := strings.CutPrefix(issuer, "https://"); ok {
 			// Returns issuer without the "https://" prefix and without any path remaining on the url
 			// e.g. https://accounts.google.com/fdsfa/fdsafsad -> accounts.google.com
-			return strings.Split(strings.TrimPrefix(issuer, "https://"), "/")[0], nil
+			return strings.Split(after, "/")[0], nil
 
 		}
 		return "", fmt.Errorf("invalid OpenID Provider issuer: %s", issuer)

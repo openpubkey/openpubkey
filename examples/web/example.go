@@ -22,6 +22,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha3"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -39,7 +40,6 @@ import (
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/openpubkey/openpubkey/verifier"
-	"golang.org/x/crypto/sha3"
 )
 
 var (

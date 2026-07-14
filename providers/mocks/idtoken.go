@@ -23,6 +23,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -116,9 +117,7 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 	}
 
 	if subject.Claims != nil {
-		for k, v := range subject.Claims {
-			payloadMap[k] = v
-		}
+		maps.Copy(payloadMap, subject.Claims)
 	}
 
 	payloadBytes, err := json.Marshal(payloadMap)
@@ -128,11 +127,12 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 
 	var providerAlg jwa.KeyAlgorithm
 	if _, ok := t.SigningKey.Public().(*rsa.PublicKey); ok {
-		if t.Alg == "PS256" {
-			providerAlg = jwa.PS256()
-		} else if t.Alg == "RS256" {
+		switch t.Alg {
+		case "RS256":
 			providerAlg = jwa.RS256()
-		} else {
+		case "PS256":
+			providerAlg = jwa.PS256()
+		default:
 			return nil, fmt.Errorf("unsupported RSA algorithm: %s", t.Alg)
 		}
 	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {

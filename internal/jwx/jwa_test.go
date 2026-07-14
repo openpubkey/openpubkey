@@ -263,7 +263,7 @@ func TestFromJoseAlgorithmToJoseAlgorithmRoundTrip(t *testing.T) {
 	}
 
 	for _, joseAlg := range joseAlgorithms {
-		t.Run(string(joseAlg), func(t *testing.T) {
+		t.Run(joseAlg, func(t *testing.T) {
 			jwaAlg, found := FromJoseAlgorithm(joseAlg)
 			if !found {
 				// Skip algorithms that don't have a jwa equivalent

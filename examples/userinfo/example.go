@@ -110,7 +110,7 @@ func login() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("UserInfo", string(userInfoJson))
+	fmt.Println("UserInfo", userInfoJson)
 
 	return nil
 }

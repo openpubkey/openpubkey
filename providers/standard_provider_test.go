@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
@@ -209,7 +210,7 @@ func TestRemoteRedirectURI(t *testing.T) {
 
 	go func() {
 		err := srv.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			t.Errorf("server error: %v", err)
 		}
 	}()
