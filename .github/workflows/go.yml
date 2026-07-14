@@ -12,6 +12,9 @@ on:
       - "go.mod"
       - "go.sum"
 
+permissions:
+  contents: read
+
 jobs:
   golangci-linter:
     name: Run golangci linter
