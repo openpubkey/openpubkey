@@ -429,3 +429,53 @@ func TestRejectUnexpectedAlg(t *testing.T) {
 	err = pv.VerifyIDToken(context.Background(), idTokenBadAlgPh, cic)
 	require.Error(t, err)
 }
+
+func TestGQCommitmentArrayAudReturnsError(t *testing.T) {
+	issuer := "https://gitlab.example.com"
+	clientID := "test-client"
+
+	idtTemplate := mocks.IDTokenTemplate{
+		Issuer:               issuer,
+		Nonce:                "empty",
+		Aud:                  AudPrefixForGQCommitment,
+		Alg:                  "RS256",
+		ExtraClaims:          map[string]any{"aud": []any{AudPrefixForGQCommitment + "abc", "other"}},
+		ExtraProtectedClaims: map[string]any{},
+		CommitFunc:           mocks.NoClaimCommit,
+	}
+	cic := GenCICExtra(t, map[string]any{})
+
+	op, backendMock, _, err := NewMockProvider(MockProviderOpts{
+		Issuer:     issuer,
+		Alg:        "RS256",
+		ClientID:   clientID,
+		GQSign:     true,
+		NumKeys:    2,
+		CommitType: CommitTypesEnum.GQ_BOUND,
+		VerifierOpts: ProviderVerifierOpts{
+			CommitType:        CommitTypesEnum.GQ_BOUND,
+			ClientID:          clientID,
+			SkipClientIDCheck: true,
+			GQOnly:            true,
+		},
+	})
+	require.NoError(t, err)
+	opSignKey, keyID, _ := backendMock.RandomSigningKey()
+	idtTemplate.KeyID = keyID
+	idtTemplate.SigningKey = opSignKey
+	backendMock.SetIDTokenTemplate(&idtTemplate)
+
+	tokens, err := op.RequestTokens(context.Background(), cic)
+	require.NoError(t, err)
+
+	pv := NewProviderVerifier(issuer, ProviderVerifierOpts{
+		CommitType:        CommitTypesEnum.GQ_BOUND,
+		DiscoverPublicKey: &backendMock.PublicKeyFinder,
+		GQOnly:            true,
+		SkipClientIDCheck: true,
+	})
+
+	// An array aud is valid per RFC 7519; verification must return an error, not panic.
+	err = pv.VerifyIDToken(context.Background(), tokens.IDToken, cic)
+	require.ErrorContains(t, err, "must be a string")
+}
