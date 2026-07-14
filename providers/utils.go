@@ -22,7 +22,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"strings"
 
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
@@ -37,11 +36,9 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 			return nil, nil, fmt.Errorf("malformed redirectURI specified, redirectURI was %s", v)
 		}
 
-		if !(strings.HasPrefix(redirectURI.Host, "localhost") ||
-			strings.HasPrefix(redirectURI.Host, "127.0.0.1") ||
-			strings.HasPrefix(redirectURI.Host, "0:0:0:0:0:0:0:1") ||
-			strings.HasPrefix(redirectURI.Host, "::1")) {
-			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was  %s", redirectURI.Host)
+		hostname := redirectURI.Hostname()
+		if hostname != "localhost" && !isLoopbackIP(hostname) {
+			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was %s", redirectURI.Host)
 		}
 
 		lnStr := fmt.Sprintf("localhost:%s", redirectURI.Port())
@@ -73,4 +70,9 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// WithUnsecure() is equivalent to not setting the 'secure' attribute
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
+}
+
+func isLoopbackIP(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

@@ -97,10 +97,12 @@ func (a *Ca) KeyGen(alg string) error {
 	}
 
 	caPEM := new(bytes.Buffer)
-	pem.Encode(caPEM, &pem.Block{
+	if err := pem.Encode(caPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
-	})
+	}); err != nil {
+		return err
+	}
 	a.RootCertPem = caPEM.Bytes()
 
 	return nil
@@ -171,12 +173,12 @@ func (a *Ca) PktToSignedX509(pktJson []byte) ([]byte, error) {
 func (a *Ca) VerifyPktCert(issuedCertPEM []byte) error {
 
 	roots := x509.NewCertPool()
-	ok := roots.AppendCertsFromPEM([]byte(a.RootCertPem))
+	ok := roots.AppendCertsFromPEM(a.RootCertPem)
 	if !ok {
 		return fmt.Errorf("failed to parse root certificate")
 	}
 
-	block, _ := pem.Decode([]byte(issuedCertPEM))
+	block, _ := pem.Decode(issuedCertPEM)
 	if block == nil {
 		return fmt.Errorf("failed to parse certificate PEM")
 	}
@@ -209,6 +211,9 @@ func (a *Ca) VerifyPktCert(issuedCertPEM []byte) error {
 	}
 
 	certPublicKeyBytes, err := x509.MarshalPKIXPublicKey(certPublickey)
+	if err != nil {
+		return err
+	}
 	if err := json.Unmarshal(pktJson, pkt); err != nil {
 		return err
 	}
@@ -220,7 +225,7 @@ func (a *Ca) VerifyPktCert(issuedCertPEM []byte) error {
 	return nil
 }
 
-func ExtractRawPubkey(pkt *pktoken.PKToken) (interface{}, error) {
+func ExtractRawPubkey(pkt *pktoken.PKToken) (any, error) {
 	cic, err := pkt.GetCicValues()
 	if err != nil {
 		return nil, err

@@ -93,11 +93,14 @@ func NewMockProvider(opts MockProviderOpts) (*MockProvider, *mocks.MockProviderB
 	}
 
 	providerSigner, keyID, record := mockBackend.RandomSigningKey()
-	commitmentFunc := mocks.NoClaimCommit
-	if opts.CommitType.Claim == "nonce" {
+	var commitmentFunc func(*mocks.IDTokenTemplate, string)
+	switch opts.CommitType.Claim {
+	case "nonce":
 		commitmentFunc = mocks.AddNonceCommit
-	} else if opts.CommitType.Claim == "aud" {
+	case "aud":
 		commitmentFunc = mocks.AddAudCommit
+	default:
+		commitmentFunc = mocks.NoClaimCommit
 	}
 	idTokenTemplate := &mocks.IDTokenTemplate{
 		CommitFunc: commitmentFunc,

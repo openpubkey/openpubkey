@@ -171,6 +171,48 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
+func TestVerifyModifiedGqProtectedHeaderCic(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	oidcPubKey := &oidcPrivKey.PublicKey
+
+	idToken, err := createOIDCToken(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+	require.NoError(t, err)
+	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("cic", "original-commitment"))
+	require.NoError(t, err)
+
+	modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, "cic", "attacker-commitment")
+	require.NoError(t, err)
+
+	ok := signerVerifier.VerifyJWT(modifiedToken)
+	require.False(t, ok, "verify passed for tampered cic")
+}
+
+func TestVerifyModifiedGqProtectedHeaderJkt(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	oidcPubKey := &oidcPrivKey.PublicKey
+
+	idToken, err := createOIDCToken(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+	require.NoError(t, err)
+	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("jkt", "original-thumbprint"))
+	require.NoError(t, err)
+
+	modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, "jkt", "attacker-thumbprint")
+	require.NoError(t, err)
+
+	ok := signerVerifier.VerifyJWT(modifiedToken)
+	require.False(t, ok, "verify passed for tampered jkt")
+}
+
 func TestNewSignerVerifierRejectsInvalidExponents(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -289,6 +331,32 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 	return newToken, nil
 }
 
+func modifyTokenProtectedHeaderClaim(token []byte, claimKey string, newValue string) ([]byte, error) {
+	headersB64, payload, signature, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, err
+	}
+
+	headersJSON, err := util.Base64DecodeForJWT(headersB64)
+	if err != nil {
+		return nil, err
+	}
+
+	var headers map[string]any
+	if err := json.Unmarshal(headersJSON, &headers); err != nil {
+		return nil, err
+	}
+	headers[claimKey] = newValue
+
+	modifiedHeadersJSON, err := json.Marshal(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	newToken := util.JoinJWTSegments(util.Base64EncodeForJWT(modifiedHeadersJSON), payload, signature)
+	return newToken, nil
+}
+
 func createOIDCTokenPS256(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
 	alg := jwa.PS256() // RSASSA-PSS using SHA-256
 
@@ -378,7 +446,7 @@ func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
 	err = headers.Get(claimKey, &claimValue)
 	if err != nil {
 		// swallow error and communicate via bool instead
-		return nil, false, nil
+		return nil, false, nil //nolint:nilerr // error is intentionally discarded
 	}
 	return claimValue, true, nil
 }

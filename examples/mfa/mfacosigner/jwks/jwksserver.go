@@ -19,16 +19,16 @@ package jwks
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/elliptic"
+	"crypto/sha3"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/openpubkey/openpubkey/jose"
-	"golang.org/x/crypto/sha3"
 )
 
 type JwksServer struct {
@@ -40,7 +40,13 @@ type JwksServer struct {
 func NewJwksServer(signer crypto.Signer, alg jose.KeyAlgorithm) (*JwksServer, string, error) {
 	// Compute the kid (Key ID) as the SHA-3 of the public key
 	pubkey := signer.Public().(*ecdsa.PublicKey) // TODO: handle non-ecdsa signers
-	pubkeyBytes := elliptic.Marshal(pubkey, pubkey.X, pubkey.Y)
+	ecdhPubKey, err := pubkey.ECDH()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to convert public key for byte extraction: %w", err)
+	}
+	pubkeyBytes := ecdhPubKey.Bytes()
+
+	// Compute the kid (Key ID) as the SHA-3 of the public key
 	pubkeyHash := sha3.Sum256(pubkeyBytes)
 	kid := hex.EncodeToString(pubkeyHash[:])
 
@@ -49,15 +55,22 @@ func NewJwksServer(signer crypto.Signer, alg jose.KeyAlgorithm) (*JwksServer, st
 	if err != nil {
 		return nil, "", err
 	}
-	jwkKey.Set(jwk.AlgorithmKey, alg)
-	jwkKey.Set(jwk.KeyIDKey, kid)
+
+	if err := jwkKey.Set(jwk.AlgorithmKey, alg); err != nil {
+		return nil, "", err
+	}
+	if err := jwkKey.Set(jwk.KeyIDKey, kid); err != nil {
+		return nil, "", err
+	}
 
 	// Put our jwk into a set
 	keySet := jwk.NewSet()
-	keySet.AddKey(jwkKey)
+	if err := keySet.AddKey(jwkKey); err != nil {
+		return nil, "", err
+	}
 
 	// Now convert our key set into the raw bytes for printing later
-	keySetBytes, _ := json.MarshalIndent(keySet, "", "  ")
+	keySetBytes, err := json.MarshalIndent(keySet, "", "  ")
 	if err != nil {
 		return nil, "", err
 	}
@@ -77,7 +90,10 @@ func NewJwksServer(signer crypto.Signer, alg jose.KeyAlgorithm) (*JwksServer, st
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/jwks.json", server.printJWKS)
 	go func() {
-		http.Serve(listener, mux)
+		if err := http.Serve(listener, mux); err != nil && err != http.ErrServerClosed {
+			log.Printf("JWKS server error: %v", err)
+		}
+
 	}()
 	return server, kid, nil
 }
@@ -88,5 +104,8 @@ func (s *JwksServer) URI() string {
 
 func (s *JwksServer) printJWKS(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(s.jwksBytes)
+	_, err := w.Write(s.jwksBytes)
+	if err != nil {
+		http.Error(w, "Error writing JWKS", http.StatusInternalServerError)
+	}
 }

@@ -74,7 +74,7 @@ func (c *AuthCosigner) NewAuthcode(authID string) (string, error) {
 func (c *AuthCosigner) RedeemAuthcode(sig []byte) ([]byte, error) {
 	msg, err := jws.Parse(sig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse sig: %s", err)
+		return nil, fmt.Errorf("failed to parse sig: %w", err)
 	}
 	authcode := string(msg.Payload())
 

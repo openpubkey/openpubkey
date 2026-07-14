@@ -22,9 +22,9 @@ import (
 )
 
 func FromJoseAlgorithm(alg jose.KeyAlgorithm) (jwa.KeyAlgorithm, bool) {
-	return jwa.LookupSignatureAlgorithm(string(alg))
+	return jwa.LookupSignatureAlgorithm(alg)
 }
 
 func ToJoseAlgorithm(alg jwa.KeyAlgorithm) jose.KeyAlgorithm {
-	return jose.KeyAlgorithm(alg.String())
+	return alg.String()
 }
