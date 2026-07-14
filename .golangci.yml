@@ -14,3 +14,4 @@ linters:
   fast: true
 run:
   timeout: 5m
+  go: '1.24'
