@@ -54,8 +54,8 @@ func (j *Jws) AddSignature(token []byte, opts ...SigOpts) error {
 	}
 	if j.Payload != string(payload) {
 		return fmt.Errorf("payload in compact token does not match existing payload in jws, expected=(%s), got=(%s)",
-			string(j.Payload),
-			string(payload))
+			j.Payload,
+			payload)
 	}
 	sig := Signature{
 		Protected: string(protected),

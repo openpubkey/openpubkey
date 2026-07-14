@@ -158,7 +158,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 	require.Equal(t, string(expSig), string(sig))
 
 	// Finally check the ID Token we get matches the ID Token we gave
-	require.Equal(t, string(expIdToken), string(idToken))
+	require.Equal(t, expIdToken, string(idToken))
 }
 
 func TestGithubOpFullGQ(t *testing.T) {
