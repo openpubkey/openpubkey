@@ -106,8 +106,6 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 		return nil, err
 	}
 
-	signingPayload := util.JoinJWTSegments(origHeaders, payload)
-
 	headers := jws.NewHeaders()
 	err = headers.Set(jws.AlgorithmKey, jose.GQ256)
 	if err != nil {
@@ -150,7 +148,9 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 
 	defer private.Destroy()
 
-	gqSig, err := sv.Sign(private.Bytes(), signingPayload)
+	// Sign over the new GQ protected header so jkt/cic/extra claims are covered by the GQ signature and can not be altered without breaking signature verification
+	gqMessage := util.JoinJWTSegments(headersEnc, payload)
+	gqSig, err := sv.Sign(private.Bytes(), gqMessage)
 	if err != nil {
 		return nil, err
 	}
