@@ -17,12 +17,12 @@
 package gq
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
 	"testing"
 	"time"
 
@@ -109,16 +109,6 @@ func TestGQ256SignJWT(t *testing.T) {
 		"error creating GQ signature: use of reserved header name, alg, in additional headers",
 		"incorrect error throw")
 	require.Nil(t, gqTokenReservedClaim)
-
-	gqTokenExtraClaimsModified, err := modifyTokenProtectedHeader(gqTokenExtraClaims, "value1", "wrongValue")
-	require.NoError(t, err)
-
-	require.NotEqual(t, gqTokenExtraClaims, gqTokenExtraClaimsModified, "modified token should not equal original token")
-
-	ok2, err := GQ256VerifyJWT(&oidcPrivKey.PublicKey, gqTokenExtraClaimsModified)
-	require.NoError(t, err)
-	require.False(t, ok2, "GQ signature verification passed for invalid payload")
-
 }
 
 // TestGQ256SignJWT_PS256RejectsPS256 verifies that GQ256SignJWT rejects PS256 tokens.
@@ -182,46 +172,73 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 
 }
 
-func TestVerifyModifiedGqProtectedHeaderCic(t *testing.T) {
+func TestVerifyModifiedGqProtectedHeader(t *testing.T) {
+	// This tests exists as regression test for the bug fixed in https://github.com/openpubkey/openpubkey/pull/379
+
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	oidcPubKey := &oidcPrivKey.PublicKey
 
+	tests := []struct {
+		name          string
+		claimToModify string
+		origValue     string
+		newValue      string
+	}{
+		{"modify JKT", "jkt", "original-thumbprint", "attacker-thumbprint"},
+		{"modify CIC", "cic", "original-commitment", "attacker-commitment"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			idToken, err := createOIDCToken(oidcPrivKey, "test")
+			require.NoError(t, err)
+
+			signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+			require.NoError(t, err)
+			gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim(tt.claimToModify, tt.origValue))
+			require.NoError(t, err)
+
+			modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, tt.claimToModify, tt.newValue)
+			require.NoError(t, err)
+			require.NotEqual(t, string(gqToken), modifiedToken, "expected token to be modified but token unchanged")
+
+			ok := signerVerifier.VerifyJWT(modifiedToken)
+			// If ok is true, it means that signature verification is not working correctly
+			//  as altering the message should break the signature.
+			require.False(t, ok, "verify passed for tampered %s", tt.claimToModify)
+		})
+	}
+
+	// To ensure that the above test doesn't accidentally pass due to encoding breaking
+	// the signature and not the tampering itself, we also test a find and replace
+	// modification that does not require JSON parsing or re-encoding the header
 	idToken, err := createOIDCToken(oidcPrivKey, "test")
 	require.NoError(t, err)
 
 	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
 	require.NoError(t, err)
-	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("cic", "original-commitment"))
+
+	// We choose an 8 character string so that we can do a clean find and replace (no padding):
+	// 8 bits*6 characters = 48 bits
+	// 48/6 = 8 base64 characters
+	gqSignedValue := "123456"
+	gqSignedValueB64 := []byte("MTIzNDU2") // base64 of "123456"
+	modificationB64 := []byte("YWJjZGVm")  // base64 of "abcdef"
+	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("claim", gqSignedValue))
 	require.NoError(t, err)
+	gqHeadersB64, payload, signature, err := jws.SplitCompact(gqToken)
 
-	modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, "cic", "attacker-commitment")
-	require.NoError(t, err)
+	// Replace base64("123456") with base64("abcdef")
+	modifiedGqHeaders := bytes.Replace(gqHeadersB64, gqSignedValueB64, modificationB64, 1)
 
-	ok := signerVerifier.VerifyJWT(modifiedToken)
-	require.False(t, ok, "verify passed for tampered cic")
-}
+	// Ensure headers were actually modified, and modification carries into the GQ signature, otherwise the test is invalid
+	require.NotEqual(t, string(gqHeadersB64), string(modifiedGqHeaders), "modified token should not equal original token")
+	modifiedGqToken := util.JoinJWTSegments(modifiedGqHeaders, payload, signature)
+	require.NotEqual(t, string(gqToken), modifiedGqToken, "modified token should not equal original token")
 
-func TestVerifyModifiedGqProtectedHeaderJkt(t *testing.T) {
-	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
-	oidcPubKey := &oidcPrivKey.PublicKey
-
-	idToken, err := createOIDCToken(oidcPrivKey, "test")
-	require.NoError(t, err)
-
-	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
-	require.NoError(t, err)
-	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("jkt", "original-thumbprint"))
-	require.NoError(t, err)
-
-	modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, "jkt", "attacker-thumbprint")
-	require.NoError(t, err)
-
-	ok := signerVerifier.VerifyJWT(modifiedToken)
-	require.False(t, ok, "verify passed for tampered jkt")
+	ok := signerVerifier.VerifyJWT([]byte(modifiedGqToken))
+	require.False(t, ok, "verify passed for tampered token")
 }
 
 func TestNewSignerVerifierRejectsInvalidExponents(t *testing.T) {
@@ -321,24 +338,6 @@ func generateTestRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
 		key.Precompute()
 		return key
 	}
-}
-
-// modifyTokenProtectedHeader replaces the first instance of the string old with the string new in the protected header of a JWT.
-func modifyTokenProtectedHeader(token []byte, old string, new string) ([]byte, error) {
-	headers, payload, signature, err := jws.SplitCompact(token)
-	if err != nil {
-		return nil, err
-	}
-	decodedHeaders, err := util.Base64DecodeForJWT(headers)
-	if err != nil {
-		return nil, err
-	}
-	modifiedHeaders := strings.Replace(string(decodedHeaders), old, new, 1)
-	if string(decodedHeaders) == modifiedHeaders {
-		return nil, fmt.Errorf("no changes made to headers")
-	}
-	newToken := util.JoinJWTSegments(util.Base64EncodeForJWT([]byte(modifiedHeaders)), payload, signature)
-	return newToken, nil
 }
 
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
