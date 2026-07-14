@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,16 @@ func TestGQ256SignJWT(t *testing.T) {
 		"error creating GQ signature: use of reserved header name, alg, in additional headers",
 		"incorrect error throw")
 	require.Nil(t, gqTokenReservedClaim)
+
+	gqTokenExtraClaimsModified, err := modifyTokenProtectedHeader(gqTokenExtraClaims, "value1", "wrongValue")
+	require.NoError(t, err)
+
+	require.NotEqual(t, gqTokenExtraClaims, gqTokenExtraClaimsModified, "modified token should not equal original token")
+
+	ok2, err := GQ256VerifyJWT(&oidcPrivKey.PublicKey, gqTokenExtraClaimsModified)
+	require.NoError(t, err)
+	require.False(t, ok2, "GQ signature verification passed for invalid payload")
+
 }
 
 // TestGQ256SignJWT_PS256RejectsPS256 verifies that GQ256SignJWT rejects PS256 tokens.
@@ -310,6 +321,24 @@ func generateTestRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
 		key.Precompute()
 		return key
 	}
+}
+
+// modifyTokenProtectedHeader replaces the first instance of the string old with the string new in the protected header of a JWT.
+func modifyTokenProtectedHeader(token []byte, old string, new string) ([]byte, error) {
+	headers, payload, signature, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, err
+	}
+	decodedHeaders, err := util.Base64DecodeForJWT(headers)
+	if err != nil {
+		return nil, err
+	}
+	modifiedHeaders := strings.Replace(string(decodedHeaders), old, new, 1)
+	if string(decodedHeaders) == modifiedHeaders {
+		return nil, fmt.Errorf("no changes made to headers")
+	}
+	newToken := util.JoinJWTSegments(util.Base64EncodeForJWT([]byte(modifiedHeaders)), payload, signature)
+	return newToken, nil
 }
 
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
