@@ -48,4 +48,13 @@ func TestAuthState(t *testing.T) {
 	require.Equal(t, "mockIssuer", userKey.Issuer, "issuer mismatch")
 	require.Equal(t, "empty", userKey.Aud, "aud mismatch")
 	require.Equal(t, "me", userKey.Sub, "issuer mismatch")
+
+	// Test corrupted auth state
+	corruptedPkt, err := mocks.GenerateMockPKToken(t, signer, alg)
+	require.NoError(t, err)
+
+	corruptedPkt.Payload = []byte(`{"iss":"https://example.com","aud":123}`) // Corrupt the audience claim
+
+	_, err = cosigner.NewAuthState(corruptedPkt, ruri, nonce)
+	require.Error(t, err, "failed to create auth state")
 }
