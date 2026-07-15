@@ -94,8 +94,3 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
 }
-
-func isLoopbackIP(host string) bool {
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
