@@ -307,11 +307,13 @@ func TestCICSignature(t *testing.T) {
 				CorrectCicHash: true,
 				CorrectCicSig:  tc.correctCicSig,
 			}
-			if tc.commitType.Claim == "nonce" {
+
+			switch tc.commitType.Claim {
+			case "nonce":
 				idtTemplate.CommitFunc = mocks.AddNonceCommit
-			} else if tc.commitType.Claim == "aud" {
+			case "aud":
 				idtTemplate.CommitFunc = mocks.AddAudCommit
-			} else {
+			default:
 				idtTemplate.CommitFunc = mocks.NoClaimCommit
 			}
 			pkt, backendMock, err := pktoken_mocks.GenerateMockPKTokenWithOpts(t, cicSigner, alg, idtTemplate, tokenOpts)

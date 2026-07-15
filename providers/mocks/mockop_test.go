@@ -142,7 +142,7 @@ func TestValidateDPoPReturnJwk(t *testing.T) {
 				"c_s256": cS256B64,
 			}
 
-			jwkMapRet, err := validateDPoPReturnJwk(string(jwsDpopCompact), string(tc.jkt), requiredClaims)
+			jwkMapRet, err := validateDPoPReturnJwk(string(jwsDpopCompact), tc.jkt, requiredClaims)
 			if tc.expectedErr == "" {
 				require.NoError(t, err, tc.name)
 

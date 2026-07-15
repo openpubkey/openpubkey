@@ -456,7 +456,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		cicHash := authSession.Nonce
 		m.MockProviderBackend.IDTokenTemplate.AddCommit(cicHash)
 
-		refreshTokenValue = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
+		refreshTokenValue = fmt.Appendf(nil, "mock-refresh-token-%d", len(m.refreshTokens)+1)
 		m.refreshTokens[string(refreshTokenValue)] = authSession
 
 	// Device flow RFC 8628 OAuth 2.0 Device Authorization Grant
@@ -516,7 +516,7 @@ func (m *MockOp) IssueTokens(req *http.Request) ([]byte, error) {
 		}
 		m.MockProviderBackend.IDTokenTemplate.NoNonce = true
 
-		refreshTokenValue = []byte(fmt.Sprintf("mock-refresh-token-%d", len(m.refreshTokens)+1))
+		refreshTokenValue = fmt.Appendf(nil, "mock-refresh-token-%d", len(m.refreshTokens)+1)
 		m.refreshTokens[string(refreshTokenValue)] = authSession
 		if m.KeyBinding {
 			dpop := req.Header.Get("DPoP")
@@ -639,7 +639,7 @@ func validateDPoPReturnJwk(dpop string, jktExpected string, claimsRequired map[s
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key algorithm from alg in DPoP header: %w", err)
 	}
-	if _, err := jws.Verify([]byte(dpopJwt.GetRaw()), jws.WithKey(headerKeyAlg, key)); err != nil {
+	if _, err := jws.Verify(dpopJwt.GetRaw(), jws.WithKey(headerKeyAlg, key)); err != nil {
 		return nil, fmt.Errorf("failed to verify DPoP header signature: %w", err)
 	}
 

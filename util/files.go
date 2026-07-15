@@ -55,7 +55,7 @@ func ReadSKFile(fpath string) (*ecdsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	block, _ := pem.Decode([]byte(pemBytes))
+	block, _ := pem.Decode(pemBytes)
 	return x509.ParseECPrivateKey(block.Bytes)
 }
 
@@ -69,7 +69,7 @@ func GenKeyPair(alg jose.KeyAlgorithm) (crypto.Signer, error) {
 		_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 		return privateKey, err
 	default:
-		return nil, fmt.Errorf("unsupported algorithm: %s", string(alg))
+		return nil, fmt.Errorf("unsupported algorithm: %s", alg)
 	}
 }
 

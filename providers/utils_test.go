@@ -51,7 +51,7 @@ func TestFindAvailablePort(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			blockedPorts := []net.Listener{}
 			// Simulate the case where a port is in use and the provider has to use a different redirect URI
-			for i := 0; i < tc.portsToBlock; i++ {
+			for i := range tc.portsToBlock {
 				parsedUrl, err := url.Parse(redirects[i])
 				require.NoError(t, err)
 				lnStr := fmt.Sprintf("localhost:%s", parsedUrl.Port())

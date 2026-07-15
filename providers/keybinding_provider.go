@@ -63,16 +63,16 @@ func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) er
 	if err != nil {
 		return err
 	}
-	if s.StandardOp.ExtraURLParamOpts == nil {
-		s.StandardOp.ExtraURLParamOpts = map[string]string{}
+	if s.ExtraURLParamOpts == nil {
+		s.ExtraURLParamOpts = map[string]string{}
 	}
-	s.StandardOp.ExtraURLParamOpts["dpop_jkt"] = string(jktb64)
+	s.ExtraURLParamOpts["dpop_jkt"] = string(jktb64)
 
 	// Override the StandardOp's HTTP client so we can read the authcode and set the DPoP header
-	if s.StandardOp.HttpClient == nil {
-		s.StandardOp.HttpClient = &http.Client{}
+	if s.HttpClient == nil {
+		s.HttpClient = &http.Client{}
 	}
-	s.StandardOp.HttpClient.Transport = &dPoPRoundTripper{
+	s.HttpClient.Transport = &dPoPRoundTripper{
 		Base:   base,
 		Signer: kbSigner,
 		Alg:    kbAlg,

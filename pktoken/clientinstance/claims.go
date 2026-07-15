@@ -157,7 +157,7 @@ func (c *Claims) PublicKey() crypto.PublicKey {
 }
 
 func (c *Claims) KeyAlgorithm() jose.KeyAlgorithm {
-	return jose.KeyAlgorithm(c.algorithm)
+	return c.algorithm
 }
 
 // Returns a hash of all client instance claims which includes a random value
