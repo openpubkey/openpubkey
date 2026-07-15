@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -128,7 +129,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	}
 	go func() {
 		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			select {
 			case errCh <- fmt.Errorf("cosigner callback server failed: %w", err):
 			case <-ctx.Done():

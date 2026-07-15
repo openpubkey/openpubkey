@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -319,7 +320,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	go func() {
 		err := s.server.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			select {
 			case chErr <- fmt.Errorf("OIDC callback server failed: %w", err):
 			case <-ctx.Done():
@@ -454,7 +455,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 
 	code, err := qrcode.Create(qrCodeURL)
 	if err == nil {
-		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
+		fmt.Printf("\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
 	}
 	textual := strings.Builder{}
 	if code != "" {

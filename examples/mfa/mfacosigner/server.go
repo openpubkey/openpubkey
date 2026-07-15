@@ -123,7 +123,11 @@ func (s *Server) checkIfRegistered(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(200)
-	w.Write(response)
+	_, err = w.Write(response)
+	if err != nil {
+		http.Error(w, "Error writing response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetAuthID(r *http.Request) (string, error) {
@@ -141,6 +145,10 @@ func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options, err := s.cosigner.BeginRegistration(authID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	optionsJson, err := json.Marshal(options)
 	if err != nil {
@@ -149,7 +157,11 @@ func (s *Server) beginRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(optionsJson)
+	_, err = w.Write(optionsJson)
+	if err != nil {
+		http.Error(w, "Error writing options", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) finishRegistration(w http.ResponseWriter, r *http.Request) {
@@ -194,7 +206,11 @@ func (s *Server) beginLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(optionsJson)
+	_, err = w.Write(optionsJson)
+	if err != nil {
+		http.Error(w, "Error writing options", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +237,11 @@ func (s *Server) finishLogin(w http.ResponseWriter, r *http.Request) {
 		"redirect_uri": redirectURIl,
 	})
 	w.WriteHeader(201)
-	w.Write(response)
+	_, err = w.Write(response)
+	if err != nil {
+		http.Error(w, "Error writing response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +259,11 @@ func (s *Server) signPkt(w http.ResponseWriter, r *http.Request) {
 	} else {
 		cosSigB64 := util.Base64EncodeForJWT(cosSig)
 		w.WriteHeader(201)
-		w.Write(cosSigB64)
+		_, err := w.Write(cosSigB64)
+		if err != nil {
+			http.Error(w, "Error writing cosignature", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -260,5 +284,9 @@ func (s *Server) wellKnownConf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(200)
-	w.Write(wkJson)
+	_, err = w.Write(wkJson)
+	if err != nil {
+		http.Error(w, "Error writing well-known configuration", http.StatusInternalServerError)
+		return
+	}
 }

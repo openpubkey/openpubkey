@@ -45,7 +45,7 @@ func BrowserOpenOverride(opToChoose string) func(string) error {
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed requesting webchooser at %s got status: %d", string(uri), resp.StatusCode)
+			return fmt.Errorf("failed requesting webchooser at %s got status: %d", uri, resp.StatusCode)
 		}
 		selectOpUri := "http://" + resp.Request.URL.Host + "/select?op=" + opToChoose
 		// We need to run this in a go func because ChooseOp blocks on getting the redirect URI from the OP
@@ -70,7 +70,7 @@ func retryHTTPGet(url string) (*http.Response, error) {
 	var lastErr error
 	delay := initialDelay
 
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		resp, err := http.Get(url)
 		if err == nil {
 			return resp, nil
