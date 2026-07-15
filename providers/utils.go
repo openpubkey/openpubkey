@@ -50,11 +50,8 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 		// browser navigation target below, that would let an attacker steer
 		// either one off of loopback.
 		host := redirectURI.Hostname()
-		if host != "localhost" {
-			ip := net.ParseIP(host)
-			if ip == nil || !ip.IsLoopback() {
-				return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was  %s", redirectURI.Host)
-			}
+		if host != "localhost" && !isLoopbackIP(host) {
+			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was %s", redirectURI.Host)
 		}
 
 		// Bind the redirect URI's actual host rather than a hardcoded
@@ -93,4 +90,9 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// WithUnsecure() is equivalent to not setting the 'secure' attribute
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
+}
+
+func isLoopbackIP(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
