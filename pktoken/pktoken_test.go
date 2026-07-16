@@ -29,6 +29,8 @@ import (
 	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken"
 	"github.com/openpubkey/openpubkey/pktoken/mocks"
+	"github.com/openpubkey/openpubkey/providers"
+	provmocks "github.com/openpubkey/openpubkey/providers/mocks"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 
@@ -346,6 +348,55 @@ func TestThumprintCalculation(t *testing.T) {
 		t.Fatalf("thumbprint %s did not match expected value %s", thumbEnc, fromRfc)
 	}
 
+}
+
+// TestAtJWTTokenType verifies that PKTokens whose OP signature carries
+// typ "at+JWT" (RFC 9068 access tokens) are handled correctly.
+// Both NewFromCompact and UnmarshalJSON (exercised via DeepCopy) must
+// treat "at+JWT" as equivalent to "JWT" (OIDC).
+func TestAtJWTTokenType(t *testing.T) {
+	alg := jose.ES256
+	signingKey, err := util.GenKeyPair(alg)
+	require.NoError(t, err)
+
+	idtTemplate := provmocks.DefaultIDTokenTemplate()
+	idtTemplate.ExtraProtectedClaims = map[string]any{"typ": "at+JWT"}
+
+	opts := &mocks.MockPKTokenOpts{
+		GQSign:         false,
+		CommitType:     providers.CommitTypesEnum.NONCE_CLAIM,
+		CorrectCicHash: true,
+		CorrectCicSig:  true,
+	}
+	pkt, _, err := mocks.GenerateMockPKTokenWithOpts(t, signingKey, alg, idtTemplate, opts)
+	require.NoError(t, err)
+
+	t.Run("NewFromCompact", func(t *testing.T) {
+		pktCom, err := pkt.Compact()
+		require.NoError(t, err)
+
+		pktFromCom, err := pktoken.NewFromCompact(pktCom)
+		require.NoError(t, err)
+		require.NotNil(t, pktFromCom.OpToken)
+		require.NotNil(t, pktFromCom.CicToken)
+	})
+
+	t.Run("UnmarshalJSON", func(t *testing.T) {
+		pktJSON, err := json.Marshal(pkt)
+		require.NoError(t, err)
+
+		var pktCopy pktoken.PKToken
+		require.NoError(t, json.Unmarshal(pktJSON, &pktCopy))
+		require.NotNil(t, pktCopy.OpToken)
+		require.NotNil(t, pktCopy.CicToken)
+	})
+
+	t.Run("DeepCopy", func(t *testing.T) {
+		pktCopy, err := pkt.DeepCopy()
+		require.NoError(t, err)
+		require.NotNil(t, pktCopy.OpToken)
+		require.NotNil(t, pktCopy.CicToken)
+	})
 }
 
 func BuildToken(protected string, payload string, sig string) []byte {

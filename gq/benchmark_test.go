@@ -41,7 +41,7 @@ func BenchmarkSigning(b *testing.B) {
 	b.ResetTimer()
 
 	var signerVerifier SignerVerifier
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		signerVerifier, err = NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		require.NoError(b, err)
 		_, err = signerVerifier.SignJWT(matrix[i].token)
@@ -60,7 +60,7 @@ func BenchmarkVerifying(b *testing.B) {
 
 	// Generate signatures using matrix
 	gqSignedTokens := [][]byte{}
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		require.NoError(b, err)
 		sig, err := signerVerifier.SignJWT(matrix[i].token)
@@ -73,7 +73,7 @@ func BenchmarkVerifying(b *testing.B) {
 	b.ResetTimer()
 
 	var ok bool
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		signerVerifier, err := NewSignerVerifier(matrix[i].rsaPublicKey, 256)
 		require.NoError(b, err)
 		ok = signerVerifier.VerifyJWT(gqSignedTokens[i])
@@ -87,7 +87,7 @@ func BenchmarkVerifying(b *testing.B) {
 
 func generateTestMatrix(n int) ([]testTuple, error) {
 	tests := []testTuple{}
-	for i := 0; i < n; i++ {
+	for range n {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			return nil, err

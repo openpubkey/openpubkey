@@ -17,6 +17,7 @@
 package gq
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
@@ -110,6 +111,20 @@ func TestGQ256SignJWT(t *testing.T) {
 	require.Nil(t, gqTokenReservedClaim)
 }
 
+// TestGQ256SignJWT_PS256RejectsPS256 verifies that GQ256SignJWT rejects PS256 tokens.
+// GQ signing is incompatible with PS256: PSS padding uses a randomized salt, so
+// the encoded identity cannot be reconstructed deterministically for GQ1 verification.
+func TestGQ256SignJWT_RejectsPS256(t *testing.T) {
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	idToken, err := createOIDCTokenPS256(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	_, err = GQ256SignJWT(&oidcPrivKey.PublicKey, idToken)
+	require.ErrorContains(t, err, "GQ signing requires an RS256-signed JWT")
+}
+
 func TestVerifyModifiedIdPayload(t *testing.T) {
 	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -155,6 +170,76 @@ func TestVerifyModifiedGqPayload(t *testing.T) {
 	ok := signerVerifier.VerifyJWT(modifiedToken)
 	require.False(t, ok, "GQ signature verification passed for invalid payload")
 
+}
+
+func TestVerifyModifiedGqProtectedHeader(t *testing.T) {
+	// This tests exists as regression test for the bug fixed in https://github.com/openpubkey/openpubkey/pull/379
+
+	oidcPrivKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	oidcPubKey := &oidcPrivKey.PublicKey
+
+	tests := []struct {
+		name          string
+		claimToModify string
+		origValue     string
+		newValue      string
+	}{
+		{"modify JKT", "jkt", "original-thumbprint", "attacker-thumbprint"},
+		{"modify CIC", "cic", "original-commitment", "attacker-commitment"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			idToken, err := createOIDCToken(oidcPrivKey, "test")
+			require.NoError(t, err)
+
+			signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+			require.NoError(t, err)
+			gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim(tt.claimToModify, tt.origValue))
+			require.NoError(t, err)
+
+			modifiedToken, err := modifyTokenProtectedHeaderClaim(gqToken, tt.claimToModify, tt.newValue)
+			require.NoError(t, err)
+			require.NotEqual(t, string(gqToken), modifiedToken, "expected token to be modified but token unchanged")
+
+			ok := signerVerifier.VerifyJWT(modifiedToken)
+			// If ok is true, it means that signature verification is not working correctly
+			//  as altering the message should break the signature.
+			require.False(t, ok, "verify passed for tampered %s", tt.claimToModify)
+		})
+	}
+
+	// To ensure that the above test doesn't accidentally pass due to encoding breaking
+	// the signature and not the tampering itself, we also test a find and replace
+	// modification that does not require JSON parsing or re-encoding the header
+	idToken, err := createOIDCToken(oidcPrivKey, "test")
+	require.NoError(t, err)
+
+	signerVerifier, err := NewSignerVerifier(oidcPubKey, 256)
+	require.NoError(t, err)
+
+	// We choose an 8 character string so that we can do a clean find and replace (no padding):
+	// 8 bits*6 characters = 48 bits
+	// 48/6 = 8 base64 characters
+	gqSignedValue := "123456"
+	gqSignedValueB64 := []byte("MTIzNDU2") // base64 of "123456"
+	modificationB64 := []byte("YWJjZGVm")  // base64 of "abcdef"
+	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("claim", gqSignedValue))
+	require.NoError(t, err)
+	gqHeadersB64, payload, signature, err := jws.SplitCompact(gqToken)
+	require.NoError(t, err)
+
+	// Replace base64("123456") with base64("abcdef")
+	modifiedGqHeaders := bytes.Replace(gqHeadersB64, gqSignedValueB64, modificationB64, 1)
+
+	// Ensure headers were actually modified, and modification carries into the GQ signature, otherwise the test is invalid
+	require.NotEqual(t, string(gqHeadersB64), string(modifiedGqHeaders), "modified token should not equal original token")
+	modifiedGqToken := util.JoinJWTSegments(modifiedGqHeaders, payload, signature)
+	require.NotEqual(t, string(gqToken), modifiedGqToken, "modified token should not equal original token")
+
+	ok := signerVerifier.VerifyJWT(modifiedGqToken)
+	require.False(t, ok, "verify passed for tampered token")
 }
 
 func TestNewSignerVerifierRejectsInvalidExponents(t *testing.T) {
@@ -275,6 +360,66 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 	return newToken, nil
 }
 
+func modifyTokenProtectedHeaderClaim(token []byte, claimKey string, newValue string) ([]byte, error) {
+	headersB64, payload, signature, err := jws.SplitCompact(token)
+	if err != nil {
+		return nil, err
+	}
+
+	headersJSON, err := util.Base64DecodeForJWT(headersB64)
+	if err != nil {
+		return nil, err
+	}
+
+	var headers map[string]any
+	if err := json.Unmarshal(headersJSON, &headers); err != nil {
+		return nil, err
+	}
+	headers[claimKey] = newValue
+
+	modifiedHeadersJSON, err := json.Marshal(headers)
+	if err != nil {
+		return nil, err
+	}
+
+	newToken := util.JoinJWTSegments(util.Base64EncodeForJWT(modifiedHeadersJSON), payload, signature)
+	return newToken, nil
+}
+
+func createOIDCTokenPS256(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
+	alg := jwa.PS256() // RSASSA-PSS using SHA-256
+
+	oidcHeader := jws.NewHeaders()
+	err := oidcHeader.Set(jws.AlgorithmKey, alg)
+	if err != nil {
+		return nil, err
+	}
+	err = oidcHeader.Set(jws.TypeKey, "JWT")
+	if err != nil {
+		return nil, err
+	}
+
+	oidcPayload := map[string]any{
+		"sub": "1",
+		"iss": "test",
+		"aud": audience,
+		"iat": time.Now().Unix(),
+	}
+	payloadBytes, err := json.Marshal(oidcPayload)
+	if err != nil {
+		return nil, err
+	}
+
+	return jws.Sign(
+		payloadBytes,
+		jws.WithKey(
+			alg,
+			oidcPrivKey,
+			jws.WithProtectedHeaders(oidcHeader),
+		),
+	)
+}
+
 func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, error) {
 	alg := jwa.RS256() // RSASSA-PKCS-v1.5 using SHA-256
 
@@ -330,7 +475,7 @@ func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
 	err = headers.Get(claimKey, &claimValue)
 	if err != nil {
 		// swallow error and communicate via bool instead
-		return nil, false, nil
+		return nil, false, nil //nolint:nilerr // error is intentionally discarded
 	}
 	return claimValue, true, nil
 }

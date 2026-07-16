@@ -56,17 +56,32 @@ func (id *OidcClaims) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// An audience can be a string or an array of strings.
+	//
+	// RFC-7519 JSON Web Token (JWT) says:
+	// "In the general case, the "aud" value is an array of case-
+	// sensitive strings, each containing a StringOrURI value.  In the
+	// special case when the JWT has one audience, the "aud" value MAY be a
+	// single case-sensitive string containing a StringOrURI value."
+	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
 	switch t := aux.Audience.(type) {
 	case string:
 		id.Audience = t
 	case []any:
 		audList := []string{}
 		for _, v := range t {
-			audList = append(audList, v.(string))
+			if audStr, ok := v.(string); ok {
+				audList = append(audList, audStr)
+			} else {
+				return fmt.Errorf("invalid audience type in audience list, got %T", v)
+			}
 		}
+		// TODO: Change audience to []string
 		id.Audience = strings.Join(audList, ",")
-	default:
+	case nil:
 		id.Audience = ""
+	default:
+		return fmt.Errorf("invalid audience type, got %T", t)
 	}
 
 	return nil

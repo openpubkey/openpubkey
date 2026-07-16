@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -135,7 +136,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	logrus.Info("press ctrl+c to stop")
 	go func() {
 		err := server.Serve(listener)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logrus.Error(err)
 		}
 	}()

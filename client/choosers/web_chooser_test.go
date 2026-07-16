@@ -150,7 +150,6 @@ func TestGoogleSelection(t *testing.T) {
 			// Since we use a go func inside the test, we need to ensure it finishes before we move on to the next test
 			select {
 			case <-testRunDone:
-				require.Nil(t, nil)
 			case <-time.After(5 * time.Second):
 				t.Fatal("test timed out")
 			}

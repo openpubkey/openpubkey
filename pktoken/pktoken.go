@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
@@ -103,6 +104,11 @@ func NewFromCompact(pktCom []byte) (*PKToken, error) {
 			// performed by the JWT application.  If present, it is RECOMMENDED that its value be "JWT"
 			//  to indicate that this object is a JWT."
 			//  https://datatracker.ietf.org/doc/html/rfc7519#section-5.1
+			typ = string(OIDC)
+		} else if strings.EqualFold(typ, "at+jwt") {
+			// RFC 9068 access token JWTs carry the same identity claims as OIDC ID tokens.
+			// Ticino issues access tokens as at+JWT; treat them as OIDC tokens for OpenPubKey.
+			// Media types are case-insensitive (RFC 2045), so match any casing.
 			typ = string(OIDC)
 		}
 
@@ -359,6 +365,11 @@ func (p *PKToken) UnmarshalJSON(data []byte) error {
 
 		if err := protected.Get(jws.TypeKey, &typeHeader); err == nil {
 			sigType = SignatureType(typeHeader)
+			if strings.EqualFold(typeHeader, "at+jwt") {
+				// RFC 9068 access token JWTs; treat as OIDC tokens for OpenPubKey.
+				// Media types are case-insensitive (RFC 2045), so match any casing.
+				sigType = OIDC
+			}
 		} else {
 			// missing typ claim, assuming this is from the OIDC provider
 			sigType = OIDC

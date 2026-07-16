@@ -87,13 +87,13 @@ func (g *GitlabCiOp) RequestTokens(ctx context.Context, cic *clientinstance.Clai
 	// because the ID Token contains the OPs RSA signature which is a secret
 	// in GQ signatures. For non-GQ signatures OPs RSA signature is considered
 	// a public value.
-	idTokenLB := memguard.NewBufferFromBytes([]byte(idToken))
+	idTokenLB := memguard.NewBufferFromBytes(idToken)
 	defer idTokenLB.Destroy()
 	gqToken, err := CreateGQBoundToken(ctx, idTokenLB.Bytes(), g, string(cicHash))
 	if err != nil {
 		return nil, err
 	}
-	return &simpleoidc.Tokens{IDToken: []byte(gqToken)}, nil
+	return &simpleoidc.Tokens{IDToken: gqToken}, nil
 }
 
 func (g *GitlabCiOp) Issuer() string {

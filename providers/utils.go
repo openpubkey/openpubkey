@@ -22,7 +22,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"strings"
 
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 )
@@ -37,15 +36,33 @@ func FindAvailablePort(redirectURIs []string) (*url.URL, net.Listener, error) {
 			return nil, nil, fmt.Errorf("malformed redirectURI specified, redirectURI was %s", v)
 		}
 
-		if !(strings.HasPrefix(redirectURI.Host, "localhost") ||
-			strings.HasPrefix(redirectURI.Host, "127.0.0.1") ||
-			strings.HasPrefix(redirectURI.Host, "0:0:0:0:0:0:0:1") ||
-			strings.HasPrefix(redirectURI.Host, "::1")) {
-			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was  %s", redirectURI.Host)
+		// Check Hostname(), not Host: Host retains the ":port" suffix and,
+		// for IPv6, the "[...]" brackets, which would make a bracketed
+		// "[::1]" literal fail the checks below.
+		//
+		// Require an exact match against "localhost" or a parsed loopback IP
+		// rather than a prefix match: strings.HasPrefix(host, "localhost") or
+		// strings.HasPrefix(host, "127.0.0.1") would also accept lookalike
+		// hostnames such as "localhost.attacker.com" or
+		// "127.0.0.1.attacker.com". Those pass a prefix check but resolve via
+		// DNS to whatever address an attacker's nameserver returns. Since this
+		// host is used directly both to bind the callback listener and as the
+		// browser navigation target below, that would let an attacker steer
+		// either one off of loopback.
+		host := redirectURI.Hostname()
+		if host != "localhost" && !isLoopbackIP(host) {
+			return nil, nil, fmt.Errorf("redirectURI must be localhost, redirectURI was %s", redirectURI.Host)
 		}
 
-		lnStr := fmt.Sprintf("localhost:%s", redirectURI.Port())
-		ln, lnErr = net.Listen("tcp", lnStr)
+		// Bind the redirect URI's actual host rather than a hardcoded
+		// "localhost". "localhost" can resolve to both 127.0.0.1 and ::1, so a
+		// hardcoded bind picks a single address family; a browser that
+		// prefers the other family (most browsers try ::1 first) then
+		// connects to a different socket and the OIDC callback is never
+		// delivered. Honoring the configured host lets callers pin an IP
+		// literal (e.g. 127.0.0.1) for a deterministic single-family bind
+		// that the browser navigation below is guaranteed to match.
+		ln, lnErr = net.Listen("tcp", redirectURI.Host)
 		if lnErr == nil {
 			return redirectURI, ln, nil
 		}
@@ -73,4 +90,9 @@ func configCookieHandler() (*httphelper.CookieHandler, error) {
 	// WithUnsecure() is equivalent to not setting the 'secure' attribute
 	// flag in an HTTP Set-Cookie header (see https://http.dev/set-cookie#secure)
 	return httphelper.NewCookieHandler(hashKey, blockKey, httphelper.WithUnsecure()), nil
+}
+
+func isLoopbackIP(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

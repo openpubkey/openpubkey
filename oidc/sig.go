@@ -23,10 +23,10 @@ import (
 )
 
 type Signature struct {
-	Protected       string                 `json:"protected"` // Base64 encoded
-	protectedClaims *ProtectedClaims       // Unmarshalled protected claims
-	Public          map[string]interface{} `json:"header,omitempty"`
-	Signature       string                 `json:"signature"` // Base64 encoded
+	Protected       string           `json:"protected"` // Base64 encoded
+	protectedClaims *ProtectedClaims // Unmarshalled protected claims
+	Public          map[string]any   `json:"header,omitempty"`
+	Signature       string           `json:"signature"` // Base64 encoded
 }
 
 type ProtectedClaims struct {

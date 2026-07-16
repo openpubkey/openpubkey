@@ -155,7 +155,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 
 		// Validate that key type matches the algorithm in the token
 		switch alg {
-		case jwa.RS256():
+		case jwa.RS256(), jwa.PS256():
 			if _, ok := pubKeyRecord.PublicKey.(*rsa.PublicKey); !ok {
 				return fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKeyRecord.PublicKey)
 			}
@@ -220,6 +220,10 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		if !ok {
 			return fmt.Errorf("require audience claim prefix missing in PK Token's GQCommitment")
 		}
+		audStr, ok := aud.(string)
+		if !ok {
+			return fmt.Errorf("audience claim in PK Token's GQCommitment must be a string, got %T", aud)
+		}
 
 		// To prevent attacks where a attacker takes someone else's ID Token
 		// and turns it into a PK Token using a GQCommitment, we require that
@@ -228,9 +232,9 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 		// claim with a configured prefix (default: "OPENPUBKEY-PKTOKEN:").
 		// We reject all GQ commitment PK Tokens that don't have this prefix
 		// in the aud claim.
-		if _, ok := strings.CutPrefix(aud.(string), v.options.GQAudiencePrefix); !ok {
+		if _, ok := strings.CutPrefix(audStr, v.options.GQAudiencePrefix); !ok {
 			return fmt.Errorf("audience claim in PK Token's GQCommitment must be prefixed by (%s), got (%s) instead",
-				v.options.GQAudiencePrefix, aud.(string))
+				v.options.GQAudiencePrefix, audStr)
 		}
 
 		// Get the commitment from the GQ signed protected header claim "cic" in the ID Token

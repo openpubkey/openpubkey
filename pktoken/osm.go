@@ -154,7 +154,7 @@ func (p *PKToken) VerifySignedMessage(osm []byte, options ...OptionFunc) ([]byte
 		return nil, fmt.Errorf("unable to hash PK Token: %w", err)
 	}
 
-	if kid != string(pktHash) {
+	if kid != pktHash {
 		return nil, fmt.Errorf(`incorrect "kid" header, expected %s but received %s`, pktHash, kid)
 	}
 

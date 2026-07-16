@@ -54,7 +54,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	// for i from 1 to t, compute W_i <- r_i^v mod n
 	// combine to form W
 	var W []byte
-	for i := 0; i < t; i++ {
+	for i := range t {
 		W_i := bigmod.NewNat().Exp(r[i], v.Bytes(), n)
 		W = append(W, W_i.Bytes(n)...)
 	}
@@ -68,7 +68,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 
 	// split R into t numbers each consisting of vBytes bytes
 	Rs := make([]*bigmod.Nat, t)
-	for i := 0; i < t; i++ {
+	for i := range t {
 		Rs[i], err = new(bigmod.Nat).SetBytes(R[i*vBytes:(i+1)*vBytes], n)
 		if err != nil {
 			return nil, err
@@ -79,7 +79,7 @@ func (sv *signerVerifier) Sign(private []byte, message []byte) ([]byte, error) {
 	// for i from 1 to t, compute S_i <- r_i * Q^{R_i} mod n
 	// combine to form S
 	var S []byte
-	for i := 0; i < t; i++ {
+	for i := range t {
 		S_i := bigmod.NewNat().Exp(Q, Rs[i].Bytes(n), n)
 		S_i.Mul(r[i], n)
 		S = append(S, S_i.Bytes(n)...)
@@ -105,8 +105,6 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	signingPayload := util.JoinJWTSegments(origHeaders, payload)
 
 	headers := jws.NewHeaders()
 	err = headers.Set(jws.AlgorithmKey, jose.GQ256)
@@ -150,7 +148,9 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 
 	defer private.Destroy()
 
-	gqSig, err := sv.Sign(private.Bytes(), signingPayload)
+	// Sign over the new GQ protected header so jkt/cic/extra claims are covered by the GQ signature and can not be altered without breaking signature verification
+	gqMessage := util.JoinJWTSegments(headersEnc, payload)
+	gqSig, err := sv.Sign(private.Bytes(), gqMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ var randomNumbers = func(t int, n *bigmod.Modulus) ([]*bigmod.Nat, error) {
 	nInt := modAsInt(n)
 	ys := make([]*bigmod.Nat, t)
 
-	for i := 0; i < t; i++ {
+	for i := range t {
 		r, err := rand.Int(rand.Reader, nInt)
 		if err != nil {
 			return nil, err

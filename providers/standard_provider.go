@@ -19,6 +19,7 @@ package providers
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -73,7 +74,10 @@ type StandardOpOptions struct {
 	// RedirectURIs is the list of authorized redirect URIs that can be
 	// redirected to by the OP after the user completes the authorization code
 	// flow exchange. Ensure that your OIDC application is configured to accept
-	// these URIs otherwise an error may occur.
+	// these URIs otherwise an error may occur. Each URI must include an
+	// explicit port (e.g. "http://localhost:3000/login-callback"): the host is
+	// passed directly to net.Listen, and a port-less host makes that call fail
+	// with "missing port in address" instead of picking an ephemeral port.
 	RedirectURIs []string
 	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
 	// RedirectURIs value sent to the OP during authorization. We still open a
@@ -337,12 +341,15 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	go func() {
 		err := s.server.Serve(ln)
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logrus.Error(err)
 		}
 	}()
 
-	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
+	// Open /login on the redirect URI's actual host, not a hardcoded
+	// "localhost", so the initial navigation targets the same address family
+	// that FindAvailablePort bound the listener on above.
+	loginURI := fmt.Sprintf("http://%s/login", redirectURI.Host)
 
 	// If reuseBrowserWindowHook is set, don't open a new browser window
 	// instead redirect the user's existing browser window
@@ -469,7 +476,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		// do not fail, just log the error, user can still manually open the url
 		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
 	} else {
-		fmt.Printf("\n %s\n", strings.Replace(code, "\n", "\n ", -1))
+		fmt.Printf("\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
 	}
 	textual := strings.Builder{}
 	if code != "" {
