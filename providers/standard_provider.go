@@ -74,7 +74,10 @@ type StandardOpOptions struct {
 	// RedirectURIs is the list of authorized redirect URIs that can be
 	// redirected to by the OP after the user completes the authorization code
 	// flow exchange. Ensure that your OIDC application is configured to accept
-	// these URIs otherwise an error may occur.
+	// these URIs otherwise an error may occur. Each URI must include an
+	// explicit port (e.g. "http://localhost:3000/login-callback"): the host is
+	// passed directly to net.Listen, and a port-less host makes that call fail
+	// with "missing port in address" instead of picking an ephemeral port.
 	RedirectURIs []string
 	// RemoteRedirectURI is an optional redirect URI to use. If set, this overrides the
 	// RedirectURIs value sent to the OP during authorization. We still open a
@@ -328,7 +331,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		}
 	}()
 
-	loginURI := fmt.Sprintf("http://localhost:%s/login", redirectURI.Port())
+	// Open /login on the redirect URI's actual host, not a hardcoded
+	// "localhost", so the initial navigation targets the same address family
+	// that FindAvailablePort bound the listener on above.
+	loginURI := fmt.Sprintf("http://%s/login", redirectURI.Host)
 
 	if s.authorizationURLHandler != nil {
 		if err := s.authorizationURLHandler(loginURI); err != nil {
