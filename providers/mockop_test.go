@@ -67,7 +67,7 @@ func TestSimpleBackendOverride(t *testing.T) {
 	}
 	browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
 	opUnwrapped := op.(*StandardOpRefreshable)
-	opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
+	opUnwrapped.SetAuthorizationURLHandler(browserOpenOverrideFn)
 
 	cic := GenCIC(t)
 	require.NotNil(t, cic)

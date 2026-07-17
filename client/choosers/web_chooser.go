@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -57,7 +58,12 @@ type WebChooser struct {
 	mockServer              *httptest.Server
 	server                  *http.Server
 	authorizationURLHandler AuthorizationURLHandler
-	openBrowser             func(string) error
+	// outWriter receives non-fatal, user-facing messages. If nil, os.Stderr is
+	// used for backward compatibility.
+	outWriter io.Writer
+	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
+	// success and failure paths.
+	browserOpener func(string) error
 }
 
 // AuthorizationURLHandler receives the web chooser URL.
@@ -250,20 +256,23 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}
 
 		if wc.OpenBrowser {
-			openBrowser := wc.openBrowser
-			if openBrowser == nil {
-				openBrowser = util.OpenUrl
+			browserOpener := wc.browserOpener
+			if browserOpener == nil {
+				browserOpener = util.OpenUrl
 			}
-			if err := openBrowser(loginURI); err != nil && wc.authorizationURLHandler == nil {
-				// Preserve the previous continue-on-failure behavior while ensuring
-				// the user can still complete authentication manually.
-				_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
+			if err := browserOpener(loginURI); err != nil {
+				_, _ = fmt.Fprintf(wc.outputWriter(), "Failed to open URL: %v\n", err)
+				if wc.authorizationURLHandler == nil {
+					// Preserve the previous continue-on-failure behavior while ensuring
+					// the user can still complete authentication manually.
+					_, _ = fmt.Fprintf(wc.outputWriter(), "Open your browser to: %s\n", loginURI)
+				}
 			}
 		} else if wc.authorizationURLHandler == nil {
 			// Preserve the manual-browser behavior for existing applications. New
 			// applications should install an AuthorizationURLHandler and decide how
 			// to present the URL.
-			_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
+			_, _ = fmt.Fprintf(wc.outputWriter(), "Open your browser to: %s\n", loginURI)
 		}
 
 	}
@@ -304,6 +313,19 @@ func IssuerToName(issuer string) (string, error) {
 // error semantics.
 func (wc *WebChooser) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
 	wc.authorizationURLHandler = handler
+}
+
+// SetOutWriter configures where non-fatal, user-facing messages are written.
+// Passing nil restores the default of os.Stderr.
+func (wc *WebChooser) SetOutWriter(writer io.Writer) {
+	wc.outWriter = writer
+}
+
+func (wc *WebChooser) outputWriter() io.Writer {
+	if wc.outWriter == nil {
+		return os.Stderr
+	}
+	return wc.outWriter
 }
 
 // SetOpenBrowserOverride sets a function that receives the chooser URL.

@@ -19,24 +19,30 @@ package choosers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/openpubkey/openpubkey/providers"
 )
 
 func NewMockWebChooser(opList []providers.BrowserOpenIdProvider, opToChoose string) *WebChooser {
-	wc := &WebChooser{
-		OpList:        opList,
-		OpenBrowser:   false,
-		useMockServer: false,
-	}
-	wc.SetOpenBrowserOverride(BrowserOpenOverride(opToChoose))
+	wc := NewWebChooser(opList, false)
+	wc.SetAuthorizationURLHandler(wc.browserOpenOverride(opToChoose))
 	return wc
 }
 
 func BrowserOpenOverride(opToChoose string) func(string) error {
+	return newBrowserOpenOverride(opToChoose, func() io.Writer { return os.Stderr })
+}
+
+func (wc *WebChooser) browserOpenOverride(opToChoose string) func(string) error {
+	return newBrowserOpenOverride(opToChoose, wc.outputWriter)
+}
+
+func newBrowserOpenOverride(opToChoose string, outputWriter func() io.Writer) func(string) error {
 	return func(uri string) error {
 		// Retry with exponential backoff to wait for server to be ready
 		resp, err := retryHTTPGet(uri)
@@ -53,9 +59,13 @@ func BrowserOpenOverride(opToChoose string) func(string) error {
 			// Use retry logic here as well to handle timing issues with the OP server
 			resp, err := retryHTTPGet(selectOpUri)
 			if err != nil {
+				_, _ = fmt.Fprintf(outputWriter(), "Failed to select OP after retries: %v\n", err)
 				return
 			}
 			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				_, _ = fmt.Fprintf(outputWriter(), "Failed to select OP: received status %d\n", resp.StatusCode)
+			}
 		}()
 		return nil
 	}

@@ -17,9 +17,11 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -300,7 +302,7 @@ func TestCallbackHTML(t *testing.T) {
 
 			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
 			opUnwrapped := op.(*StandardOp)
-			opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
+			opUnwrapped.SetAuthorizationURLHandler(browserOpenOverrideFn)
 
 			cic := GenCIC(t)
 			require.NotNil(t, cic)
@@ -352,7 +354,9 @@ func TestAuthorizationURLHandlerRecoversFromBrowserOpenFailure(t *testing.T) {
 	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
 	expectedOpenErr := errors.New("browser unavailable")
 	var browserOpenAttempted bool
-	op.openBrowser = func(string) error {
+	var output bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	op.browserOpener = func(string) error {
 		browserOpenAttempted = true
 		return expectedOpenErr
 	}
@@ -369,6 +373,7 @@ func TestAuthorizationURLHandlerRecoversFromBrowserOpenFailure(t *testing.T) {
 	require.NotNil(t, tokens)
 	require.True(t, browserOpenAttempted)
 	require.Contains(t, authorizationURL, "/login")
+	require.Contains(t, output.String(), "Failed to open URL: browser unavailable")
 }
 
 func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
@@ -398,6 +403,23 @@ func TestAuthorizationURLHandlerBuiltInProviders(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := SetAuthorizationURLHandler(provider, func(string) error { return nil })
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestOutWriterBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, SetOutWriter(provider, io.Discard))
 		})
 	}
 }

@@ -17,8 +17,10 @@
 package choosers
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -196,7 +198,9 @@ func TestAuthorizationURLHandlerReceivesURLWhenBrowserOpenFails(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	expectedOpenErr := errors.New("browser unavailable")
-	webChooser.openBrowser = func(string) error {
+	var output bytes.Buffer
+	webChooser.SetOutWriter(&output)
+	webChooser.browserOpener = func(string) error {
 		cancel()
 		return expectedOpenErr
 	}
@@ -212,6 +216,36 @@ func TestAuthorizationURLHandlerReceivesURLWhenBrowserOpenFails(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.NotErrorIs(t, err, expectedOpenErr)
 	require.Contains(t, authorizationURL, "/chooser")
+	require.Contains(t, output.String(), "Failed to open URL: browser unavailable")
+}
+
+type channelWriter chan string
+
+func (w channelWriter) Write(p []byte) (int, error) {
+	w <- string(p)
+	return len(p), nil
+}
+
+func TestBrowserOpenOverrideWritesAsyncSelectionError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/select" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	output := make(channelWriter, 1)
+	handler := newBrowserOpenOverride("google", func() io.Writer { return output })
+	require.NoError(t, handler(server.URL))
+
+	select {
+	case message := <-output:
+		require.Contains(t, message, "Failed to select OP: received status 500")
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for asynchronous chooser error")
+	}
 }
 
 func TestIssuerToName(t *testing.T) {

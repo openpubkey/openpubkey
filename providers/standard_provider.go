@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -160,24 +161,29 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 }
 
 type StandardOp struct {
-	clientID                  string
-	ClientSecret              string
-	Scopes                    []string
-	PromptType                string
-	AccessType                string
-	RedirectURIs              []string
-	RemoteRedirectURI         string
-	GQSign                    bool
-	DeviceFlow                bool
-	OpenBrowser               bool
-	HttpClient                *http.Client
-	IssuedAtOffset            time.Duration
-	CallbackHTML              string
-	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
-	issuer                    string
-	server                    *http.Server
-	authorizationURLHandler   AuthorizationURLHandler
-	openBrowser               func(string) error
+	clientID                string
+	ClientSecret            string
+	Scopes                  []string
+	PromptType              string
+	AccessType              string
+	RedirectURIs            []string
+	RemoteRedirectURI       string
+	GQSign                  bool
+	DeviceFlow              bool
+	OpenBrowser             bool
+	HttpClient              *http.Client
+	IssuedAtOffset          time.Duration
+	CallbackHTML            string
+	ExtraURLParamOpts       map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
+	issuer                  string
+	server                  *http.Server
+	authorizationURLHandler AuthorizationURLHandler
+	// outWriter receives non-fatal, user-facing messages. If nil, os.Stderr is
+	// used for backward compatibility.
+	outWriter io.Writer
+	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
+	// success and failure paths.
+	browserOpener             func(string) error
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
@@ -348,20 +354,23 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if s.reuseBrowserWindowHook != nil {
 		s.reuseBrowserWindowHook <- loginURI
 	} else if s.OpenBrowser {
-		openBrowser := s.openBrowser
-		if openBrowser == nil {
-			openBrowser = util.OpenUrl
+		browserOpener := s.browserOpener
+		if browserOpener == nil {
+			browserOpener = util.OpenUrl
 		}
-		if err := openBrowser(loginURI); err != nil && s.authorizationURLHandler == nil {
-			// Preserve the previous continue-on-failure behavior while ensuring
-			// the user can still complete authentication manually.
-			_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
+		if err := browserOpener(loginURI); err != nil {
+			_, _ = fmt.Fprintf(s.outputWriter(), "Failed to open URL: %v\n", err)
+			if s.authorizationURLHandler == nil {
+				// Preserve the previous continue-on-failure behavior while ensuring
+				// the user can still complete authentication manually.
+				_, _ = fmt.Fprintf(s.outputWriter(), "Open your browser to: %s\n", loginURI)
+			}
 		}
 	} else if s.authorizationURLHandler == nil {
 		// Preserve the manual-browser behavior for existing applications. New
 		// applications should install an AuthorizationURLHandler and decide how
 		// to present the URL.
-		_, _ = fmt.Fprintf(os.Stderr, "Open your browser to: %s\n", loginURI)
+		_, _ = fmt.Fprintf(s.outputWriter(), "Open your browser to: %s\n", loginURI)
 	}
 
 	// If httpSessionHook is not defined shutdown the server when done,
@@ -602,10 +611,23 @@ func nilIfEmpty(s string) []byte {
 type BrowserOpenOverrideFunc = AuthorizationURLHandler
 
 // SetAuthorizationURLHandler sets the application callback that handles or
-// observes the authorization URL. See AuthorizationURLHandler for invocation
+// observes the browser entry URL. See AuthorizationURLHandler for invocation
 // and error semantics.
 func (s *StandardOp) SetAuthorizationURLHandler(handler AuthorizationURLHandler) {
 	s.authorizationURLHandler = handler
+}
+
+// SetOutWriter configures where non-fatal, user-facing messages are written.
+// Passing nil restores the default of os.Stderr.
+func (s *StandardOp) SetOutWriter(writer io.Writer) {
+	s.outWriter = writer
+}
+
+func (s *StandardOp) outputWriter() io.Writer {
+	if s.outWriter == nil {
+		return os.Stderr
+	}
+	return s.outWriter
 }
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.

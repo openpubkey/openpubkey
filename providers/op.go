@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -48,8 +49,9 @@ type BrowserOpenIdProvider interface {
 	ReuseBrowserWindowHook(chan string)
 }
 
-// AuthorizationURLHandler receives the authorization URL produced during a
-// browser-based authentication flow.
+// AuthorizationURLHandler receives the browser entry URL produced during a
+// browser-based authentication flow. StandardOp supplies its local login URL,
+// which redirects the browser into the OpenID Provider authorization flow.
 //
 // The handler is called before automatic browser opening is attempted. This
 // ensures the application receives the URL even if the browser cannot be
@@ -66,8 +68,12 @@ type AuthorizationURLHandler func(url string) error
 // does not support configuring an AuthorizationURLHandler.
 var ErrAuthorizationURLHandlerUnsupported = errors.New("authorization URL handler is not supported by this provider")
 
+// ErrOutWriterUnsupported is returned when a browser provider does not support
+// configuring an output writer.
+var ErrOutWriterUnsupported = errors.New("output writer is not supported by this provider")
+
 // SetAuthorizationURLHandler configures how an application handles or observes
-// the authorization URL produced by a browser provider. It is kept outside
+// the browser entry URL produced by a browser provider. It is kept outside
 // the BrowserOpenIdProvider interface so existing third-party implementations
 // remain source compatible. See AuthorizationURLHandler for invocation and
 // error semantics.
@@ -79,6 +85,21 @@ func SetAuthorizationURLHandler(provider BrowserOpenIdProvider, handler Authoriz
 		return ErrAuthorizationURLHandlerUnsupported
 	}
 	configurable.SetAuthorizationURLHandler(handler)
+	return nil
+}
+
+// SetOutWriter configures where a browser provider writes non-fatal,
+// user-facing messages. A nil writer retains the default of os.Stderr. It is
+// kept outside BrowserOpenIdProvider so existing third-party implementations
+// remain source compatible.
+func SetOutWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
+	configurable, ok := provider.(interface {
+		SetOutWriter(io.Writer)
+	})
+	if !ok {
+		return ErrOutWriterUnsupported
+	}
+	configurable.SetOutWriter(writer)
 	return nil
 }
 
