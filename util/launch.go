@@ -100,7 +100,12 @@ func openWithPowerShell(url string, wsl bool) error {
 	// and Start-Process opens nothing. Scoped to this child only.
 	// https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
 	if wsl {
-		cmd.Env = append(cmd.Env, "WSLENV="+envVar+"/w")
+		// Preserve any existing WSLENV.
+		wslenv := os.Getenv("WSLENV")
+		if wslenv != "" {
+			wslenv += ":"
+		}
+		cmd.Env = append(cmd.Env, "WSLENV="+wslenv+envVar+"/w")
 	}
 	return cmd.Start()
 }
