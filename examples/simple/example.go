@@ -101,16 +101,17 @@ func main() {
 	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
 
-	// Applications can observe the browser entry URL before the library opens it
-	// or handle the URL themselves when automatic browser opening is disabled.
-	// Non-fatal browser messages can be redirected with providers.SetOutWriter.
+	// Applications can observe the browser entry URI before the library opens it
+	// or handle the URI themselves when automatic browser opening is disabled.
+	// User-facing and error messages can be redirected with providers.SetOutWriter
+	// and providers.SetErrWriter.
 	// For example:
-	// err := providers.SetAuthorizationURLHandler(op, func(url string) error {
-	// 	fmt.Println("Authentication URL:", url)
+	// err := providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
+	// 	fmt.Println("Authentication URI:", uri)
 	// 	return nil
 	// })
 	// if err != nil {
-	// 	fmt.Println("Failed to configure authorization URL handler:", err)
+	// 	fmt.Println("Failed to configure browser URI hook:", err)
 	// 	return
 	// }
 

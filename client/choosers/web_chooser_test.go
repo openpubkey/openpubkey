@@ -23,12 +23,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/stretchr/testify/require"
 )
+
+const manualBrowserMessage = "Open your browser to:"
 
 func CreateServerToHandleRedirect(t *testing.T, gotRedirect *bool) (*httptest.Server, string) {
 	mux := http.NewServeMux()
@@ -175,13 +178,13 @@ func TestDuplicateProviderError(t *testing.T) {
 	require.Nil(t, op)
 }
 
-func TestAuthorizationURLHandlerReceivesChooserURL(t *testing.T) {
+func TestBeforeBrowserOpenURIHookReceivesChooserURI(t *testing.T) {
 	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
 	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, false)
 
 	expectedErr := errors.New("application could not present chooser URL")
 	var authorizationURL string
-	webChooser.SetAuthorizationURLHandler(func(url string) error {
+	webChooser.SetBeforeBrowserOpenURIHook(func(url string) error {
 		authorizationURL = url
 		return expectedErr
 	})
@@ -192,21 +195,22 @@ func TestAuthorizationURLHandlerReceivesChooserURL(t *testing.T) {
 	require.Contains(t, authorizationURL, "/chooser")
 }
 
-func TestAuthorizationURLHandlerReceivesURLWhenBrowserOpenFails(t *testing.T) {
+func TestBeforeBrowserOpenURIHookReceivesURIWhenBrowserOpenFails(t *testing.T) {
 	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
 	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, true)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	expectedOpenErr := errors.New("browser unavailable")
-	var output bytes.Buffer
+	var output, errorOutput bytes.Buffer
 	webChooser.SetOutWriter(&output)
+	webChooser.SetErrWriter(&errorOutput)
 	webChooser.browserOpener = func(string) error {
 		cancel()
 		return expectedOpenErr
 	}
 
 	var authorizationURL string
-	webChooser.SetAuthorizationURLHandler(func(url string) error {
+	webChooser.SetBeforeBrowserOpenURIHook(func(url string) error {
 		authorizationURL = url
 		return nil
 	})
@@ -216,7 +220,97 @@ func TestAuthorizationURLHandlerReceivesURLWhenBrowserOpenFails(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	require.NotErrorIs(t, err, expectedOpenErr)
 	require.Contains(t, authorizationURL, "/chooser")
-	require.Contains(t, output.String(), "Failed to open URL: browser unavailable")
+	require.Equal(t, 1, strings.Count(output.String(), manualBrowserMessage))
+	require.Contains(t, errorOutput.String(), "Failed to open URL: browser unavailable")
+}
+
+func TestPresentChooserURIOutput(t *testing.T) {
+	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
+
+	testCases := []struct {
+		name               string
+		openBrowser        bool
+		browserOpener      func(string) error
+		expectedPrintCount int
+		expectOpenError    bool
+	}{
+		{
+			name: "auto open success",
+			browserOpener: func(string) error {
+				return nil
+			},
+			openBrowser:        true,
+			expectedPrintCount: 0,
+		},
+		{
+			name: "auto open failure",
+			browserOpener: func(string) error {
+				return errors.New("browser unavailable")
+			},
+			openBrowser:        true,
+			expectedPrintCount: 1,
+			expectOpenError:    true,
+		},
+		{
+			name:               "manual open",
+			openBrowser:        false,
+			expectedPrintCount: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+
+			webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, tc.openBrowser)
+			var output, errorOutput bytes.Buffer
+			webChooser.SetOutWriter(&output)
+			webChooser.SetErrWriter(&errorOutput)
+
+			if tc.browserOpener != nil {
+				webChooser.browserOpener = func(uri string) error {
+					err := tc.browserOpener(uri)
+					cancel()
+					return err
+				}
+			} else {
+				go func() {
+					time.Sleep(10 * time.Millisecond)
+					cancel()
+				}()
+			}
+
+			op, err := webChooser.ChooseOp(ctx)
+			require.Nil(t, op)
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, tc.expectedPrintCount, strings.Count(output.String(), manualBrowserMessage))
+			if tc.expectOpenError {
+				require.Contains(t, errorOutput.String(), "Failed to open URL: browser unavailable")
+			}
+		})
+	}
+}
+
+func TestWebChooserProviderWriterInheritance(t *testing.T) {
+	provider := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
+	standardProvider := provider.(*providers.GoogleOp)
+
+	var chooserOut, chooserErr bytes.Buffer
+	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{provider}, false)
+	webChooser.SetOutWriter(&chooserOut)
+	webChooser.SetErrWriter(&chooserErr)
+	webChooser.setProviderDefaultWriters(provider)
+
+	require.Same(t, &chooserOut, standardProvider.OutWriter)
+	require.Same(t, &chooserErr, standardProvider.ErrWriter)
+
+	var providerOut, providerErr bytes.Buffer
+	standardProvider.SetOutWriter(&providerOut)
+	standardProvider.SetErrWriter(&providerErr)
+	webChooser.setProviderDefaultWriters(provider)
+
+	require.Same(t, &providerOut, standardProvider.OutWriter)
+	require.Same(t, &providerErr, standardProvider.ErrWriter)
 }
 
 type channelWriter chan string

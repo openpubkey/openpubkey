@@ -302,7 +302,7 @@ func TestCallbackHTML(t *testing.T) {
 
 			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
 			opUnwrapped := op.(*StandardOp)
-			opUnwrapped.SetAuthorizationURLHandler(browserOpenOverrideFn)
+			opUnwrapped.SetBeforeBrowserOpenURIHook(browserOpenOverrideFn)
 
 			cic := GenCIC(t)
 			require.NotNil(t, cic)
@@ -350,19 +350,20 @@ func newAuthorizationURLTestOp(t *testing.T, openBrowser bool) (*StandardOp, fun
 	return op, browserInteraction.BrowserOpenOverrideFunc(idp)
 }
 
-func TestAuthorizationURLHandlerRecoversFromBrowserOpenFailure(t *testing.T) {
+func TestBeforeBrowserOpenURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
 	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
 	expectedOpenErr := errors.New("browser unavailable")
 	var browserOpenAttempted bool
-	var output bytes.Buffer
+	var output, errorOutput bytes.Buffer
 	require.NoError(t, SetOutWriter(op, &output))
+	require.NoError(t, SetErrWriter(op, &errorOutput))
 	op.browserOpener = func(string) error {
 		browserOpenAttempted = true
 		return expectedOpenErr
 	}
 
 	var authorizationURL string
-	err := SetAuthorizationURLHandler(op, func(url string) error {
+	err := SetBeforeBrowserOpenURIHook(op, func(url string) error {
 		authorizationURL = url
 		return completeAuthentication(url)
 	})
@@ -373,7 +374,40 @@ func TestAuthorizationURLHandlerRecoversFromBrowserOpenFailure(t *testing.T) {
 	require.NotNil(t, tokens)
 	require.True(t, browserOpenAttempted)
 	require.Contains(t, authorizationURL, "/login")
-	require.Contains(t, output.String(), "Failed to open URL: browser unavailable")
+	require.Contains(t, output.String(), "Open your browser to:")
+	require.Contains(t, errorOutput.String(), "Failed to open URL: browser unavailable")
+}
+
+func TestReuseBrowserWindowHookDoesNotPrintLoginURI(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	var output bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+
+	redirectCh := make(chan string, 1)
+	op.ReuseBrowserWindowHook(redirectCh)
+	go func() {
+		uri := <-redirectCh
+		_ = completeAuthentication(uri)
+	}()
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.NotContains(t, output.String(), "Open your browser to:")
+}
+
+func TestOpenBrowserSuccessDoesNotPrintLoginURI(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	var output bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	op.browserOpener = func(uri string) error {
+		return completeAuthentication(uri)
+	}
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.NotContains(t, output.String(), "Open your browser to:")
 }
 
 func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
@@ -389,7 +423,7 @@ func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
 	require.NotNil(t, tokens)
 }
 
-func TestAuthorizationURLHandlerBuiltInProviders(t *testing.T) {
+func TestBeforeBrowserOpenURIHookBuiltInProviders(t *testing.T) {
 	providers := map[string]BrowserOpenIdProvider{
 		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
 		"google":            NewGoogleOp(),
@@ -401,8 +435,25 @@ func TestAuthorizationURLHandlerBuiltInProviders(t *testing.T) {
 
 	for name, provider := range providers {
 		t.Run(name, func(t *testing.T) {
-			err := SetAuthorizationURLHandler(provider, func(string) error { return nil })
+			err := SetBeforeBrowserOpenURIHook(provider, func(string) error { return nil })
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestErrWriterBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, SetErrWriter(provider, io.Discard))
 		})
 	}
 }

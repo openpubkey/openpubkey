@@ -33,16 +33,16 @@ opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
-By default, OpenPubkey opens the browser entry URL in the user's browser. Applications can configure an authorization URL handler to print or log the URL before the library attempts to open it:
+By default, OpenPubkey opens the browser entry URI in the user's browser. Applications can configure a hook to observe or handle the URI before the library attempts to open it:
 
 ```golang
-err := providers.SetAuthorizationURLHandler(op, func(url string) error {
-	fmt.Println("Authentication URL:", url)
+err := providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
+	fmt.Println("Authentication URI:", uri)
 	return nil
 })
 ```
 
-The handler receives the browser entry URL whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URL itself instead. Non-fatal browser messages are written to stderr by default; applications can redirect them with `providers.SetOutWriter(op, writer)`.
+The hook receives the browser entry URI whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URI itself. Normal user-facing messages are written to stdout and non-fatal errors to stderr by default; applications can redirect them with `providers.SetOutWriter(op, outWriter)` and `providers.SetErrWriter(op, errWriter)`.
 
 Next we create the OpenPubkey client and call `opkClient.Auth`:
 

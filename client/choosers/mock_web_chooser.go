@@ -30,7 +30,7 @@ import (
 
 func NewMockWebChooser(opList []providers.BrowserOpenIdProvider, opToChoose string) *WebChooser {
 	wc := NewWebChooser(opList, false)
-	wc.SetAuthorizationURLHandler(wc.browserOpenOverride(opToChoose))
+	wc.SetBeforeBrowserOpenURIHook(wc.browserOpenOverride(opToChoose))
 	return wc
 }
 
@@ -39,7 +39,7 @@ func BrowserOpenOverride(opToChoose string) func(string) error {
 }
 
 func (wc *WebChooser) browserOpenOverride(opToChoose string) func(string) error {
-	return newBrowserOpenOverride(opToChoose, wc.outputWriter)
+	return newBrowserOpenOverride(opToChoose, wc.errorWriter)
 }
 
 func newBrowserOpenOverride(opToChoose string, outputWriter func() io.Writer) func(string) error {
