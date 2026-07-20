@@ -226,6 +226,23 @@ This document contains example JWK Sets from different providers.
 }
 ```
 
+## Forgejo Actions
+
+```json
+{
+    "keys": [
+        {
+            "alg": "RS256",
+            "e": "AQAB",
+            "kid": "yQCTwdl9pjrj9ineITmxuAv4RAaLlQVXcu5KB39q7GU",
+            "kty": "RSA",
+            "n": "za2NWnoY6AuVj5SUFH-OGUN-ROSmJ7jwEGV12xM4nR-9weToTSq1Hr1KAo4_VUjZSAnt58DE402MiqgCHRHg5Upe6Ef1cUBT47Dio8wKNRScnsSm1RHftcPp4Gzslw6-Dlf19qKqgyRGMYanHGZ0_nrx9RVi40vx3fCy6rzuipluPip9jRc4LB8XMHs1qd3xnGcjhTGmM7VQcSBPyfI4UNdEpAcUE7YZni8RSTIS-JM_rOZ5_1o4tZ4tPjsAPdfDST5csyV6EDevtkcUiom6SjgkVtpgNOgEy5GbY4eO0LJ-QabmItj3szBNZ2otItsmDYkq7d6Zyh5wgQ83QadihQ",
+            "use": "sig"
+        }
+    ]
+}
+```
+
 ## AWS Cognito
 
 ```json
