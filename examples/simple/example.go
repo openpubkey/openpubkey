@@ -100,6 +100,11 @@ func main() {
 	// to false to let the application present or open the URL itself.
 	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
+	// A provider hook receives its local /login URI before automatic opening.
+	_ = providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
+		fmt.Println("Authentication URI:", uri)
+		return nil
+	})
 
 	// Applications can observe the browser entry URI before the library opens it
 	// or handle the URI themselves when automatic browser opening is disabled.
