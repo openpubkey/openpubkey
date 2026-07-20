@@ -31,7 +31,6 @@ import (
 
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/sirupsen/logrus"
 )
 
 //go:embed static/*
@@ -50,16 +49,35 @@ var chooserTemplateFile string
 // TODO: This should be an enum that can also autogenerate what gets passed to the template
 
 type WebChooser struct {
-	OpList              []providers.BrowserOpenIdProvider
-	opSelected          providers.BrowserOpenIdProvider
-	OpenBrowser         bool
-	useMockServer       bool
-	mockServer          *httptest.Server
-	server              *http.Server
-	browserOpenOverride BrowserOpenOverrideFunc
+	util.OutOrErrWriter
+	OpList        []providers.BrowserOpenIdProvider
+	opSelected    providers.BrowserOpenIdProvider
+	OpenBrowser   bool
+	useMockServer bool
+	mockServer    *httptest.Server
+	server        *http.Server
+	loginURIHook  LoginURIHook
+	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
+	// success and failure paths.
+	browserOpener func(string) error
 }
 
-type BrowserOpenOverrideFunc func(url string) error
+// LoginURIHook receives the web chooser URI.
+//
+// The hook is called before automatic browser opening is attempted. This
+// ensures the application receives the URI even if the browser cannot be
+// opened. When automatic browser opening is disabled, the application can use
+// the hook to display the URI, open a browser, or integrate the URI into its
+// own user interface. Returning an error aborts provider selection and is
+// returned by WebChooser.ChooseOp. If automatic browser opening fails after a
+// hook has received the URI, the opening error is not returned; the hook
+// is expected to have made the URI available through an application-controlled
+// mechanism.
+type LoginURIHook func(uri string) error
+
+// BrowserOpenOverrideFunc is retained for source compatibility.
+// Deprecated: use LoginURIHook.
+type BrowserOpenOverrideFunc = LoginURIHook
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
 	return &WebChooser{
@@ -165,7 +183,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			go func() { // Put this in a go func so that it will not block the redirect
 				if wc.server != nil {
 					if err := wc.server.Shutdown(ctx); err != nil {
-						logrus.Errorf("Failed to shutdown http server: %v", err)
+						select {
+						case errCh <- fmt.Errorf("failed to shutdown HTTP server: %w", err):
+						default:
+						}
 					}
 				}
 			}()
@@ -185,6 +206,7 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			errCh <- errors.New(errorString)
 			return
 		} else {
+			wc.setProviderDefaultWriters(op)
 			opCh <- op
 
 			redirectUriCh := make(chan string, 1)
@@ -205,9 +227,12 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 		}
 		wc.server = &http.Server{Handler: mux}
 		go func() {
-			err = wc.server.Serve(listener)
-			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				logrus.Error(err)
+			serveErr := wc.server.Serve(listener)
+			if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+				select {
+				case errCh <- fmt.Errorf("web chooser server failed: %w", serveErr):
+				case <-ctx.Done():
+				}
 			}
 		}()
 
@@ -220,23 +245,17 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 		}
 
-		if wc.OpenBrowser {
-			logrus.Infof("Opening browser to %s", loginURI)
-			if err := util.OpenUrl(loginURI); err != nil {
-				logrus.Errorf("Failed to open url: %v", err)
+		if wc.loginURIHook != nil {
+			if err := wc.loginURIHook(loginURI); err != nil {
+				if shutdownErr := wc.server.Shutdown(ctx); shutdownErr != nil {
+					_, _ = fmt.Fprintf(wc.ErrWriter(), "Failed to shutdown HTTP server: %v\n", shutdownErr)
+				}
+				return nil, fmt.Errorf("login URI hook failed: %w", err)
 			}
-		} else {
-			// If wc.OpenBrowser is false, tell the user what URL to open.
-			// This is useful when a user wants to use a different browser than the default one.
-			logrus.Infof("Open your browser to: %s ", loginURI)
 		}
 
-		if wc.browserOpenOverride != nil {
-			if err := wc.browserOpenOverride(loginURI); err != nil {
-				logrus.Errorf("Failed to open url: %v", err)
-				return nil, err
-			}
-		}
+		wc.presentChooserURI(loginURI)
+
 	}
 
 	select {
@@ -270,8 +289,42 @@ func IssuerToName(issuer string) (string, error) {
 	}
 }
 
-// SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
-// This is used by tests and mocks to override the default behavior of opening the browser.
-func (s *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.browserOpenOverride = fn
+// SetLoginURIHook sets the application callback that handles or
+// observes the chooser URI. See LoginURIHook for invocation and
+// error semantics.
+func (wc *WebChooser) SetLoginURIHook(hook LoginURIHook) {
+	wc.loginURIHook = hook
+}
+
+// presentChooserURI opens or prints the web chooser URI. Automatic opening is
+// attempted when enabled, and the URI is printed only if the user must navigate
+// manually.
+func (wc *WebChooser) presentChooserURI(uri string) {
+	needsManual := !wc.OpenBrowser
+	if wc.OpenBrowser {
+		_, _ = fmt.Fprintf(wc.OutWriter(), "Opening browser to %s\n", uri)
+		browserOpener := wc.browserOpener
+		if browserOpener == nil {
+			browserOpener = util.OpenUrl
+		}
+		if err := browserOpener(uri); err != nil {
+			_, _ = fmt.Fprintf(wc.ErrWriter(), "Failed to open URL: %v\n", err)
+			needsManual = true
+		}
+	}
+	if needsManual {
+		_, _ = fmt.Fprintf(wc.OutWriter(), "Open your browser to: %s\n", uri)
+	}
+}
+
+func (wc *WebChooser) setProviderDefaultWriters(provider providers.BrowserOpenIdProvider) {
+	providers.SetDefaultWriters(provider, wc.OutWriter(), wc.ErrWriter())
+}
+
+// SetOpenBrowserOverride sets a function that receives the chooser URI.
+// Callback errors continue to be returned by ChooseOp, preserving the
+// historical behavior of this deprecated API.
+// Deprecated: use SetLoginURIHook.
+func (wc *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
+	wc.SetLoginURIHook(fn)
 }
