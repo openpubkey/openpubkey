@@ -96,7 +96,30 @@ func main() {
 	opOptions := providers.GetDefaultGoogleOpOptions()
 	// Change this to true to turn on GQ signatures
 	opOptions.GQSign = false
+	// Keep this true to open the authorization URL automatically, or change it
+	// to false to let the application present or open the URL itself.
+	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
+	// A provider hook receives its local /login URI before automatic opening.
+	_ = providers.SetLoginURIHook(op, func(uri string) error {
+		fmt.Println("Authorization Request URI:", uri)
+		return nil
+	})
+
+	// Applications can observe the browser entry URI before the library opens it
+	// or handle the URI themselves when automatic browser opening is disabled.
+	// User-facing and error messages can be redirected with providers.SetOutWriter
+	// and providers.SetErrWriter.
+	// For example:
+	// err := providers.SetLoginURIHook(op, func(uri string) error {
+	// 	fmt.Println("Authorization Request URI:", uri)
+	// 	return nil
+	// })
+	// if err != nil {
+	// 	fmt.Println("Failed to configure browser URI hook:", err)
+	// 	return
+	// }
+
 	pktJson, signedMsg, err := Sign(op)
 	if err != nil {
 		fmt.Println("Failed to sign message:", err)
