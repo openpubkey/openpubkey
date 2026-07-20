@@ -101,7 +101,7 @@ func login(outputDir string, gqSign bool) error {
 	helloOp := providers.NewHelloKeyBindingOpWithOptions(helloOpOptions)
 
 	// If custom OP args are set, create an custom provider
-	// Example: go run .\example.go login http://localhost:9000/application/o/test-key-binding/ kOHPhT0EQNTj0FNpnqjZ5a42kyXZDcmygvAURi1e http://localhost:8765/callback
+	// Example: go run example.go login http://localhost:9000/application/o/openpubkey-test/ 4MpVsa2M0CJ5owpFnf1L1FesjCTaK7tVm2U36RmF http://localhost:8765/callback
 	var customOp providers.BrowserOpenIdProvider
 	if len(os.Args) == 5 {
 		iss := os.Args[2]
@@ -111,6 +111,7 @@ func login(outputDir string, gqSign bool) error {
 		fmt.Printf("Custom provider set iss=%s, clientId=%s, redirectURI=%s\n", iss, clientId, redirectURI)
 		customOpOpts := providers.GetDefaultStandardOpOptions(iss, clientId)
 		customOpOpts.RedirectURIs = []string{redirectURI}
+		// "offline_access" requests a refresh token
 		customOpOpts.Scopes = append(customOpOpts.Scopes, "offline_access")
 		customOp = providers.NewStandardKeyBindingOpWithOptions(customOpOpts)
 	}

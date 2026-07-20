@@ -260,17 +260,8 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 				return fmt.Errorf("error setting algorithm on CIC JWK: %w", err)
 			}
 		}
-		cnfJwkStr, err := json.Marshal(idt.GetClaims().Cnf.Jwk)
-		if err != nil {
-			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
-		}
-		cnfJwk, err := jwk.ParseKey(cnfJwkStr)
-		if err != nil {
-			return fmt.Errorf("error converting CNF public key to JWK: %w", err)
-		}
-
 		// Compare JKTs rather than exact values as OPs may strip non-required claims from the CNF JWK
-		cnfJkt, err := cnfJwk.Thumbprint(crypto.SHA256)
+		cnfJkt, err := oidc.CnfThumbprint(idt.GetClaims().Cnf)
 		if err != nil {
 			return fmt.Errorf("error computing thumbprint (JKT) for CNF JWK: %w", err)
 		}
