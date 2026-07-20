@@ -294,10 +294,7 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	}
 	// The key binding is carried in the cnf claim, not in a CIC commitment. So
 	// proving the refreshed token is bound to the same key as the original is
-	// done by comparing cnf claims (by JWK thumbprint). Unlike the CIC-based
-	// approach this needs neither a CIC nor the bound key's algorithm, and it
-	// does not require the verifier to hold the client's key - a third party
-	// with only the two tokens (and the OP's public keys) can verify.
+	// done by comparing cnf claims (by JWK thumbprint).
 	if err := simpleoidc.SameCnfThumbprint(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token has different cnf claim (key binding) than original ID Token: %w", err)
 	}
