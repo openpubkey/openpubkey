@@ -101,8 +101,8 @@ func main() {
 	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
 	// A provider hook receives its local /login URI before automatic opening.
-	_ = providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
-		fmt.Println("Authentication URI:", uri)
+	_ = providers.SetLoginURIHook(op, func(uri string) error {
+		fmt.Println("Authorization Request URI:", uri)
 		return nil
 	})
 
@@ -111,8 +111,8 @@ func main() {
 	// User-facing and error messages can be redirected with providers.SetOutWriter
 	// and providers.SetErrWriter.
 	// For example:
-	// err := providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
-	// 	fmt.Println("Authentication URI:", uri)
+	// err := providers.SetLoginURIHook(op, func(uri string) error {
+	// 	fmt.Println("Authorization Request URI:", uri)
 	// 	return nil
 	// })
 	// if err != nil {

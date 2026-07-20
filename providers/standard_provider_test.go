@@ -302,7 +302,7 @@ func TestCallbackHTML(t *testing.T) {
 
 			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
 			opUnwrapped := op.(*StandardOp)
-			opUnwrapped.SetBeforeBrowserOpenURIHook(browserOpenOverrideFn)
+			opUnwrapped.SetLoginURIHook(browserOpenOverrideFn)
 
 			cic := GenCIC(t)
 			require.NotNil(t, cic)
@@ -350,7 +350,7 @@ func newAuthorizationURLTestOp(t *testing.T, openBrowser bool) (*StandardOp, fun
 	return op, browserInteraction.BrowserOpenOverrideFunc(idp)
 }
 
-func TestBeforeBrowserOpenURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
+func TestLoginURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
 	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
 	expectedOpenErr := errors.New("browser unavailable")
 	var browserOpenAttempted bool
@@ -363,7 +363,7 @@ func TestBeforeBrowserOpenURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
 	}
 
 	var authorizationURL string
-	err := SetBeforeBrowserOpenURIHook(op, func(url string) error {
+	err := SetLoginURIHook(op, func(url string) error {
 		authorizationURL = url
 		return completeAuthentication(url)
 	})
@@ -412,6 +412,10 @@ func TestOpenBrowserSuccessDoesNotPrintLoginURI(t *testing.T) {
 
 func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
 	op, completeAuthentication := newAuthorizationURLTestOp(t, false)
+	var output, errOutput bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	require.NoError(t, SetErrWriter(op, &errOutput))
+
 	expectedErr := errors.New("legacy callback error")
 	op.SetOpenBrowserOverride(func(url string) error {
 		require.NoError(t, completeAuthentication(url))
@@ -421,9 +425,11 @@ func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
 	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
 	require.NoError(t, err)
 	require.NotNil(t, tokens)
+
+	require.Contains(t, errOutput.String(), "Browser open override failed: legacy callback error")
 }
 
-func TestBeforeBrowserOpenURIHookBuiltInProviders(t *testing.T) {
+func TestLoginURIHookBuiltInProviders(t *testing.T) {
 	providers := map[string]BrowserOpenIdProvider{
 		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
 		"google":            NewGoogleOp(),
@@ -435,7 +441,7 @@ func TestBeforeBrowserOpenURIHookBuiltInProviders(t *testing.T) {
 
 	for name, provider := range providers {
 		t.Run(name, func(t *testing.T) {
-			err := SetBeforeBrowserOpenURIHook(provider, func(string) error { return nil })
+			err := SetLoginURIHook(provider, func(string) error { return nil })
 			require.NoError(t, err)
 		})
 	}

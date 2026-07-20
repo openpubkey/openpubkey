@@ -22,12 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sort"
 	"strings"
 
@@ -51,24 +49,20 @@ var chooserTemplateFile string
 // TODO: This should be an enum that can also autogenerate what gets passed to the template
 
 type WebChooser struct {
-	OpList                   []providers.BrowserOpenIdProvider
-	opSelected               providers.BrowserOpenIdProvider
-	OpenBrowser              bool
-	useMockServer            bool
-	mockServer               *httptest.Server
-	server                   *http.Server
-	beforeBrowserOpenURIHook BeforeBrowserOpenURIHook
-	// OutWriter receives non-error, user-facing messages. If nil, os.Stdout is used.
-	OutWriter io.Writer
-	// ErrWriter receives non-fatal error and diagnostic messages. If nil,
-	// os.Stderr is used.
-	ErrWriter io.Writer
+	util.OutOrErrWriter
+	OpList        []providers.BrowserOpenIdProvider
+	opSelected    providers.BrowserOpenIdProvider
+	OpenBrowser   bool
+	useMockServer bool
+	mockServer    *httptest.Server
+	server        *http.Server
+	loginURIHook  LoginURIHook
 	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
 	// success and failure paths.
 	browserOpener func(string) error
 }
 
-// BeforeBrowserOpenURIHook receives the web chooser URI.
+// LoginURIHook receives the web chooser URI.
 //
 // The hook is called before automatic browser opening is attempted. This
 // ensures the application receives the URI even if the browser cannot be
@@ -79,11 +73,11 @@ type WebChooser struct {
 // hook has received the URI, the opening error is not returned; the hook
 // is expected to have made the URI available through an application-controlled
 // mechanism.
-type BeforeBrowserOpenURIHook func(uri string) error
+type LoginURIHook func(uri string) error
 
 // BrowserOpenOverrideFunc is retained for source compatibility.
-// Deprecated: use BeforeBrowserOpenURIHook.
-type BrowserOpenOverrideFunc = BeforeBrowserOpenURIHook
+// Deprecated: use LoginURIHook.
+type BrowserOpenOverrideFunc = LoginURIHook
 
 func NewWebChooser(opList []providers.BrowserOpenIdProvider, openBrowser bool) *WebChooser {
 	return &WebChooser{
@@ -251,12 +245,12 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			loginURI = fmt.Sprintf("http://%s/chooser", listener.Addr().String())
 		}
 
-		if wc.beforeBrowserOpenURIHook != nil {
-			if err := wc.beforeBrowserOpenURIHook(loginURI); err != nil {
+		if wc.loginURIHook != nil {
+			if err := wc.loginURIHook(loginURI); err != nil {
 				if shutdownErr := wc.server.Shutdown(ctx); shutdownErr != nil {
-					_, _ = fmt.Fprintf(wc.errorWriter(), "Failed to shutdown HTTP server: %v\n", shutdownErr)
+					_, _ = fmt.Fprintf(wc.ErrWriter(), "Failed to shutdown HTTP server: %v\n", shutdownErr)
 				}
-				return nil, fmt.Errorf("before browser open URI hook failed: %w", err)
+				return nil, fmt.Errorf("login URI hook failed: %w", err)
 			}
 		}
 
@@ -295,37 +289,11 @@ func IssuerToName(issuer string) (string, error) {
 	}
 }
 
-// SetBeforeBrowserOpenURIHook sets the application callback that handles or
-// observes the chooser URI. See BeforeBrowserOpenURIHook for invocation and
+// SetLoginURIHook sets the application callback that handles or
+// observes the chooser URI. See LoginURIHook for invocation and
 // error semantics.
-func (wc *WebChooser) SetBeforeBrowserOpenURIHook(hook BeforeBrowserOpenURIHook) {
-	wc.beforeBrowserOpenURIHook = hook
-}
-
-// SetOutWriter configures where non-fatal, user-facing messages are written.
-// Passing nil restores the default of os.Stdout.
-func (wc *WebChooser) SetOutWriter(writer io.Writer) {
-	wc.OutWriter = writer
-}
-
-// SetErrWriter configures where non-fatal error and diagnostic messages are
-// written. Passing nil restores the default of os.Stderr.
-func (wc *WebChooser) SetErrWriter(writer io.Writer) {
-	wc.ErrWriter = writer
-}
-
-func (wc *WebChooser) outputWriter() io.Writer {
-	if wc.OutWriter == nil {
-		return os.Stdout
-	}
-	return wc.OutWriter
-}
-
-func (wc *WebChooser) errorWriter() io.Writer {
-	if wc.ErrWriter == nil {
-		return os.Stderr
-	}
-	return wc.ErrWriter
+func (wc *WebChooser) SetLoginURIHook(hook LoginURIHook) {
+	wc.loginURIHook = hook
 }
 
 // presentChooserURI opens or prints the web chooser URI. Automatic opening is
@@ -334,28 +302,29 @@ func (wc *WebChooser) errorWriter() io.Writer {
 func (wc *WebChooser) presentChooserURI(uri string) {
 	needsManual := !wc.OpenBrowser
 	if wc.OpenBrowser {
+		_, _ = fmt.Fprintf(wc.OutWriter(), "Opening browser to %s\n", uri)
 		browserOpener := wc.browserOpener
 		if browserOpener == nil {
 			browserOpener = util.OpenUrl
 		}
 		if err := browserOpener(uri); err != nil {
-			_, _ = fmt.Fprintf(wc.errorWriter(), "Failed to open URL: %v\n", err)
+			_, _ = fmt.Fprintf(wc.ErrWriter(), "Failed to open URL: %v\n", err)
 			needsManual = true
 		}
 	}
 	if needsManual {
-		_, _ = fmt.Fprintf(wc.outputWriter(), "Open your browser to: %s\n", uri)
+		_, _ = fmt.Fprintf(wc.OutWriter(), "Open your browser to: %s\n", uri)
 	}
 }
 
 func (wc *WebChooser) setProviderDefaultWriters(provider providers.BrowserOpenIdProvider) {
-	providers.SetDefaultWriters(provider, wc.outputWriter(), wc.errorWriter())
+	providers.SetDefaultWriters(provider, wc.OutWriter(), wc.ErrWriter())
 }
 
 // SetOpenBrowserOverride sets a function that receives the chooser URI.
 // Callback errors continue to be returned by ChooseOp, preserving the
 // historical behavior of this deprecated API.
-// Deprecated: use SetBeforeBrowserOpenURIHook.
+// Deprecated: use SetLoginURIHook.
 func (wc *WebChooser) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	wc.SetBeforeBrowserOpenURIHook(fn)
+	wc.SetLoginURIHook(fn)
 }

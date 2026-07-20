@@ -33,11 +33,11 @@ opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
-By default, OpenPubkey opens the browser entry URI in the user's browser. Applications can configure a hook to observe or handle the URI before the library attempts to open it:
+By default, OpenPubkey opens the login URI in the user's browser. Applications can configure a hook to observe or handle the URI before the library attempts to open it:
 
 ```golang
-err := providers.SetBeforeBrowserOpenURIHook(op, func(uri string) error {
-	fmt.Println("Authentication URI:", uri)
+err := providers.SetLoginURIHook(op, func(uri string) error {
+	fmt.Println("Authorization Request URI:", uri)
 	return nil
 })
 ```

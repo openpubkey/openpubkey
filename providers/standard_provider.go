@@ -21,10 +21,8 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"time"
@@ -150,7 +148,6 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 		issuer:                    opts.Issuer,
-		beforeBrowserOpenURIHook:  nil,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -161,28 +158,24 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 }
 
 type StandardOp struct {
-	clientID                 string
-	ClientSecret             string
-	Scopes                   []string
-	PromptType               string
-	AccessType               string
-	RedirectURIs             []string
-	RemoteRedirectURI        string
-	GQSign                   bool
-	DeviceFlow               bool
-	OpenBrowser              bool
-	HttpClient               *http.Client
-	IssuedAtOffset           time.Duration
-	CallbackHTML             string
-	ExtraURLParamOpts        map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
-	issuer                   string
-	server                   *http.Server
-	beforeBrowserOpenURIHook BeforeBrowserOpenURIHook
-	// OutWriter receives non-error, user-facing messages. If nil, os.Stdout is used.
-	OutWriter io.Writer
-	// ErrWriter receives non-fatal error and diagnostic messages. If nil,
-	// os.Stderr is used.
-	ErrWriter io.Writer
+	util.OutOrErrWriter
+	clientID          string
+	ClientSecret      string
+	Scopes            []string
+	PromptType        string
+	AccessType        string
+	RedirectURIs      []string
+	RemoteRedirectURI string
+	GQSign            bool
+	DeviceFlow        bool
+	OpenBrowser       bool
+	HttpClient        *http.Client
+	IssuedAtOffset    time.Duration
+	CallbackHTML      string
+	ExtraURLParamOpts map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
+	issuer            string
+	server            *http.Server
+	loginURIHook      LoginURIHook
 	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
 	// success and failure paths.
 	browserOpener             func(string) error
@@ -287,7 +280,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	shutdownServer := func() {
 		if err := s.server.Shutdown(ctx); err != nil {
-			_, _ = fmt.Fprintf(s.errorWriter(), "Failed to shutdown HTTP server: %v\n", err)
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Failed to shutdown HTTP server: %v\n", err)
 		}
 	}
 
@@ -346,10 +339,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	// that FindAvailablePort bound the listener on above.
 	loginURI := fmt.Sprintf("http://%s/login", redirectURI.Host)
 
-	if s.beforeBrowserOpenURIHook != nil {
-		if err := s.beforeBrowserOpenURIHook(loginURI); err != nil {
+	if s.loginURIHook != nil {
+		if err := s.loginURIHook(loginURI); err != nil {
 			shutdownServer()
-			return nil, fmt.Errorf("before browser open URI hook failed: %w", err)
+			return nil, fmt.Errorf("login URI hook failed: %w", err)
 		}
 	}
 
@@ -452,9 +445,9 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 
 	code, err := qrcode.Create(qrCodeURL)
 	if err != nil {
-		_, _ = fmt.Fprintf(s.errorWriter(), "Could not create QR code, falling back to textual representation: %v\n", err)
+		_, _ = fmt.Fprintf(s.ErrWriter(), "Could not create QR code, falling back to textual representation: %v\n", err)
 	} else {
-		_, _ = fmt.Fprintf(s.outputWriter(), "\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
+		_, _ = fmt.Fprintf(s.OutWriter(), "\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
 	}
 	textual := strings.Builder{}
 	if code != "" {
@@ -471,7 +464,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
 	textual.WriteString("\n")
 
-	_, _ = fmt.Fprintln(s.outputWriter(), textual.String())
+	_, _ = fmt.Fprintln(s.OutWriter(), textual.String())
 
 	interval := 3 * time.Second
 	if dar.Interval > 0 {
@@ -591,87 +584,54 @@ func nilIfEmpty(s string) []byte {
 }
 
 // BrowserOpenOverrideFunc is retained for source compatibility.
-// Deprecated: use BeforeBrowserOpenURIHook.
-type BrowserOpenOverrideFunc = BeforeBrowserOpenURIHook
+// Deprecated: use LoginURIHook.
+type BrowserOpenOverrideFunc = LoginURIHook
 
-// SetBeforeBrowserOpenURIHook sets the application callback that handles or
-// observes the browser entry URI. See BeforeBrowserOpenURIHook for invocation
+// SetLoginURIHook sets the application callback that handles or
+// observes the browser entry URI. See LoginURIHook for invocation
 // and error semantics.
-func (s *StandardOp) SetBeforeBrowserOpenURIHook(hook BeforeBrowserOpenURIHook) {
-	s.beforeBrowserOpenURIHook = hook
-}
-
-// SetOutWriter configures where non-fatal, user-facing messages are written.
-// Passing nil restores the default of os.Stdout.
-func (s *StandardOp) SetOutWriter(writer io.Writer) {
-	s.OutWriter = writer
-}
-
-// SetErrWriter configures where non-fatal error and diagnostic messages are
-// written. Passing nil restores the default of os.Stderr.
-func (s *StandardOp) SetErrWriter(writer io.Writer) {
-	s.ErrWriter = writer
-}
-
-// SetDefaultWriters supplies inherited writers without replacing writers that
-// were explicitly configured on the provider.
-func (s *StandardOp) SetDefaultWriters(outWriter, errWriter io.Writer) {
-	if s.OutWriter == nil {
-		s.OutWriter = outWriter
-	}
-	if s.ErrWriter == nil {
-		s.ErrWriter = errWriter
-	}
-}
-
-func (s *StandardOp) outputWriter() io.Writer {
-	if s.OutWriter == nil {
-		return os.Stdout
-	}
-	return s.OutWriter
-}
-
-func (s *StandardOp) errorWriter() io.Writer {
-	if s.ErrWriter == nil {
-		return os.Stderr
-	}
-	return s.ErrWriter
+func (s *StandardOp) SetLoginURIHook(hook LoginURIHook) {
+	s.loginURIHook = hook
 }
 
 // presentLoginURI navigates the user to the local /login entry point. When
 // reuseBrowserWindowHook is set, the existing browser tab is redirected
 // instead of opening a new window. Otherwise automatic opening is attempted
 // when enabled, and the URI is printed only if the user must navigate manually.
-func (s *StandardOp) presentLoginURI(loginURI string) {
+func (s *StandardOp) presentLoginURI(uri string) {
 	if s.reuseBrowserWindowHook != nil {
-		s.reuseBrowserWindowHook <- loginURI
+		s.reuseBrowserWindowHook <- uri
 		return
 	}
 
 	needsManual := !s.OpenBrowser
 	if s.OpenBrowser {
+		_, _ = fmt.Fprintf(s.OutWriter(), "Opening browser to %s\n", uri)
 		browserOpener := s.browserOpener
 		if browserOpener == nil {
 			browserOpener = util.OpenUrl
 		}
-		if err := browserOpener(loginURI); err != nil {
-			_, _ = fmt.Fprintf(s.errorWriter(), "Failed to open URL: %v\n", err)
+		if err := browserOpener(uri); err != nil {
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Failed to open URL: %v\n", err)
 			needsManual = true
 		}
 	}
 	if needsManual {
-		_, _ = fmt.Fprintf(s.outputWriter(), "Open your browser to: %s\n", loginURI)
+		_, _ = fmt.Fprintf(s.OutWriter(), "Open your browser to: %s\n", uri)
 	}
 }
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
 // This is used by tests and mocks to override the default behavior of opening the browser.
-// Callback errors are ignored to preserve the historical behavior of this
-// deprecated API.
-// Deprecated: use SetBeforeBrowserOpenURIHook.
+// Callback errors written to the error writer, but are not returned to preserve the historical
+// behavior of this deprecated API.
+//
+// Deprecated: use SetLoginURIHook.
 func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.SetBeforeBrowserOpenURIHook(func(url string) error {
-		_ = fn(url)
+	s.SetLoginURIHook(func(uri string) error {
+		if err := fn(uri); err != nil {
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Browser open override failed: %v\n", err)
+		}
 		return nil
 	})
 }

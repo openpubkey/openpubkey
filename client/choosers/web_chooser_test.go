@@ -178,13 +178,13 @@ func TestDuplicateProviderError(t *testing.T) {
 	require.Nil(t, op)
 }
 
-func TestBeforeBrowserOpenURIHookReceivesChooserURI(t *testing.T) {
+func TestLoginURIHookReceivesChooserURI(t *testing.T) {
 	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
 	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, false)
 
 	expectedErr := errors.New("application could not present chooser URL")
 	var authorizationURL string
-	webChooser.SetBeforeBrowserOpenURIHook(func(url string) error {
+	webChooser.SetLoginURIHook(func(url string) error {
 		authorizationURL = url
 		return expectedErr
 	})
@@ -195,7 +195,7 @@ func TestBeforeBrowserOpenURIHookReceivesChooserURI(t *testing.T) {
 	require.Contains(t, authorizationURL, "/chooser")
 }
 
-func TestBeforeBrowserOpenURIHookReceivesURIWhenBrowserOpenFails(t *testing.T) {
+func TestLoginURIHookReceivesURIWhenBrowserOpenFails(t *testing.T) {
 	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
 	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, true)
 
@@ -210,7 +210,7 @@ func TestBeforeBrowserOpenURIHookReceivesURIWhenBrowserOpenFails(t *testing.T) {
 	}
 
 	var authorizationURL string
-	webChooser.SetBeforeBrowserOpenURIHook(func(url string) error {
+	webChooser.SetLoginURIHook(func(url string) error {
 		authorizationURL = url
 		return nil
 	})
@@ -301,16 +301,16 @@ func TestWebChooserProviderWriterInheritance(t *testing.T) {
 	webChooser.SetErrWriter(&chooserErr)
 	webChooser.setProviderDefaultWriters(provider)
 
-	require.Same(t, &chooserOut, standardProvider.OutWriter)
-	require.Same(t, &chooserErr, standardProvider.ErrWriter)
+	require.Same(t, &chooserOut, standardProvider.OutputWriter)
+	require.Same(t, &chooserErr, standardProvider.ErrorWriter)
 
 	var providerOut, providerErr bytes.Buffer
 	standardProvider.SetOutWriter(&providerOut)
 	standardProvider.SetErrWriter(&providerErr)
 	webChooser.setProviderDefaultWriters(provider)
 
-	require.Same(t, &providerOut, standardProvider.OutWriter)
-	require.Same(t, &providerErr, standardProvider.ErrWriter)
+	require.Same(t, &providerOut, standardProvider.OutputWriter)
+	require.Same(t, &providerErr, standardProvider.ErrorWriter)
 }
 
 type channelWriter chan string

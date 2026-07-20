@@ -49,7 +49,7 @@ type BrowserOpenIdProvider interface {
 	ReuseBrowserWindowHook(chan string)
 }
 
-// BeforeBrowserOpenURIHook receives the browser entry URI produced during a
+// LoginURIHook receives the browser entry URI produced during a
 // browser-based authentication flow. StandardOp supplies its local login URI,
 // which redirects the browser into the OpenID Provider authorization flow.
 //
@@ -62,33 +62,33 @@ type BrowserOpenIdProvider interface {
 // hook has received the URI, the opening error is not returned; the hook
 // is expected to have made the URI available through an application-controlled
 // mechanism.
-type BeforeBrowserOpenURIHook func(uri string) error
+type LoginURIHook func(uri string) error
 
-// ErrBeforeBrowserOpenURIHookUnsupported is returned when a browser provider
-// does not support configuring a BeforeBrowserOpenURIHook.
-var ErrBeforeBrowserOpenURIHookUnsupported = errors.New("before browser open URI hook is not supported by this provider")
+// ErrLoginURIHookUnsupported is returned when a browser provider
+// does not support configuring a LoginURIHook.
+var ErrLoginURIHookUnsupported = errors.New("login URI hook is not supported by this provider")
 
 // ErrOutWriterUnsupported is returned when a browser provider does not support
 // configuring an output writer.
 var ErrOutWriterUnsupported = errors.New("output writer is not supported by this provider")
 
-// ErrWriterUnsupported is returned when a browser provider does not support
+// ErrErrorWriterUnsupported is returned when a browser provider does not support
 // configuring an error writer.
-var ErrWriterUnsupported = errors.New("error writer is not supported by this provider")
+var ErrErrorWriterUnsupported = errors.New("error writer is not supported by this provider")
 
-// SetBeforeBrowserOpenURIHook configures how an application handles or observes
+// SetLoginURIHook configures how an application handles or observes
 // the browser entry URI produced by a browser provider. It is kept outside the
 // BrowserOpenIdProvider interface so existing third-party implementations
-// remain source compatible. See BeforeBrowserOpenURIHook for invocation and
+// remain source compatible. See LoginURIHook for invocation and
 // error semantics.
-func SetBeforeBrowserOpenURIHook(provider BrowserOpenIdProvider, hook BeforeBrowserOpenURIHook) error {
+func SetLoginURIHook(provider BrowserOpenIdProvider, hook LoginURIHook) error {
 	configurable, ok := provider.(interface {
-		SetBeforeBrowserOpenURIHook(BeforeBrowserOpenURIHook)
+		SetLoginURIHook(LoginURIHook)
 	})
 	if !ok {
-		return ErrBeforeBrowserOpenURIHookUnsupported
+		return ErrLoginURIHookUnsupported
 	}
-	configurable.SetBeforeBrowserOpenURIHook(hook)
+	configurable.SetLoginURIHook(hook)
 	return nil
 }
 
@@ -116,7 +116,7 @@ func SetErrWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
 		SetErrWriter(io.Writer)
 	})
 	if !ok {
-		return ErrWriterUnsupported
+		return ErrErrorWriterUnsupported
 	}
 	configurable.SetErrWriter(writer)
 	return nil
