@@ -33,14 +33,14 @@ import (
 func OpenUrl(url string) error {
 	switch runtime.GOOS {
 	case "windows":
-		return openWithPowerShell(url)
+		return openWithPowerShell(url, false)
 
 	case "darwin":
 		return exec.Command("open", url).Start()
 
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		if isWSL() {
-			return openWithPowerShell(url)
+			return openWithPowerShell(url, true)
 		}
 		return exec.Command("xdg-open", url).Start()
 	}
@@ -73,7 +73,7 @@ func validateHTTPURL(rawURL string) error {
 // of -Command because -Command re-joins and re-parses all trailing argv
 // entries as a single script, which would otherwise require additional care
 // to avoid argv-splitting ambiguity.
-func openWithPowerShell(url string) error {
+func openWithPowerShell(url string, wsl bool) error {
 	if err := validateHTTPURL(url); err != nil {
 		return err
 	}
@@ -95,6 +95,18 @@ func openWithPowerShell(url string) error {
 
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-EncodedCommand", encoded)
 	cmd.Env = append(os.Environ(), envVar+"="+url)
+	// On WSL, Win32 processes only inherit Linux env vars listed in WSLENV.
+	// Without that bridge, $Env:OpenPubkeyBrowserURL is empty in PowerShell
+	// and Start-Process opens nothing. Scoped to this child only.
+	// https://devblogs.microsoft.com/commandline/share-environment-vars-between-wsl-and-windows/
+	if wsl {
+		// Preserve any existing WSLENV.
+		wslenv := os.Getenv("WSLENV")
+		if wslenv != "" {
+			wslenv += ":"
+		}
+		cmd.Env = append(cmd.Env, "WSLENV="+wslenv+envVar+"/w")
+	}
 	return cmd.Start()
 }
 
