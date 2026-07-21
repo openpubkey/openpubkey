@@ -167,6 +167,13 @@ func login(outputDir string, gqSign bool) error {
 		return err
 	}
 
+	newPktJson, err := json.MarshalIndent(newPkt, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Refreshed PKT", len(newPktJson), string(newPktJson))
+
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
 	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp}
 	if customOp != nil {

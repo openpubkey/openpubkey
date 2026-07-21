@@ -273,7 +273,7 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 			return nil
 		}
 
-		return fmt.Errorf("jwk thumbprint in cnf claim does not match public key in CIC, got %x, expected %x", string(cnfJkt), string(cicJkt))
+		return fmt.Errorf("jwk thumbprint in cnf claim does not match public key in CIC, got %x, expected %x", cnfJkt, cicJkt)
 	} else {
 		if v.commitType.Claim == "" {
 			return fmt.Errorf("verifier configured with empty commitment claim")

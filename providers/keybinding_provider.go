@@ -299,6 +299,14 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 		return fmt.Errorf("refreshed ID Token has different cnf claim (key binding) than original ID Token: %w", err)
 	}
 
+	reJwt, err := simpleoidc.NewJwt(reIdt)
+	if err != nil {
+		return fmt.Errorf("error parsing refreshed ID token: %w", err)
+	}
+	if typ := reJwt.GetSignature().GetProtectedClaims().Type; typ != KEYBOUND_TYP {
+		return fmt.Errorf("expected key-bound refreshed ID Token (typ=%s) but got typ=%s", KEYBOUND_TYP, typ)
+	}
+
 	// Verify the OP's signature on the refreshed ID Token, mirroring the
 	// StandardOp refresh verification (StandardOpRefreshable.VerifyRefreshedIDToken).
 	options := []rp.Option{}
