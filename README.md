@@ -33,6 +33,17 @@ opOptions.GQSign = signGQ
 op := providers.NewGoogleOpWithOptions(opOptions)
 ```
 
+By default, OpenPubkey opens the login URI in the user's browser. Applications can configure a hook to observe or handle the URI before the library attempts to open it:
+
+```golang
+err := providers.SetLoginURIHook(op, func(uri string) error {
+	fmt.Println("Authorization Request URI:", uri)
+	return nil
+})
+```
+
+The hook receives the browser entry URI whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URI itself. Normal user-facing messages are written to stdout and non-fatal errors to stderr by default; applications can redirect them with `providers.SetOutWriter(op, outWriter)` and `providers.SetErrWriter(op, errWriter)`.
+
 Next we create the OpenPubkey client and call `opkClient.Auth`:
 
 ```golang
@@ -57,7 +68,7 @@ err = pktVerifier.VerifyPKToken(context.Background(), pkt)
 msg, err := pkt.VerifySignedMessage(signedMsg)
 ```
 
-To run this example type: `go run .\examples\simple\example.go`.
+To run this example type: `go run ./examples/simple`.
 
 This will open a browser window to Google. If you authenticate to Google successfully, you should see: `Verification successful: anon.author.aardvark@gmail.com (https://accounts.google.com) signed the message 'All is discovered - flee at once'` where `anon.author.aardvark@gmail.com` is your gmail address.
 

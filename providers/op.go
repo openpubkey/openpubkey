@@ -19,7 +19,9 @@ package providers
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -45,6 +47,91 @@ type BrowserOpenIdProvider interface {
 	ClientID() string
 	HookHTTPSession(h http.HandlerFunc)
 	ReuseBrowserWindowHook(chan string)
+}
+
+// LoginURIHook receives the browser entry URI produced during a
+// browser-based authentication flow. StandardOp supplies its local login URI,
+// which redirects the browser into the OpenID Provider authorization flow.
+//
+// The hook is called before automatic browser opening is attempted. This
+// ensures the application receives the URI even if the browser cannot be
+// opened. When automatic browser opening is disabled, the application can use
+// the hook to display the URI, open a browser, or integrate the URI into its
+// own user interface. Returning an error aborts the authentication flow and
+// returns that error to the caller. If automatic browser opening fails after a
+// hook has received the URI, the opening error is not returned; the hook
+// is expected to have made the URI available through an application-controlled
+// mechanism.
+type LoginURIHook func(uri string) error
+
+// ErrLoginURIHookUnsupported is returned when a browser provider
+// does not support configuring a LoginURIHook.
+var ErrLoginURIHookUnsupported = errors.New("login URI hook is not supported by this provider")
+
+// ErrOutWriterUnsupported is returned when a browser provider does not support
+// configuring an output writer.
+var ErrOutWriterUnsupported = errors.New("output writer is not supported by this provider")
+
+// ErrErrorWriterUnsupported is returned when a browser provider does not support
+// configuring an error writer.
+var ErrErrorWriterUnsupported = errors.New("error writer is not supported by this provider")
+
+// SetLoginURIHook configures how an application handles or observes
+// the browser entry URI produced by a browser provider. It is kept outside the
+// BrowserOpenIdProvider interface so existing third-party implementations
+// remain source compatible. See LoginURIHook for invocation and
+// error semantics.
+func SetLoginURIHook(provider BrowserOpenIdProvider, hook LoginURIHook) error {
+	configurable, ok := provider.(interface {
+		SetLoginURIHook(LoginURIHook)
+	})
+	if !ok {
+		return ErrLoginURIHookUnsupported
+	}
+	configurable.SetLoginURIHook(hook)
+	return nil
+}
+
+// SetOutWriter configures where a browser provider writes non-fatal,
+// user-facing messages. A nil writer retains the default of os.Stdout. It is
+// kept outside BrowserOpenIdProvider so existing third-party implementations
+// remain source compatible.
+func SetOutWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
+	configurable, ok := provider.(interface {
+		SetOutWriter(io.Writer)
+	})
+	if !ok {
+		return ErrOutWriterUnsupported
+	}
+	configurable.SetOutWriter(writer)
+	return nil
+}
+
+// SetErrWriter configures where a browser provider writes non-fatal error and
+// diagnostic messages. A nil writer retains the default of os.Stderr. It is
+// kept outside BrowserOpenIdProvider so existing third-party implementations
+// remain source compatible.
+func SetErrWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
+	configurable, ok := provider.(interface {
+		SetErrWriter(io.Writer)
+	})
+	if !ok {
+		return ErrErrorWriterUnsupported
+	}
+	configurable.SetErrWriter(writer)
+	return nil
+}
+
+// SetDefaultWriters supplies inherited output writers without replacing
+// writers explicitly configured on the provider. Providers that do not support
+// configurable writers are left unchanged.
+func SetDefaultWriters(provider BrowserOpenIdProvider, outWriter, errWriter io.Writer) {
+	configurable, ok := provider.(interface {
+		SetDefaultWriters(io.Writer, io.Writer)
+	})
+	if ok {
+		configurable.SetDefaultWriters(outWriter, errWriter)
+	}
 }
 
 // Interface for an OpenIdProvider that returns an ID Token, Refresh Token and Access Token

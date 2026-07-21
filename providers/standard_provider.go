@@ -33,7 +33,6 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/sirupsen/logrus"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	oidchttp "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
@@ -142,6 +141,10 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 // using an options struct. This is useful if you want to use your own OIDC
 // Client or override the configuration.
 func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
+	return newStandardOpWithOptions(opts)
+}
+
+func newStandardOpWithOptions(opts *StandardOpOptions) *StandardOp {
 	return &StandardOp{
 		clientID:                  opts.ClientID,
 		ClientSecret:              opts.ClientSecret,
@@ -158,7 +161,6 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
 		issuer:                    opts.Issuer,
-		browserOpenOverride:       nil,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
@@ -172,29 +174,41 @@ func NewStandardOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 }
 
 type StandardOp struct {
-	clientID                  string
-	ClientSecret              string
-	Scopes                    []string
-	PromptType                string
-	AccessType                string
-	RedirectURIs              []string
-	RemoteRedirectURI         string
-	GQSign                    bool
-	DeviceFlow                bool
-	OpenBrowser               bool
-	HttpClient                *http.Client
-	IssuedAtOffset            time.Duration
-	CallbackHTML              string
-	ExtraURLParamOpts         map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
-	issuer                    string
-	server                    *http.Server
-	browserOpenOverride       BrowserOpenOverrideFunc
+	util.OutOrErrWriter
+	clientID          string
+	ClientSecret      string
+	Scopes            []string
+	PromptType        string
+	AccessType        string
+	RedirectURIs      []string
+	RemoteRedirectURI string
+	GQSign            bool
+	DeviceFlow        bool
+	OpenBrowser       bool
+	HttpClient        *http.Client
+	IssuedAtOffset    time.Duration
+	CallbackHTML      string
+	ExtraURLParamOpts map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
+	issuer            string
+	server            *http.Server
+	loginURIHook      LoginURIHook
+	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
+	// success and failure paths.
+	browserOpener             func(string) error
 	publicKeyFinder           discover.PublicKeyFinder
 	requestTokensOverrideFunc func(string) (*simpleoidc.Tokens, error)
 	httpSessionHook           http.HandlerFunc
 	reuseBrowserWindowHook    chan string
 	keyBindingSigner          crypto.Signer
 	keyBindingSignerAlg       string
+}
+
+func NewStandardKeyBindingOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
+	return &KeyBindingOpRefreshable{
+		KeyBindingOp: KeyBindingOp{
+			StandardOp: *newStandardOpWithOptions(opts),
+		},
+	}
 }
 
 type StandardOpRefreshable struct {
@@ -230,9 +244,6 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if err != nil {
 		return nil, err
 	}
-	logrus.Infof("listening on http://%s/", ln.Addr().String())
-	logrus.Info("press ctrl+c to stop")
-
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
 
@@ -293,7 +304,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	shutdownServer := func() {
 		if err := s.server.Shutdown(ctx); err != nil {
-			logrus.Errorf("Failed to shutdown http server: %v", err)
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Failed to shutdown HTTP server: %v\n", err)
 		}
 	}
 
@@ -330,9 +341,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if _, err := w.Write([]byte(s.CallbackHTML)); err != nil {
-				logrus.Error(err)
-			}
+			_, _ = w.Write([]byte(s.CallbackHTML))
 		}
 	}
 
@@ -342,7 +351,10 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	go func() {
 		err := s.server.Serve(ln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logrus.Error(err)
+			select {
+			case chErr <- fmt.Errorf("OIDC callback server failed: %w", err):
+			case <-ctx.Done():
+			}
 		}
 	}()
 
@@ -351,27 +363,14 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	// that FindAvailablePort bound the listener on above.
 	loginURI := fmt.Sprintf("http://%s/login", redirectURI.Host)
 
-	// If reuseBrowserWindowHook is set, don't open a new browser window
-	// instead redirect the user's existing browser window
-	if s.reuseBrowserWindowHook != nil {
-		s.reuseBrowserWindowHook <- loginURI
-	} else if s.OpenBrowser {
-		logrus.Infof("Opening browser to %s ", loginURI)
-		if err := util.OpenUrl(loginURI); err != nil {
-			logrus.Errorf("Failed to open url: %v", err)
+	if s.loginURIHook != nil {
+		if err := s.loginURIHook(loginURI); err != nil {
+			shutdownServer()
+			return nil, fmt.Errorf("login URI hook failed: %w", err)
 		}
-	} else {
-		// If s.OpenBrowser is false, tell the user what URL to open.
-		// This is useful when a user wants to use a different browser than the default one.
-		logrus.Infof("Open your browser to: %s ", loginURI)
 	}
 
-	// This is to mock out the OP interactions.
-	if s.browserOpenOverride != nil {
-		if err := s.browserOpenOverride(loginURI); err != nil {
-			logrus.Errorf("Failed to open url to mock browser: %v", err)
-		}
-	}
+	s.presentLoginURI(loginURI)
 
 	// If httpSessionHook is not defined shutdown the server when done,
 	// otherwise keep it open for the httpSessionHook
@@ -456,9 +455,6 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 		oidchttp.FormAuthorization(func(values url.Values) {
 			values.Set("nonce", cicHash)
 			for k, v := range s.ExtraURLParamOpts {
-				if values.Has(k) {
-					logrus.Warnf("ExtraURLParamOpts config is overwriting existing URI param (%s) with value (%s)", k, v)
-				}
 				values.Set(k, v)
 			}
 		}))
@@ -473,10 +469,9 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 
 	code, err := qrcode.Create(qrCodeURL)
 	if err != nil {
-		// do not fail, just log the error, user can still manually open the url
-		logrus.Warnf("could not create qrcode, fallback to textual representation only: %s", err)
+		_, _ = fmt.Fprintf(s.ErrWriter(), "Could not create QR code, falling back to textual representation: %v\n", err)
 	} else {
-		fmt.Printf("\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
+		_, _ = fmt.Fprintf(s.OutWriter(), "\n %s\n", strings.ReplaceAll(code, "\n", "\n "))
 	}
 	textual := strings.Builder{}
 	if code != "" {
@@ -493,7 +488,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	textual.WriteString("\n\nHint: in most terminals ctrl-click/click on the URLs opens them in a browser.")
 	textual.WriteString("\n")
 
-	fmt.Println(textual.String())
+	_, _ = fmt.Fprintln(s.OutWriter(), textual.String())
 
 	interval := 3 * time.Second
 	if dar.Interval > 0 {
@@ -612,12 +607,57 @@ func nilIfEmpty(s string) []byte {
 	return []byte(s)
 }
 
-type BrowserOpenOverrideFunc func(url string) error
+// BrowserOpenOverrideFunc is retained for source compatibility.
+// Deprecated: use LoginURIHook.
+type BrowserOpenOverrideFunc = LoginURIHook
+
+// SetLoginURIHook sets the application callback that handles or
+// observes the browser entry URI. See LoginURIHook for invocation
+// and error semantics.
+func (s *StandardOp) SetLoginURIHook(hook LoginURIHook) {
+	s.loginURIHook = hook
+}
+
+// presentLoginURI navigates the user to the local /login entry point. When
+// reuseBrowserWindowHook is set, the existing browser tab is redirected
+// instead of opening a new window. Otherwise automatic opening is attempted
+// when enabled, and the URI is printed only if the user must navigate manually.
+func (s *StandardOp) presentLoginURI(uri string) {
+	if s.reuseBrowserWindowHook != nil {
+		s.reuseBrowserWindowHook <- uri
+		return
+	}
+
+	needsManual := !s.OpenBrowser
+	if s.OpenBrowser {
+		_, _ = fmt.Fprintf(s.OutWriter(), "Opening browser to %s\n", uri)
+		browserOpener := s.browserOpener
+		if browserOpener == nil {
+			browserOpener = util.OpenUrl
+		}
+		if err := browserOpener(uri); err != nil {
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Failed to open URL: %v\n", err)
+			needsManual = true
+		}
+	}
+	if needsManual {
+		_, _ = fmt.Fprintf(s.OutWriter(), "Open your browser to: %s\n", uri)
+	}
+}
 
 // SetOpenBrowserOverride sets a function that is called to open the browser to a specified URL.
 // This is used by tests and mocks to override the default behavior of opening the browser.
+// Callback errors written to the error writer, but are not returned to preserve the historical
+// behavior of this deprecated API.
+//
+// Deprecated: use SetLoginURIHook.
 func (s *StandardOp) SetOpenBrowserOverride(fn BrowserOpenOverrideFunc) {
-	s.browserOpenOverride = fn
+	s.SetLoginURIHook(func(uri string) error {
+		if err := fn(uri); err != nil {
+			_, _ = fmt.Fprintf(s.ErrWriter(), "Browser open override failed: %v\n", err)
+		}
+		return nil
+	})
 }
 
 // HookHTTPSession provides a means to hook the HTTP Server session resulting

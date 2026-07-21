@@ -289,6 +289,48 @@ func TestKeybinding(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestKeybindingRefresh(t *testing.T) {
+	helloOpOpts := providers.GetDefaultHelloOpOptions()
+	op, err := providers.CreateMockHelloKeyBindingOpWithOpts(helloOpOpts,
+		mocks.UserBrowserInteractionMock{
+			SubjectId: "alice@gmail.com",
+		})
+	require.NoError(t, err)
+	require.NotNil(t, op)
+
+	c, err := client.New(op)
+	require.NoError(t, err)
+
+	pkt, err := c.Auth(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pkt)
+
+	// The refreshable OP is what we are exercising: RefreshTokens issues a new
+	// key-bound ID Token and VerifyRefreshedIDToken checks it against the
+	// original (same subject, not older, same cnf key binding, OP signature).
+	refreshableOp, ok := c.Op.(providers.RefreshableOpenIdProvider)
+	require.True(t, ok, "key-bound Hello OP should be refreshable")
+
+	pktRefreshed, err := c.Refresh(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, pktRefreshed)
+	require.NotNil(t, pktRefreshed.FreshIDToken, "refreshed PK Token should carry a fresh ID Token")
+
+	// Positive case: the freshly refreshed ID Token verifies against the original.
+	err = refreshableOp.VerifyRefreshedIDToken(context.Background(), pkt.OpToken, pktRefreshed.FreshIDToken)
+	require.NoError(t, err)
+
+	// The refreshed ID Token must still carry a cnf key binding.
+	reIdt, err := oidc.NewJwt(pktRefreshed.FreshIDToken)
+	require.NoError(t, err)
+	require.NotNil(t, reIdt.GetClaims().Cnf, "expected cnf claim in refreshed key-bound ID token")
+
+	// Negative case: swapping the arguments must fail RequireOlder, since the
+	// refreshed token is not older than the original.
+	err = refreshableOp.VerifyRefreshedIDToken(context.Background(), pktRefreshed.FreshIDToken, pkt.OpToken)
+	require.Error(t, err)
+}
+
 func TestKeybindingDeviceFlow(t *testing.T) {
 	helloOpOpts := providers.GetDefaultHelloOpOptions()
 	helloOpOpts.DeviceFlow = true

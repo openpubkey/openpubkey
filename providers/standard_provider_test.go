@@ -17,9 +17,11 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -300,7 +302,7 @@ func TestCallbackHTML(t *testing.T) {
 
 			browserOpenOverrideFn := userAuth.BrowserOpenOverrideFunc(idp)
 			opUnwrapped := op.(*StandardOp)
-			opUnwrapped.SetOpenBrowserOverride(browserOpenOverrideFn)
+			opUnwrapped.SetLoginURIHook(browserOpenOverrideFn)
 
 			cic := GenCIC(t)
 			require.NotNil(t, cic)
@@ -316,6 +318,165 @@ func TestCallbackHTML(t *testing.T) {
 			// properly passed through to StandardOp.
 			require.Equal(t, tc.expectedResponse, opUnwrapped.CallbackHTML,
 				"CallbackHTML should be set correctly in StandardOp")
+		})
+	}
+}
+
+func newAuthorizationURLTestOp(t *testing.T, openBrowser bool) (*StandardOp, func(string) error) {
+	t.Helper()
+
+	clientID := "fake-client-id"
+	issuer := googleIssuer
+	opts := GetDefaultStandardOpOptions(issuer, clientID)
+	opts.OpenBrowser = openBrowser
+
+	idp, err := mocks.NewMockOp(issuer, []mocks.Subject{{SubjectID: "alice@gmail.com"}})
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := idp.RandomSigningKey()
+	idp.MockProviderBackend.IDTokenTemplate = &mocks.IDTokenTemplate{
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		Aud:        clientID,
+		KeyID:      expKeyID,
+		Alg:        expRecord.Alg,
+		SigningKey: expSigningKey,
+	}
+	opts.HttpClient = idp.GetHTTPClient()
+
+	op := NewStandardOpWithOptions(opts).(*StandardOp)
+	browserInteraction := mocks.UserBrowserInteractionMock{SubjectId: "alice@gmail.com"}
+	return op, browserInteraction.BrowserOpenOverrideFunc(idp)
+}
+
+func TestLoginURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	expectedOpenErr := errors.New("browser unavailable")
+	var browserOpenAttempted bool
+	var output, errorOutput bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	require.NoError(t, SetErrWriter(op, &errorOutput))
+	op.browserOpener = func(string) error {
+		browserOpenAttempted = true
+		return expectedOpenErr
+	}
+
+	var authorizationURL string
+	err := SetLoginURIHook(op, func(url string) error {
+		authorizationURL = url
+		return completeAuthentication(url)
+	})
+	require.NoError(t, err)
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.True(t, browserOpenAttempted)
+	require.Contains(t, authorizationURL, "/login")
+	require.Contains(t, output.String(), "Open your browser to:")
+	require.Contains(t, errorOutput.String(), "Failed to open URL: browser unavailable")
+}
+
+func TestReuseBrowserWindowHookDoesNotPrintLoginURI(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	var output bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+
+	redirectCh := make(chan string, 1)
+	op.ReuseBrowserWindowHook(redirectCh)
+	go func() {
+		uri := <-redirectCh
+		_ = completeAuthentication(uri)
+	}()
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.NotContains(t, output.String(), "Open your browser to:")
+}
+
+func TestOpenBrowserSuccessDoesNotPrintLoginURI(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
+	var output bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	op.browserOpener = func(uri string) error {
+		return completeAuthentication(uri)
+	}
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+	require.NotContains(t, output.String(), "Open your browser to:")
+}
+
+func TestSetOpenBrowserOverridePreservesIgnoredErrors(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, false)
+	var output, errOutput bytes.Buffer
+	require.NoError(t, SetOutWriter(op, &output))
+	require.NoError(t, SetErrWriter(op, &errOutput))
+
+	expectedErr := errors.New("legacy callback error")
+	op.SetOpenBrowserOverride(func(url string) error {
+		require.NoError(t, completeAuthentication(url))
+		return expectedErr
+	})
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.NoError(t, err)
+	require.NotNil(t, tokens)
+
+	require.Contains(t, errOutput.String(), "Browser open override failed: legacy callback error")
+}
+
+func TestLoginURIHookBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			err := SetLoginURIHook(provider, func(string) error { return nil })
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestErrWriterBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, SetErrWriter(provider, io.Discard))
+		})
+	}
+}
+
+func TestOutWriterBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, SetOutWriter(provider, io.Discard))
 		})
 	}
 }
