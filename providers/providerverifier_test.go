@@ -79,7 +79,7 @@ func TestProviderVerifier(t *testing.T) {
 			correctCicHash: true},
 		{name: "Key Binding wrong CIC", aud: clientID, clientID: clientID, typClaim: keybindingTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",
-			expError:       "jwk in cnf claim does not match public key in CIC",
+			expError:       "jwk thumbprint in cnf claim does not match public key in CIC",
 			correctCicHash: false},
 		{name: "Key Binding wrong typ claim", aud: clientID, clientID: clientID, typClaim: standardTyp,
 			tokenCommitType: KEY_BOUND, pvCommitType: KEY_BOUND, providerAlg: "ES256",

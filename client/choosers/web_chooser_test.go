@@ -359,6 +359,10 @@ func TestIssuerToName(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "noterror.example.com", name)
 
+	name, err = IssuerToName("http://localhost")
+	require.NoError(t, err)
+	require.Equal(t, "localhost", name)
+
 	name, err = IssuerToName("error.example.com")
 	require.ErrorContains(t, err, "invalid OpenID Provider issuer: error.example.com")
 	require.Equal(t, "", name)

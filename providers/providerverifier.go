@@ -19,6 +19,7 @@ package providers
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -249,10 +250,6 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 			return fmt.Errorf("expected key-bound ID token but cnf claim does not contain a jwk")
 		}
 
-		cnfJwkStr, err := json.Marshal(idt.GetClaims().Cnf.Jwk)
-		if err != nil {
-			return fmt.Errorf("error marshalling jwk in cnf claim: %w", err)
-		}
 		cicJwk, err := jwk.PublicKeyOf(cic.PublicKey())
 		if err != nil {
 			return fmt.Errorf("error converting CIC public key to JWK: %w", err)
@@ -263,14 +260,20 @@ func (v *DefaultProviderVerifier) verifyCommitment(idt *oidc.Jwt, cic *clientins
 				return fmt.Errorf("error setting algorithm on CIC JWK: %w", err)
 			}
 		}
-		cicJwkStr, err := json.Marshal(cicJwk)
+		// Compare JKTs rather than exact values as OPs may strip non-required claims from the CNF JWK
+		cnfJkt, err := oidc.CnfThumbprint(idt.GetClaims().Cnf)
 		if err != nil {
-			return fmt.Errorf("error marshalling jwk in CIC: %w", err)
+			return fmt.Errorf("error computing thumbprint (JKT) for CNF JWK: %w", err)
 		}
-		if bytes.Equal(cicJwkStr, cnfJwkStr) {
+		cicJkt, err := cicJwk.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return fmt.Errorf("error computing thumbprint (JKT) for CIC JWK: %w", err)
+		}
+		if bytes.Equal(cnfJkt, cicJkt) {
 			return nil
 		}
-		return fmt.Errorf("jwk in cnf claim does not match public key in CIC, got %s, expected %s", string(cnfJwkStr), string(cicJwkStr))
+
+		return fmt.Errorf("jwk thumbprint in cnf claim does not match public key in CIC, got %x, expected %x", cnfJkt, cicJkt)
 	} else {
 		if v.commitType.Claim == "" {
 			return fmt.Errorf("verifier configured with empty commitment claim")

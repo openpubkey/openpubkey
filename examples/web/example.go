@@ -100,6 +100,22 @@ func login(outputDir string, gqSign bool) error {
 	helloOpOptions.GQSign = gqSign
 	helloOp := providers.NewHelloKeyBindingOpWithOptions(helloOpOptions)
 
+	// If custom OP args are set, create an custom provider
+	// Example: go run example.go login http://localhost:9000/application/o/openpubkey-test/ 4MpVsa2M0CJ5owpFnf1L1FesjCTaK7tVm2U36RmF http://localhost:8765/callback
+	var customOp providers.BrowserOpenIdProvider
+	if len(os.Args) == 5 {
+		iss := os.Args[2]
+		clientId := os.Args[3]
+		redirectURI := os.Args[4]
+
+		fmt.Printf("Custom provider set iss=%s, clientId=%s, redirectURI=%s\n", iss, clientId, redirectURI)
+		customOpOpts := providers.GetDefaultStandardOpOptions(iss, clientId)
+		customOpOpts.RedirectURIs = []string{redirectURI}
+		// "offline_access" requests a refresh token
+		customOpOpts.Scopes = append(customOpOpts.Scopes, "offline_access")
+		customOp = providers.NewStandardKeyBindingOpWithOptions(customOpOpts)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -109,9 +125,14 @@ func login(outputDir string, gqSign bool) error {
 		cancel()
 	}()
 
+	providerList := []providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp}
+	if customOp != nil {
+		providerList = append(providerList, customOp)
+	}
+
 	openBrowser := true
 	op, err := choosers.NewWebChooser(
-		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp},
+		providerList,
 		openBrowser,
 	).ChooseOp(ctx)
 	if err != nil {
@@ -146,8 +167,19 @@ func login(outputDir string, gqSign bool) error {
 		return err
 	}
 
+	newPktJson, err := json.MarshalIndent(newPkt, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Refreshed PKT", len(newPktJson), string(newPktJson))
+
 	// Verify that PK Token is issued by the OP you wish to use and that it has a refreshed ID Token
 	ops := []verifier.ProviderVerifier{googleOp, azureOp, helloOp, gitlabOp}
+	if customOp != nil {
+		ops = append(ops, customOp)
+	}
+
 	pktVerifier, err := verifier.NewFromMany(ops, verifier.RequireRefreshedIDToken())
 	if err != nil {
 		return err

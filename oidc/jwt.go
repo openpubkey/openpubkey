@@ -17,8 +17,10 @@
 package oidc
 
 import (
+	"bytes"
 	"fmt"
-	"reflect"
+
+	"github.com/openpubkey/openpubkey/internal/jwx"
 )
 
 type Jwt struct {
@@ -104,9 +106,10 @@ func SameIdentity(t1, t2 []byte) error {
 	return nil
 }
 
-// Checks that both tokens have the same cnf claim. We use this for key binding as
-// we put the JWK in the cnf claim.
-func SameCnf(t1, t2 []byte) error {
+// SameCnfThumbprint checks that both tokens have the same cnf claim, comparing
+// by RFC 7638 JWK thumbprint. We use this for key binding as we put the JWK in
+// the cnf claim.
+func SameCnfThumbprint(t1, t2 []byte) error {
 	token1, err := NewJwt(t1)
 	if err != nil {
 		return err
@@ -116,15 +119,39 @@ func SameCnf(t1, t2 []byte) error {
 		return err
 	}
 
-	if token1.GetClaims().Cnf == nil && token2.GetClaims().Cnf == nil {
+	cnf1 := token1.GetClaims().Cnf
+	cnf2 := token2.GetClaims().Cnf
+
+	if cnf1 == nil && cnf2 == nil {
 		return fmt.Errorf("both tokens have nil cnf claims")
 	}
+	if cnf1 == nil || cnf2 == nil {
+		return fmt.Errorf("tokens have different cnf claims (only one token has a cnf claim)")
+	}
 
-	if !reflect.DeepEqual(token1.GetClaims().Cnf, token2.GetClaims().Cnf) {
-		return fmt.Errorf("tokens have different cnf claims %s != %s", token1.GetClaims().Cnf, token2.GetClaims().Cnf)
+	// Compare by RFC 7638 JWK thumbprint rather than a structural DeepEqual so
+	// that non-required JWK members (e.g. alg, which OPs may strip) do not cause
+	// a spurious mismatch. The key binding is over the key itself, not its
+	// serialized representation.
+	jkt1, err := CnfThumbprint(cnf1)
+	if err != nil {
+		return fmt.Errorf("error computing thumbprint of first token cnf: %w", err)
+	}
+	jkt2, err := CnfThumbprint(cnf2)
+	if err != nil {
+		return fmt.Errorf("error computing thumbprint of second token cnf: %w", err)
+	}
+	if !bytes.Equal(jkt1, jkt2) {
+		return fmt.Errorf("tokens have different cnf claims (jwk thumbprint mismatch)")
 	}
 
 	return nil
+}
+
+// CnfThumbprint computes the RFC 7638 SHA-256 JWK thumbprint of the jwk
+// embedded in a cnf claim.
+func CnfThumbprint(cnf *ConfirmationClaims) ([]byte, error) {
+	return jwx.JwkThumbprint(cnf.Jwk)
 }
 
 // RequireOlder returns an error if t1 is not older than t2

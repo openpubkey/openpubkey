@@ -143,6 +143,52 @@ func TestKeyBindingProvider(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestVerifyRefreshedIDTokenRequiresKeyBoundTyp ensures VerifyRefreshedIDToken
+// rejects a refreshed ID Token that is not marked key-bound via the "typ"
+// header (KEYBOUND_TYP), even when subject and cnf key binding still match.
+func TestVerifyRefreshedIDTokenRequiresKeyBoundTyp(t *testing.T) {
+	issuer := helloIssuer
+	providerOverride, err := mocks.NewMockProviderBackend(issuer, "RS256", 2)
+	require.NoError(t, err)
+
+	_, signer, alg := GenCICDeterministic(t, map[string]any{})
+	jwkKey, err := CreateJWK(signer, alg)
+	require.NoError(t, err)
+
+	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
+
+	// Both tokens share the same subject and cnf key binding, so SameIdentity,
+	// RequireOlder, and SameCnfThumbprint all pass and the typ check is what
+	// decides the outcome.
+	base := mocks.IDTokenTemplate{
+		CommitFunc: mocks.AddNonceCommit,
+		Issuer:     issuer,
+		Nonce:      "empty",
+		Aud:        "also me",
+		KeyID:      expKeyID,
+		Alg:        expRecord.Alg,
+		ExtraClaims: map[string]any{
+			"cnf": map[string]any{"jwk": jwkKey},
+		},
+		SigningKey: expSigningKey,
+	}
+
+	// Original token IS key-bound (typ = dpop+id_token).
+	origTmpl := base
+	origTmpl.ExtraProtectedClaims = map[string]any{"typ": KEYBOUND_TYP}
+	origTokens, err := origTmpl.IssueTokens()
+	require.NoError(t, err)
+
+	// Refreshed token is NOT key-bound: no typ override, so it defaults to "JWT".
+	reTmpl := base
+	reTokens, err := reTmpl.IssueTokens()
+	require.NoError(t, err)
+
+	op := &KeyBindingOpRefreshable{}
+	err = op.VerifyRefreshedIDToken(context.Background(), origTokens.IDToken, reTokens.IDToken)
+	require.ErrorContains(t, err, "expected key-bound refreshed ID Token")
+}
+
 type RoundTripperForTester struct {
 	Output *http.Request
 }

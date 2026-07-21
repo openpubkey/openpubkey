@@ -107,7 +107,7 @@ type dPoPRoundTripper struct {
 }
 
 func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
+	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" || req.URL.Path == "/application/o/token/" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
 		u := *req.URL
 		u.Fragment = ""
 		u.Scheme = strings.ToLower(u.Scheme)
@@ -292,40 +292,38 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	if err := simpleoidc.RequireOlder(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
-	// Checks the refreshed ID Token has the same cnf claim (key binding) as the original ID Token
-	if err := simpleoidc.SameCnf(origIdt, reIdt); err != nil {
+	// The key binding is carried in the cnf claim, not in a CIC commitment. So
+	// proving the refreshed token is bound to the same key as the original is
+	// done by comparing cnf claims (by JWK thumbprint).
+	if err := simpleoidc.SameCnfThumbprint(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token has different cnf claim (key binding) than original ID Token: %w", err)
 	}
 
-	// We need to construct a CIC to supply to the verify refresh ID Token function
-	origIdtJwt, err := simpleoidc.NewJwt(origIdt)
+	reJwt, err := simpleoidc.NewJwt(reIdt)
 	if err != nil {
-		return fmt.Errorf("error parsing original ID token: %w", err)
+		return fmt.Errorf("error parsing refreshed ID token: %w", err)
 	}
-	if origIdtJwt.GetClaims().Cnf == nil || origIdtJwt.GetClaims().Cnf.Jwk == nil {
-		return fmt.Errorf("original ID token missing cnf claim for key binding")
-	}
-	origKeyJsonBytes, err := json.Marshal(origIdtJwt.GetClaims().Cnf.Jwk) // The key bound JWK is stored in the cnf claim
-	if err != nil {
-		return fmt.Errorf("error marshaling key from original ID token: %w", err)
-	}
-	origKey, err := jwk.ParseKey(origKeyJsonBytes)
-	if err != nil {
-		return fmt.Errorf("error parsing key from original ID token: %w", err)
-	}
-	origCic, err := clientinstance.NewClaims(origKey, map[string]any{})
-	if err != nil {
-		return fmt.Errorf("error creating CIC from original ID token: %w", err)
+	if typ := reJwt.GetSignature().GetProtectedClaims().Type; typ != KEYBOUND_TYP {
+		return fmt.Errorf("expected key-bound refreshed ID Token (typ=%s) but got typ=%s", KEYBOUND_TYP, typ)
 	}
 
-	vp := NewProviderVerifier(
-		r.issuer,
-		ProviderVerifierOpts{
-			CommitType:        CommitTypesEnum.KEY_BOUND,
-			ClientID:          r.clientID,
-			DiscoverPublicKey: &r.publicKeyFinder,
-		})
-	return vp.VerifyIDToken(ctx, reIdt, origCic)
+	// Verify the OP's signature on the refreshed ID Token, mirroring the
+	// StandardOp refresh verification (StandardOpRefreshable.VerifyRefreshedIDToken).
+	options := []rp.Option{}
+	if r.HttpClient != nil {
+		options = append(options, rp.WithHTTPClient(r.HttpClient))
+	}
+	// The redirect URI is not used when verifying a refreshed token.
+	redirectURI := ""
+	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, r.issuer, r.clientID,
+		r.ClientSecret, redirectURI, r.Scopes, options...)
+	if err != nil {
+		return fmt.Errorf("failed to create RP to verify token: %w", err)
+	}
+	if _, err := rp.VerifyIDToken[*oidc.IDTokenClaims](ctx, string(reIdt), relyingParty.IDTokenVerifier()); err != nil {
+		return err
+	}
+	return nil
 }
 
 var _ RefreshableOpenIdProvider = (*KeyBindingOpRefreshable)(nil)
