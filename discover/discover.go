@@ -109,6 +109,7 @@ func NewPubkeyFinderWithCache(f JwksFetchFunc, cache DiscoveryCache, maxAge time
 type JwksFetchFunc func(ctx context.Context, issuer string) ([]byte, error)
 
 type PublicKeyFinder struct {
+	util.OutOrErrWriter
 	JwksFunc       JwksFetchFunc
 	Cache          DiscoveryCache
 	StandardMaxAge time.Duration
@@ -146,46 +147,73 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 	return io.ReadAll(response.Body)
 }
 
-func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string, mayUseCache bool) (jwk.Set, bool, error) {
-	var jwksJson []byte
-	var err error
-	if mayUseCache && f.Cache != nil {
-		jwksJson, err = f.Cache.Read(ctx, issuer, f.StandardMaxAge)
-		if err == nil {
-			jwks := jwk.NewSet()
-			if err := json.Unmarshal(jwksJson, jwks); err == nil {
-				return jwks, true, nil
-			}
-		}
-	}
-	// if we get to here, either we were instructed not to use the cache, or
-	// there was no unexpired JWKS in the cache, or the JWKS that we pulled
-	// from the cache could not be parsed - go out to the provider
-	jwksJson, err = f.JwksFunc(ctx, issuer)
-	wasFallback := false
-	if err != nil {
-		// failed to fetch from provider, so see if the cache can provide a
-		// fallback possibly-expired key
-		var cacheErr any = struct{}{}
-		if f.Cache != nil {
-			jwksJson, cacheErr = f.Cache.Read(ctx, issuer, f.StandardMaxAge)
-		}
-		if cacheErr != nil {
-			// failed to fetch fallback key from cache - return the original
-			// provider error
-			return nil, false, fmt.Errorf(`failed to fetch JWKS: %w`, err)
-		}
-		wasFallback = true
-	}
+func parseJwks(b []byte) (jwk.Set, error) {
 	jwks := jwk.NewSet()
-	if err := json.Unmarshal(jwksJson, jwks); err != nil {
-		return nil, false, fmt.Errorf(`failed to unmarshal JWKS: %w`, err)
+	if err := json.Unmarshal(b, jwks); err != nil {
+		return nil, err
 	}
-	if !wasFallback && f.Cache != nil {
-		_ = f.Cache.Write(issuer, jwksJson)
-		// TODO log if cache write fails
+	return jwks, nil
+}
+
+// readCache returns the cached JWKS for issuer if there is a usable entry no
+// older than maxAge. A cache miss, a read error, or an unparseable entry all
+// yield nil — the caller is expected to fall back to a fresh fetch.
+func (f *PublicKeyFinder) readCache(ctx context.Context, issuer string, maxAge time.Duration) jwk.Set {
+	if f.Cache == nil {
+		return nil
 	}
-	return jwks, wasFallback, nil
+	b, err := f.Cache.Read(ctx, issuer, maxAge)
+	if err != nil {
+		return nil
+	}
+	jwks, err := parseJwks(b)
+	if err != nil {
+		_, _ = fmt.Fprintf(f.ErrWriter(), "Failed to unmarshal cached JWKS for %s: %v\n", issuer, err)
+		return nil
+	}
+	return jwks
+}
+
+// fetchFresh retrieves the JWKS from the provider and, on success, caches it.
+func (f *PublicKeyFinder) fetchFresh(ctx context.Context, issuer string) (jwk.Set, error) {
+	jwksJson, err := f.JwksFunc(ctx, issuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch fresh JWKS: %w", err)
+	}
+	jwks, err := parseJwks(jwksJson)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal fresh JWKS: %w", err)
+	}
+	if f.Cache != nil {
+		if err := f.Cache.Write(issuer, jwksJson); err != nil {
+			_, _ = fmt.Fprintf(f.ErrWriter(), "Failed to write JWKS cache for %s: %v\n", issuer, err)
+		}
+	}
+	return jwks, nil
+}
+
+func (f *PublicKeyFinder) fetchAndParseJwks(ctx context.Context, issuer string, mayUseCache bool) (jwk.Set, bool, error) {
+	if mayUseCache {
+		if jwks := f.readCache(ctx, issuer, f.StandardMaxAge); jwks != nil {
+			return jwks, true, nil
+		}
+	}
+
+	jwks, err := f.fetchFresh(ctx, issuer)
+	if err == nil {
+		return jwks, false, nil
+	}
+
+	// Provider unreachable or serving garbage: fall back to a cached entry that
+	// is too old for normal use but still within FallbackMaxAge, unless the
+	// caller explicitly asked to bypass the cache.
+	if mayUseCache {
+		if fallbackJwks := f.readCache(ctx, issuer, f.FallbackMaxAge); fallbackJwks != nil {
+			_, _ = fmt.Fprintf(f.ErrWriter(), "Using fallback JWKS from cache for %s: %v\n", issuer, err)
+			return fallbackJwks, true, nil
+		}
+	}
+	return nil, false, err
 }
 
 // ByToken looks up an OP public key in the JWKS using the KeyID (kid) in the
