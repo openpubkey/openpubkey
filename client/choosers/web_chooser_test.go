@@ -21,8 +21,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -33,15 +35,19 @@ import (
 
 const manualBrowserMessage = "Open your browser to:"
 
-func CreateServerToHandleRedirect(t *testing.T, gotRedirect *bool) (*httptest.Server, string) {
+func CreateServerToHandleRedirect(t *testing.T) (*httptest.Server, string, <-chan struct{}) {
+	redirected := make(chan struct{}, 1)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
-		*gotRedirect = true
+		select {
+		case redirected <- struct{}{}:
+		default:
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 	mockServer := httptest.NewUnstartedServer(mux)
 	mockServer.Start()
-	return mockServer, mockServer.URL + "/redirect"
+	return mockServer, mockServer.URL + "/redirect", redirected
 }
 
 func TestGoogleSelection(t *testing.T) {
@@ -82,12 +88,16 @@ func TestGoogleSelection(t *testing.T) {
 				OpenBrowser:   false,
 				useMockServer: true,
 			}
+			chooserURICh := make(chan string, 1)
+			webChooser.SetLoginURIHook(func(uri string) error {
+				chooserURICh <- uri
+				return nil
+			})
 
 			var chooserErr error
 			var op providers.OpenIdProvider
 
-			gotRedirect := false
-			redirectServer, redirectUri := CreateServerToHandleRedirect(t, &gotRedirect)
+			redirectServer, redirectUri, redirected := CreateServerToHandleRedirect(t)
 
 			testRunDone := make(chan struct{})
 			go func() {
@@ -121,27 +131,24 @@ func TestGoogleSelection(t *testing.T) {
 					azureOp.(*providers.StandardOp).TriggerBrowserWindowHook(redirectUri)
 				}
 
-				require.Eventually(t,
-					func() bool { return gotRedirect },
-					100*time.Millisecond, 1*time.Millisecond, "redirect not triggered but should have been",
-				)
+				select {
+				case <-redirected:
+				case <-time.After(time.Second):
+					t.Error("redirect not triggered but should have been")
+				}
 			}()
 
-			// Wait until the server is listening
-			require.Eventually(t, func() bool {
-				return chooserErr != nil || webChooser.mockServer != nil && webChooser.mockServer.URL != ""
-			}, 3*time.Second, 100*time.Millisecond)
-
-			if chooserErr != nil {
-				if tc.errorString != "" {
-					require.ErrorContains(t, chooserErr, tc.errorString)
-				} else {
-					require.NoError(t, chooserErr)
-				}
+			var chooserURI string
+			select {
+			case chooserURI = <-chooserURICh:
+			case <-time.After(3 * time.Second):
+				t.Fatal("web chooser server did not start")
 			}
 
 			// Make a request to the server to trigger Google selection and get redirect
-			resp, err := http.Get(webChooser.mockServer.URL + "/select?op=" + tc.providerName)
+			parsedChooserURI, err := url.Parse(chooserURI)
+			require.NoError(t, err)
+			resp, err := http.Get(parsedChooserURI.Scheme + "://" + parsedChooserURI.Host + "/select?op=" + tc.providerName)
 			if tc.httpCodeExpected != http.StatusOK {
 				require.Equal(t, tc.httpCodeExpected, resp.StatusCode)
 			} else {
@@ -159,6 +166,9 @@ func TestGoogleSelection(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("test timed out")
 			}
+			require.Eventually(t, func() bool {
+				return listenerClosed(chooserURI)
+			}, time.Second, 10*time.Millisecond, "web chooser listener remained open")
 		})
 	}
 
@@ -366,4 +376,38 @@ func TestIssuerToName(t *testing.T) {
 	name, err = IssuerToName("error.example.com")
 	require.ErrorContains(t, err, "invalid OpenID Provider issuer: error.example.com")
 	require.Equal(t, "", name)
+}
+
+func TestChooseOpAuthWaitTimeout(t *testing.T) {
+	googleOp := providers.NewGoogleOpWithOptions(providers.GetDefaultGoogleOpOptions())
+	webChooser := NewWebChooser([]providers.BrowserOpenIdProvider{googleOp}, false)
+	webChooser.AuthWaitTimeout = 50 * time.Millisecond
+	var chooserURI string
+	webChooser.SetLoginURIHook(func(uri string) error {
+		chooserURI = uri
+		return nil
+	})
+
+	op, err := webChooser.ChooseOp(context.Background())
+	require.Nil(t, op)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Contains(t, err.Error(), "authentication timed out after waiting 50ms")
+	requireListenerClosed(t, chooserURI)
+}
+
+func requireListenerClosed(t *testing.T, rawURL string) {
+	t.Helper()
+	require.True(t, listenerClosed(rawURL), "callback listener is still accepting connections")
+}
+
+func listenerClosed(rawURL string) bool {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	connection, err := net.DialTimeout("tcp", parsedURL.Host, 100*time.Millisecond)
+	if connection != nil {
+		_ = connection.Close()
+	}
+	return err != nil
 }

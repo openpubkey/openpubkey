@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/internal/httpserver"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/qrcode"
@@ -39,6 +41,8 @@ import (
 )
 
 const defaultCallbackHTML = "You may now close this window"
+
+const callbackServerShutdownTimeout = time.Second
 
 func callbackHTMLOrDefault(value string) string {
 	if value == "" {
@@ -103,6 +107,12 @@ type StandardOpOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// AuthWaitTimeout bounds how long the authorization-code localhost callback
+	// wait blocks for the user to finish browser login. Zero means
+	// DefaultAuthWaitTimeout (10 minutes). A negative value disables the
+	// library timeout so only the parent context can cancel the wait. Device
+	// flow continues to follow the OP's expires_in and is unaffected.
+	AuthWaitTimeout time.Duration
 }
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
@@ -125,6 +135,7 @@ func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOpti
 		HttpClient:        nil,
 		IssuedAtOffset:    1 * time.Minute,
 		CallbackHTML:      defaultCallbackHTML,
+		AuthWaitTimeout:   DefaultAuthWaitTimeout,
 	}
 }
 
@@ -151,6 +162,7 @@ func newStandardOpWithOptions(opts *StandardOpOptions) *StandardOp {
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
+		AuthWaitTimeout:           opts.AuthWaitTimeout,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
@@ -176,6 +188,7 @@ type StandardOp struct {
 	HttpClient        *http.Client
 	IssuedAtOffset    time.Duration
 	CallbackHTML      string
+	AuthWaitTimeout   time.Duration
 	ExtraURLParamOpts map[string]string // Use this to set additional URL params on auth request to the OP (works with auth code and device flow)
 	issuer            string
 	server            *http.Server
@@ -232,11 +245,18 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = ln.Close() }()
 	chTokens := make(chan *oidc.Tokens[*oidc.IDTokenClaims], 1)
 	chErr := make(chan error, 1)
+	httpSessionDone := make(chan struct{}, 1)
 
 	mux := http.NewServeMux()
-	s.server = &http.Server{Handler: mux}
+	s.server = &http.Server{
+		Handler: mux,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
@@ -291,7 +311,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	}
 
 	shutdownServer := func() {
-		if err := s.server.Shutdown(ctx); err != nil {
+		if err := httpserver.Shutdown(s.server, callbackServerShutdownTimeout); err != nil {
 			_, _ = fmt.Fprintf(s.ErrWriter(), "Failed to shutdown HTTP server: %v\n", err)
 		}
 	}
@@ -325,8 +345,8 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		// Useful for redirecting the user's browser window that just finished OIDC Auth flow to the
 		// MFA Cosigner Auth URI.
 		if s.httpSessionHook != nil {
+			defer func() { httpSessionDone <- struct{}{} }()
 			s.httpSessionHook(w, r)
-			defer shutdownServer() // If no http session hook is set, we do server shutdown in RequestTokens
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = w.Write([]byte(s.CallbackHTML))
@@ -336,7 +356,9 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	callbackPath := redirectURI.Path
 	mux.Handle(callbackPath, rp.CodeExchangeHandler(marshalToken, relyingParty))
 
+	serveDone := make(chan struct{})
 	go func() {
+		defer close(serveDone)
 		err := s.server.Serve(ln)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			select {
@@ -345,6 +367,23 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 			}
 		}
 	}()
+	handoffHTTPServer := false
+	defer func() {
+		if !handoffHTTPServer {
+			shutdownServer()
+		}
+	}()
+	if s.httpSessionHook != nil {
+		go func() {
+			select {
+			case <-httpSessionDone:
+				shutdownServer()
+			case <-serveDone:
+			case <-ctx.Done():
+				_ = s.server.Close()
+			}
+		}()
+	}
 
 	// Open /login on the redirect URI's actual host, not a hardcoded
 	// "localhost", so the initial navigation targets the same address family
@@ -353,31 +392,27 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	if s.loginURIHook != nil {
 		if err := s.loginURIHook(loginURI); err != nil {
-			shutdownServer()
 			return nil, fmt.Errorf("login URI hook failed: %w", err)
 		}
 	}
 
 	s.presentLoginURI(loginURI)
 
-	// If httpSessionHook is not defined shutdown the server when done,
-	// otherwise keep it open for the httpSessionHook
-	// If httpSessionHook is set we handle both possible cases to ensure
-	// the server is shutdown:
-	// 1. We shut it down if an error occurs in the marshalToken handler
-	// 2. We shut it down if the marshalToken handler completes
-	if s.httpSessionHook == nil {
-		defer shutdownServer()
-	}
+	authCtx, cancelAuth := WithAuthWaitTimeout(ctx, s.AuthWaitTimeout)
+	defer cancelAuth()
+
 	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-authCtx.Done():
+		// Authentication has been canceled, so do not wait for active callback
+		// handlers to drain. Closing also unblocks the deferred graceful shutdown.
+		_ = s.server.Close()
+		return nil, AuthWaitError(authCtx, s.AuthWaitTimeout)
 	case err := <-chErr:
-		if s.httpSessionHook != nil {
-			defer shutdownServer()
-		}
 		return nil, err
 	case retTokens := <-chTokens:
+		// A session hook still owns the active browser request. It will shut
+		// the server down after it has written the redirect or response.
+		handoffHTTPServer = s.httpSessionHook != nil
 		// retTokens is a zitadel/oidc struct. We turn it into our simpler token struct
 		return &simpleoidc.Tokens{
 			IDToken:      nilIfEmpty(retTokens.IDToken),

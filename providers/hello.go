@@ -76,6 +76,11 @@ type HelloOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// AuthWaitTimeout bounds how long the authorization-code localhost callback
+	// wait blocks for the user to finish browser login. Zero means
+	// DefaultAuthWaitTimeout (10 minutes). A negative value disables the
+	// library timeout so only the parent context can cancel the wait.
+	AuthWaitTimeout time.Duration
 }
 
 func GetDefaultHelloOpOptions() *HelloOptions {
@@ -89,11 +94,12 @@ func GetDefaultHelloOpOptions() *HelloOptions {
 			"http://localhost:10001/login-callback",
 			"http://localhost:11110/login-callback",
 		},
-		GQSign:         false,
-		OpenBrowser:    true,
-		HttpClient:     nil,
-		IssuedAtOffset: 1 * time.Minute,
-		CallbackHTML:   defaultCallbackHTML,
+		GQSign:          false,
+		OpenBrowser:     true,
+		HttpClient:      nil,
+		IssuedAtOffset:  1 * time.Minute,
+		CallbackHTML:    defaultCallbackHTML,
+		AuthWaitTimeout: DefaultAuthWaitTimeout,
 	}
 }
 
@@ -134,6 +140,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 		HttpClient:                opts.HttpClient,
 		IssuedAtOffset:            opts.IssuedAtOffset,
 		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
+		AuthWaitTimeout:           opts.AuthWaitTimeout,
 		issuer:                    opts.Issuer,
 		requestTokensOverrideFunc: nil,
 		publicKeyFinder: discover.PublicKeyFinder{
