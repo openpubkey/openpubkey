@@ -30,7 +30,7 @@ import (
 
 func main() {
 	provider := providers.NewGoogleOp()
-	// Route the library's user-facing and error messages to the standard
+	// Connect errors and output to stdout stderr
 	// streams. By default these messages are discarded.
 	_ = providers.UseStdOutErr(provider)
 
