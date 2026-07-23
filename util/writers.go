@@ -22,23 +22,32 @@ import (
 )
 
 type OutOrErrWriter struct {
-	// OutputWriter receives non-error, user-facing messages. If nil, os.Stdout is used.
+	// OutputWriter receives non-error, user-facing messages. If nil, output is
+	// discarded (io.Discard).
 	OutputWriter io.Writer
 	// ErrorWriter receives non-fatal error and diagnostic messages. If nil,
-	// os.Stderr is used.
+	// output is discarded (io.Discard).
 	ErrorWriter io.Writer
 }
 
 // SetOutWriter configures where non-fatal, user-facing messages are written.
-// Passing nil restores the default of os.Stdout.
+// Passing nil restores the default of io.Discard.
 func (w *OutOrErrWriter) SetOutWriter(writer io.Writer) {
 	w.OutputWriter = writer
 }
 
 // SetErrWriter configures where non-fatal error and diagnostic messages are
-// written. Passing nil restores the default of os.Stderr.
+// written. Passing nil restores the default of io.Discard.
 func (w *OutOrErrWriter) SetErrWriter(writer io.Writer) {
 	w.ErrorWriter = writer
+}
+
+// UseStdOutErr configures the writer to send user-facing messages to os.Stdout
+// and error and diagnostic messages to os.Stderr. It is a convenience method
+// for applications that want the library to log to the standard streams.
+func (w *OutOrErrWriter) UseStdOutErr() {
+	w.OutputWriter = os.Stdout
+	w.ErrorWriter = os.Stderr
 }
 
 // SetDefaultWriters supplies inherited writers without replacing writers that
@@ -54,14 +63,14 @@ func (w *OutOrErrWriter) SetDefaultWriters(outWriter, errWriter io.Writer) {
 
 func (w *OutOrErrWriter) OutWriter() io.Writer {
 	if w.OutputWriter == nil {
-		return os.Stdout
+		return io.Discard
 	}
 	return w.OutputWriter
 }
 
 func (w *OutOrErrWriter) ErrWriter() io.Writer {
 	if w.ErrorWriter == nil {
-		return os.Stderr
+		return io.Discard
 	}
 	return w.ErrorWriter
 }

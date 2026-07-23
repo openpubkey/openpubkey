@@ -93,7 +93,7 @@ func SetLoginURIHook(provider BrowserOpenIdProvider, hook LoginURIHook) error {
 }
 
 // SetOutWriter configures where a browser provider writes non-fatal,
-// user-facing messages. A nil writer retains the default of os.Stdout. It is
+// user-facing messages. A nil writer retains the default of io.Discard. It is
 // kept outside BrowserOpenIdProvider so existing third-party implementations
 // remain source compatible.
 func SetOutWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
@@ -108,7 +108,7 @@ func SetOutWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
 }
 
 // SetErrWriter configures where a browser provider writes non-fatal error and
-// diagnostic messages. A nil writer retains the default of os.Stderr. It is
+// diagnostic messages. A nil writer retains the default of io.Discard. It is
 // kept outside BrowserOpenIdProvider so existing third-party implementations
 // remain source compatible.
 func SetErrWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
@@ -119,6 +119,23 @@ func SetErrWriter(provider BrowserOpenIdProvider, writer io.Writer) error {
 		return ErrErrorWriterUnsupported
 	}
 	configurable.SetErrWriter(writer)
+	return nil
+}
+
+// UseStdOutErr configures a browser provider to write non-fatal, user-facing
+// messages to os.Stdout and non-fatal error and diagnostic messages to
+// os.Stderr. It is a convenience wrapper around SetOutWriter and SetErrWriter
+// for applications that want the library to log to the standard streams. It is
+// kept outside BrowserOpenIdProvider so existing third-party implementations
+// remain source compatible.
+func UseStdOutErr(provider BrowserOpenIdProvider) error {
+	configurable, ok := provider.(interface {
+		UseStdOutErr()
+	})
+	if !ok {
+		return ErrOutWriterUnsupported
+	}
+	configurable.UseStdOutErr()
 	return nil
 }
 

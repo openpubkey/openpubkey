@@ -131,10 +131,9 @@ func login(outputDir string, gqSign bool) error {
 	}
 
 	openBrowser := true
-	op, err := choosers.NewWebChooser(
-		providerList,
-		openBrowser,
-	).ChooseOp(ctx)
+	webChooser := choosers.NewWebChooser(providerList, openBrowser)
+	webChooser.UseStdOutErr()
+	op, err := webChooser.ChooseOp(ctx)
 	if err != nil {
 		return err
 	}

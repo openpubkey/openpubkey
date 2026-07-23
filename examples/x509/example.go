@@ -47,6 +47,9 @@ func main() {
 		opOpts := providers.GetDefaultGoogleOpOptions()
 		opOpts.GQSign = true
 		op := providers.NewGoogleOp()
+		// Connect errors and output to stdout stderr
+		// streams. By default these messages are discarded.
+		_ = providers.UseStdOutErr(op)
 		if err := login(op); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {

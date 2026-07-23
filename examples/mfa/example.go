@@ -30,6 +30,9 @@ import (
 
 func main() {
 	provider := providers.NewGoogleOp()
+	// Connect errors and output to stdout stderr
+	// streams. By default these messages are discarded.
+	_ = providers.UseStdOutErr(provider)
 
 	cosignerProvider := client.CosignerProvider{
 		Issuer:       "http://localhost:3003",

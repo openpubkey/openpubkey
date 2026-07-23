@@ -100,6 +100,9 @@ func main() {
 	// to false to let the application present or open the URL itself.
 	opOptions.OpenBrowser = true
 	op := providers.NewGoogleOpWithOptions(opOptions)
+	// Connect errors and output to stdout stderr
+	// streams. By default these messages are discarded.
+	_ = providers.UseStdOutErr(op)
 	// A provider hook receives its local /login URI before automatic opening.
 	_ = providers.SetLoginURIHook(op, func(uri string) error {
 		fmt.Println("Authorization Request URI:", uri)
