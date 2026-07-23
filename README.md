@@ -42,7 +42,7 @@ err := providers.SetLoginURIHook(op, func(uri string) error {
 })
 ```
 
-The hook receives the browser entry URI whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URI itself. Normal user-facing messages are written to stdout and non-fatal errors to stderr by default; applications can redirect them with `providers.SetOutWriter(op, outWriter)` and `providers.SetErrWriter(op, errWriter)`.
+The hook receives the browser entry URI whether or not automatic browser opening is enabled. Set `opOptions.OpenBrowser` to `false` before creating the provider if the application should present or open the URI itself. By default the library discards its normal user-facing messages and non-fatal errors; applications can enable them with `providers.SetOutWriter(op, outWriter)` and `providers.SetErrWriter(op, errWriter)`, or route them to the standard streams (stdout/stderr).
 
 Next we create the OpenPubkey client and call `opkClient.Auth`:
 
