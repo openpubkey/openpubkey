@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -379,6 +380,110 @@ func TestLoginURIHookRecoversFromBrowserOpenFailure(t *testing.T) {
 	require.Contains(t, errorOutput.String(), "Failed to open URL: browser unavailable")
 }
 
+func TestAuthorizationCodeAuthWaitTimeoutClosesCallbackServer(t *testing.T) {
+	op, _ := newAuthorizationURLTestOp(t, false)
+	op.AuthWaitTimeout = 50 * time.Millisecond
+	var loginURI string
+	op.SetLoginURIHook(func(uri string) error {
+		loginURI = uri
+		return nil
+	})
+
+	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
+	require.Nil(t, tokens)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Contains(t, err.Error(), "authentication timed out after waiting 50ms")
+	requireHTTPListenerClosed(t, loginURI)
+}
+
+func TestAuthorizationCodeParentDeadlineIsNotReportedAsAuthTimeout(t *testing.T) {
+	op, _ := newAuthorizationURLTestOp(t, false)
+	op.AuthWaitTimeout = time.Hour
+	op.SetLoginURIHook(func(string) error { return nil })
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	tokens, err := op.RequestTokens(ctx, GenCIC(t))
+	require.Nil(t, tokens)
+	require.Equal(t, context.DeadlineExceeded, err)
+	require.NotContains(t, err.Error(), "authentication timed out")
+}
+
+func TestHTTPSessionHookDoesNotBlockRequestTokens(t *testing.T) {
+	op, completeAuthentication := newAuthorizationURLTestOp(t, false)
+	hookStarted := make(chan struct{})
+	releaseHook := make(chan struct{})
+	hookDone := make(chan struct{})
+	op.HookHTTPSession(func(w http.ResponseWriter, _ *http.Request) {
+		close(hookStarted)
+		<-releaseHook
+		w.WriteHeader(http.StatusFound)
+		close(hookDone)
+	})
+
+	var loginURI string
+	authenticationDone := make(chan error, 1)
+	op.SetLoginURIHook(func(uri string) error {
+		loginURI = uri
+		go func() { authenticationDone <- completeAuthentication(uri) }()
+		return nil
+	})
+
+	cic := GenCIC(t)
+	requestDone := make(chan error, 1)
+	go func() {
+		_, err := op.RequestTokens(context.Background(), cic)
+		requestDone <- err
+	}()
+	select {
+	case <-hookStarted:
+	case <-time.After(time.Second):
+		t.Fatal("HTTP session hook did not start")
+	}
+	select {
+	case err := <-requestDone:
+		require.NoError(t, err)
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("RequestTokens waited for the HTTP session hook")
+	}
+
+	close(releaseHook)
+	select {
+	case <-hookDone:
+	case <-time.After(time.Second):
+		t.Fatal("HTTP session hook did not finish")
+	}
+	select {
+	case err := <-authenticationDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("browser authentication request did not finish")
+	}
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
+	require.Eventually(t, func() bool {
+		parsedURL, err := url.Parse(loginURI)
+		if err != nil {
+			return false
+		}
+		connection, err := net.DialTimeout("tcp", parsedURL.Host, 20*time.Millisecond)
+		if connection != nil {
+			_ = connection.Close()
+		}
+		return err != nil
+	}, time.Second, 10*time.Millisecond, "callback listener remained open after the hook finished")
+}
+
+func requireHTTPListenerClosed(t *testing.T, rawURL string) {
+	t.Helper()
+	parsedURL, err := url.Parse(rawURL)
+	require.NoError(t, err)
+	connection, err := net.DialTimeout("tcp", parsedURL.Host, 100*time.Millisecond)
+	if connection != nil {
+		_ = connection.Close()
+	}
+	require.Error(t, err, "callback listener %s is still accepting connections", parsedURL.Host)
+}
+
 func TestReuseBrowserWindowHookDoesNotPrintLoginURI(t *testing.T) {
 	op, completeAuthentication := newAuthorizationURLTestOp(t, true)
 	var output bytes.Buffer
@@ -386,15 +491,20 @@ func TestReuseBrowserWindowHookDoesNotPrintLoginURI(t *testing.T) {
 
 	redirectCh := make(chan string, 1)
 	op.ReuseBrowserWindowHook(redirectCh)
+	loginURICh := make(chan string, 1)
+	authenticationDone := make(chan error, 1)
 	go func() {
 		uri := <-redirectCh
-		_ = completeAuthentication(uri)
+		loginURICh <- uri
+		authenticationDone <- completeAuthentication(uri)
 	}()
 
 	tokens, err := op.RequestTokens(context.Background(), GenCIC(t))
 	require.NoError(t, err)
 	require.NotNil(t, tokens)
 	require.NotContains(t, output.String(), "Open your browser to:")
+	require.NoError(t, <-authenticationDone)
+	requireHTTPListenerClosed(t, <-loginURICh)
 }
 
 func TestOpenBrowserSuccessDoesNotPrintLoginURI(t *testing.T) {

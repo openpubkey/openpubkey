@@ -165,10 +165,16 @@ func (o *OpkClient) Auth(ctx context.Context, opts ...AuthOpts) (*pktoken.PKToke
 		return nil, fmt.Errorf("OP supplied does not have support for MFA Cosigner")
 	} else {
 		redirCh := make(chan string, 1)
+		handoffDone := make(chan struct{})
+		defer close(handoffDone)
 
 		browserOp.HookHTTPSession(func(w http.ResponseWriter, r *http.Request) {
-			redirectUri := <-redirCh
-			http.Redirect(w, r, redirectUri, http.StatusFound)
+			select {
+			case redirectURI := <-redirCh:
+				http.Redirect(w, r, redirectURI, http.StatusFound)
+			case <-handoffDone:
+			case <-r.Context().Done():
+			}
 		})
 
 		pkt, err := o.oidcAuth(ctx, o.signer, o.alg, authOpts.extraClaims)

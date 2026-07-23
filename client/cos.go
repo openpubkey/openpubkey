@@ -33,13 +33,20 @@ import (
 
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/cosigner/msgs"
+	"github.com/openpubkey/openpubkey/internal/httpserver"
 	"github.com/openpubkey/openpubkey/pktoken"
+	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 )
 
 type CosignerProvider struct {
 	Issuer       string
 	CallbackPath string
+	// AuthWaitTimeout bounds how long RequestToken waits for the cosigner
+	// browser callback. Zero means providers.DefaultAuthWaitTimeout
+	// (10 minutes). A negative value disables the library timeout so only the
+	// parent context can cancel the wait.
+	AuthWaitTimeout time.Duration
 }
 
 func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signer, pkt *pktoken.PKToken, redirCh chan string) (*pktoken.PKToken, error) {
@@ -83,10 +90,15 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 				if err != nil {
 					return nil, fmt.Errorf("cosigner client hit error when building authcode URI: %w", err)
 				}
-				res, err := http.Get(authcodeSigUri)
+				request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, authcodeSigUri, nil)
+				if err != nil {
+					return nil, fmt.Errorf("error creating MFA cosigner signature request: %w", err)
+				}
+				res, err := http.DefaultClient.Do(request)
 				if err != nil {
 					return nil, fmt.Errorf("error requesting MFA cosigner signature: %w", err)
 				}
+				defer res.Body.Close()
 
 				// Receive response from Cosigner that has cosigner signature on PK Token
 				resBody, err := io.ReadAll(res.Body)
@@ -107,7 +119,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 
 				select {
 				case errCh <- err:
-				case <-ctx.Done():
+				case <-r.Context().Done():
 					return
 				}
 			} else {
@@ -115,7 +127,7 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 
 				select {
 				case sigCh <- cosSig:
-				case <-ctx.Done():
+				case <-r.Context().Done():
 					return
 				}
 			}
@@ -126,7 +138,11 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 	server := &http.Server{
 		Addr:    host,
 		Handler: mux,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
 	}
+	forceClose := false
 	go func() {
 		err := server.Serve(listener)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -137,7 +153,11 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		}
 	}()
 	defer func() {
-		_ = server.Shutdown(ctx)
+		if forceClose {
+			_ = server.Close()
+			return
+		}
+		_ = httpserver.Shutdown(server, time.Second)
 	}()
 
 	pktJson, err := json.Marshal(pkt)
@@ -159,11 +179,15 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		return nil, fmt.Errorf("cosigner client hit error when building init auth URI: %w", err)
 	}
 
+	authCtx, cancelAuth := providers.WithAuthWaitTimeout(ctx, c.AuthWaitTimeout)
+	defer cancelAuth()
+
 	select {
 	// Trigger redirect of user's browser window to a URI controlled by the Cosigner sending the PK Token in the URI
 	case redirCh <- redirUri:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-authCtx.Done():
+		forceClose = true
+		return nil, providers.AuthWaitError(authCtx, c.AuthWaitTimeout)
 	}
 
 	select {
@@ -178,8 +202,9 @@ func (c *CosignerProvider) RequestToken(ctx context.Context, signer crypto.Signe
 		return pkt, nil
 	case err := <-errCh:
 		return nil, err
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-authCtx.Done():
+		forceClose = true
+		return nil, providers.AuthWaitError(authCtx, c.AuthWaitTimeout)
 	}
 }
 

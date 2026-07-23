@@ -28,7 +28,9 @@ import (
 	"net/http/httptest"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/openpubkey/openpubkey/internal/httpserver"
 	"github.com/openpubkey/openpubkey/providers"
 	"github.com/openpubkey/openpubkey/util"
 )
@@ -50,13 +52,17 @@ var chooserTemplateFile string
 
 type WebChooser struct {
 	util.OutOrErrWriter
-	OpList        []providers.BrowserOpenIdProvider
-	opSelected    providers.BrowserOpenIdProvider
-	OpenBrowser   bool
-	useMockServer bool
-	mockServer    *httptest.Server
-	server        *http.Server
-	loginURIHook  LoginURIHook
+	OpList      []providers.BrowserOpenIdProvider
+	opSelected  providers.BrowserOpenIdProvider
+	OpenBrowser bool
+	// AuthWaitTimeout bounds how long ChooseOp waits for the user to pick a
+	// provider in the browser. Zero means providers.DefaultAuthWaitTimeout
+	// (10 minutes). A negative value disables the library timeout so only the
+	// parent context can cancel the wait.
+	AuthWaitTimeout time.Duration
+	useMockServer   bool
+	server          *http.Server
+	loginURIHook    LoginURIHook
 	// browserOpener replaces util.OpenUrl in tests that exercise browser-open
 	// success and failure paths.
 	browserOpener func(string) error
@@ -117,6 +123,10 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	if err != nil {
 		return nil, err
 	}
+	authCtx, cancelAuth := providers.WithAuthWaitTimeout(ctx, wc.AuthWaitTimeout)
+	chooseDone := make(chan struct{})
+	defer close(chooseDone)
+	shutdownCh := make(chan struct{}, 1)
 
 	mux.HandleFunc("/chooser", func(w http.ResponseWriter, r *http.Request) {
 		type Provider struct {
@@ -178,20 +188,12 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 	})
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
 	mux.HandleFunc("/select/", func(w http.ResponseWriter, r *http.Request) {
-		// Once we redirect to the OP localhost webserver, we can shutdown the web chooser localhost server
-		shutdownServer := func() {
-			go func() { // Put this in a go func so that it will not block the redirect
-				if wc.server != nil {
-					if err := wc.server.Shutdown(ctx); err != nil {
-						select {
-						case errCh <- fmt.Errorf("failed to shutdown HTTP server: %w", err):
-						default:
-						}
-					}
-				}
-			}()
-		}
-		defer shutdownServer()
+		defer func() {
+			select {
+			case shutdownCh <- struct{}{}:
+			default:
+			}
+		}()
 
 		opName := r.URL.Query().Get("op")
 		if opName == "" {
@@ -207,31 +209,58 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 			return
 		} else {
 			wc.setProviderDefaultWriters(op)
-			opCh <- op
-
 			redirectUriCh := make(chan string, 1)
 			op.ReuseBrowserWindowHook(redirectUriCh)
+			// Publish the provider only after its browser-window hook is fully
+			// configured. The caller may begin RequestTokens as soon as it
+			// receives op, and that method reads the hook.
+			select {
+			case opCh <- op:
+			case <-r.Context().Done():
+				return
+			}
 
-			redirectUri := <-redirectUriCh
-			http.Redirect(w, r, redirectUri, http.StatusFound)
+			select {
+			case redirectURI := <-redirectUriCh:
+				http.Redirect(w, r, redirectURI, http.StatusFound)
+			case <-r.Context().Done():
+				return
+			}
 		}
 	})
 
+	var callbackServer *http.Server
+	var testServer *httptest.Server
 	if wc.useMockServer {
-		wc.mockServer = httptest.NewUnstartedServer(mux)
-		wc.mockServer.Start()
+		testServer = httptest.NewUnstartedServer(mux)
+		testServer.Config.BaseContext = func(net.Listener) context.Context { return authCtx }
+		testServer.Start()
+		callbackServer = testServer.Config
+		if wc.loginURIHook != nil {
+			if err := wc.loginURIHook(testServer.URL + "/chooser"); err != nil {
+				cancelAuth()
+				_ = callbackServer.Close()
+				testServer.Close()
+				return nil, fmt.Errorf("login URI hook failed: %w", err)
+			}
+		}
 	} else {
 		listener, err := net.Listen("tcp", "localhost:0")
 		if err != nil {
+			cancelAuth()
 			return nil, fmt.Errorf("failed to bind to an available port: %w", err)
 		}
-		wc.server = &http.Server{Handler: mux}
+		wc.server = &http.Server{
+			Handler:     mux,
+			BaseContext: func(net.Listener) context.Context { return authCtx },
+		}
+		callbackServer = wc.server
 		go func() {
-			serveErr := wc.server.Serve(listener)
+			serveErr := callbackServer.Serve(listener)
 			if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 				select {
 				case errCh <- fmt.Errorf("web chooser server failed: %w", serveErr):
-				case <-ctx.Done():
+				case <-authCtx.Done():
 				}
 			}
 		}()
@@ -247,9 +276,8 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 
 		if wc.loginURIHook != nil {
 			if err := wc.loginURIHook(loginURI); err != nil {
-				if shutdownErr := wc.server.Shutdown(ctx); shutdownErr != nil {
-					_, _ = fmt.Fprintf(wc.ErrWriter(), "Failed to shutdown HTTP server: %v\n", shutdownErr)
-				}
+				cancelAuth()
+				_ = callbackServer.Close()
 				return nil, fmt.Errorf("login URI hook failed: %w", err)
 			}
 		}
@@ -258,10 +286,40 @@ func (wc *WebChooser) ChooseOp(ctx context.Context) (providers.OpenIdProvider, e
 
 	}
 
+	// The server outlives ChooseOp after a successful selection so it can
+	// redirect the same browser window to the selected provider. Its lifecycle
+	// goroutine retains the auth deadline and owns final cleanup.
+	go func(server *http.Server, testServer *httptest.Server) {
+		defer func() {
+			// Do not cancel authCtx until ChooseOp has consumed the provider or
+			// handler error; otherwise cleanup could mask that result as a
+			// context cancellation.
+			<-chooseDone
+			cancelAuth()
+		}()
+		select {
+		case <-shutdownCh:
+			if err := httpserver.Shutdown(server, time.Second); err != nil {
+				select {
+				case errCh <- fmt.Errorf("failed to shutdown HTTP server: %w", err):
+				default:
+				}
+			}
+		case <-authCtx.Done():
+			_ = server.Close()
+		}
+		if testServer != nil {
+			testServer.Close()
+		}
+	}(callbackServer, testServer)
+
 	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-authCtx.Done():
+		_ = callbackServer.Close()
+		return nil, providers.AuthWaitError(authCtx, wc.AuthWaitTimeout)
 	case err := <-errCh:
+		cancelAuth()
+		_ = callbackServer.Close()
 		return nil, err
 	case wc.opSelected = <-opCh:
 		return wc.opSelected, nil
