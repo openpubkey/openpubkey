@@ -47,6 +47,9 @@ func main() {
 		opOpts := providers.GetDefaultGoogleOpOptions()
 		opOpts.GQSign = true
 		op := providers.NewGoogleOp()
+		// Route the library's user-facing and error messages to the standard
+		// streams. By default these messages are discarded.
+		_ = providers.UseStdOutErr(op)
 		if err := login(op); err != nil {
 			fmt.Println("Error logging in:", err)
 		} else {

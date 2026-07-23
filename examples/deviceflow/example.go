@@ -74,11 +74,15 @@ func login() error {
 	}()
 
 	openBrowser := true
-	op, err := choosers.NewWebChooser(
+	webChooser := choosers.NewWebChooser(
 		// gitlab excluded because it doesn't support device flow
 		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp},
 		openBrowser,
-	).ChooseOp(ctx)
+	)
+	// Route the library's user-facing and error messages to the standard
+	// streams. By default these messages are discarded.
+	webChooser.UseStdOutErr()
+	op, err := webChooser.ChooseOp(ctx)
 	if err != nil {
 		return err
 	}

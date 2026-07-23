@@ -79,10 +79,14 @@ func login() error {
 	}()
 
 	openBrowser := true
-	op, err := choosers.NewWebChooser(
+	webChooser := choosers.NewWebChooser(
 		[]providers.BrowserOpenIdProvider{googleOp, azureOp, helloOp, gitlabOp},
 		openBrowser,
-	).ChooseOp(ctx)
+	)
+	// Route the library's user-facing and error messages to the standard
+	// streams. By default these messages are discarded.
+	webChooser.UseStdOutErr()
+	op, err := webChooser.ChooseOp(ctx)
 	if err != nil {
 		return err
 	}

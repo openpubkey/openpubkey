@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -477,6 +478,31 @@ func TestOutWriterBuiltInProviders(t *testing.T) {
 	for name, provider := range providers {
 		t.Run(name, func(t *testing.T) {
 			require.NoError(t, SetOutWriter(provider, io.Discard))
+		})
+	}
+}
+
+func TestUseStdOutErrBuiltInProviders(t *testing.T) {
+	providers := map[string]BrowserOpenIdProvider{
+		"standard":          NewStandardOp("https://issuer.example.com", "client-id"),
+		"google":            NewGoogleOp(),
+		"azure":             NewAzureOp(),
+		"gitlab":            NewGitlabOp(),
+		"hello":             NewHelloOp(),
+		"hello key binding": NewHelloKeyBindingOpWithOptions(GetDefaultHelloOpOptions()),
+	}
+
+	for name, provider := range providers {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, UseStdOutErr(provider))
+
+			accessor, ok := provider.(interface {
+				OutWriter() io.Writer
+				ErrWriter() io.Writer
+			})
+			require.True(t, ok, "provider should expose writer accessors")
+			require.Equal(t, os.Stdout, accessor.OutWriter())
+			require.Equal(t, os.Stderr, accessor.ErrWriter())
 		})
 	}
 }

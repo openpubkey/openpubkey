@@ -30,6 +30,9 @@ import (
 
 func main() {
 	provider := providers.NewGoogleOp()
+	// Route the library's user-facing and error messages to the standard
+	// streams. By default these messages are discarded.
+	_ = providers.UseStdOutErr(provider)
 
 	cosignerProvider := client.CosignerProvider{
 		Issuer:       "http://localhost:3003",
