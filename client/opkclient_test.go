@@ -116,7 +116,7 @@ func TestClient(t *testing.T) {
 				require.Equal(t, jose.GQ256, providerAlg, tc.name)
 
 				// Verify our GQ signature
-				opPubKey, err := op.PublicKeyByToken(context.Background(), pkt.OpToken)
+				opPubKey, _, err := op.PublicKeyByToken(context.Background(), pkt.OpToken, true)
 				require.NoError(t, err, tc.name)
 
 				rsaKey, ok := opPubKey.PublicKey.(*rsa.PublicKey)

@@ -83,26 +83,38 @@ func (v *DefaultCosignerVerifier) VerifyCosigner(ctx context.Context, pkt *pktok
 		return fmt.Errorf("cosigner issuer (%s) doesn't match expected issuer (%s)", header.Issuer, v.issuer)
 	}
 
-	keyRecord, err := v.options.DiscoverPublicKey.ByKeyID(ctx, v.issuer, header.KeyID)
-	if err != nil {
+	wasCached, err := v.tryVerifyCosigner(ctx, pkt, header, true)
+	if !wasCached || err == nil {
+		// either no error, or we fetched a fresh key and still got an error
 		return err
+	}
+	// if we get to here then there was an error verifying with a cached key,
+	// so try again without the cache
+	_, err = v.tryVerifyCosigner(ctx, pkt, header, false)
+	return err
+}
+
+func (v *DefaultCosignerVerifier) tryVerifyCosigner(ctx context.Context, pkt *pktoken.PKToken, header *pktoken.CosignerClaims, mayUseCache bool) (bool, error) {
+	keyRecord, wasCached, err := v.options.DiscoverPublicKey.ByKeyID(ctx, v.issuer, header.KeyID, mayUseCache)
+	if err != nil {
+		return wasCached, err
 	}
 	key := keyRecord.PublicKey
 	alg := keyRecord.Alg
 
 	// Check if it's expired
 	if time.Now().After(time.Unix(header.Expiration, 0)) {
-		return fmt.Errorf("cosigner signature expired")
+		return wasCached, fmt.Errorf("cosigner signature expired")
 	}
 	if header.Algorithm != alg {
-		return fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", header.KeyID, alg, header.Algorithm)
+		return wasCached, fmt.Errorf("key (kid=%s) has alg (%s) which doesn't match alg (%s) in protected", header.KeyID, alg, header.Algorithm)
 	}
 	parsedAlg, err := jwa.KeyAlgorithmFrom(alg)
 	if err != nil {
-		return fmt.Errorf("failed to parse key algorithm from %s: %w", alg, err)
+		return wasCached, fmt.Errorf("failed to parse key algorithm from %s: %w", alg, err)
 	}
 	jwsPubkey := jws.WithKey(parsedAlg, key)
 	_, err = jws.Verify(pkt.CosToken, jwsPubkey)
 
-	return err
+	return wasCached, err
 }

@@ -112,12 +112,12 @@ func (o *ForgejoOp) Issuer() string {
 	return o.issuer
 }
 
-func (o *ForgejoOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return o.publicKeyFinder.ByKeyID(ctx, o.issuer, keyID)
+func (o *ForgejoOp) PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return o.publicKeyFinder.ByKeyID(ctx, o.issuer, keyID, mayUseCache)
 }
 
-func (o *ForgejoOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return o.publicKeyFinder.ByToken(ctx, o.issuer, token)
+func (o *ForgejoOp) PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return o.publicKeyFinder.ByToken(ctx, o.issuer, token, mayUseCache)
 }
 
 func (o *ForgejoOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {

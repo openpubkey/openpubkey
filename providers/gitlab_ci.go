@@ -53,12 +53,12 @@ func NewGitlabCiOp(issuer string, tokenEnvVar string) *GitlabCiOp {
 	return op
 }
 
-func (g *GitlabCiOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByToken(ctx, g.issuer, token)
+func (g *GitlabCiOp) PublicKeyByToken(ctx context.Context, token []byte, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return g.publicKeyFinder.ByToken(ctx, g.issuer, token, mayUseCache)
 }
 
-func (g *GitlabCiOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID)
+func (g *GitlabCiOp) PublicKeyByKeyId(ctx context.Context, keyID string, mayUseCache bool) (*discover.PublicKeyRecord, bool, error) {
+	return g.publicKeyFinder.ByKeyID(ctx, g.issuer, keyID, mayUseCache)
 }
 
 func (g *GitlabCiOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {
