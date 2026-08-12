@@ -18,53 +18,23 @@ package providers
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
 	"testing"
 
-	_ "embed"
-
+	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
-	"github.com/openpubkey/openpubkey/jose"
-	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
-	"github.com/openpubkey/openpubkey/testutils"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed test_dpop_token.json
-var expectedDpopToken []byte
-
-var test_jti = "IQS5tYP-bpBPtJsorT4z7g"
-var test_iat int64 = 1761937449
-
-func TestCreateDPoPToken(t *testing.T) {
-	htm := "POST"
-	htu := "https://op.example.com/token"
-	authcode := "fake-auth-code"
-
-	// use EdDSA so for so the signatures are deterministic in the test
-	alg := "EdDSA"
-	signer := testutils.DeterministicTestKeyPair(t, alg)
-
-	jti := test_jti
-	iat := test_iat
-
-	dpopToken, err := CreateDpopJwt(htm, htu, jti, authcode, iat, signer, alg)
+func keyBindingTestJWK(t *testing.T, signer crypto.Signer, alg string) jwk.Key {
+	t.Helper()
+	jwkKey, err := jwk.PublicKeyOf(signer.Public())
 	require.NoError(t, err)
-	require.NotEmpty(t, dpopToken)
-
-	dpopJwt, err := oidc.NewJwt(dpopToken)
-	require.NoError(t, err)
-
-	dpopJwtJson, err := dpopJwt.PrettyJson()
-	require.NoError(t, err)
-
-	require.Equal(t, string(expectedDpopToken), string(dpopJwtJson))
+	require.NoError(t, jwkKey.Set(jwk.AlgorithmKey, alg))
+	return jwkKey
 }
 
 func TestKeyBindingProvider(t *testing.T) {
@@ -84,8 +54,7 @@ func TestKeyBindingProvider(t *testing.T) {
 	}
 
 	cic, signer, alg := GenCICDeterministic(t, map[string]any{})
-	jwkKey, err := CreateJWK(signer, alg)
-	require.NoError(t, err)
+	jwkKey := keyBindingTestJWK(t, signer, alg)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
@@ -152,8 +121,7 @@ func TestVerifyRefreshedIDTokenRequiresKeyBoundTyp(t *testing.T) {
 	require.NoError(t, err)
 
 	_, signer, alg := GenCICDeterministic(t, map[string]any{})
-	jwkKey, err := CreateJWK(signer, alg)
-	require.NoError(t, err)
+	jwkKey := keyBindingTestJWK(t, signer, alg)
 
 	expSigningKey, expKeyID, expRecord := providerOverride.RandomSigningKey()
 
@@ -187,96 +155,4 @@ func TestVerifyRefreshedIDTokenRequiresKeyBoundTyp(t *testing.T) {
 	op := &KeyBindingOpRefreshable{}
 	err = op.VerifyRefreshedIDToken(context.Background(), origTokens.IDToken, reTokens.IDToken)
 	require.ErrorContains(t, err, "expected key-bound refreshed ID Token")
-}
-
-type RoundTripperForTester struct {
-	Output *http.Request
-}
-
-func (t *RoundTripperForTester) RoundTrip(req *http.Request) (*http.Response, error) {
-	t.Output = req
-	return &http.Response{
-		StatusCode: 200,
-		Body:       http.NoBody,
-	}, nil
-}
-
-func TestRoundTripper(t *testing.T) {
-
-	alg := jose.ES256
-	signer, err := util.GenKeyPair(alg)
-	require.NoError(t, err)
-
-	testCases := []struct {
-		name        string
-		reqForm     url.Values
-		refresh     bool
-		expectedErr string
-	}{
-		{name: "Happy case initial token request (authcode)",
-			reqForm: url.Values{
-				"code":       {"fake-auth-code"},
-				"grant_type": {"authorization_code"},
-			},
-			refresh:     false,
-			expectedErr: ""},
-		{name: "Happy case refresh token request",
-			reqForm: url.Values{
-				"grant_type": {"refresh_token"},
-			},
-			refresh:     true,
-			expectedErr: ""},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			rtTester := &RoundTripperForTester{}
-
-			rt := dPoPRoundTripper{
-				Base:   rtTester,
-				Signer: signer,
-				Alg:    alg,
-			}
-
-			bodyStr := tc.reqForm.Encode()
-			req, err := http.NewRequest("POST", "https://example.com/oauth/token", strings.NewReader(bodyStr))
-			require.NoError(t, err)
-			req.Header = make(http.Header)
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.ContentLength = int64(len(bodyStr))
-			req.GetBody = func() (io.ReadCloser, error) {
-				return io.NopCloser(strings.NewReader(bodyStr)), nil
-			}
-
-			resp, err := rt.RoundTrip(req)
-
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, 200, resp.StatusCode)
-
-			dpopToken := rtTester.Output.Header.Get("DPoP")
-
-			if !tc.refresh {
-				require.Equal(t, "fake-auth-code", rtTester.Output.FormValue("code"))
-			}
-
-			require.Equal(t, "POST", rtTester.Output.Method)
-			require.NotEmpty(t, dpopToken)
-
-			// Test request that doesn't match a DPoP token request so that it just passes through unchanged
-			req, err = http.NewRequest("POST", "https://example.com/other/resource", strings.NewReader(bodyStr))
-			require.NoError(t, err)
-
-			resp, err = rt.RoundTrip(req)
-			if tc.expectedErr == "" {
-				require.NoError(t, err, tc.name)
-				require.NotNil(t, resp, tc.name)
-				require.Equal(t, 200, resp.StatusCode, tc.name)
-				require.Empty(t, rtTester.Output.Header.Get("DPoP"), tc.name)
-			} else {
-				require.Error(t, err, tc.name)
-				require.Contains(t, err.Error(), tc.expectedErr, tc.name)
-			}
-		})
-	}
-
 }

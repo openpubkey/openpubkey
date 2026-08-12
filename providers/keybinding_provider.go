@@ -19,23 +19,10 @@ package providers
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwa"
-	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
-	"github.com/openpubkey/openpubkey/util"
 	"github.com/zitadel/oidc/v3/pkg/client/rp"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
@@ -49,34 +36,11 @@ type KeyBindingOp struct {
 // ConfigKeyBinding sets up the KeyBindingOp to use the provided signer and algorithm.
 // This is required to successfully use this type of OP.
 func (s *KeyBindingOp) ConfigKeyBinding(kbSigner crypto.Signer, kbAlg string) error {
+	if kbSigner == nil {
+		return fmt.Errorf("key binding signer must not be nil")
+	}
 	s.keyBindingSigner = kbSigner
 	s.keyBindingSignerAlg = kbAlg
-
-	base := http.DefaultTransport
-	if s.HttpClient != nil {
-		base = s.HttpClient.Transport
-	}
-
-	s.Scopes = append(s.Scopes, "bound_key")
-
-	jktb64, err := CreateJKT(kbSigner, kbAlg)
-	if err != nil {
-		return err
-	}
-	if s.ExtraURLParamOpts == nil {
-		s.ExtraURLParamOpts = map[string]string{}
-	}
-	s.ExtraURLParamOpts["dpop_jkt"] = string(jktb64)
-
-	// Override the StandardOp's HTTP client so we can read the authcode and set the DPoP header
-	if s.HttpClient == nil {
-		s.HttpClient = &http.Client{}
-	}
-	s.HttpClient.Transport = &dPoPRoundTripper{
-		Base:   base,
-		Signer: kbSigner,
-		Alg:    kbAlg,
-	}
 	return nil
 }
 
@@ -91,198 +55,13 @@ func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
-func randomB64(n int) string {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		panic(err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-type dPoPRoundTripper struct {
-	Base   http.RoundTripper
-	Signer crypto.Signer
-	Alg    string
-}
-
-func (t *dPoPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == "/oauth/token" || req.URL.Path == "/token" || req.URL.Path == "/application/o/token/" { // TODO: We should infer this from the OP WellKnown URI config, but currently we haven't looked up those values at RoundTripper creation time
-		u := *req.URL
-		u.Fragment = ""
-		u.Scheme = strings.ToLower(u.Scheme)
-		u.Host = strings.ToLower(u.Host)
-		htu := u.String()
-		htm := strings.ToUpper(req.Method)
-
-		// Use GetBody to read the body of the request non-destructively
-		r, err := req.GetBody()
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-
-		bodyBytes, err := io.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
-		form, err := url.ParseQuery(string(bodyBytes))
-		if err != nil {
-			return nil, err
-		}
-
-		var code string
-		grantType := form.Get("grant_type")
-		switch grantType {
-		case "authorization_code":
-			// For authorization code flow, we set the code to the authcode
-			code = form.Get("code")
-		case "urn:ietf:params:oauth:grant-type:device_code":
-			// If device_code is present, we should use that instead of authcode (for device flow)
-			code = form.Get("device_code")
-		case "refresh_token":
-			// This should not happen, but in case a bug causes the authcode to be set, fail early with a meaningful error message
-			if authcode := form.Get("code"); authcode != "" {
-				return nil, fmt.Errorf("refresh_token grant_type should not have authcode set (got authcode=%s)", authcode)
-			}
-		default:
-			return nil, fmt.Errorf("unsupported grant_type for DPoP: %s", grantType)
-		}
-		jti := randomB64(16)
-		iat := time.Now().Add(-30 * time.Second).Unix()
-
-		token, err := CreateDpopJwt(htm, htu, jti, code, iat, t.Signer, t.Alg)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("DPoP", string(token))
-
-		return t.Base.RoundTrip(req)
-
-	}
-	return t.Base.RoundTrip(req)
-}
-
-// CreateDpopJwt creates a DPoP JWT for the given parameters and signs it with
-// the provided signer and algorithm and returns it as a compact JWT.
-func CreateDpopJwt(htm, htu, jti, authcode string, iat int64, signer crypto.Signer, alg string) ([]byte, error) {
-	jwkKey, err := CreateJWK(signer, alg)
-	if err != nil {
-		return nil, err
-	}
-
-	ph := jws.NewHeaders()
-	if err := ph.Set("typ", "dpop+jwt"); err != nil {
-		return nil, err
-	}
-	if err := ph.Set("alg", alg); err != nil {
-		return nil, err
-	}
-	if err := ph.Set("jwk", jwkKey); err != nil {
-		return nil, err
-	}
-
-	payload := simpleoidc.DpopClaims{
-		Htm: htm,
-		Htu: htu,
-		Jti: jti,
-		Iat: iat,
-	}
-
-	if authcode != "" {
-		// In the refresh flow we don't have an authcode to include as the c_hash claim
-		cHash := sha256.Sum256([]byte(authcode))
-		payload.CS256 = base64.RawURLEncoding.EncodeToString(cHash[:])
-	}
-
-	payloadStr, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	keyAlg, err := jwa.KeyAlgorithmFrom(alg)
-	if err != nil {
-		return nil, err
-	}
-
-	return jws.Sign(payloadStr,
-		jws.WithKey(keyAlg, signer,
-			jws.WithProtectedHeaders(ph),
-		),
-	)
-}
-
-func CreateJKT(signer crypto.Signer, alg string) ([]byte, error) {
-	jwkKey, err := CreateJWK(signer, alg)
-	if err != nil {
-		return nil, err
-	}
-	thumbprint, err := jwkKey.Thumbprint(crypto.SHA256)
-	if err != nil {
-		return nil, err
-	}
-	return util.Base64EncodeForJWT(thumbprint), nil
-}
-
-func CreateJWK(signer crypto.Signer, alg string) (jwk.Key, error) {
-	jwkKey, err := jwk.PublicKeyOf(signer.Public())
-	if err != nil {
-		return nil, err
-	}
-	err = jwkKey.Set(jwk.AlgorithmKey, alg)
-	if err != nil {
-		return nil, err
-	}
-	return jwkKey, nil
-}
-
 // KeyBindingOpRefreshable extends KeyBindingOp to support a refresh flow
 type KeyBindingOpRefreshable struct {
 	KeyBindingOp
 }
 
 func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
-	cookieHandler, err := configCookieHandler()
-	if err != nil {
-		return nil, err
-	}
-	options := []rp.Option{
-		rp.WithCookieHandler(cookieHandler),
-		rp.WithVerifierOpts(
-			rp.WithIssuedAtOffset(r.IssuedAtOffset),
-			rp.WithNonce(nil), // disable nonce check
-		),
-	}
-	if r.HttpClient != nil {
-		options = append(options, rp.WithHTTPClient(r.HttpClient))
-	}
-
-	// The redirect URI is not sent in the refresh request so we set it to an empty string.
-	// According to the OIDC spec the only values sent in a refresh request are:
-	// client_id, client_secret, grant_type, refresh_token, and scope.
-	// https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
-	redirectURI := ""
-	relyingParty, err := rp.NewRelyingPartyOIDC(ctx, r.issuer, r.clientID,
-		r.ClientSecret, redirectURI, r.Scopes, options...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create RP to verify token: %w", err)
-	}
-	retTokens, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, string(refreshToken), "", "")
-	if err != nil {
-		return nil, err
-	}
-
-	if retTokens.RefreshToken == "" {
-		// Google does not rotate refresh tokens, the one you get at the
-		// beginning is the only one you'll ever get. This may not be true
-		// of OPs.
-		retTokens.RefreshToken = string(refreshToken)
-	}
-
-	return &simpleoidc.Tokens{
-		IDToken:      []byte(retTokens.IDToken),
-		RefreshToken: []byte(retTokens.RefreshToken),
-		AccessToken:  []byte(retTokens.AccessToken)}, nil
+	return r.refreshTokens(ctx, refreshToken)
 }
 
 func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
