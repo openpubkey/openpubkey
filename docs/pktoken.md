@@ -720,8 +720,8 @@ BASE64URL(UTF8(JWS Protected Header-CIC)) || ':' ||
 BASE64URL(UTF8(JWS Signature-CIC)) || ':' ||
 BASE64URL(UTF8(JWS Protected Header-COS)) || ':' ||
 BASE64URL(UTF8(JWS Signature-COS)) || '.' ||
+BASE64URL(UTF8(JWS Refreshed Protected Header-OP)) || '.' ||
 BASE64URL(JWS Refreshed Payload) || '.' ||
-BASE64URL(UTF8(JWS Refreshed Protected Header-OP)) || ',' ||
 BASE64URL(UTF8(JWS Refreshed Signature-OP)) || '.' ||
 ```
 
