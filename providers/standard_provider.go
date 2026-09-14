@@ -103,6 +103,8 @@ type StandardOpOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// CacheConfig specifies the discovery cache (if any) used by this provider
+	CacheConfig discover.DiscoveryCacheConfig
 }
 
 func GetDefaultStandardOpOptions(issuer string, clientID string) *StandardOpOptions {
@@ -157,6 +159,7 @@ func newStandardOpWithOptions(opts *StandardOpOptions) *StandardOp {
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
 				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 			},
+			CacheConfig: opts.CacheConfig,
 		},
 	}
 }
@@ -542,11 +545,11 @@ func (s *StandardOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*s
 }
 
 func (s *StandardOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return s.publicKeyFinder.ByToken(ctx, s.issuer, token)
+	return s.publicKeyFinder.ByToken(ctx, s.issuer, token, true)
 }
 
 func (s *StandardOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return s.publicKeyFinder.ByKeyID(ctx, s.issuer, keyID)
+	return s.publicKeyFinder.ByKeyID(ctx, s.issuer, keyID, true)
 }
 
 func (s *StandardOp) Issuer() string {

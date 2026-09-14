@@ -76,6 +76,8 @@ type HelloOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// CacheConfig specifies the discovery cache (if any) used by this provider
+	CacheConfig discover.DiscoveryCacheConfig
 }
 
 func GetDefaultHelloOpOptions() *HelloOptions {
@@ -140,6 +142,7 @@ func newHelloOpWithOptions(opts *HelloOptions) *HelloOp {
 			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
 				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 			},
+			CacheConfig: opts.CacheConfig,
 		},
 	}
 }
