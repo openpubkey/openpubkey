@@ -18,6 +18,7 @@ package verifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -100,7 +101,12 @@ func GQOnly() Check {
 }
 
 type Verifier struct {
-	providers map[string]ProviderVerifier
+	// providers maps an issuer to the verifiers registered for it, in
+	// registration order. Several verifiers may share an issuer, e.g. two
+	// OAuth client IDs at one OP, or a browser-login verifier and a CI/CD
+	// verifier that share an issuer e.g. gitlab and gitlab-ci. If any verifier
+	// succeeds, the PK token is accepted. If all fail, the PK token is rejected.
+	providers map[string][]ProviderVerifier
 	cosigners map[string]CosignerVerifier
 	// Sets the default expiration policy to use
 	defaultExpirationPolicy *ExpirationPolicy
@@ -113,7 +119,7 @@ func New(verifier ProviderVerifier, options ...VerifierOpts) (*Verifier, error) 
 
 func NewFromMany(verifiers []ProviderVerifier, options ...VerifierOpts) (*Verifier, error) {
 	v := &Verifier{
-		providers: map[string]ProviderVerifier{},
+		providers: map[string][]ProviderVerifier{},
 		cosigners: map[string]CosignerVerifier{},
 		// For user access we override the ID Token expiration claim
 		// and instead have tokens expire after 24 hours so that
@@ -122,10 +128,7 @@ func NewFromMany(verifiers []ProviderVerifier, options ...VerifierOpts) (*Verifi
 	}
 
 	for _, verifier := range verifiers {
-		if _, ok := v.providers[verifier.Issuer()]; ok {
-			return nil, fmt.Errorf("provider verifier found with duplicate issuer: %s", verifier.Issuer())
-		}
-		v.providers[verifier.Issuer()] = verifier
+		v.providers[verifier.Issuer()] = append(v.providers[verifier.Issuer()], verifier)
 	}
 
 	for _, option := range options {
@@ -160,7 +163,7 @@ func (v *Verifier) VerifyPKToken(
 		return err
 	}
 
-	providerVerifier, ok := v.providers[issuer]
+	providerVerifiers, ok := v.providers[issuer]
 	if !ok {
 		var knownIssuers []string
 		for k := range v.providers {
@@ -173,8 +176,24 @@ func (v *Verifier) VerifyPKToken(
 	if err != nil {
 		return err
 	}
-	if err := providerVerifier.VerifyIDToken(ctx, pkt.OpToken, cic); err != nil {
-		return err
+
+	// The verifiers for the issuer are tried in registration order,
+	// if any verifier accepts with matching issuer, verification succeeds.
+	var providerVerifier ProviderVerifier
+	var errs []error
+	for _, candidate := range providerVerifiers {
+		if err := candidate.VerifyIDToken(ctx, pkt.OpToken, cic); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		providerVerifier = candidate // Success!
+		break
+	}
+	if providerVerifier == nil {
+		if len(errs) == 1 {
+			return errs[0]
+		}
+		return fmt.Errorf("PK Token rejected by all %d provider verifiers for issuer %s: %w", len(errs), issuer, errors.Join(errs...))
 	}
 
 	// If expiration has been set for this provider verifier use it to check expiration
