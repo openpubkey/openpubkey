@@ -36,8 +36,8 @@ import (
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
+	"github.com/zitadel/oidc/v4/pkg/client/rp"
+	"github.com/zitadel/oidc/v4/pkg/oidc"
 )
 
 // KeyBindingOp configures standardOp to use the OIDC key binding protocol as described in the

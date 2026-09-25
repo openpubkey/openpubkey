@@ -17,12 +17,13 @@
 package verifier
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/openpubkey/openpubkey/pktoken"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
+	"github.com/zitadel/oidc/v4/pkg/client/rp"
 )
 
 // UserInfoRequester enables the retrieval of user info from an OpenID Provider
@@ -69,7 +70,13 @@ func (ui *UserInfoRequester) Request(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	info, err := rp.Userinfo[*oidc.UserInfo](
+
+	// We decode into rawUserInfo rather than oidc.UserInfo because we only
+	// need the sub claim (so zitadel/oidc can check it against the ID token)
+	// and the response body itself. Decoding into oidc.UserInfo would subject
+	// the response to that type's strict per-field decoding, which rejects the
+	// whole response when an OP sends a claim in a shape it does not expect.
+	info, err := rp.Userinfo[*rawUserInfo](
 		ctx,
 		ui.AccessToken,
 		"Bearer",
@@ -80,11 +87,47 @@ func (ui *UserInfoRequester) Request(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	jsonInfo, err := info.MarshalJSON()
-	if err != nil {
-		// We should not reach this because rp.NewRelyingPartyOIDC already unmarshals the JSON to check the sub
-		return "", err
-	}
+	return info.JSON(), nil
+}
 
-	return string(jsonInfo), nil
+// rawUserInfo captures an OpenID Provider's userinfo response verbatim while
+// exposing the sub claim, which is the only field this package needs.
+//
+// Implementing rp.SubjectGetter this way keeps sub verification intact while
+// avoiding the strict claim decoding of oidc.UserInfo. That strictness is a
+// real compatibility hazard: as of zitadel/oidc v4 the oidc.Bool fields
+// (email_verified, phone_number_verified) return an error for any value that
+// is not a boolean or the strings "true"/"false", so a provider that sends
+// "email_verified": null fails the entire userinfo request rather than
+// returning the remaining claims. Passing the body through also means callers
+// see exactly what the OP sent instead of a re-serialized approximation.
+type rawUserInfo struct {
+	subject string
+	raw     []byte
+}
+
+// GetSubject implements rp.SubjectGetter.
+func (u *rawUserInfo) GetSubject() string { return u.subject }
+
+// JSON returns the userinfo response with insignificant whitespace removed.
+func (u *rawUserInfo) JSON() string {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, u.raw); err != nil {
+		// UnmarshalJSON only ever stores well-formed JSON, so this is
+		// unreachable; fall back to the unmodified body rather than losing it.
+		return string(u.raw)
+	}
+	return buf.String()
+}
+
+func (u *rawUserInfo) UnmarshalJSON(data []byte) error {
+	var claims struct {
+		Subject string `json:"sub"`
+	}
+	if err := json.Unmarshal(data, &claims); err != nil {
+		return err
+	}
+	u.subject = claims.Subject
+	u.raw = append([]byte(nil), data...)
+	return nil
 }

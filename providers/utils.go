@@ -23,7 +23,7 @@ import (
 	"net"
 	"net/url"
 
-	httphelper "github.com/zitadel/oidc/v3/pkg/http"
+	httphelper "github.com/zitadel/oidc/v4/pkg/http"
 )
 
 // FindAvailablePort attempts to open a listener on localhost until it finds one or runs out of redirectURIs to try

@@ -34,7 +34,7 @@ import (
 	"github.com/openpubkey/openpubkey/jose"
 	"github.com/openpubkey/openpubkey/util"
 
-	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
+	oidcclient "github.com/zitadel/oidc/v4/pkg/client"
 )
 
 type PublicKeyRecord struct {
