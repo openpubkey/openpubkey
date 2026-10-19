@@ -1,6 +1,6 @@
 module github.com/openpubkey/openpubkey
 
-go 1.26.0
+go 1.25.0
 
 require (
 	filippo.io/bigmod v0.1.0
@@ -12,7 +12,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/stretchr/testify v1.12.1
 	github.com/yeqown/go-qrcode/v2 v2.2.5
-	github.com/zitadel/oidc/v3 v3.51.16
+	github.com/zitadel/oidc/v3 v3.51.8
 	golang.org/x/crypto v0.54.0
 )
 
@@ -51,7 +51,7 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/oauth2 v0.37.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )
