@@ -27,6 +27,7 @@ import (
 
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/openpubkey/openpubkey/discover"
 	simpleoidc "github.com/openpubkey/openpubkey/oidc"
@@ -194,6 +195,17 @@ type StandardOp struct {
 	keyBindingSignerAlg       string
 }
 
+// keyBindingOptions returns the RP options for OpenID Connect Key Binding
+// if key binding is configured.
+func (s *StandardOp) keyBindingOptions() []rp.Option {
+	if s.keyBindingSigner == nil {
+		return nil
+	}
+	return []rp.Option{
+		rp.WithKeyBinding(s.keyBindingSigner, jose.SignatureAlgorithm(s.keyBindingSignerAlg)),
+	}
+}
+
 func NewStandardKeyBindingOpWithOptions(opts *StandardOpOptions) BrowserOpenIdProvider {
 	return &KeyBindingOp{
 		StandardOp: *newStandardOpWithOptions(opts),
@@ -246,6 +258,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
+		_ = ln.Close()
 		return nil, err
 	}
 	options := []rp.Option{
@@ -274,6 +287,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
+	options = append(options, s.keyBindingOptions()...)
 
 	redirectURIParam := redirectURI.String()
 	if s.RemoteRedirectURI != "" {
@@ -289,6 +303,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		s.issuer, s.clientID, s.ClientSecret, redirectURIParam,
 		s.Scopes, options...)
 	if err != nil {
+		_ = ln.Close()
 		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
@@ -432,6 +447,7 @@ func (s *StandardOp) deviceFlowRequestTokens(ctx context.Context, cicHash string
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
+	options = append(options, s.keyBindingOptions()...)
 	relyingParty, err := rp.NewRelyingPartyOIDC(
 		ctx,
 		s.issuer,
@@ -515,6 +531,7 @@ func (s *StandardOp) RefreshTokens(ctx context.Context, refreshToken []byte) (*s
 	if s.HttpClient != nil {
 		options = append(options, rp.WithHTTPClient(s.HttpClient))
 	}
+	options = append(options, s.keyBindingOptions()...)
 
 	// The redirect URI is not sent in the refresh request so we set it to an empty string.
 	// According to the OIDC spec the only values send on a refresh request are:
