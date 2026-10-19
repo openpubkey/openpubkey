@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"fmt"
+	"net"
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
@@ -155,4 +157,31 @@ func TestVerifyRefreshedIDTokenRequiresKeyBoundTyp(t *testing.T) {
 	op := &KeyBindingOpRefreshable{}
 	err = op.VerifyRefreshedIDToken(context.Background(), origTokens.IDToken, reTokens.IDToken)
 	require.ErrorContains(t, err, "expected key-bound refreshed ID Token")
+}
+
+// TestRequestTokensReleasesCallbackPortOnKeyBindingError checks that a login
+// that fails while creating the relying party (here: a key binding algorithm
+// that doesn't match the signer) closes the callback listener, so the next
+// login can bind the same redirect URI port.
+func TestRequestTokensReleasesCallbackPortOnKeyBindingError(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := probe.Addr().(*net.TCPAddr).Port
+	require.NoError(t, probe.Close())
+
+	helloOpOpts := GetDefaultHelloOpOptions()
+	helloOpOpts.RedirectURIs = []string{fmt.Sprintf("http://127.0.0.1:%d/login-callback", port)}
+	op, err := CreateMockHelloKeyBindingOpWithOpts(helloOpOpts, mocks.UserBrowserInteractionMock{})
+	require.NoError(t, err)
+
+	signer, err := util.GenKeyPair("ES256")
+	require.NoError(t, err)
+	kbOp := op.(*KeyBindingOp)
+	require.NoError(t, kbOp.ConfigKeyBinding(signer, "RS256"))
+
+	cic, _, _ := GenCICDeterministic(t, map[string]any{})
+	for attempt := range 2 {
+		_, err = kbOp.RequestTokens(context.Background(), cic)
+		require.ErrorContains(t, err, "invalid key binding configuration", "attempt %d", attempt+1)
+	}
 }

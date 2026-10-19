@@ -258,6 +258,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 
 	cookieHandler, err := configCookieHandler()
 	if err != nil {
+		_ = ln.Close()
 		return nil, err
 	}
 	options := []rp.Option{
@@ -302,6 +303,7 @@ func (s *StandardOp) defaultRequestTokens(ctx context.Context, cicHash string) (
 		s.issuer, s.clientID, s.ClientSecret, redirectURIParam,
 		s.Scopes, options...)
 	if err != nil {
+		_ = ln.Close()
 		return nil, fmt.Errorf("error creating provider: %w", err)
 	}
 
