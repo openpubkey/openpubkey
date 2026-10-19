@@ -11,31 +11,29 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/stretchr/testify v1.11.1
 	github.com/yeqown/go-qrcode/v2 v2.2.5
-	github.com/zitadel/oidc/v3 v3.23.2
+	github.com/zitadel/oidc/v4 v4.0.0-next.3
 	golang.org/x/crypto v0.54.0
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
-	github.com/kr/pretty v0.3.0 // indirect
 	github.com/lestrrat-go/dsig v1.0.0 // indirect
 	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
 	github.com/lestrrat-go/httprc/v3 v3.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
-	github.com/rogpeppe/go-internal v1.8.1 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/yeqown/reedsolomon v1.0.0 // indirect
-	github.com/zitadel/logging v0.6.0 // indirect
-	github.com/zitadel/schema v1.3.0 // indirect
-	go.opentelemetry.io/otel v1.29.0 // indirect
-	go.opentelemetry.io/otel/metric v1.29.0 // indirect
-	go.opentelemetry.io/otel/trace v1.29.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	github.com/zitadel/logging v0.7.0 // indirect
+	github.com/zitadel/schema v1.3.2 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 )
 
 require (
@@ -56,7 +54,7 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/oauth2 v0.27.0 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

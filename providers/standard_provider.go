@@ -33,9 +33,9 @@ import (
 	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/qrcode"
 	"github.com/openpubkey/openpubkey/util"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
-	oidchttp "github.com/zitadel/oidc/v3/pkg/http"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
+	"github.com/zitadel/oidc/v4/pkg/client/rp"
+	oidchttp "github.com/zitadel/oidc/v4/pkg/http"
+	"github.com/zitadel/oidc/v4/pkg/oidc"
 )
 
 const defaultCallbackHTML = "You may now close this window"
