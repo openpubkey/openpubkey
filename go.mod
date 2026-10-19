@@ -1,6 +1,6 @@
 module github.com/openpubkey/openpubkey
 
-go 1.25.0
+go 1.26.0
 
 require (
 	filippo.io/bigmod v0.1.0
@@ -12,7 +12,7 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/stretchr/testify v1.12.1
 	github.com/yeqown/go-qrcode/v2 v2.2.5
-	github.com/zitadel/oidc/v3 v3.23.2
+	github.com/zitadel/oidc/v3 v3.51.16
 	golang.org/x/crypto v0.54.0
 )
 
@@ -29,9 +29,9 @@ require (
 	github.com/yeqown/reedsolomon v1.0.0 // indirect
 	github.com/zitadel/schema v1.3.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel v1.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.45.0 // indirect
-	go.opentelemetry.io/otel/trace v1.45.0 // indirect
+	go.opentelemetry.io/otel v1.46.0 // indirect
+	go.opentelemetry.io/otel/metric v1.46.0 // indirect
+	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 
@@ -51,9 +51,7 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/oauth2 v0.36.0 // indirect
+	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )
-
-replace github.com/zitadel/oidc/v3 => github.com/EthanHeilman/zitadeloidc/v3 v3.0.0-20260910174939-face7eeee775
