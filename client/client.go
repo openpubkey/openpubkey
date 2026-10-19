@@ -262,7 +262,7 @@ func (o *OpkClient) oidcAuth(
 // allowing the client to continue making authenticated requests without requiring the user to re-authenticate.
 func (o *OpkClient) Refresh(ctx context.Context) (*pktoken.PKToken, error) {
 	if tokensOp, ok := o.Op.(providers.RefreshableOpenIdProvider); ok {
-		if o.refreshToken == nil {
+		if !o.HasRefreshToken() {
 			return nil, fmt.Errorf("no refresh token set")
 		}
 		if o.pkToken == nil {
@@ -305,6 +305,11 @@ func (o *OpkClient) GetAlg() jose.KeyAlgorithm {
 
 func (o *OpkClient) GetAccessToken() []byte {
 	return o.accessToken
+}
+
+// HasRefreshToken reports if the OP issued a refresh token during Auth.
+func (o *OpkClient) HasRefreshToken() bool {
+	return len(o.refreshToken) > 0
 }
 
 func (o *OpkClient) SetPKToken(pkt *pktoken.PKToken) {

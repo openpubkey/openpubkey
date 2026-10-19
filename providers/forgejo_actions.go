@@ -113,11 +113,11 @@ func (o *ForgejoOp) Issuer() string {
 }
 
 func (o *ForgejoOp) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return o.publicKeyFinder.ByKeyID(ctx, o.issuer, keyID)
+	return o.publicKeyFinder.ByKeyID(ctx, o.issuer, keyID, true)
 }
 
 func (o *ForgejoOp) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return o.publicKeyFinder.ByToken(ctx, o.issuer, token)
+	return o.publicKeyFinder.ByToken(ctx, o.issuer, token, true)
 }
 
 func (o *ForgejoOp) RequestTokens(ctx context.Context, cic *clientinstance.Claims) (*simpleoidc.Tokens, error) {

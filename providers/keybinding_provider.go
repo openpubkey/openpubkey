@@ -55,16 +55,14 @@ func (s *KeyBindingOp) VerifyIDToken(ctx context.Context, idt []byte, cic *clien
 	return vp.VerifyIDToken(ctx, idt, cic)
 }
 
-// KeyBindingOpRefreshable extends KeyBindingOp to support a refresh flow
-type KeyBindingOpRefreshable struct {
-	KeyBindingOp
-}
+// KeyBindingOpRefreshable is a deprecated alias for KeyBindingOp.
+//
+// Deprecated: refresh support is no longer a separate type. KeyBindingOp
+// inherits RefreshTokens from StandardOp and overrides VerifyRefreshedIDToken
+// to additionally check that the key binding is unchanged.
+type KeyBindingOpRefreshable = KeyBindingOp
 
-func (r *KeyBindingOpRefreshable) RefreshTokens(ctx context.Context, refreshToken []byte) (*simpleoidc.Tokens, error) {
-	return r.refreshTokens(ctx, refreshToken)
-}
-
-func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
+func (r *KeyBindingOp) VerifyRefreshedIDToken(ctx context.Context, origIdt []byte, reIdt []byte) error {
 	if err := simpleoidc.SameIdentity(origIdt, reIdt); err != nil {
 		return fmt.Errorf("refreshed ID Token is for different subject than original ID Token: %w", err)
 	}
@@ -105,4 +103,4 @@ func (r *KeyBindingOpRefreshable) VerifyRefreshedIDToken(ctx context.Context, or
 	return nil
 }
 
-var _ RefreshableOpenIdProvider = (*KeyBindingOpRefreshable)(nil)
+var _ RefreshableOpenIdProvider = (*KeyBindingOp)(nil)

@@ -160,11 +160,15 @@ func TestStandardProviders(t *testing.T) {
 				err = op.VerifyRefreshedIDToken(context.Background(), tokens.IDToken, reTokens.IDToken)
 				require.NoError(t, err, tc.name)
 
-				require.NotEqual(t, tc.providerName, "hello", tc.name, "hello provider is not refreshable")
 			default:
-				// Make sure a bug doesn't cause us to skip refreshed ID Token tests
+				// Make sure a bug doesn't cause us to skip refreshed ID Token tests.
+				// Every browser-based OP built on StandardOp supports the refresh
+				// flow; whether a given OP deployment will honour it depends on
+				// its configuration, not on its Go type.
 				require.NotEqual(t, tc.providerName, "google", tc.name, "google provider should be refreshable")
 				require.NotEqual(t, tc.providerName, "azure", tc.name, "azure provider should be refreshable")
+				require.NotEqual(t, tc.providerName, "gitlab", tc.name, "gitlab provider should be refreshable")
+				require.NotEqual(t, tc.providerName, "hello", tc.name, "hello provider should be refreshable")
 			}
 		})
 	}

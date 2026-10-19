@@ -79,6 +79,8 @@ type GoogleOptions struct {
 	// CallbackHTML is the HTML content to display to the user after successful
 	// authentication. If empty, defaults to "You may now close this window".
 	CallbackHTML string
+	// CacheConfig specifies the discovery cache (if any) used by this provider
+	CacheConfig discover.DiscoveryCacheConfig
 }
 
 func GetDefaultGoogleOpOptions() *GoogleOptions {
@@ -117,27 +119,26 @@ func NewGoogleOp() BrowserOpenIdProvider {
 // Client or override the configuration.
 func NewGoogleOpWithOptions(opts *GoogleOptions) BrowserOpenIdProvider {
 	return &GoogleOp{
-		StandardOp{
-			clientID:                  opts.ClientID,
-			ClientSecret:              opts.ClientSecret,
-			Scopes:                    opts.Scopes,
-			PromptType:                opts.PromptType,
-			AccessType:                opts.AccessType,
-			RedirectURIs:              opts.RedirectURIs,
-			RemoteRedirectURI:         opts.RemoteRedirectURI,
-			GQSign:                    opts.GQSign,
-			OpenBrowser:               opts.OpenBrowser,
-			HttpClient:                opts.HttpClient,
-			IssuedAtOffset:            opts.IssuedAtOffset,
-			CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
-			issuer:                    opts.Issuer,
-			DeviceFlow:                opts.DeviceFlow,
-			requestTokensOverrideFunc: nil,
-			publicKeyFinder: discover.PublicKeyFinder{
-				JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
-					return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
-				},
+		clientID:                  opts.ClientID,
+		ClientSecret:              opts.ClientSecret,
+		Scopes:                    opts.Scopes,
+		PromptType:                opts.PromptType,
+		AccessType:                opts.AccessType,
+		RedirectURIs:              opts.RedirectURIs,
+		RemoteRedirectURI:         opts.RemoteRedirectURI,
+		GQSign:                    opts.GQSign,
+		OpenBrowser:               opts.OpenBrowser,
+		HttpClient:                opts.HttpClient,
+		IssuedAtOffset:            opts.IssuedAtOffset,
+		CallbackHTML:              callbackHTMLOrDefault(opts.CallbackHTML),
+		issuer:                    opts.Issuer,
+		DeviceFlow:                opts.DeviceFlow,
+		requestTokensOverrideFunc: nil,
+		publicKeyFinder: discover.PublicKeyFinder{
+			JwksFunc: func(ctx context.Context, issuer string) ([]byte, error) {
+				return discover.GetJwksByIssuer(ctx, issuer, opts.HttpClient)
 			},
+			CacheConfig: opts.CacheConfig,
 		},
 	}
 }

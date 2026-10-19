@@ -167,11 +167,11 @@ func (m *MockProvider) RefreshTokens(ctx context.Context, _ []byte) (*simpleoidc
 }
 
 func (m *MockProvider) PublicKeyByToken(ctx context.Context, token []byte) (*discover.PublicKeyRecord, error) {
-	return m.publicKeyFinder.ByToken(ctx, m.issuer, token)
+	return m.publicKeyFinder.ByToken(ctx, m.issuer, token, true)
 }
 
 func (m *MockProvider) PublicKeyByKeyId(ctx context.Context, keyID string) (*discover.PublicKeyRecord, error) {
-	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID)
+	return m.publicKeyFinder.ByKeyID(ctx, m.issuer, keyID, true)
 }
 
 func (m *MockProvider) Issuer() string {
@@ -195,7 +195,7 @@ func (m *MockProvider) VerifyRefreshedIDToken(ctx context.Context, origIdt []byt
 		return fmt.Errorf("refreshed ID Token should not be issued before original ID Token: %w", err)
 	}
 
-	pkr, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt)
+	pkr, err := m.publicKeyFinder.ByToken(ctx, m.Issuer(), reIdt, false)
 	if err != nil {
 		return err
 	}

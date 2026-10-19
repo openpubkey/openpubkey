@@ -108,6 +108,7 @@ func TestClient(t *testing.T) {
 			err = op.VerifyIDToken(context.Background(), pkt.OpToken, cic)
 			require.NoError(t, err, tc.name)
 
+			require.True(t, c.HasRefreshToken())
 			pktRefreshed, err := c.Refresh(context.Background())
 			require.NoError(t, err)
 			require.NotNil(t, pktRefreshed)
