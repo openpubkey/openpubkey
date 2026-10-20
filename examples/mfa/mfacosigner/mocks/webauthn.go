@@ -21,6 +21,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
@@ -49,14 +50,26 @@ func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
 	}
 
 	pubkey := signer.Public().(*ecdsa.PublicKey)
+	// crypto/ecdsa.PublicKey.X and .Y are deprecated as of Go 1.26.
+	// PublicKey.Bytes returns the uncompressed SEC 1 point whose fixed-width
+	// coordinates are the byte strings the COSE EC2 encoding wants (big.Int
+	// .Bytes strips leading zero bytes, which is not a valid COSE coordinate).
+	const p256CoordSize = 32 // ES256 is always P-256
+	pubkeyBytes, err := pubkey.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	if len(pubkeyBytes) != 1+2*p256CoordSize {
+		return nil, fmt.Errorf("unexpected P-256 point length %d", len(pubkeyBytes))
+	}
 	pubkeyCbor := webauthncose.EC2PublicKeyData{
 		PublicKeyData: webauthncose.PublicKeyData{
 			KeyType:   int64(webauthncose.EllipticKey),
 			Algorithm: int64(webauthncose.AlgES256),
 		},
 		Curve:  int64(webauthncose.AlgES256),
-		XCoord: pubkey.X.Bytes(),
-		YCoord: pubkey.Y.Bytes(),
+		XCoord: pubkeyBytes[1 : 1+p256CoordSize],
+		YCoord: pubkeyBytes[1+p256CoordSize:],
 	}
 	pubkeyCborBytes, err := webauthncbor.Marshal(pubkeyCbor)
 	if err != nil {

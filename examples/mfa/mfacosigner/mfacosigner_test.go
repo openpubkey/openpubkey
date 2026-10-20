@@ -54,7 +54,7 @@ func TestFullFlow(t *testing.T) {
 	cfg := &webauthn.Config{
 		RPDisplayName: "OpenPubkey",
 		RPID:          rpID,
-		RPOrigin:      RPOrigin,
+		RPOrigins:     []string{RPOrigin},
 	}
 	cos, err := New(cosSigner, alg, cosignerURI, kid, cfg)
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestBadCosSigTyp(t *testing.T) {
 	cfg := &webauthn.Config{
 		RPDisplayName: "OpenPubkey",
 		RPID:          "http://example.com",
-		RPOrigin:      "http://example.com",
+		RPOrigins:     []string{"http://example.com"},
 	}
 
 	kid := "test-kid"
