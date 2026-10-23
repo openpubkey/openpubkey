@@ -157,12 +157,14 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 	return io.ReadAll(response.Body)
 }
 
+// parseJwks parses a JWKS document. Parsing is lenient in the RFC 7517 section 5
+// sense: an entry that cannot be decoded (for example because it declares an alg
+// this build does not understand) is retained in the set as a jwk.UnsupportedKey
+// placeholder instead of failing the entire set, so the keys we do understand
+// stay usable. Strict parsing drops the whole JWKS on the floor over a single
+// unknown entry.
 func parseJwks(b []byte) (jwk.Set, error) {
-	jwks := jwk.NewSet()
-	if err := json.Unmarshal(b, jwks); err != nil {
-		return nil, err
-	}
-	return jwks, nil
+	return jwk.Parse(b, jwk.WithStrictKeySetParsing(false))
 }
 
 // readCache returns the cached JWKS for issuer if there is a usable entry no
@@ -312,6 +314,13 @@ func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string, 
 	for i := range jwks.Len() {
 		key, ok := jwks.Key(i)
 		if !ok {
+			continue
+		}
+		if jwk.IsUnsupportedKey(key) {
+			// Lenient JWKS parsing (see parseJwks) retains entries that could
+			// not be decoded as placeholders. A placeholder cannot be
+			// thumbprinted, but it must not abort the search for the keys we
+			// can use.
 			continue
 		}
 		jktOfKey, err := key.Thumbprint(crypto.SHA256)

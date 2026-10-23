@@ -142,7 +142,15 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	if algStr == "" {
 		return fmt.Errorf("provider algorithm type missing")
 	}
-	alg := jwa.NewSignatureAlgorithm(algStr)
+	// jwx v3 represents algorithms as structs rather than plain strings, so a
+	// freshly constructed value does not compare equal to the jwa constants
+	// that verifyIDTokenSig switches on. Use the registered value for names
+	// jwx knows, and only construct one for names it does not, such as the
+	// GQ256 pseudo-algorithm.
+	alg, known := jwa.LookupSignatureAlgorithm(algStr)
+	if !known {
+		alg = jwa.NewSignatureAlgorithm(algStr)
+	}
 	if alg.String() != jose.GQ256 && v.options.GQOnly {
 		return fmt.Errorf("non-GQ signatures are not supported")
 	}
