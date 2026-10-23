@@ -17,6 +17,12 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    # jws.SplitCompact is deprecated in jwx v3.4+, but its replacement (the
+    # jwsbb package) only ships in the v4 line. Accept it until that migration.
+    rules:
+      - linters:
+          - staticcheck
+        text: 'jws[.]SplitCompact is deprecated'
     paths:
       - third_party$
       - builtin$
