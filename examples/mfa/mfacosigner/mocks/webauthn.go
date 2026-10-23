@@ -49,27 +49,18 @@ func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
 		return nil, err
 	}
 
-	pubkey := signer.Public().(*ecdsa.PublicKey)
-	// crypto/ecdsa.PublicKey.X and .Y are deprecated as of Go 1.26.
-	// PublicKey.Bytes returns the uncompressed SEC 1 point whose fixed-width
-	// coordinates are the byte strings the COSE EC2 encoding wants (big.Int
-	// .Bytes strips leading zero bytes, which is not a valid COSE coordinate).
-	const p256CoordSize = 32 // ES256 is always P-256
-	pubkeyBytes, err := pubkey.Bytes()
+	x, y, err := p256Coordinates(signer.Public().(*ecdsa.PublicKey))
 	if err != nil {
 		return nil, err
-	}
-	if len(pubkeyBytes) != 1+2*p256CoordSize {
-		return nil, fmt.Errorf("unexpected P-256 point length %d", len(pubkeyBytes))
 	}
 	pubkeyCbor := webauthncose.EC2PublicKeyData{
 		PublicKeyData: webauthncose.PublicKeyData{
 			KeyType:   int64(webauthncose.EllipticKey),
 			Algorithm: int64(webauthncose.AlgES256),
 		},
-		Curve:  int64(webauthncose.AlgES256),
-		XCoord: pubkeyBytes[1 : 1+p256CoordSize],
-		YCoord: pubkeyBytes[1+p256CoordSize:],
+		Curve:  int64(webauthncose.P256),
+		XCoord: x,
+		YCoord: y,
 	}
 	pubkeyCborBytes, err := webauthncbor.Marshal(pubkeyCbor)
 	if err != nil {
@@ -105,6 +96,21 @@ func NewWebauthnDevice(rpID string) (*WebAuthnDevice, error) {
 		// Signature counter, used to identify cloned devices  see https://www.w3.org/TR/webauthn/#signature-counter
 		Counter: 0,
 	}, nil
+}
+
+// p256Coordinates returns the 32-byte X and Y coordinates of a P-256 public key.
+// COSE requires leading zero bytes to be kept (RFC 9053, section 7.1.1),
+// which big.Int.Bytes would drop.
+func p256Coordinates(pubkey *ecdsa.PublicKey) (x, y []byte, err error) {
+	const coordSize = 32
+	point, err := pubkey.Bytes()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(point) != 1+2*coordSize {
+		return nil, nil, fmt.Errorf("expected a P-256 key, got a %d-byte point", len(point))
+	}
+	return point[1 : 1+coordSize], point[1+coordSize:], nil
 }
 
 func (wa *WebAuthnDevice) RegResp(createCreation *protocol.CredentialCreation) (*protocol.ParsedCredentialCreationData, error) {
