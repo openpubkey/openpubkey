@@ -1,6 +1,6 @@
 module github.com/openpubkey/openpubkey
 
-go 1.25.0
+go 1.26.0
 
 require (
 	filippo.io/bigmod v0.1.0

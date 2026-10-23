@@ -41,7 +41,7 @@ func NewMfaCosignerHttpServer(serverUri, rpID, rpOrigin, RPDisplayName string) (
 	cfg := &webauthn.Config{
 		RPDisplayName: RPDisplayName,
 		RPID:          rpID,
-		RPOrigin:      rpOrigin,
+		RPOrigins:     []string{rpOrigin},
 	}
 
 	// Generate the key pair for our cosigner
