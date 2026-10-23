@@ -924,3 +924,105 @@ func TestConcurrentLookups(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+// --- Lenient JWKS parsing (issue #403) ---
+
+// A JWKS shaped like what real providers publish: an entry no jwx build can
+// decode (the EC point is not on the P-256 curve), an OKP key declaring its
+// crv as its alg (the exact entry shape that broke logins in
+// openpubkey/opkssh#655), and a valid ES256 key.
+const jwksWithUndecodableEntry = `{"keys":[
+	{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iD6aTuMHLsPj6tQXJRx4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7xqOsmKAjSr0tHtjWWE","alg":"ES256","kid":"broken-ec","use":"sig"},
+	{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlnw-vv-DE0Ts","alg":"Ed25519","kid":"ed25519-as-alg","use":"sig"},
+	{"kty":"EC","crv":"P-256","x":"7pyPlY0DYYm78D-BugKXrNDxXn2NfOibB-wV3IMGBRg","y":"i_A-q4Sbk1nIDFJobjyOkrMvcinsacTWFa8bL8BfOLs","alg":"ES256","kid":"good-es256","use":"sig"}
+]}`
+
+// The exact entry shape that broke logins against a real provider
+// (openpubkey/opkssh#655): an OKP key whose alg is "Ed25519". "Ed25519" is a
+// crv, not an alg, but providers publish it anyway.
+const jwksWithEd25519Alg = `{"keys":[
+	{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlnw-vv-DE0Ts","alg":"Ed25519","kid":"ed25519-as-alg","use":"sig"}
+]}`
+
+func TestParseJwksRetainsUndecodableEntries(t *testing.T) {
+	jwks, err := parseJwks([]byte(jwksWithUndecodableEntry))
+	require.NoError(t, err, "An undecodable entry must not fail the whole JWKS")
+	require.Equal(t, 3, jwks.Len(), "The undecodable entry should be retained, not dropped")
+
+	// The broken entry stays addressable by its kid, but exports no key
+	broken, ok := jwks.LookupKeyID("broken-ec")
+	require.True(t, ok, "The retained entry should keep its kid")
+	var brokenPub any
+	require.Error(t, jwk.Export(broken, &brokenPub), "A retained entry must not export a usable key")
+
+	// The good key remains fully usable
+	good, ok := jwks.LookupKeyID("good-es256")
+	require.True(t, ok)
+	var pub any
+	require.NoError(t, jwk.Export(good, &pub))
+	require.IsType(t, &ecdsa.PublicKey{}, pub)
+}
+
+func TestParseJwksAcceptsOkpKeyWithEd25519Alg(t *testing.T) {
+	jwks, err := parseJwks([]byte(jwksWithEd25519Alg))
+	require.NoError(t, err, "The alg=Ed25519 OKP entry from opkssh issue 655 should parse")
+	require.Equal(t, 1, jwks.Len())
+
+	key, ok := jwks.LookupKeyID("ed25519-as-alg")
+	require.True(t, ok)
+	var pub any
+	require.NoError(t, jwk.Export(key, &pub))
+	require.IsType(t, ed25519.PublicKey{}, pub)
+}
+
+func TestParseJwksStillRejectsGarbage(t *testing.T) {
+	// Leniency is about unknown JWK entries, not about accepting any bytes as
+	// a JWKS: the provider-error fallback path depends on garbage failing.
+	_, err := parseJwks([]byte("<html>502 Bad Gateway</html>"))
+	require.Error(t, err)
+}
+
+func TestByKeyIDIgnoresUndecodableJwksEntries(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "good-es256", false)
+	require.NoError(t, err, "A JWKS with one undecodable entry should still resolve its usable keys")
+	require.Equal(t, "ES256", pubkeyRecord.Alg)
+	require.IsType(t, &ecdsa.PublicKey{}, pubkeyRecord.PublicKey)
+	require.False(t, pubkeyRecord.WasCached)
+}
+
+func TestByKeyIDKidMatchingOnlyUndecodableEntryFails(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "broken-ec", false)
+	require.Error(t, err, "A kid that only matches a retained entry has no usable key behind it")
+	require.ErrorContains(t, err, "unsupported")
+	require.Nil(t, pubkeyRecord.PublicKey)
+}
+
+func TestByJKTSearchesPastUndecodableJwksEntries(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	jwks, err := parseJwks([]byte(jwksWithUndecodableEntry))
+	require.NoError(t, err)
+	good, ok := jwks.LookupKeyID("good-es256")
+	require.True(t, ok)
+	thumbprint, err := good.Thumbprint(crypto.SHA256)
+	require.NoError(t, err)
+	jkt := string(util.Base64EncodeForJWT(thumbprint))
+
+	pubkeyRecord, err := finder.ByJKT(ctx, issuer, jkt, false)
+	require.NoError(t, err, "A retained undecodable entry must not abort the jkt search")
+	require.Equal(t, "ES256", pubkeyRecord.Alg)
+	require.IsType(t, &ecdsa.PublicKey{}, pubkeyRecord.PublicKey)
+}
