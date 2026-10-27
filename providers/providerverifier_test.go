@@ -18,11 +18,21 @@ package providers
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/lestrrat-go/jwx/v3/jwa"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
@@ -718,6 +728,75 @@ func TestProviderVerifierWithUndecodableJwksEntries(t *testing.T) {
 			})
 			require.NoError(t, pv.VerifyIDToken(context.Background(), tokens.IDToken, cic),
 				"An OP JWKS with entries jwx cannot decode must still verify tokens signed with its other keys")
+		})
+	}
+}
+
+func TestVerifyIDTokenRequiresKeyPublishedForTokenAlg(t *testing.T) {
+	issuer := "https://issuer.example"
+	clientID := "test-client-id"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		signer   crypto.Signer
+		keyAlg   string // empty: the JWK has no alg
+		tokenAlg string
+		expError string
+	}{
+		{name: "RS256 key, RS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "RS256"},
+		{name: "RS256 key, PS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "PS256", expError: "is published for alg PS256"},
+		{name: "PS256 key, RS256 token", signer: rsaKey, keyAlg: "PS256", tokenAlg: "RS256", expError: "is published for alg RS256"},
+		{name: "key without alg, RS256 token", signer: rsaKey, tokenAlg: "RS256"},
+		{name: "key without alg, PS256 token", signer: rsaKey, tokenAlg: "PS256", expError: "is published for alg PS256"},
+		{name: "ES256 key, ES256 token", signer: ecKey, keyAlg: "ES256", tokenAlg: "ES256"},
+		{name: "EdDSA key, Ed25519 token", signer: edKey, keyAlg: "EdDSA", tokenAlg: "Ed25519"},
+		{name: "Ed25519 key, EdDSA token", signer: edKey, keyAlg: "Ed25519", tokenAlg: "EdDSA"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			jwkKey, err := jwk.PublicKeyOf(tc.signer.Public())
+			require.NoError(t, err)
+			require.NoError(t, jwkKey.Set(jwk.KeyIDKey, "k"))
+			if tc.keyAlg != "" {
+				require.NoError(t, jwkKey.Set(jwk.AlgorithmKey, tc.keyAlg))
+			}
+			jwks := jwk.NewSet()
+			require.NoError(t, jwks.AddKey(jwkKey))
+			jwksJson, err := json.Marshal(jwks)
+			require.NoError(t, err)
+
+			cic := GenCIC(t)
+			cicHash, err := cic.Hash()
+			require.NoError(t, err)
+			payload, err := json.Marshal(map[string]any{
+				"iss": issuer, "aud": clientID, "sub": "me", "nonce": string(cicHash),
+				"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
+			})
+			require.NoError(t, err)
+			headers := jws.NewHeaders()
+			require.NoError(t, headers.Set(jws.KeyIDKey, "k"))
+			alg, ok := jwa.LookupSignatureAlgorithm(tc.tokenAlg)
+			require.True(t, ok)
+			idToken, err := jws.Sign(payload, jws.WithKey(alg, tc.signer, jws.WithProtectedHeaders(headers)))
+			require.NoError(t, err)
+
+			pv := NewProviderVerifier(issuer, ProviderVerifierOpts{
+				CommitType:        CommitTypesEnum.NONCE_CLAIM,
+				ClientID:          clientID,
+				DiscoverPublicKey: &discover.PublicKeyFinder{JwksFunc: discover.NewMockJwksSource(jwksJson).Fetch},
+			})
+			err = pv.VerifyIDToken(context.Background(), idToken, cic)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError, "A token must use the alg its key is published for (RFC 8725 section 3.1)")
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

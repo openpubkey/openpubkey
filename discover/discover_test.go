@@ -1126,8 +1126,7 @@ func TestByKeyIDSharedKidSkipsUnusableEntry(t *testing.T) {
 			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "shared", false)
 			require.NoError(t, err, "An unusable entry must not hide a usable key with the same kid")
 			require.Equal(t, ecKey.Public(), pubkeyRecord.PublicKey)
-			require.Contains(t, warnings.String(), `has 2 keys with kid "shared"`)
-			require.Contains(t, warnings.String(), `skipping unusable key with kid "shared"`)
+			require.Contains(t, warnings.String(), `kid "shared": skipping unusable key`)
 			require.Contains(t, warnings.String(), "invalid key type from JSON (AKP)")
 		})
 	}
@@ -1146,7 +1145,7 @@ func TestByKeyIDSharedKidAllUnusable(t *testing.T) {
 	require.ErrorContains(t, err, "rsa modulus too small")
 }
 
-func TestByTokenSharedKidPrefersKeyForTokenAlg(t *testing.T) {
+func TestByTokenFiltersByAlgThenKid(t *testing.T) {
 	issuer := "testIssuer"
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
@@ -1160,29 +1159,115 @@ func TestByTokenSharedKidPrefersKeyForTokenAlg(t *testing.T) {
 		publicJwkEntry(t, ecKey.Public(), "ES256", "shared"),
 		publicJwkEntry(t, edKey.Public(), "Ed25519", "shared"),
 	)
+	var warnings bytes.Buffer
 	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+	finder.SetErrWriter(&warnings)
 
 	testCases := []struct {
 		tokenAlg string
 		signer   crypto.Signer
+		expError string
 	}{
 		{tokenAlg: "RS256", signer: rsaKey},
 		{tokenAlg: "ES256", signer: ecKey},
 		{tokenAlg: "Ed25519", signer: edKey},
 		{tokenAlg: "EdDSA", signer: edKey},
+		{tokenAlg: "PS256", signer: rsaKey,
+			expError: `no key with kid "shared" is published for alg PS256 (published for: RS256, ES256, Ed25519)`},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.tokenAlg, func(t *testing.T) {
 			token := CreateIDToken(t, issuer, tc.signer, tc.tokenAlg, "shared")
 			pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, tc.signer.Public(), pubkeyRecord.PublicKey)
 		})
 	}
+	require.Empty(t, warnings.String(), "Keys sharing a kid but published for different algs are not duplicates for a token")
 
 	pubkeyRecord, err := finder.ByKeyID(context.Background(), issuer, "shared", false)
 	require.NoError(t, err)
 	require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey, "Without a token alg the first usable key is returned")
+	require.Contains(t, warnings.String(), `has 3 keys with kid "shared"`)
+}
+
+func TestByTokenRequiresKeyPublishedForTokenAlg(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		signer   crypto.Signer
+		keyAlg   string
+		tokenAlg string
+		expError string
+	}{
+		{name: "RS256 key, RS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "RS256"},
+		{name: "RS256 key, PS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "PS256",
+			expError: `no key with kid "k" is published for alg PS256 (published for: RS256)`},
+		{name: "PS256 key, RS256 token", signer: rsaKey, keyAlg: "PS256", tokenAlg: "RS256",
+			expError: `no key with kid "k" is published for alg RS256 (published for: PS256)`},
+		{name: "key without alg, RS256 token", signer: rsaKey, keyAlg: "", tokenAlg: "RS256"},
+		{name: "key without alg, PS256 token", signer: rsaKey, keyAlg: "", tokenAlg: "PS256",
+			expError: `no key with kid "k" is published for alg PS256 (published for: RS256)`},
+		{name: "EdDSA key, Ed25519 token", signer: edKey, keyAlg: "EdDSA", tokenAlg: "Ed25519"},
+		{name: "Ed25519 key, EdDSA token", signer: edKey, keyAlg: "Ed25519", tokenAlg: "EdDSA"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			jwks := jwksWithoutAlg(t, tc.signer.Public(), "k")
+			if tc.keyAlg != "" {
+				jwks = jwksOf(publicJwkEntry(t, tc.signer.Public(), tc.keyAlg, "k"))
+			}
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+			token := CreateIDToken(t, issuer, tc.signer, tc.tokenAlg, "k")
+
+			pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.signer.Public(), pubkeyRecord.PublicKey)
+		})
+	}
+}
+
+func jwksWithoutAlg(t *testing.T, pubKey crypto.PublicKey, kid string) []byte {
+	key, err := jwk.PublicKeyOf(pubKey)
+	require.NoError(t, err)
+	require.NoError(t, key.Set(jwk.KeyIDKey, kid))
+	entry, err := json.Marshal(key)
+	require.NoError(t, err)
+	return jwksOf(string(entry))
+}
+
+func TestByTokenWithoutKidFiltersByAlg(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	jwks := jwksOf(
+		publicJwkEntry(t, rsaKey.Public(), "RS256", ""),
+		publicJwkEntry(t, ecKey.Public(), "ES256", ""),
+	)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+
+	token := CreateIDToken(t, issuer, ecKey, "ES256", "")
+	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+	require.NoError(t, err, "Only one key is published for the token's alg")
+	require.Equal(t, ecKey.Public(), pubkeyRecord.PublicKey)
+
+	_, err = finder.ByKeyID(context.Background(), issuer, "", false)
+	require.ErrorContains(t, err, "no matching public key found for kid ", "Without an alg both keys are candidates")
 }
 
 func TestByKeyIDWithoutKidCountsOnlyUsableKeys(t *testing.T) {
@@ -1202,7 +1287,7 @@ func TestByKeyIDWithoutKidCountsOnlyUsableKeys(t *testing.T) {
 		{name: "one usable key and one unusable entry",
 			jwks:    jwksOf(unknownKtyEntry, publicJwkEntry(t, ecKey.Public(), "ES256", "")),
 			expKey:  ecKey.Public(),
-			expWarn: "token has no kid; skipping 1 unusable keys"},
+			expWarn: "token has no kid: skipping unusable key"},
 		{name: "two usable keys",
 			jwks:     jwksOf(publicJwkEntry(t, ecKey.Public(), "ES256", ""), publicJwkEntry(t, otherEcKey.Public(), "ES256", "")),
 			expError: "no matching public key found for kid "},
@@ -1247,4 +1332,8 @@ func TestByTokenSharedKidUsesOriginalAlgOfGQToken(t *testing.T) {
 	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, gqToken, false)
 	require.NoError(t, err)
 	require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey)
+
+	psFinder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(publicJwkEntry(t, rsaKey.Public(), "PS256", "shared"))).Fetch}
+	_, err = psFinder.ByToken(context.Background(), issuer, gqToken, false)
+	require.ErrorContains(t, err, "is published for alg RS256 (published for: PS256)", "A GQ token needs a key published for RS256")
 }
