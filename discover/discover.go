@@ -23,9 +23,11 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
@@ -76,7 +78,7 @@ func publicKeyRecordFromJWK(key jwk.Key, issuer string, wasCached bool) (*Public
 		if _, ok := pubKey.(*ecdsa.PublicKey); !ok {
 			return pkr, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKey)
 		}
-	case jwa.EdDSA():
+	case jwa.EdDSA(), jwa.EdDSAEd25519():
 		if _, ok := pubKey.(ed25519.PublicKey); !ok {
 			return pkr, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKey)
 		}
@@ -257,9 +259,10 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 		}
 		// Extract the kid from the original headers after unmarshaling
 		keyID, _ = headers.KeyID()
+		headersAlg, _ = headers.Algorithm()
 	}
 	// Use the KeyID (kid) in the headers from the supplied token to look up the public key
-	return f.ByKeyID(ctx, issuer, keyID, mayUseCache)
+	return f.byKeyIDForAlg(ctx, issuer, keyID, headersAlg.String(), mayUseCache)
 }
 
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
@@ -281,27 +284,133 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 // When used with JWS or JWE, the "kid" value is used to match a JWS or
 // JWE "kid" Header Parameter value." - RFC 7517
 // https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
+//
+// Entries that cannot be used (for example ones jwx could not decode) are
+// skipped with a warning on ErrWriter, as RFC 7517 section 5 recommends, so
+// they never hide a usable key that shares their kid. When the kid is absent,
+// only usable keys count towards the single-key rule.
 func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string, mayUseCache bool) (*PublicKeyRecord, error) {
+	return f.byKeyIDForAlg(ctx, issuer, keyID, "", mayUseCache)
+}
+
+// byKeyIDForAlg is ByKeyID, preferring a key that fits tokenAlg when several
+// keys share the kid. An empty tokenAlg expresses no preference.
+func (f *PublicKeyFinder) byKeyIDForAlg(ctx context.Context, issuer string, keyID string, tokenAlg string, mayUseCache bool) (*PublicKeyRecord, error) {
 	jwks, wasCached, err := f.fetchAndParseJwks(ctx, issuer, mayUseCache)
 	emptyPkr := &PublicKeyRecord{WasCached: wasCached}
 	if err != nil {
 		return emptyPkr, fmt.Errorf(`failed to fetch JWK set: %w`, err)
 	}
 
-	key, ok := jwks.LookupKeyID(keyID)
-	if ok {
-		pk, err := publicKeyRecordFromJWK(key, issuer, wasCached)
-		return pk, err
-	} else if keyID == "" && jwks.Len() == 1 {
-		key, ok := jwks.Key(0)
-		if !ok {
-			return emptyPkr, fmt.Errorf("failed to get key from JWK set")
-		}
-		pk, err := publicKeyRecordFromJWK(key, issuer, wasCached)
-		return pk, err
+	candidates := keysWithKeyID(jwks, keyID)
+	if len(candidates) == 0 && keyID == "" {
+		candidates = f.soleKey(jwks, issuer)
 	}
+	if len(candidates) == 0 {
+		return emptyPkr, fmt.Errorf("no matching public key found for kid %s", keyID)
+	}
+	if len(candidates) > 1 {
+		_, _ = fmt.Fprintf(f.ErrWriter(), "Warning: JWK set for %s has %d keys with kid %q\n", issuer, len(candidates), keyID)
+	}
+	return f.bestKeyForAlg(candidates, issuer, keyID, tokenAlg, wasCached)
+}
 
-	return emptyPkr, fmt.Errorf("no matching public key found for kid %s", keyID)
+// bestKeyForAlg returns the first usable candidate whose alg equals tokenAlg,
+// else the first whose key type can verify tokenAlg, else the first usable
+// one. Unusable candidates are skipped with a warning when others remain.
+func (f *PublicKeyFinder) bestKeyForAlg(candidates []jwk.Key, issuer string, keyID string, tokenAlg string, wasCached bool) (*PublicKeyRecord, error) {
+	var best *PublicKeyRecord
+	bestScore := -1
+	var errs []error
+	for _, key := range candidates {
+		pkr, err := publicKeyRecordFromJWK(key, issuer, wasCached)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if score := algFitScore(pkr, tokenAlg); score > bestScore {
+			best, bestScore = pkr, score
+		}
+	}
+	if best == nil {
+		return &PublicKeyRecord{WasCached: wasCached}, errors.Join(errs...)
+	}
+	for _, err := range errs {
+		_, _ = fmt.Fprintf(f.ErrWriter(), "Warning: skipping unusable key with kid %q in JWK set for %s: %v\n", keyID, issuer, err)
+	}
+	return best, nil
+}
+
+// soleKey returns the JWK set's only usable key, or else its only key, for
+// tokens without a kid. It returns nil when the set has several candidates.
+func (f *PublicKeyFinder) soleKey(jwks jwk.Set, issuer string) []jwk.Key {
+	keys := allKeys(jwks)
+	if usable := usableKeys(keys); len(usable) == 1 {
+		if skipped := len(keys) - 1; skipped > 0 {
+			_, _ = fmt.Fprintf(f.ErrWriter(), "Warning: token has no kid; skipping %d unusable keys in JWK set for %s\n", skipped, issuer)
+		}
+		return usable
+	}
+	if len(keys) == 1 {
+		return keys
+	}
+	return nil
+}
+
+func algFitScore(pkr *PublicKeyRecord, tokenAlg string) int {
+	switch {
+	case tokenAlg == "":
+		return 0
+	case pkr.Alg == tokenAlg:
+		return 2
+	case keyTypeFitsAlg(pkr.PublicKey, tokenAlg):
+		return 1
+	default:
+		return 0
+	}
+}
+
+func keyTypeFitsAlg(pubKey crypto.PublicKey, alg string) bool {
+	switch pubKey.(type) {
+	case *rsa.PublicKey:
+		return strings.HasPrefix(alg, "RS") || strings.HasPrefix(alg, "PS")
+	case *ecdsa.PublicKey:
+		return strings.HasPrefix(alg, "ES")
+	case ed25519.PublicKey:
+		return alg == jwa.EdDSA().String() || alg == jwa.EdDSAEd25519().String()
+	default:
+		return false
+	}
+}
+
+func keysWithKeyID(jwks jwk.Set, keyID string) []jwk.Key {
+	var keys []jwk.Key
+	for _, key := range allKeys(jwks) {
+		if kid, ok := key.KeyID(); ok && kid == keyID {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+func usableKeys(keys []jwk.Key) []jwk.Key {
+	var usable []jwk.Key
+	for _, key := range keys {
+		if !jwk.IsUnsupportedKey(key) {
+			usable = append(usable, key)
+		}
+	}
+	return usable
+}
+
+func allKeys(jwks jwk.Set) []jwk.Key {
+	keys := make([]jwk.Key, 0, jwks.Len())
+	for i := range jwks.Len() {
+		if key, ok := jwks.Key(i); ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 func (f *PublicKeyFinder) ByJKT(ctx context.Context, issuer string, jkt string, mayUseCache bool) (*PublicKeyRecord, error) {

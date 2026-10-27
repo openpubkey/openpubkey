@@ -18,10 +18,12 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -87,6 +89,10 @@ func TestProviderVerifier(t *testing.T) {
 			correctCicHash: false},
 		{name: "Claim Commitment happy case (EdDSA)", aud: clientID, clientID: clientID,
 			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "EdDSA",
+			expError:       "",
+			correctCicHash: true},
+		{name: "Claim Commitment happy case (Ed25519)", aud: clientID, clientID: clientID,
+			tokenCommitType: NONCE_CLAIM, pvCommitType: NONCE_CLAIM, providerAlg: "Ed25519",
 			expError:       "",
 			correctCicHash: true},
 		{name: "Claim Commitment happy case (PS256)", aud: clientID, clientID: clientID,
@@ -641,4 +647,77 @@ func TestAudClaimPrefixArrayAudReturnsError(t *testing.T) {
 	// An array aud is valid per RFC 7519; verification must return an error, not panic.
 	err = pv.VerifyIDToken(context.Background(), tokens.IDToken, cic)
 	require.ErrorContains(t, err, "must be a string")
+}
+
+// undecodableJwksEntries are JWKS entries jwx cannot decode: an EC point not
+// on P-256, an unknown key type, and an unknown alg on a known key type. The
+// last two reuse the mock OP's kids, so they precede its real keys.
+var undecodableJwksEntries = []string{
+	`{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iD6aTuMHLsPj6tQXJRx4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7xqOsmKAjSr0tHtjWWE","alg":"ES256","kid":"broken-ec"}`,
+	`{"kty":"AKP","alg":"ML-DSA-44","pub":"AAAA","kid":"kid-0"}`,
+	`{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlnw-vv-DE0Ts","alg":"Ed99999","kid":"kid-1"}`,
+}
+
+func withJwksEntries(t *testing.T, fetch discover.JwksFetchFunc, entries []string) discover.JwksFetchFunc {
+	return func(ctx context.Context, issuer string) ([]byte, error) {
+		jwksJson, err := fetch(ctx, issuer)
+		require.NoError(t, err)
+		var jwks struct {
+			Keys []json.RawMessage `json:"keys"`
+		}
+		require.NoError(t, json.Unmarshal(jwksJson, &jwks))
+		for _, entry := range entries {
+			jwks.Keys = append([]json.RawMessage{json.RawMessage(entry)}, jwks.Keys...)
+		}
+		return json.Marshal(jwks)
+	}
+}
+
+func TestProviderVerifierWithUndecodableJwksEntries(t *testing.T) {
+	issuer := "mockIssuer"
+	clientID := "test-client-id"
+
+	for _, alg := range []string{"RS256", "ES256", "EdDSA", "Ed25519"} {
+		t.Run(alg, func(t *testing.T) {
+			providerOpts := MockProviderOpts{
+				Issuer:     issuer,
+				Alg:        alg,
+				ClientID:   clientID,
+				NumKeys:    2,
+				CommitType: CommitTypesEnum.NONCE_CLAIM,
+				VerifierOpts: ProviderVerifierOpts{
+					CommitType: CommitTypesEnum.NONCE_CLAIM,
+					ClientID:   clientID,
+				},
+			}
+			op, backendMock, _, err := NewMockProvider(providerOpts)
+			require.NoError(t, err)
+			opSignKey, keyID, _ := backendMock.RandomSigningKey()
+			backendMock.SetIDTokenTemplate(&mocks.IDTokenTemplate{
+				Issuer:               issuer,
+				Nonce:                "empty",
+				Aud:                  clientID,
+				Alg:                  alg,
+				KeyID:                keyID,
+				SigningKey:           opSignKey,
+				ExtraClaims:          map[string]any{},
+				ExtraProtectedClaims: map[string]any{},
+				CommitFunc:           mocks.AddNonceCommit,
+			})
+
+			cic := GenCIC(t)
+			tokens, err := op.RequestTokens(context.Background(), cic)
+			require.NoError(t, err)
+
+			finder := backendMock.PublicKeyFinder
+			finder.JwksFunc = withJwksEntries(t, finder.JwksFunc, undecodableJwksEntries)
+			pv := NewProviderVerifier(issuer, ProviderVerifierOpts{
+				CommitType:        CommitTypesEnum.NONCE_CLAIM,
+				DiscoverPublicKey: &finder,
+				ClientID:          clientID,
+			})
+			require.NoError(t, pv.VerifyIDToken(context.Background(), tokens.IDToken, cic),
+				"An OP JWKS with entries jwx cannot decode must still verify tokens signed with its other keys")
+		})
+	}
 }

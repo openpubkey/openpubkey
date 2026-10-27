@@ -31,6 +31,7 @@ import (
 	"github.com/openpubkey/openpubkey/discover"
 	"github.com/openpubkey/openpubkey/gq"
 	"github.com/openpubkey/openpubkey/jose"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,7 @@ func TestGithubOpTableTest(t *testing.T) {
 	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
-	_, payloadB64, _, err := jws.SplitCompact(idToken)
+	_, payloadB64, _, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 
 	headers := extractHeaders(t, idToken)
@@ -142,7 +143,7 @@ func TestGithubOpSimpleRequest(t *testing.T) {
 	idToken := make([]byte, len(idTokenLB.Bytes()))
 	copy(idToken, idTokenLB.Bytes())
 
-	headerB64, payloadB64, sigB64, err := jws.SplitCompact(idToken)
+	headerB64, payloadB64, sigB64, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 
 	header, err := util.Base64DecodeForJWT(headerB64)
@@ -214,7 +215,7 @@ func TestGithubOpFullGQ(t *testing.T) {
 	idToken := tokens.IDToken
 	require.NotNil(t, idToken)
 
-	_, payloadB64, _, err := jws.SplitCompact(idToken)
+	_, payloadB64, _, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 
 	headers := extractHeaders(t, idToken)
@@ -251,7 +252,7 @@ func TestBuildTokenURL(t *testing.T) {
 }
 
 func extractHeaders(t *testing.T, idToken []byte) jws.Headers {
-	headersB64, _, _, err := jws.SplitCompact(idToken)
+	headersB64, _, _, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 	headersJson, err := util.Base64DecodeForJWT(headersB64)
 	require.NoError(t, err)

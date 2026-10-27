@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -66,7 +67,7 @@ func TestGitlabSimpleRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cicHash)
 
-	headerB64, _, _, err := jws.SplitCompact(idToken)
+	headerB64, _, _, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 	headerJson, err := util.Base64DecodeForJWT(headerB64)
 	require.NoError(t, err)

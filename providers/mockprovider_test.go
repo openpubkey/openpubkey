@@ -48,7 +48,7 @@ func TestMockProviderTest(t *testing.T) {
 	require.Contains(t, string(tokens.RefreshToken), "mock-refresh-token")
 	require.Equal(t, "mock-access-token", string(tokens.AccessToken))
 
-	_, payloadB64, _, err := jws.SplitCompact(idToken)
+	_, payloadB64, _, err := oidc.SplitCompact(idToken)
 	require.NoError(t, err)
 
 	payload, err := util.Base64DecodeForJWT(payloadB64)

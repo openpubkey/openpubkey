@@ -26,6 +26,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -44,7 +45,7 @@ func createGQTokenAllParams(ctx context.Context, idToken []byte, op OpenIdProvid
 		// expecting the cicHash to be included in the token.
 		return nil, fmt.Errorf("misconfiguration, cicHash is set but gqCommitment is false, set gqCommitment to true to include cicHash in the gq signature")
 	}
-	headersB64, _, _, err := jws.SplitCompact(idToken)
+	headersB64, _, _, err := oidc.SplitCompact(idToken)
 	if err != nil {
 		return nil, fmt.Errorf("error splitting compact ID Token: %w", err)
 	}

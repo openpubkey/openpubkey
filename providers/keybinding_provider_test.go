@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
-	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -88,7 +88,7 @@ func TestKeyBindingProvider(t *testing.T) {
 	tokens, err := op.RequestTokens(context.Background(), cic)
 	require.NoError(t, err)
 
-	_, payloadB64, _, err := jws.SplitCompact(tokens.IDToken)
+	_, payloadB64, _, err := oidc.SplitCompact(tokens.IDToken)
 	require.NoError(t, err)
 
 	payload, err := util.Base64DecodeForJWT(payloadB64)
