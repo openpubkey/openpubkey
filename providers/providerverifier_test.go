@@ -22,9 +22,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"strings"
 	"testing"
@@ -34,6 +38,8 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/discover"
+	"github.com/openpubkey/openpubkey/gq"
+	"github.com/openpubkey/openpubkey/pktoken/clientinstance"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -760,38 +766,12 @@ func TestVerifyIDTokenRequiresKeyPublishedForTokenAlg(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			jwkKey, err := jwk.PublicKeyOf(tc.signer.Public())
-			require.NoError(t, err)
-			require.NoError(t, jwkKey.Set(jwk.KeyIDKey, "k"))
-			if tc.keyAlg != "" {
-				require.NoError(t, jwkKey.Set(jwk.AlgorithmKey, tc.keyAlg))
-			}
-			jwks := jwk.NewSet()
-			require.NoError(t, jwks.AddKey(jwkKey))
-			jwksJson, err := json.Marshal(jwks)
-			require.NoError(t, err)
-
+			jwksJson := jwksOfKeys(t, jwkEntry{pubKey: tc.signer.Public(), alg: tc.keyAlg, kid: "k"})
 			cic := GenCIC(t)
-			cicHash, err := cic.Hash()
-			require.NoError(t, err)
-			payload, err := json.Marshal(map[string]any{
-				"iss": issuer, "aud": clientID, "sub": "me", "nonce": string(cicHash),
-				"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
-			})
-			require.NoError(t, err)
-			headers := jws.NewHeaders()
-			require.NoError(t, headers.Set(jws.KeyIDKey, "k"))
-			alg, ok := jwa.LookupSignatureAlgorithm(tc.tokenAlg)
-			require.True(t, ok)
-			idToken, err := jws.Sign(payload, jws.WithKey(alg, tc.signer, jws.WithProtectedHeaders(headers)))
-			require.NoError(t, err)
+			idToken := signIDToken(t, tc.signer, tc.tokenAlg, "k", nonceIDTokenPayload(t, issuer, clientID, cic))
 
-			pv := NewProviderVerifier(issuer, ProviderVerifierOpts{
-				CommitType:        CommitTypesEnum.NONCE_CLAIM,
-				ClientID:          clientID,
-				DiscoverPublicKey: &discover.PublicKeyFinder{JwksFunc: discover.NewMockJwksSource(jwksJson).Fetch},
-			})
-			err = pv.VerifyIDToken(context.Background(), idToken, cic)
+			pv := nonceCommitmentVerifier(issuer, clientID, &discover.PublicKeyFinder{JwksFunc: discover.NewMockJwksSource(jwksJson).Fetch})
+			err := pv.VerifyIDToken(context.Background(), idToken, cic)
 			if tc.expError != "" {
 				require.ErrorContains(t, err, tc.expError, "A token must use the alg its key is published for (RFC 8725 section 3.1)")
 				return
@@ -799,4 +779,176 @@ func TestVerifyIDTokenRequiresKeyPublishedForTokenAlg(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+type jwkEntry struct {
+	pubKey crypto.PublicKey
+	alg    string // empty: the JWK has no alg
+	kid    string
+	use    string // empty: the JWK has no use
+}
+
+func jwksOfKeys(t *testing.T, entries ...jwkEntry) []byte {
+	jwks := jwk.NewSet()
+	for _, e := range entries {
+		key, err := jwk.PublicKeyOf(e.pubKey)
+		require.NoError(t, err)
+		require.NoError(t, key.Set(jwk.KeyIDKey, e.kid))
+		if e.alg != "" {
+			require.NoError(t, key.Set(jwk.AlgorithmKey, e.alg))
+		}
+		if e.use != "" {
+			require.NoError(t, key.Set(jwk.KeyUsageKey, e.use))
+		}
+		require.NoError(t, jwks.AddKey(key))
+	}
+	jwksJson, err := json.Marshal(jwks)
+	require.NoError(t, err)
+	return jwksJson
+}
+
+// nonceIDTokenPayload returns ID token claims that commit to cic in the nonce.
+func nonceIDTokenPayload(t *testing.T, issuer string, clientID string, cic *clientinstance.Claims) []byte {
+	cicHash, err := cic.Hash()
+	require.NoError(t, err)
+	payload, err := json.Marshal(map[string]any{
+		"iss": issuer, "aud": clientID, "sub": "me", "nonce": string(cicHash),
+		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	return payload
+}
+
+func signIDToken(t *testing.T, signer crypto.Signer, alg string, kid string, payload []byte) []byte {
+	headers := jws.NewHeaders()
+	require.NoError(t, headers.Set(jws.KeyIDKey, kid))
+	sigAlg, ok := jwa.LookupSignatureAlgorithm(alg)
+	require.True(t, ok)
+	idToken, err := jws.Sign(payload, jws.WithKey(sigAlg, signer, jws.WithProtectedHeaders(headers)))
+	require.NoError(t, err)
+	return idToken
+}
+
+func nonceCommitmentVerifier(issuer string, clientID string, finder *discover.PublicKeyFinder) *DefaultProviderVerifier {
+	return NewProviderVerifier(issuer, ProviderVerifierOpts{
+		CommitType:        CommitTypesEnum.NONCE_CLAIM,
+		ClientID:          clientID,
+		DiscoverPublicKey: finder,
+	})
+}
+
+func TestVerifyIDTokenRejectsAlgConfusion(t *testing.T) {
+	issuer := "https://issuer.example"
+	clientID := "test-client-id"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	p384Key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	rsaJwks := jwksOfKeys(t, jwkEntry{pubKey: rsaKey.Public(), alg: "RS256", kid: "k"})
+
+	cic := GenCIC(t)
+	payload := nonceIDTokenPayload(t, issuer, clientID, cic)
+	payloadB64 := string(util.Base64EncodeForJWT(payload))
+	unsignedToken := func(header string, signature []byte) []byte {
+		return []byte(string(util.Base64EncodeForJWT([]byte(header))) + "." + payloadB64 + "." + string(util.Base64EncodeForJWT(signature)))
+	}
+	// The RFC 8725 section 2.1 attack: an HS256 MAC keyed with a serialization
+	// of the OP's RSA public key.
+	hs256WithSecret := func(secret []byte) []byte {
+		header := string(util.Base64EncodeForJWT([]byte(`{"alg":"HS256","kid":"k"}`)))
+		mac := hmac.New(sha256.New, secret)
+		mac.Write([]byte(header + "." + payloadB64))
+		return []byte(header + "." + payloadB64 + "." + string(util.Base64EncodeForJWT(mac.Sum(nil))))
+	}
+	der, err := x509.MarshalPKIXPublicKey(&rsaKey.PublicKey)
+	require.NoError(t, err)
+	pemKey := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
+
+	testCases := []struct {
+		name     string
+		jwks     []byte
+		idToken  []byte
+		expError string
+	}{
+		{name: "RS256 signed by the OP key", jwks: rsaJwks, idToken: signIDToken(t, rsaKey, "RS256", "k", payload)},
+		{name: "alg none", jwks: rsaJwks, idToken: unsignedToken(`{"alg":"none","kid":"k"}`, nil),
+			expError: `no key with kid "k" is published for alg none`},
+		{name: "HS256 keyed with the PEM public key", jwks: rsaJwks, idToken: hs256WithSecret(pemKey),
+			expError: `no key with kid "k" is published for alg HS256`},
+		{name: "HS256 keyed with the DER public key", jwks: rsaJwks, idToken: hs256WithSecret(der),
+			expError: `no key with kid "k" is published for alg HS256`},
+		{name: "HS256 keyed with the JWKS", jwks: rsaJwks, idToken: hs256WithSecret(rsaJwks),
+			expError: `no key with kid "k" is published for alg HS256`},
+		{name: "alg unknown to jwx", jwks: rsaJwks, idToken: unsignedToken(`{"alg":"XX999","kid":"k"}`, []byte("sig")),
+			expError: "jws.Parse"},
+		{name: "ES256 with a P-384 key published as ES256",
+			jwks:     jwksOfKeys(t, jwkEntry{pubKey: p384Key.Public(), alg: "ES256", kid: "k"}),
+			idToken:  signIDToken(t, p384Key, "ES256", "k", payload),
+			expError: "algorithm ES256 requires a P-256 key, got P-384"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			pv := nonceCommitmentVerifier(issuer, clientID, &discover.PublicKeyFinder{JwksFunc: discover.NewMockJwksSource(tc.jwks).Fetch})
+			err := pv.VerifyIDToken(context.Background(), tc.idToken, cic)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestVerifyIDTokenRefetchesJwksForRotatedKey(t *testing.T) {
+	issuer := "https://issuer.example"
+	clientID := "test-client-id"
+	oldKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	newKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		gqSigned bool
+	}{
+		{name: "RS256"},
+		{name: "GQ256", gqSigned: true},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := discover.NewMockJwksSource(jwksOfKeys(t, jwkEntry{pubKey: oldKey.Public(), alg: "RS256", kid: "old"}))
+			finder := discover.NewPubkeyFinderWithCache(source.Fetch, discover.NewMapDiscoveryCache(), time.Hour)
+			_, err := finder.ByKeyID(context.Background(), issuer, "old", true)
+			require.NoError(t, err)
+			source.SetJwks(jwksOfKeys(t,
+				jwkEntry{pubKey: oldKey.Public(), alg: "RS256", kid: "old"},
+				jwkEntry{pubKey: newKey.Public(), alg: "RS256", kid: "new"},
+			))
+
+			cic := GenCIC(t)
+			idToken := signIDToken(t, newKey, "RS256", "new", nonceIDTokenPayload(t, issuer, clientID, cic))
+			if tc.gqSigned {
+				idToken, err = gq.GQ256SignJWT(&newKey.PublicKey, idToken)
+				require.NoError(t, err)
+			}
+
+			err = nonceCommitmentVerifier(issuer, clientID, finder).VerifyIDToken(context.Background(), idToken, cic)
+			require.NoError(t, err, "A kid missing from the cached JWKS must trigger a fresh fetch (OIDC Core 10.1.1)")
+			require.Equal(t, 2, source.Calls(), "Expected the cached fetch and one fresh fetch")
+		})
+	}
+}
+
+func TestVerifyIDTokenRejectsEncryptionKey(t *testing.T) {
+	issuer := "https://issuer.example"
+	clientID := "test-client-id"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	jwks := jwksOfKeys(t, jwkEntry{pubKey: rsaKey.Public(), alg: "RS256", kid: "k", use: "enc"})
+
+	cic := GenCIC(t)
+	idToken := signIDToken(t, rsaKey, "RS256", "k", nonceIDTokenPayload(t, issuer, clientID, cic))
+	pv := nonceCommitmentVerifier(issuer, clientID, &discover.PublicKeyFinder{JwksFunc: discover.NewMockJwksSource(jwks).Fetch})
+	err = pv.VerifyIDToken(context.Background(), idToken, cic)
+	require.ErrorContains(t, err, `key is published for use "enc", not "sig"`)
 }

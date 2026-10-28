@@ -21,12 +21,14 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -55,6 +57,15 @@ func publicKeyRecordFromJWK(key jwk.Key, issuer string, wasCached bool) (*Public
 		return pkr, fmt.Errorf("failed to decode public key: %w", err)
 	}
 
+	// RFC 7517 sections 4.2 and 4.3: a key published for encryption, or for
+	// operations other than verify, must not verify signatures.
+	if use, ok := key.KeyUsage(); ok && use != string(jwk.ForSignature) {
+		return pkr, fmt.Errorf("key is published for use %q, not %q", use, jwk.ForSignature)
+	}
+	if ops, ok := key.KeyOps(); ok && !slices.Contains(ops, jwk.KeyOpVerify) {
+		return pkr, fmt.Errorf("key_ops %v does not include %q", ops, jwk.KeyOpVerify)
+	}
+
 	// If we got a private key (crypto.Signer), extract its public key
 	if signer, ok := pubKey.(crypto.Signer); ok {
 		pubKey = signer.Public()
@@ -62,9 +73,9 @@ func publicKeyRecordFromJWK(key jwk.Key, issuer string, wasCached bool) (*Public
 
 	alg, ok := key.Algorithm()
 	if !ok || alg.String() == "" {
-		// OPs such as azure (microsoft) do not specify alg in their JWKS. To
-		// handle this case, assume no alg in JWKS means RSA as OIDC requires
-		// OPs use RSA.
+		// OPs such as azure (microsoft) do not specify alg in their JWKS.
+		// Treat a key without an alg as RS256, the alg OIDC Core section 15.1
+		// requires every OP to support.
 		alg = jwa.RS256()
 	}
 
@@ -75,8 +86,14 @@ func publicKeyRecordFromJWK(key jwk.Key, issuer string, wasCached bool) (*Public
 			return pkr, fmt.Errorf("algorithm %s requires RSA key, got %T", alg, pubKey)
 		}
 	case jwa.ES256():
-		if _, ok := pubKey.(*ecdsa.PublicKey); !ok {
+		ecdsaKey, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
 			return pkr, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKey)
+		}
+		// jwx accepts ES256 with any curve; RFC 7518 section 3.4 defines it
+		// as ECDSA with P-256 and SHA-256.
+		if ecdsaKey.Curve != elliptic.P256() {
+			return pkr, fmt.Errorf("algorithm %s requires a P-256 key, got %s", alg, ecdsaKey.Curve.Params().Name)
 		}
 	case jwa.EdDSA(), jwa.EdDSAEd25519():
 		if _, ok := pubKey.(ed25519.PublicKey); !ok {
@@ -162,19 +179,21 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 // parseJwks parses a JWKS document. Parsing is lenient as described in RFC 7517
 // section 5:
 //
-//	 "Implementations SHOULD ignore JWKs within a JWK Set that use "kty"
-//		(key type) values that are not understood by them, that are missing
-//		required members, or for which values are out of the supported
-//		ranges."
+//	"Implementations SHOULD ignore JWKs within a JWK Set that use "kty"
+//	(key type) values that are not understood by them, that are missing
+//	required members, or for which values are out of the supported
+//	ranges."
 //
-// Thus, an JWK that cannot be decoded (for example because it declares an kty
-// we don't understand) does not cause the entire set to fail.
+// Thus, a JWK that cannot be decoded (for example because it declares a kty
+// we don't understand) does not cause the entire set to fail. It is kept as a
+// jwk.UnsupportedKey placeholder, which key lookups skip.
 func parseJwks(b []byte) (jwk.Set, error) {
 	return jwk.Parse(b, jwk.WithStrictKeySetParsing(false))
 }
 
-// readCache returns the cached JWKS for issuer. A cache miss, a read error,
-// or parse error return nil. Does not automatically fetch a fresh JWKS.
+// readCache returns the cached JWKS for issuer if it is no older than maxAge.
+// A cache miss, a read error or a parse error returns nil. It never fetches a
+// fresh JWKS.
 func (f *PublicKeyFinder) readCache(ctx context.Context, issuer string, maxAge time.Duration) jwk.Set {
 	if f.CacheConfig.Cache == nil {
 		return nil
@@ -270,7 +289,7 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 }
 
 // ByKeyID looks up an OP public key in the JWKS using the KeyID (kid) supplied.
-// If no KeyID (kid) exists in the header and there is only one key in the JWKS,
+// If no KeyID (kid) exists in the header and the JWKS has only one usable key,
 // that key is returned. This  is useful for cases where an OP may not set a KeyID
 // (kid) in the JWT header.
 //
@@ -289,8 +308,9 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 // JWE "kid" Header Parameter value." - RFC 7517
 // https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
 //
-// As recommended by RFC 7517 section 5 entries that cannot be used are
-// skipped.
+// As recommended by RFC 7517 section 5, entries that cannot be used are
+// skipped. Skipped entries with the kid, and kids shared by several keys, are
+// reported on ErrWriter.
 func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string, mayUseCache bool) (*PublicKeyRecord, error) {
 	return f.byAlgAndKeyID(ctx, issuer, "", keyID, mayUseCache)
 }
@@ -333,8 +353,8 @@ func (f *PublicKeyFinder) byAlgAndKeyID(ctx context.Context, issuer string, alg 
 	return matches[0].record, nil
 }
 
-// noKeyError explains why no entry in a JWKS be used to verify a token signed
-// with alg
+// noKeyError explains why no entry in a JWKS can be used to verify a token
+// signed with alg.
 func noKeyError(kidEntries []jwksEntry, alg string, keyID string) error {
 	var errs []error
 	var otherAlgs []string

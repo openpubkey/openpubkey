@@ -1337,3 +1337,69 @@ func TestByTokenSharedKidUsesOriginalAlgOfGQToken(t *testing.T) {
 	_, err = psFinder.ByToken(context.Background(), issuer, gqToken, false)
 	require.ErrorContains(t, err, "is published for alg RS256 (published for: PS256)", "A GQ token needs a key published for RS256")
 }
+
+func TestByTokenRejectsES256KeyOnOtherCurve(t *testing.T) {
+	issuer := "testIssuer"
+	p384Key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(publicJwkEntry(t, p384Key.Public(), "ES256", "k"))).Fetch}
+
+	token := CreateIDToken(t, issuer, p384Key, "ES256", "k")
+	_, err = finder.ByToken(context.Background(), issuer, token, false)
+	require.ErrorContains(t, err, "algorithm ES256 requires a P-256 key, got P-384")
+}
+
+func TestByKeyIDRespectsUseAndKeyOps(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	n := string(util.Base64EncodeForJWT(rsaKey.N.Bytes()))
+	rsaEntry := func(extra string) string {
+		return fmt.Sprintf(`{"kty":"RSA","n":%q,"e":"AQAB","alg":"RS256","kid":"k"%s}`, n, extra)
+	}
+
+	testCases := []struct {
+		name     string
+		extra    string
+		expError string
+	}{
+		{name: "no use or key_ops"},
+		{name: "use sig", extra: `,"use":"sig"`},
+		{name: "use enc", extra: `,"use":"enc"`, expError: `key is published for use "enc", not "sig"`},
+		{name: "key_ops verify", extra: `,"key_ops":["verify"]`},
+		{name: "key_ops sign and verify", extra: `,"key_ops":["sign","verify"]`},
+		{name: "key_ops encrypt", extra: `,"key_ops":["encrypt"]`, expError: `does not include "verify"`},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(rsaEntry(tc.extra))).Fetch}
+			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "k", false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey)
+		})
+	}
+}
+
+func TestByTokenSkipsEncryptionKeyWithSameKid(t *testing.T) {
+	issuer := "testIssuer"
+	encKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	sigKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	encEntry := fmt.Sprintf(`{"kty":"RSA","n":%q,"e":"AQAB","alg":"RS256","use":"enc","kid":"shared"}`,
+		util.Base64EncodeForJWT(encKey.N.Bytes()))
+	jwks := jwksOf(encEntry, publicJwkEntry(t, sigKey.Public(), "RS256", "shared"))
+
+	var warnings bytes.Buffer
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+	finder.SetErrWriter(&warnings)
+
+	token := CreateIDToken(t, issuer, sigKey, "RS256", "shared")
+	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+	require.NoError(t, err)
+	require.Equal(t, sigKey.Public(), pubkeyRecord.PublicKey)
+	require.Contains(t, warnings.String(), `key is published for use "enc"`)
+}

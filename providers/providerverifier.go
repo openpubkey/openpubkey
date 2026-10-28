@@ -145,7 +145,7 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	// Since jwx v3.1 the registered EdDSA is marked deprecated, so
 	// jwa.NewSignatureAlgorithm("EdDSA") no longer equals jwa.EdDSA() and
 	// would fail the switch in verifyIDTokenSig. Only construct a value for
-	// names jwx does not know, such as GQ256.
+	// names jwx does not know (the gq package registers GQ256).
 	alg, known := jwa.LookupSignatureAlgorithm(algStr)
 	if !known {
 		alg = jwa.NewSignatureAlgorithm(algStr)
