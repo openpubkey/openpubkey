@@ -31,6 +31,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/internal/jwx"
 	"github.com/openpubkey/openpubkey/jose"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -173,7 +174,7 @@ func (c *Claims) Hash() ([]byte, error) {
 // This function signs the payload of the provided token with the protected headers
 // as defined by the client instance claims and returns a jwt in compact form.
 func (c *Claims) Sign(signer crypto.Signer, algorithm jose.KeyAlgorithm, token []byte) ([]byte, error) {
-	_, payload, _, err := jws.SplitCompact(token)
+	_, payload, _, err := oidc.SplitCompact(token)
 	if err != nil {
 		return nil, err
 	}

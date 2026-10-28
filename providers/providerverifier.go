@@ -142,7 +142,14 @@ func (v *DefaultProviderVerifier) VerifyIDToken(ctx context.Context, idToken []b
 	if algStr == "" {
 		return fmt.Errorf("provider algorithm type missing")
 	}
-	alg := jwa.NewSignatureAlgorithm(algStr)
+	// Since jwx v3.1 the registered EdDSA is marked deprecated, so
+	// jwa.NewSignatureAlgorithm("EdDSA") no longer equals jwa.EdDSA() and
+	// would fail the switch in verifyIDTokenSig. Only construct a value for
+	// names jwx does not know (the gq package registers GQ256).
+	alg, known := jwa.LookupSignatureAlgorithm(algStr)
+	if !known {
+		alg = jwa.NewSignatureAlgorithm(algStr)
+	}
 	if alg.String() != jose.GQ256 && v.options.GQOnly {
 		return fmt.Errorf("non-GQ signatures are not supported")
 	}
@@ -194,7 +201,7 @@ func (v *DefaultProviderVerifier) verifyIDTokenSig(ctx context.Context, idToken 
 		if _, ok := pubKeyRecord.PublicKey.(*ecdsa.PublicKey); !ok {
 			return pubKeyRecord.WasCached, fmt.Errorf("algorithm %s requires ECDSA key, got %T", alg, pubKeyRecord.PublicKey)
 		}
-	case jwa.EdDSA():
+	case jwa.EdDSA(), jwa.EdDSAEd25519():
 		if _, ok := pubKeyRecord.PublicKey.(ed25519.PublicKey); !ok {
 			return pubKeyRecord.WasCached, fmt.Errorf("algorithm %s requires Ed25519 key, got %T", alg, pubKeyRecord.PublicKey)
 		}

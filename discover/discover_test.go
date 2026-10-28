@@ -17,6 +17,7 @@
 package discover
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -27,6 +28,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -923,4 +925,481 @@ func TestConcurrentLookups(t *testing.T) {
 	for err := range errs {
 		require.NoError(t, err)
 	}
+}
+
+// --- Lenient JWKS parsing (issue #403) ---
+
+// An entry no jwx build can decode (the EC point is not on the P-256 curve),
+// the hello.coop Ed25519 entry from jwksWithEd25519Alg, and a valid ES256 key.
+const jwksWithUndecodableEntry = `{"keys":[
+	{"kty":"EC","crv":"P-256","x":"MKBCTNIcKUSDii11ySs3526iD6aTuMHLsPj6tQXJRx4","y":"4Etl6SRW2YiLUrN5vfvVHuhp7xqOsmKAjSr0tHtjWWE","alg":"ES256","kid":"broken-ec","use":"sig"},
+	{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlnw-vv-DE0Ts","alg":"Ed25519","kid":"ed25519-as-alg","use":"sig"},
+	{"kty":"EC","crv":"P-256","x":"7pyPlY0DYYm78D-BugKXrNDxXn2NfOibB-wV3IMGBRg","y":"i_A-q4Sbk1nIDFJobjyOkrMvcinsacTWFa8bL8BfOLs","alg":"ES256","kid":"good-es256","use":"sig"}
+]}`
+
+// The exact entry shape that broke logins against a real provider
+// (openpubkey/opkssh#655): an OKP key whose alg is "Ed25519". "Ed25519" is a
+// crv, not an alg, but providers publish it anyway.
+const jwksWithEd25519Alg = `{"keys":[
+	{"kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlnw-vv-DE0Ts","alg":"Ed25519","kid":"ed25519-as-alg","use":"sig"}
+]}`
+
+func TestParseJwksRetainsUndecodableEntries(t *testing.T) {
+	jwks, err := parseJwks([]byte(jwksWithUndecodableEntry))
+	require.NoError(t, err, "An undecodable entry must not fail the whole JWKS")
+	require.Equal(t, 3, jwks.Len(), "The undecodable entry should be retained, not dropped")
+
+	// The broken entry stays addressable by its kid, but exports no key
+	broken, ok := jwks.LookupKeyID("broken-ec")
+	require.True(t, ok, "The retained entry should keep its kid")
+	var brokenPub any
+	require.Error(t, jwk.Export(broken, &brokenPub), "A retained entry must not export a usable key")
+
+	// The good key remains fully usable
+	good, ok := jwks.LookupKeyID("good-es256")
+	require.True(t, ok)
+	var pub any
+	require.NoError(t, jwk.Export(good, &pub))
+	require.IsType(t, &ecdsa.PublicKey{}, pub)
+}
+
+func TestParseJwksAcceptsOkpKeyWithEd25519Alg(t *testing.T) {
+	jwks, err := parseJwks([]byte(jwksWithEd25519Alg))
+	require.NoError(t, err, "The alg=Ed25519 OKP entry from opkssh issue 655 should parse")
+	require.Equal(t, 1, jwks.Len())
+
+	key, ok := jwks.LookupKeyID("ed25519-as-alg")
+	require.True(t, ok)
+	var pub any
+	require.NoError(t, jwk.Export(key, &pub))
+	require.IsType(t, ed25519.PublicKey{}, pub)
+}
+
+func TestParseJwksStillRejectsGarbage(t *testing.T) {
+	// Leniency is about unknown JWK entries, not about accepting any bytes as
+	// a JWKS: the provider-error fallback path depends on garbage failing.
+	_, err := parseJwks([]byte("<html>502 Bad Gateway</html>"))
+	require.Error(t, err)
+}
+
+func TestByKeyIDIgnoresUndecodableJwksEntries(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "good-es256", false)
+	require.NoError(t, err, "A JWKS with one undecodable entry should still resolve its usable keys")
+	require.Equal(t, "ES256", pubkeyRecord.Alg)
+	require.IsType(t, &ecdsa.PublicKey{}, pubkeyRecord.PublicKey)
+	require.False(t, pubkeyRecord.WasCached)
+}
+
+func TestByKeyIDKidMatchingOnlyUndecodableEntryFails(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	pubkeyRecord, err := finder.ByKeyID(ctx, issuer, "broken-ec", false)
+	require.Error(t, err, "A kid that only matches a retained entry has no usable key behind it")
+	require.ErrorContains(t, err, "unsupported")
+	require.Nil(t, pubkeyRecord.PublicKey)
+}
+
+func TestByJKTSearchesPastUndecodableJwksEntries(t *testing.T) {
+	ctx := context.Background()
+	issuer := "testIssuer"
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	jwks, err := parseJwks([]byte(jwksWithUndecodableEntry))
+	require.NoError(t, err)
+	good, ok := jwks.LookupKeyID("good-es256")
+	require.True(t, ok)
+	thumbprint, err := good.Thumbprint(crypto.SHA256)
+	require.NoError(t, err)
+	jkt := string(util.Base64EncodeForJWT(thumbprint))
+
+	pubkeyRecord, err := finder.ByJKT(ctx, issuer, jkt, false)
+	require.NoError(t, err, "A retained undecodable entry must not abort the jkt search")
+	require.Equal(t, "ES256", pubkeyRecord.Alg)
+	require.IsType(t, &ecdsa.PublicKey{}, pubkeyRecord.PublicKey)
+}
+
+func TestByKeyIDResolvesOkpKeyWithEd25519Alg(t *testing.T) {
+	source := NewMockJwksSource([]byte(jwksWithEd25519Alg))
+	finder := &PublicKeyFinder{JwksFunc: source.Fetch}
+
+	pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "ed25519-as-alg", false)
+	require.NoError(t, err)
+	require.Equal(t, "Ed25519", pubkeyRecord.Alg)
+	require.IsType(t, ed25519.PublicKey{}, pubkeyRecord.PublicKey)
+}
+
+const goodEs256JwksEntry = `{"kty":"EC","crv":"P-256","x":"7pyPlY0DYYm78D-BugKXrNDxXn2NfOibB-wV3IMGBRg","y":"i_A-q4Sbk1nIDFJobjyOkrMvcinsacTWFa8bL8BfOLs","alg":"ES256","kid":"good-es256","use":"sig"}`
+
+func TestByKeyIDWithEntriesJwxCannotDecode(t *testing.T) {
+	testCases := []struct {
+		name     string
+		entry    string
+		kid      string
+		expError string
+	}{
+		{name: "unknown key type",
+			entry:    `{"kty":"AKP","alg":"ML-DSA-44","pub":"AAAA","kid":"bad"}`,
+			kid:      "bad",
+			expError: "invalid key type from JSON (AKP)"},
+		{name: "unknown alg on a known key type",
+			entry:    `{"kty":"RSA","n":"xmlLIdOgNutTVqp1OjhWlpdJpKofW6CBsV4BtKH1fYagLexPWe2FGKgUdl8YbD25ty7xnCy7NAOLaJjmcH7jvKBChbH4jnSeZqFjURjtDmP4vN4sMyayDg-7F3iYNHRduoenDOWsVpWn201zTIgV5-hyfJVJEYs6zN8eCI-PCmud0BeI5cDUI-mPrN8weH3upi6V7PYUeQgxtMLhVWTLl1AYAr0LXt_hJhlgCQFhaVgkPjuEQr76CroCXJn2NkdbOcFH1yIax83OssaLtfzcr6X9cy_meYW2peGYkgjw3xUPYjYR8TrabRWwlTVBheXTaL-bz3eW81lIQL3qChxGaw","e":"AQAB","alg":"RS999","kid":"bad"}`,
+			kid:      "bad",
+			expError: "invalid key algorithm"},
+		{name: "RSA key under 2048 bits",
+			entry:    `{"kty":"RSA","n":"1z7H3pupnByazSiPAZquWgicfDHChB-3OnWKSxz49zKZbAjAc9ioMf-M5c5uZGbJ-4EcokGiBWj_2SBBkGmVit7r02NneQPmu8JkRHjbN7A5d3_aepa_KkcdgSN7dOMGi-4Dlj1uOGE7mT7mYvZ60vHZZha4jW_AEBPyQ9tJOyk","e":"AQAB","alg":"RS256","kid":"bad"}`,
+			kid:      "bad",
+			expError: "rsa modulus too small"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			jwks := `{"keys":[` + tc.entry + `,` + goodEs256JwksEntry + `]}`
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource([]byte(jwks)).Fetch}
+
+			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "good-es256", false)
+			require.NoError(t, err, "The other keys in the JWKS must stay usable")
+			require.Equal(t, "ES256", pubkeyRecord.Alg)
+
+			_, err = finder.ByKeyID(context.Background(), "testIssuer", tc.kid, false)
+			require.ErrorContains(t, err, tc.expError)
+		})
+	}
+}
+
+func TestCachedJwksWithUndecodableEntry(t *testing.T) {
+	source := NewMockJwksSource([]byte(jwksWithUndecodableEntry))
+	finder := NewPubkeyFinderWithCache(source.Fetch, NewMapDiscoveryCache(), time.Hour)
+
+	for i, wantCached := range []bool{false, true} {
+		pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "good-es256", true)
+		require.NoError(t, err, "lookup %d", i)
+		require.Equal(t, wantCached, pubkeyRecord.WasCached, "lookup %d", i)
+		require.IsType(t, &ecdsa.PublicKey{}, pubkeyRecord.PublicKey)
+	}
+}
+
+func publicJwkEntry(t *testing.T, pubKey crypto.PublicKey, alg string, kid string) string {
+	key, err := jwk.PublicKeyOf(pubKey)
+	require.NoError(t, err)
+	require.NoError(t, key.Set(jwk.AlgorithmKey, alg))
+	if kid != "" {
+		require.NoError(t, key.Set(jwk.KeyIDKey, kid))
+	}
+	entry, err := json.Marshal(key)
+	require.NoError(t, err)
+	return string(entry)
+}
+
+func jwksOf(entries ...string) []byte {
+	return []byte(`{"keys":[` + strings.Join(entries, ",") + `]}`)
+}
+
+const unknownKtyEntrySharedKid = `{"kty":"AKP","alg":"ML-DSA-44","pub":"AAAA","kid":"shared"}`
+
+func TestByKeyIDSharedKidSkipsUnusableEntry(t *testing.T) {
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	goodEntry := publicJwkEntry(t, ecKey.Public(), "ES256", "shared")
+
+	testCases := []struct {
+		name string
+		jwks []byte
+	}{
+		{name: "unusable entry first", jwks: jwksOf(unknownKtyEntrySharedKid, goodEntry)},
+		{name: "unusable entry last", jwks: jwksOf(goodEntry, unknownKtyEntrySharedKid)},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var warnings bytes.Buffer
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(tc.jwks).Fetch}
+			finder.SetErrWriter(&warnings)
+
+			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "shared", false)
+			require.NoError(t, err, "An unusable entry must not hide a usable key with the same kid")
+			require.Equal(t, ecKey.Public(), pubkeyRecord.PublicKey)
+			require.Contains(t, warnings.String(), `kid "shared": skipping unusable key`)
+			require.Contains(t, warnings.String(), "invalid key type from JSON (AKP)")
+		})
+	}
+}
+
+func TestByKeyIDSharedKidAllUnusable(t *testing.T) {
+	smallRsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	smallRsaEntry := fmt.Sprintf(`{"kty":"RSA","n":%q,"e":"AQAB","alg":"RS256","kid":"shared"}`,
+		util.Base64EncodeForJWT(smallRsaKey.N.Bytes()))
+	jwks := jwksOf(unknownKtyEntrySharedKid, smallRsaEntry)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+
+	_, err = finder.ByKeyID(context.Background(), "testIssuer", "shared", false)
+	require.ErrorContains(t, err, "invalid key type from JSON (AKP)")
+	require.ErrorContains(t, err, "rsa modulus too small")
+}
+
+func TestByTokenFiltersByAlgThenKid(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	jwks := jwksOf(
+		publicJwkEntry(t, rsaKey.Public(), "RS256", "shared"),
+		publicJwkEntry(t, ecKey.Public(), "ES256", "shared"),
+		publicJwkEntry(t, edKey.Public(), "Ed25519", "shared"),
+	)
+	var warnings bytes.Buffer
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+	finder.SetErrWriter(&warnings)
+
+	testCases := []struct {
+		tokenAlg string
+		signer   crypto.Signer
+		expError string
+	}{
+		{tokenAlg: "RS256", signer: rsaKey},
+		{tokenAlg: "ES256", signer: ecKey},
+		{tokenAlg: "Ed25519", signer: edKey},
+		{tokenAlg: "EdDSA", signer: edKey},
+		{tokenAlg: "PS256", signer: rsaKey,
+			expError: `no key with kid "shared" is published for alg PS256 (published for: RS256, ES256, Ed25519)`},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.tokenAlg, func(t *testing.T) {
+			token := CreateIDToken(t, issuer, tc.signer, tc.tokenAlg, "shared")
+			pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.signer.Public(), pubkeyRecord.PublicKey)
+		})
+	}
+	require.Empty(t, warnings.String(), "Keys sharing a kid but published for different algs are not duplicates for a token")
+
+	pubkeyRecord, err := finder.ByKeyID(context.Background(), issuer, "shared", false)
+	require.NoError(t, err)
+	require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey, "Without a token alg the first usable key is returned")
+	require.Contains(t, warnings.String(), `has 3 keys with kid "shared"`)
+}
+
+func TestByTokenRequiresKeyPublishedForTokenAlg(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name     string
+		signer   crypto.Signer
+		keyAlg   string
+		tokenAlg string
+		expError string
+	}{
+		{name: "RS256 key, RS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "RS256"},
+		{name: "RS256 key, PS256 token", signer: rsaKey, keyAlg: "RS256", tokenAlg: "PS256",
+			expError: `no key with kid "k" is published for alg PS256 (published for: RS256)`},
+		{name: "PS256 key, RS256 token", signer: rsaKey, keyAlg: "PS256", tokenAlg: "RS256",
+			expError: `no key with kid "k" is published for alg RS256 (published for: PS256)`},
+		{name: "key without alg, RS256 token", signer: rsaKey, keyAlg: "", tokenAlg: "RS256"},
+		{name: "key without alg, PS256 token", signer: rsaKey, keyAlg: "", tokenAlg: "PS256",
+			expError: `no key with kid "k" is published for alg PS256 (published for: RS256)`},
+		{name: "EdDSA key, Ed25519 token", signer: edKey, keyAlg: "EdDSA", tokenAlg: "Ed25519"},
+		{name: "Ed25519 key, EdDSA token", signer: edKey, keyAlg: "Ed25519", tokenAlg: "EdDSA"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			jwks := jwksWithoutAlg(t, tc.signer.Public(), "k")
+			if tc.keyAlg != "" {
+				jwks = jwksOf(publicJwkEntry(t, tc.signer.Public(), tc.keyAlg, "k"))
+			}
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+			token := CreateIDToken(t, issuer, tc.signer, tc.tokenAlg, "k")
+
+			pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.signer.Public(), pubkeyRecord.PublicKey)
+		})
+	}
+}
+
+func jwksWithoutAlg(t *testing.T, pubKey crypto.PublicKey, kid string) []byte {
+	key, err := jwk.PublicKeyOf(pubKey)
+	require.NoError(t, err)
+	require.NoError(t, key.Set(jwk.KeyIDKey, kid))
+	entry, err := json.Marshal(key)
+	require.NoError(t, err)
+	return jwksOf(string(entry))
+}
+
+func TestByTokenWithoutKidFiltersByAlg(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	jwks := jwksOf(
+		publicJwkEntry(t, rsaKey.Public(), "RS256", ""),
+		publicJwkEntry(t, ecKey.Public(), "ES256", ""),
+	)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+
+	token := CreateIDToken(t, issuer, ecKey, "ES256", "")
+	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+	require.NoError(t, err, "Only one key is published for the token's alg")
+	require.Equal(t, ecKey.Public(), pubkeyRecord.PublicKey)
+
+	_, err = finder.ByKeyID(context.Background(), issuer, "", false)
+	require.ErrorContains(t, err, "no matching public key found for kid ", "Without an alg both keys are candidates")
+}
+
+func TestByKeyIDWithoutKidCountsOnlyUsableKeys(t *testing.T) {
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	otherEcKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	unknownKtyEntry := `{"kty":"AKP","alg":"ML-DSA-44","pub":"AAAA"}`
+
+	testCases := []struct {
+		name     string
+		jwks     []byte
+		expKey   crypto.PublicKey
+		expError string
+		expWarn  string
+	}{
+		{name: "one usable key and one unusable entry",
+			jwks:    jwksOf(unknownKtyEntry, publicJwkEntry(t, ecKey.Public(), "ES256", "")),
+			expKey:  ecKey.Public(),
+			expWarn: "token has no kid: skipping unusable key"},
+		{name: "two usable keys",
+			jwks:     jwksOf(publicJwkEntry(t, ecKey.Public(), "ES256", ""), publicJwkEntry(t, otherEcKey.Public(), "ES256", "")),
+			expError: "no matching public key found for kid "},
+		{name: "only an unusable entry",
+			jwks:     jwksOf(unknownKtyEntry),
+			expError: "invalid key type from JSON (AKP)"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var warnings bytes.Buffer
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(tc.jwks).Fetch}
+			finder.SetErrWriter(&warnings)
+
+			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "", false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expKey, pubkeyRecord.PublicKey)
+			require.Contains(t, warnings.String(), tc.expWarn)
+		})
+	}
+}
+
+func TestByTokenSharedKidUsesOriginalAlgOfGQToken(t *testing.T) {
+	issuer := "testIssuer"
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	jwks := jwksOf(
+		publicJwkEntry(t, ecKey.Public(), "ES256", "shared"),
+		publicJwkEntry(t, rsaKey.Public(), "RS256", "shared"),
+	)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+
+	idToken := CreateIDToken(t, issuer, rsaKey, "RS256", "shared")
+	gqToken, err := gq.GQ256SignJWT(&rsaKey.PublicKey, idToken)
+	require.NoError(t, err)
+
+	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, gqToken, false)
+	require.NoError(t, err)
+	require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey)
+
+	psFinder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(publicJwkEntry(t, rsaKey.Public(), "PS256", "shared"))).Fetch}
+	_, err = psFinder.ByToken(context.Background(), issuer, gqToken, false)
+	require.ErrorContains(t, err, "is published for alg RS256 (published for: PS256)", "A GQ token needs a key published for RS256")
+}
+
+func TestByTokenRejectsES256KeyOnOtherCurve(t *testing.T) {
+	issuer := "testIssuer"
+	p384Key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(publicJwkEntry(t, p384Key.Public(), "ES256", "k"))).Fetch}
+
+	token := CreateIDToken(t, issuer, p384Key, "ES256", "k")
+	_, err = finder.ByToken(context.Background(), issuer, token, false)
+	require.ErrorContains(t, err, "algorithm ES256 requires a P-256 key, got P-384")
+}
+
+func TestByKeyIDRespectsUseAndKeyOps(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	n := string(util.Base64EncodeForJWT(rsaKey.N.Bytes()))
+	rsaEntry := func(extra string) string {
+		return fmt.Sprintf(`{"kty":"RSA","n":%q,"e":"AQAB","alg":"RS256","kid":"k"%s}`, n, extra)
+	}
+
+	testCases := []struct {
+		name     string
+		extra    string
+		expError string
+	}{
+		{name: "no use or key_ops"},
+		{name: "use sig", extra: `,"use":"sig"`},
+		{name: "use enc", extra: `,"use":"enc"`, expError: `key is published for use "enc", not "sig"`},
+		{name: "key_ops verify", extra: `,"key_ops":["verify"]`},
+		{name: "key_ops sign and verify", extra: `,"key_ops":["sign","verify"]`},
+		{name: "key_ops encrypt", extra: `,"key_ops":["encrypt"]`, expError: `does not include "verify"`},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwksOf(rsaEntry(tc.extra))).Fetch}
+			pubkeyRecord, err := finder.ByKeyID(context.Background(), "testIssuer", "k", false)
+			if tc.expError != "" {
+				require.ErrorContains(t, err, tc.expError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, rsaKey.Public(), pubkeyRecord.PublicKey)
+		})
+	}
+}
+
+func TestByTokenSkipsEncryptionKeyWithSameKid(t *testing.T) {
+	issuer := "testIssuer"
+	encKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	sigKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	encEntry := fmt.Sprintf(`{"kty":"RSA","n":%q,"e":"AQAB","alg":"RS256","use":"enc","kid":"shared"}`,
+		util.Base64EncodeForJWT(encKey.N.Bytes()))
+	jwks := jwksOf(encEntry, publicJwkEntry(t, sigKey.Public(), "RS256", "shared"))
+
+	var warnings bytes.Buffer
+	finder := &PublicKeyFinder{JwksFunc: NewMockJwksSource(jwks).Fetch}
+	finder.SetErrWriter(&warnings)
+
+	token := CreateIDToken(t, issuer, sigKey, "RS256", "shared")
+	pubkeyRecord, err := finder.ByToken(context.Background(), issuer, token, false)
+	require.NoError(t, err)
+	require.Equal(t, sigKey.Public(), pubkeyRecord.PublicKey)
+	require.Contains(t, warnings.String(), `key is published for use "enc"`)
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/awnumar/memguard"
 	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/openpubkey/openpubkey/jose"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -101,7 +102,7 @@ func (sv *signerVerifier) SignJWT(jwt []byte, opts ...Opts) ([]byte, error) {
 		}
 	}
 
-	origHeaders, payload, signature, err := jws.SplitCompact(jwt)
+	origHeaders, payload, signature, err := oidc.SplitCompact(jwt)
 	if err != nil {
 		return nil, err
 	}

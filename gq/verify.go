@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 )
 
@@ -96,7 +96,7 @@ func (sv *signerVerifier) VerifyJWT(jwt []byte) bool {
 		return false
 	}
 
-	gqHeaders, payload, signature, err := jws.SplitCompact(jwt)
+	gqHeaders, payload, signature, err := oidc.SplitCompact(jwt)
 	if err != nil {
 		return false
 	}

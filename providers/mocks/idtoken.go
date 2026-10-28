@@ -138,7 +138,14 @@ func (t *IDTokenTemplate) IssueTokensWithSubject(subject *Subject) (*oidc.Tokens
 	} else if _, ok := t.SigningKey.Public().(*ecdsa.PublicKey); ok {
 		providerAlg = jwa.ES256()
 	} else if _, ok := t.SigningKey.Public().(ed25519.PublicKey); ok {
-		providerAlg = jwa.EdDSA()
+		switch t.Alg {
+		case "EdDSA":
+			providerAlg = jwa.EdDSA()
+		case "Ed25519":
+			providerAlg = jwa.EdDSAEd25519()
+		default:
+			return nil, fmt.Errorf("unsupported Ed25519 algorithm: %s", t.Alg)
+		}
 	} else {
 		return nil, fmt.Errorf("unsupported public key type")
 	}

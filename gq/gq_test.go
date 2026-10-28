@@ -28,6 +28,7 @@ import (
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
 )
@@ -227,7 +228,7 @@ func TestVerifyModifiedGqProtectedHeader(t *testing.T) {
 	modificationB64 := []byte("YWJjZGVm")  // base64 of "abcdef"
 	gqToken, err := signerVerifier.SignJWT(idToken, WithExtraClaim("claim", gqSignedValue))
 	require.NoError(t, err)
-	gqHeadersB64, payload, signature, err := jws.SplitCompact(gqToken)
+	gqHeadersB64, payload, signature, err := oidc.SplitCompact(gqToken)
 	require.NoError(t, err)
 
 	// Replace base64("123456") with base64("abcdef")
@@ -342,7 +343,7 @@ func generateTestRSAKeyWithExponent(t *testing.T, bits, e int) *rsa.PrivateKey {
 }
 
 func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
-	headers, _, signature, err := jws.SplitCompact(token)
+	headers, _, signature, err := oidc.SplitCompact(token)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +362,7 @@ func modifyTokenPayload(token []byte, audience string) ([]byte, error) {
 }
 
 func modifyTokenProtectedHeaderClaim(token []byte, claimKey string, newValue string) ([]byte, error) {
-	headersB64, payload, signature, err := jws.SplitCompact(token)
+	headersB64, payload, signature, err := oidc.SplitCompact(token)
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +456,7 @@ func createOIDCToken(oidcPrivKey *rsa.PrivateKey, audience string) ([]byte, erro
 }
 
 func getClaimInProtected(claimKey string, token []byte) (any, bool, error) {
-	headersB64, _, _, err := jws.SplitCompact(token)
+	headersB64, _, _, err := oidc.SplitCompact(token)
 	if err != nil {
 		return nil, false, err
 	}

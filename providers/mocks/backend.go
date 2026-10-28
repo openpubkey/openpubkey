@@ -127,7 +127,7 @@ func CreateKeySet(issuer string, alg string, numKeys int) (map[string]crypto.Sig
 			if signingKey, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
 				return nil, nil, err
 			}
-		case "EdDSA":
+		case "EdDSA", "Ed25519":
 			_, signingKey, err = ed25519.GenerateKey(rand.Reader)
 			if err != nil {
 				return nil, nil, err

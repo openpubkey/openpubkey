@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jws"
+	"github.com/openpubkey/openpubkey/oidc"
 	"github.com/openpubkey/openpubkey/providers/mocks"
 	"github.com/openpubkey/openpubkey/util"
 	"github.com/stretchr/testify/require"
@@ -126,7 +127,7 @@ func TestStandardProviders(t *testing.T) {
 			require.NoError(t, err, tc.name)
 			require.NotNil(t, cicHash, tc.name)
 
-			headerB64, payloadB64, _, err := jws.SplitCompact(idToken)
+			headerB64, payloadB64, _, err := oidc.SplitCompact(idToken)
 			require.NoError(t, err, tc.name)
 			headerJson, err := util.Base64DecodeForJWT(headerB64)
 			require.NoError(t, err, tc.name)
