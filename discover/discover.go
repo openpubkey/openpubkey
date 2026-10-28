@@ -159,19 +159,22 @@ func GetJwksByIssuer(ctx context.Context, issuer string, httpClient *http.Client
 	return io.ReadAll(response.Body)
 }
 
-// parseJwks parses a JWKS document. Parsing is lenient in the RFC 7517 section 5
-// sense: an entry that cannot be decoded (for example because it declares an alg
-// this build does not understand) is retained in the set as a jwk.UnsupportedKey
-// placeholder instead of failing the entire set, so the keys we do understand
-// stay usable. Strict parsing drops the whole JWKS on the floor over a single
-// unknown entry.
+// parseJwks parses a JWKS document. Parsing is lenient as described in RFC 7517
+// section 5:
+//
+//	 "Implementations SHOULD ignore JWKs within a JWK Set that use "kty"
+//		(key type) values that are not understood by them, that are missing
+//		required members, or for which values are out of the supported
+//		ranges."
+//
+// Thus, an JWK that cannot be decoded (for example because it declares an kty
+// we don't understand) does not cause the entire set to fail.
 func parseJwks(b []byte) (jwk.Set, error) {
 	return jwk.Parse(b, jwk.WithStrictKeySetParsing(false))
 }
 
-// readCache returns the cached JWKS for issuer if there is a usable entry no
-// older than maxAge. A cache miss, a read error, or an unparseable entry all
-// yield nil — the caller is expected to fall back to a fresh fetch.
+// readCache returns the cached JWKS for issuer. A cache miss, a read error,
+// or parse error return nil. Does not automatically fetch a fresh JWKS.
 func (f *PublicKeyFinder) readCache(ctx context.Context, issuer string, maxAge time.Duration) jwk.Set {
 	if f.CacheConfig.Cache == nil {
 		return nil
@@ -286,17 +289,12 @@ func (f *PublicKeyFinder) ByToken(ctx context.Context, issuer string, token []by
 // JWE "kid" Header Parameter value." - RFC 7517
 // https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
 //
-// Entries that cannot be used (for example ones jwx could not decode) are
-// skipped, as RFC 7517 section 5 recommends, so they never hide a usable key
-// that shares their kid; skipped entries with the kid and duplicated kids are
-// reported on ErrWriter. When the kid is absent, only usable keys count towards
-// the single-key rule.
+// As recommended by RFC 7517 section 5 entries that cannot be used are
+// skipped.
 func (f *PublicKeyFinder) ByKeyID(ctx context.Context, issuer string, keyID string, mayUseCache bool) (*PublicKeyRecord, error) {
 	return f.byAlgAndKeyID(ctx, issuer, "", keyID, mayUseCache)
 }
 
-// jwksEntry is a JWKS key together with its decoded record, or the reason it
-// cannot be used.
 type jwksEntry struct {
 	kid    string
 	hasKid bool
@@ -335,8 +333,8 @@ func (f *PublicKeyFinder) byAlgAndKeyID(ctx context.Context, issuer string, alg 
 	return matches[0].record, nil
 }
 
-// noKeyError explains why none of the entries can verify a token signed with
-// alg: they could not be decoded, or are published for other algs.
+// noKeyError explains why no entry in a JWKS be used to verify a token signed
+// with alg
 func noKeyError(kidEntries []jwksEntry, alg string, keyID string) error {
 	var errs []error
 	var otherAlgs []string
