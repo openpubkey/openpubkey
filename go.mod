@@ -6,7 +6,7 @@ require (
 	filippo.io/bigmod v0.1.0
 	github.com/awnumar/memguard v0.22.3
 	github.com/bits-and-blooms/bitset v1.24.1
-	github.com/go-jose/go-jose/v4 v4.1.4
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/go-webauthn/webauthn v0.8.6
 	github.com/google/uuid v1.6.0
 	github.com/lestrrat-go/jwx/v3 v3.4.0
