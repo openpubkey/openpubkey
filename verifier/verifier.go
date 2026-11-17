@@ -196,17 +196,22 @@ func (v *Verifier) VerifyPKToken(
 		return fmt.Errorf("PK Token rejected by all %d provider verifiers for issuer %s: %w", len(errs), issuer, errors.Join(errs...))
 	}
 
+	expirationPolicy := *v.defaultExpirationPolicy
 	// If expiration has been set for this provider verifier use it to check expiration
 	if providerVerifierExpires, ok := providerVerifier.(ProviderVerifierExpires); ok {
-		if err := providerVerifierExpires.ExpirationPolicy().CheckExpiration(pkt); err != nil {
-			return err
-		}
-	} else if err := v.defaultExpirationPolicy.CheckExpiration(pkt); err != nil {
-		// Otherwise use the default expiration policy
+		expirationPolicy = providerVerifierExpires.ExpirationPolicy()
+		providerVerifier = providerVerifierExpires.ProviderVerifier
+	}
+	if err := expirationPolicy.CheckExpiration(pkt); err != nil {
 		return err
 	}
 
-	if v.requireRefreshedIDToken {
+	// Make sure to check the signature on the refreshed ID Token if we use
+	// it to extend the expiration. This happens when we use the OIDC_REFRESHED
+	// policy as this policy uses the exp claim in the refreshed ID Token once
+	// the original ID Token has expired.
+	usesRefreshedIDToken := expirationPolicy == ExpirationPolicies.OIDC_REFRESHED && pkt.FreshIDToken != nil
+	if v.requireRefreshedIDToken || usesRefreshedIDToken {
 		if reProviderVerifier, ok := providerVerifier.(RefreshableProviderVerifier); !ok {
 			return fmt.Errorf("refreshed ID Token verification required but provider verifier (issuer=%s) does not support it", issuer)
 		} else {
