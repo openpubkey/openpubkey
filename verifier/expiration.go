@@ -50,7 +50,8 @@ var ExpirationPolicies = struct {
 }
 
 // CheckExpiration checks the expiration of the PK Token against the expiration
-// policy.
+// policy. This only checks exp, iat claims  it does not check the signature
+// on the ID Token.
 func (ep ExpirationPolicy) CheckExpiration(pkt *pktoken.PKToken) error {
 	idt, err := oidc.NewJwt(pkt.OpToken)
 	if err != nil {
