@@ -20,7 +20,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwa"
 	"github.com/openpubkey/openpubkey/client"
@@ -269,6 +272,123 @@ func TestVerifierExpirationPolicy(t *testing.T) {
 	require.NoError(t, err)
 	err = pktVerifierWithExp.VerifyPKToken(context.Background(), pkt)
 	require.ErrorContains(t, err, "the ID token has expired (exp = 1)")
+}
+
+func TestVerifierRefreshedIDTokenExpirationPolicy(t *testing.T) {
+	const (
+		noRefresh    = ""
+		opRefresh    = "issued by the OP"
+		unsigned     = "unsigned"
+		otherSubject = "issued by the OP for another subject"
+		expired      = "issued by the OP but expired"
+	)
+	oidcRefreshed := verifier.ExpirationPolicies.OIDC_REFRESHED
+	maxAge24h := verifier.ExpirationPolicies.MAX_AGE_24HOURS
+
+	testCases := []struct {
+		name             string
+		policy           verifier.ExpirationPolicy
+		requireRefreshed bool
+		idTokenExpired   bool
+		refreshedIDToken string
+		nonRefreshableOp bool
+		expError         string
+	}{
+		{name: "oidc_refreshed, ID token valid, no refreshed ID token",
+			policy: oidcRefreshed, refreshedIDToken: noRefresh},
+		{name: "oidc_refreshed, ID token valid, refreshed ID token from OP",
+			policy: oidcRefreshed, refreshedIDToken: opRefresh},
+		{name: "oidc_refreshed, ID token valid, unsigned refreshed ID token",
+			policy: oidcRefreshed, refreshedIDToken: unsigned, expError: "no matching public key"},
+		{name: "oidc_refreshed, ID token expired, no refreshed ID token",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: noRefresh, expError: "ID token is expired and no refresh token found"},
+		{name: "oidc_refreshed, ID token expired, refreshed ID token from OP",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: opRefresh},
+		{name: "oidc_refreshed, ID token expired, unsigned refreshed ID token",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: unsigned, expError: "no matching public key"},
+		{name: "oidc_refreshed, ID token expired, refreshed ID token for another subject",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: otherSubject, expError: "refreshed ID Token is for different subject"},
+		{name: "oidc_refreshed, ID token expired, refreshed ID token expired",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: expired, expError: "the ID token has expired (exp = 2)"},
+		{name: "oidc_refreshed, provider cannot verify refreshed ID tokens",
+			policy: oidcRefreshed, idTokenExpired: true, refreshedIDToken: unsigned, nonRefreshableOp: true, expError: "does not support it"},
+		{name: "24h ignores the refreshed ID token",
+			policy: maxAge24h, refreshedIDToken: unsigned},
+		{name: "24h with RequireRefreshedIDToken, no refreshed ID token",
+			policy: maxAge24h, requireRefreshed: true, refreshedIDToken: noRefresh, expError: "no refreshed ID Token set"},
+		{name: "24h with RequireRefreshedIDToken, refreshed ID token from OP",
+			policy: maxAge24h, requireRefreshed: true, refreshedIDToken: opRefresh},
+		{name: "24h with RequireRefreshedIDToken, unsigned refreshed ID token",
+			policy: maxAge24h, requireRefreshed: true, refreshedIDToken: unsigned, expError: "no matching public key"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			clientID := "verifier"
+			op, backend, err := NewMockOpenIdProvider(false, "issuer-provider", "RS256", clientID, map[string]any{"aud": clientID})
+			require.NoError(t, err)
+			if tc.idTokenExpired {
+				backend.IDTokenTemplate.ExtraClaims = map[string]any{"exp": 1}
+			}
+			opkClient, err := client.New(op)
+			require.NoError(t, err)
+			pkt, err := opkClient.Auth(ctx)
+			require.NoError(t, err)
+
+			refreshWithClaims := func(claims map[string]any) {
+				backend.IDTokenTemplate.ExtraClaims = claims
+				pkt, err = opkClient.Refresh(ctx)
+				require.NoError(t, err)
+			}
+			switch tc.refreshedIDToken {
+			case opRefresh:
+				refreshWithClaims(nil)
+			case otherSubject:
+				refreshWithClaims(map[string]any{"sub": "someone-else"})
+			case expired:
+				refreshWithClaims(map[string]any{"exp": 2})
+			case unsigned:
+				pkt.FreshIDToken = unsignedIDToken(clientID)
+			}
+
+			var pv verifier.ProviderVerifier = op
+			if tc.nonRefreshableOp {
+				pv = providers.NewNonRefreshableOp(op.(*providers.MockProvider))
+			}
+			var opts []verifier.VerifierOpts
+			if tc.requireRefreshed {
+				opts = append(opts, verifier.RequireRefreshedIDToken())
+			}
+
+			// Callers can set the policy per provider verifier, as opkssh does,
+			// or as the verifier's default.
+			perProvider, err := verifier.NewFromMany(
+				[]verifier.ProviderVerifier{verifier.ProviderVerifierExpires{ProviderVerifier: pv, Expiration: tc.policy}}, opts...)
+			require.NoError(t, err)
+			asDefault, err := verifier.New(pv, append(opts, verifier.WithExpirationPolicy(tc.policy))...)
+			require.NoError(t, err)
+
+			for name, v := range map[string]*verifier.Verifier{"per-provider policy": perProvider, "default policy": asDefault} {
+				err := v.VerifyPKToken(ctx, pkt)
+				if tc.expError != "" {
+					require.ErrorContains(t, err, tc.expError, name)
+				} else {
+					require.NoError(t, err, name)
+				}
+			}
+		})
+	}
+}
+
+// unsignedIDToken returns an ID token for the mock OP's subject with a
+// future exp, an alg of none and no valid signature.
+func unsignedIDToken(aud string) []byte {
+	b64 := base64.RawURLEncoding.EncodeToString
+	now := time.Now()
+	payload := fmt.Sprintf(`{"iss":"issuer-provider","sub":"me","aud":%q,"iat":%d,"exp":%d}`,
+		aud, now.Unix(), now.Add(10*365*24*time.Hour).Unix())
+	return []byte(b64([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + b64([]byte(payload)) + "." + b64([]byte("forged")))
 }
 
 func TestCICSignature(t *testing.T) {
